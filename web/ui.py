@@ -1180,7 +1180,27 @@ UI_HTML = r"""<!DOCTYPE html>
       color: #fff;
       font-family: 'JetBrains Mono', monospace;
       line-height: 1.2;
-      transition: color 0.3s;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .pulse-val-updated {
+      color: var(--cyan) !important;
+      text-shadow: 0 0 14px rgba(6, 182, 212, 0.8);
+      transform: scale(1.08);
+      display: inline-block;
+    }
+    .live-card-enter {
+      animation: liveCardEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    @keyframes liveCardEnter {
+      from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .live-card-leave {
+      animation: liveCardLeave 0.4s ease-out forwards;
+    }
+    @keyframes liveCardLeave {
+      from { opacity: 1; transform: scale(1); max-height: 250px; }
+      to { opacity: 0; transform: scale(0.92); max-height: 0; margin-bottom: 0; padding: 0; }
     }
     .pulse-stat-label {
       font-size: 0.74rem;
@@ -2316,10 +2336,10 @@ UI_HTML = r"""<!DOCTYPE html>
         <!-- 2. CATEGORIES -->
         <div class="category-pills-bar">
           <a class="cat-pill" onclick="navigate('/gaming')">🎮 Gaming <span class="cat-pill-count" id="count-gaming">LFG</span></a>
-          <a class="cat-pill" onclick="navigate('/music')">🎵 Music <span class="cat-pill-count">Hi-Fi</span></a>
+          <a class="cat-pill" onclick="navigate('/music')">🎵 Music <span class="cat-pill-count" id="count-music">Hi-Fi</span></a>
           <a class="cat-pill" onclick="navigate('/creators')">🎨 Creators <span class="cat-pill-count" id="count-creators">Portfolios</span></a>
           <a class="cat-pill" onclick="navigate('/projects')">🚀 Projects <span class="cat-pill-count" id="count-projects">Active</span></a>
-          <a class="cat-pill" onclick="navigate('/media')">🎬 Media <span class="cat-pill-count">Watch</span></a>
+          <a class="cat-pill" onclick="navigate('/media')">🎬 Media <span class="cat-pill-count" id="count-media">Watch</span></a>
           <a class="cat-pill" onclick="navigate('/events')">📅 Events <span class="cat-pill-count" id="count-events">Events</span></a>
           <a class="cat-pill" onclick="navigate('/resources')">📚 Resources <span class="cat-pill-count" id="count-resources">LUTs</span></a>
           <a class="cat-pill" onclick="navigate('/discover/constellation')">🌌 Constellation <span class="cat-pill-count">Galaxy</span></a>
@@ -2332,7 +2352,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="pulse-header">
             <div class="pulse-title-wrap">
               <h3>✦ RAI PULSE</h3>
-              <p>What's happening across the Raivora right now.</p>
+              <p>What's happening across the Raivora right now. <span id="pulse-last-updated" style="color:var(--text-muted); font-size:0.8rem; margin-left:0.5rem;">Updated just now</span></p>
             </div>
             <div class="pulse-badge-live">
               <span class="live-dot"></span>
@@ -2615,24 +2635,39 @@ UI_HTML = r"""<!DOCTYPE html>
       }, 60);
     }
 
+    function formatTimeAgo(ts) {
+      if (!ts) return 'just now';
+      const d = new Date(ts);
+      const diffMs = Date.now() - d.getTime();
+      const secs = Math.floor(diffMs / 1000);
+      if (secs < 5) return 'just now';
+      if (secs < 60) return `${secs}s ago`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      return `${Math.floor(hrs / 24)}d ago`;
+    }
+
     function updatePulseUI(data) {
       if (!data) return;
       const setMetric = (id, val) => {
         const el = document.getElementById(id);
         if (!el) return;
-        if (val === null || val === undefined) {
-          el.innerText = '—';
-          el.title = 'Data unavailable';
-        } else {
-          el.innerText = Number(val).toLocaleString();
+        const textVal = (val === null || val === undefined) ? '—' : Number(val).toLocaleString();
+        if (el.innerText !== textVal) {
+          el.innerText = textVal;
+          el.classList.add('pulse-val-updated');
+          setTimeout(() => el.classList.remove('pulse-val-updated'), 700);
         }
+        el.title = (val === null || val === undefined) ? 'Data temporarily unavailable' : '';
       };
 
       setMetric('pulse-members', data.members_online);
-      setMetric('pulse-voice', data.in_voice);
-      setMetric('pulse-listening', data.listening);
-      setMetric('pulse-gaming', data.gaming);
-      setMetric('pulse-creating', data.creating);
+      setMetric('pulse-voice', data.users_in_voice !== undefined ? data.users_in_voice : data.in_voice);
+      setMetric('pulse-listening', data.music_listeners !== undefined ? data.music_listeners : data.listening);
+      setMetric('pulse-gaming', data.gaming_players !== undefined ? data.gaming_players : data.gaming);
+      setMetric('pulse-creating', data.creators_active !== undefined ? data.creators_active : data.creating);
       setMetric('pulse-projects', data.active_projects);
       setMetric('pulse-events', data.live_events);
 
@@ -2641,13 +2676,19 @@ UI_HTML = r"""<!DOCTYPE html>
       const setDnaBar = (cat, pct) => {
         const fillEl = document.getElementById(`dna-fill-${cat}`);
         const pctEl = document.getElementById(`dna-pct-${cat}`);
-        if (fillEl && pct !== null && pct !== undefined) fillEl.style.width = pct + '%';
+        if (fillEl && pct !== null && pct !== undefined) fillEl.style.width = Math.min(100, Math.max(0, pct)) + '%';
         if (pctEl && pct !== null && pct !== undefined) pctEl.innerText = pct > 0 ? pct + '%' : '—';
       };
       setDnaBar('voice', dna.voice);
       setDnaBar('gaming', dna.gaming);
       setDnaBar('music', dna.music);
       setDnaBar('creating', dna.creating);
+
+      // Update timestamp
+      const updatedEl = document.getElementById('pulse-last-updated');
+      if (updatedEl && data.updated_at) {
+        updatedEl.innerText = `Updated ${formatTimeAgo(data.updated_at)}`;
+      }
     }
 
     function updateLiveNowUI(sessions) {
@@ -2910,37 +2951,11 @@ UI_HTML = r"""<!DOCTYPE html>
           `).join('');
         } else if (gGrid) {
           gGrid.innerHTML = `
-            <div class="discovery-card">
-              <div>
-                <div class="card-top">
-                  <div class="card-media-icon">🎮</div>
-                  <div class="card-heading">
-                    <div class="card-name">BGMI Competitive Squad</div>
-                    <div class="card-subtitle">RANKED MATCHMAKING</div>
-                  </div>
-                </div>
-                <div class="card-desc">3 / 4 Players • Looking for aggressive fragger with working mic.</div>
-                <div class="card-tags"><span class="pill pill-green">ACTIVE</span></div>
-              </div>
-              <div class="card-bottom-actions">
-                <button class="btn btn-primary btn-sm" style="width:100%;" onclick="navigate('/gaming')">Join Session</button>
-              </div>
-            </div>
-            <div class="discovery-card">
-              <div>
-                <div class="card-top">
-                  <div class="card-media-icon">🎯</div>
-                  <div class="card-heading">
-                    <div class="card-name">Valorant Premier Team</div>
-                    <div class="card-subtitle">TOURNAMENT BRACKET</div>
-                  </div>
-                </div>
-                <div class="card-desc">4 / 5 Players • Ascendant/Immortal scrims scheduled this evening.</div>
-                <div class="card-tags"><span class="pill pill-cyan">PREMIER</span></div>
-              </div>
-              <div class="card-bottom-actions">
-                <button class="btn btn-outline btn-sm" style="width:100%;" onclick="navigate('/gaming')">View Team</button>
-              </div>
+            <div class="state-box" style="grid-column:1/-1;">
+              <div class="state-icon">🎮</div>
+              <div class="state-title">No Active Gaming Squads</div>
+              <div class="state-desc">No squads looking for players right now. Host a squad or queue with Rai LFG.</div>
+              <button class="btn btn-primary btn-sm" onclick="openCreateSpaceModal()">+ Host a Squad</button>
             </div>
           `;
         }
@@ -3022,21 +3037,11 @@ UI_HTML = r"""<!DOCTYPE html>
           `).join('');
         } else if (eGrid) {
           eGrid.innerHTML = `
-            <div class="discovery-card">
-              <div>
-                <div class="card-top">
-                  <div class="card-media-icon">🎬</div>
-                  <div class="card-heading">
-                    <div class="card-name">Weekend Anime Watch Party</div>
-                    <div class="card-subtitle">MEDIA LOUNGE</div>
-                  </div>
-                </div>
-                <div class="card-desc">Community cinema watch party in Discord Cinema VC every Saturday.</div>
-                <div class="card-tags"><span class="pill pill-pink">SATURDAY 8 PM</span></div>
-              </div>
-              <div class="card-bottom-actions">
-                <a href="https://discord.gg/raivora" target="_blank" class="btn btn-discord btn-sm" style="width:100%;">Join Discord Cinema</a>
-              </div>
+            <div class="state-box" style="grid-column:1/-1;">
+              <div class="state-icon">📅</div>
+              <div class="state-title">No Scheduled Events</div>
+              <div class="state-desc">No events are currently scheduled across community channels.</div>
+              <button class="btn btn-primary btn-sm" onclick="openCreateSpaceModal()">+ Schedule Event</button>
             </div>
           `;
         }
@@ -4505,6 +4510,20 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="skeleton-card"></div>
           <div class="skeleton-card"></div>
         </div>
+
+        <div class="section-title" style="margin-top:2.5rem;">
+          <div class="title-group">
+            <span class="title-text">⚡ Realtime Gateway & WebSocket Diagnostics</span>
+            <span class="pill pill-cyan">EVENT BUS ACTIVE</span>
+          </div>
+        </div>
+        <p style="color:var(--text-muted); margin-bottom:1.5rem;">
+          Full-duplex WebSocket stream metrics, connected client sessions, and live event broadcast rates.
+        </p>
+
+        <div class="discovery-grid" id="realtime-diag-grid">
+          <div class="skeleton-card"></div>
+        </div>
       `;
 
       try {
@@ -4529,6 +4548,46 @@ UI_HTML = r"""<!DOCTYPE html>
             <div class="discovery-card"><div class="card-name">Database (SQLite WAL)</div><span class="pill pill-green">ACTIVE</span></div>
             <div class="discovery-card"><div class="card-name">Voice Audio Engine</div><span class="pill pill-green">OPERATIONAL</span></div>
             <div class="discovery-card"><div class="card-name">Security Tripwires</div><span class="pill pill-green">ARMED</span></div>
+          `;
+        }
+      } catch (e) {}
+
+      // Fetch Realtime Gateway Diagnostics
+      try {
+        const dRes = await fetch('/api/realtime/diagnostics');
+        const dJson = await dRes.json();
+        const dGrid = document.getElementById('realtime-diag-grid');
+        if (dGrid && dJson.success && dJson.data) {
+          const d = dJson.data;
+          dGrid.innerHTML = `
+            <div class="discovery-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <div class="card-name">Gateway State</div>
+                <span class="pill pill-green">${d.status}</span>
+              </div>
+              <div class="card-desc">Transport: <strong>${activeTransport.toUpperCase()}</strong> • Uptime: ${d.uptime_seconds}s</div>
+            </div>
+            <div class="discovery-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <div class="card-name">Active Streams</div>
+                <span class="pill pill-cyan">${d.connected_websocket_clients} WS / ${d.connected_sse_clients} SSE</span>
+              </div>
+              <div class="card-desc">Total Connections Served: <strong>${d.total_connections_served}</strong></div>
+            </div>
+            <div class="discovery-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <div class="card-name">Events Dispatched</div>
+                <span class="pill pill-purple">${d.total_events_dispatched}</span>
+              </div>
+              <div class="card-desc">Cadence: <strong>${d.heartbeat_interval_sec}s</strong> • Dropped: ${d.dropped_events_count}</div>
+            </div>
+            <div class="discovery-card">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                <div class="card-name">Synchronization</div>
+                <span class="pill pill-green">SYNCED</span>
+              </div>
+              <div class="card-desc">Last Event: <strong>${d.last_event ? d.last_event.event : 'Initial Sync'}</strong></div>
+            </div>
           `;
         }
       } catch (e) {}
@@ -5103,54 +5162,303 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // ==========================================
-    // 29D. REALTIME SSE STREAM & STATUS PILL
+    // 29D. REALTIME WEBSOCKET & SSE GATEWAY CLIENT
     // ==========================================
+    let liveSocket = null;
     let eventSource = null;
+    let wsRetryCount = 0;
     let sseRetryCount = 0;
+    let lastEventReceivedAt = Date.now();
+    let pollingInterval = null;
+    let activeTransport = 'ws'; // 'ws', 'sse', 'poll'
 
     function initRealtimeStream() {
-      if (typeof EventSource === 'undefined') {
-        setRealtimeStatus('unavailable', 'SSE Not Supported');
+      connectWebSocket();
+
+      // Stale data watcher: after 45s without telemetry, mark unavailable
+      setInterval(() => {
+        const timeSince = Date.now() - lastEventReceivedAt;
+        if (timeSince > 45000 && activeTransport !== 'disconnected') {
+          setRealtimeStatus('unavailable', 'Data temporarily unavailable');
+        }
+      }, 10000);
+    }
+
+    function connectWebSocket() {
+      if (typeof WebSocket === 'undefined') {
+        fallbackToSSE();
         return;
       }
 
-      function connect() {
-        try {
-          eventSource = new EventSource('/api/realtime/stream');
+      try {
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${proto}//${window.location.host}/api/realtime/ws`;
+        liveSocket = new WebSocket(wsUrl);
 
-          eventSource.onopen = () => {
-            sseRetryCount = 0;
-            setRealtimeStatus('live', 'Live');
-          };
+        liveSocket.onopen = () => {
+          wsRetryCount = 0;
+          activeTransport = 'ws';
+          lastEventReceivedAt = Date.now();
+          setRealtimeStatus('live', 'Live');
+          // Request instant synchronization
+          liveSocket.send(JSON.stringify({ action: 'sync' }));
+        };
 
-          eventSource.addEventListener('pulse', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              if (data && data.pulse) updatePulseUI(data.pulse);
-              if (data && data.live) updateLiveNowUI(data.live);
-              if (data && data.activity) updateActivityUI(data.activity);
-            } catch (err) {
-              console.warn('Realtime parse error:', err);
-            }
-          });
+        liveSocket.onmessage = (e) => {
+          lastEventReceivedAt = Date.now();
+          try {
+            const envelope = JSON.parse(e.data);
+            handleRealtimeEvent(envelope.event, envelope.data);
+          } catch (err) {
+            console.debug('WS parse error:', err);
+          }
+        };
 
-          eventSource.onerror = () => {
-            sseRetryCount++;
-            if (sseRetryCount > 3) {
-              setRealtimeStatus('unavailable', 'Live data unavailable');
-            } else {
-              setRealtimeStatus('reconnecting', 'Reconnecting…');
-            }
-            if (eventSource) {
-              eventSource.close();
-              setTimeout(connect, Math.min(5000 * sseRetryCount, 30000));
-            }
-          };
-        } catch (e) {
-          setRealtimeStatus('unavailable', 'Live data unavailable');
-        }
+        liveSocket.onerror = (e) => {
+          console.debug('WebSocket error encountered, fallback prepared.');
+        };
+
+        liveSocket.onclose = () => {
+          wsRetryCount++;
+          if (wsRetryCount > 3) {
+            fallbackToSSE();
+          } else {
+            setRealtimeStatus('reconnecting', 'Reconnecting…');
+            const delay = Math.min(2000 * Math.pow(2, wsRetryCount - 1), 30000);
+            setTimeout(connectWebSocket, delay);
+          }
+        };
+      } catch (err) {
+        fallbackToSSE();
       }
-      connect();
+    }
+
+    function fallbackToSSE() {
+      if (liveSocket) {
+        try { liveSocket.close(); } catch(e){}
+        liveSocket = null;
+      }
+      if (typeof EventSource === 'undefined') {
+        fallbackToPolling();
+        return;
+      }
+
+      try {
+        eventSource = new EventSource('/api/realtime/stream');
+        activeTransport = 'sse';
+
+        eventSource.onopen = () => {
+          sseRetryCount = 0;
+          lastEventReceivedAt = Date.now();
+          setRealtimeStatus('live', 'Live (SSE)');
+        };
+
+        eventSource.addEventListener('init', (e) => {
+          lastEventReceivedAt = Date.now();
+          try {
+            const data = JSON.parse(e.data);
+            handleRealtimeEvent('INIT', data);
+          } catch(err){}
+        });
+
+        eventSource.addEventListener('pulse', (e) => {
+          lastEventReceivedAt = Date.now();
+          try {
+            const data = JSON.parse(e.data);
+            handleRealtimeEvent('PULSE_UPDATED', data.pulse || data);
+            if (data.live) handleRealtimeEvent('LIVE_SESSIONS_SYNC', data.live);
+            if (data.activity) handleRealtimeEvent('ACTIVITY_UPDATED', data.activity);
+          } catch(err){}
+        });
+
+        eventSource.addEventListener('PULSE_UPDATED', (e) => {
+          lastEventReceivedAt = Date.now();
+          try {
+            const data = JSON.parse(e.data);
+            handleRealtimeEvent('PULSE_UPDATED', data.data || data);
+          } catch(err){}
+        });
+
+        eventSource.addEventListener('LIVE_SESSION_ADDED', (e) => {
+          lastEventReceivedAt = Date.now();
+          try {
+            const data = JSON.parse(e.data);
+            handleRealtimeEvent('LIVE_SESSION_ADDED', data.data || data);
+          } catch(err){}
+        });
+
+        eventSource.addEventListener('LIVE_SESSION_REMOVED', (e) => {
+          lastEventReceivedAt = Date.now();
+          try {
+            const data = JSON.parse(e.data);
+            handleRealtimeEvent('LIVE_SESSION_REMOVED', data.data || data);
+          } catch(err){}
+        });
+
+        eventSource.onerror = () => {
+          sseRetryCount++;
+          if (sseRetryCount > 3) {
+            fallbackToPolling();
+          } else {
+            setRealtimeStatus('reconnecting', 'Reconnecting…');
+            if (eventSource) eventSource.close();
+            setTimeout(fallbackToSSE, Math.min(4000 * sseRetryCount, 30000));
+          }
+        };
+      } catch(e) {
+        fallbackToPolling();
+      }
+    }
+
+    function fallbackToPolling() {
+      if (eventSource) {
+        try { eventSource.close(); } catch(e){}
+        eventSource = null;
+      }
+      activeTransport = 'poll';
+      setRealtimeStatus('live', 'Live (Polling)');
+
+      if (!pollingInterval) {
+        pollingInterval = setInterval(async () => {
+          try {
+            const pRes = await fetch('/api/pulse');
+            const pData = await pRes.json();
+            if (pData.success && pData.data) {
+              updatePulseUI(pData.data);
+              lastEventReceivedAt = Date.now();
+            }
+          } catch(e) {
+            setRealtimeStatus('unavailable', 'Live data unavailable');
+          }
+        }, 12000);
+      }
+    }
+
+    function handleRealtimeEvent(eventType, data) {
+      if (!data) return;
+
+      if (eventType === 'INIT' || eventType === 'SYNC') {
+        if (data.pulse) updatePulseUI(data.pulse);
+        if (data.live_sessions) updateLiveNowUI(data.live_sessions);
+        if (data.category_counts) updateCategoryCountsUI(data.category_counts);
+        if (data.recent_activity) updateActivityUI(data.recent_activity);
+      } else if (eventType === 'PULSE_UPDATED') {
+        updatePulseUI(data);
+      } else if (eventType === 'VOICE_UPDATED') {
+        if (data.users_in_voice !== undefined) {
+          updatePartialMetric('pulse-voice', data.users_in_voice);
+          updatePartialDna('voice', data.users_in_voice);
+        }
+      } else if (eventType === 'MEMBER_COUNT_UPDATED') {
+        if (data.members_online !== undefined) {
+          updatePartialMetric('pulse-members', data.members_online);
+        }
+      } else if (eventType === 'MUSIC_UPDATED') {
+        if (data.music_listeners !== undefined) {
+          updatePartialMetric('pulse-listening', data.music_listeners);
+          updatePartialDna('music', data.music_listeners);
+        }
+      } else if (eventType === 'LIVE_SESSION_ADDED') {
+        insertLiveSessionCard(data);
+      } else if (eventType === 'LIVE_SESSION_REMOVED') {
+        removeLiveSessionCard(data.id);
+      } else if (eventType === 'LIVE_SESSIONS_SYNC') {
+        updateLiveNowUI(data);
+      } else if (eventType === 'CATEGORY_COUNTS_UPDATED') {
+        updateCategoryCountsUI(data);
+      } else if (eventType === 'ACTIVITY_UPDATED') {
+        updateActivityUI(data);
+      }
+    }
+
+    function updatePartialMetric(id, val) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const textVal = (val === null || val === undefined) ? '—' : Number(val).toLocaleString();
+      if (el.innerText !== textVal) {
+        el.innerText = textVal;
+        el.classList.add('pulse-val-updated');
+        setTimeout(() => el.classList.remove('pulse-val-updated'), 700);
+      }
+    }
+
+    function updatePartialDna(cat, val) {
+      const fillEl = document.getElementById(`dna-fill-${cat}`);
+      const pctEl = document.getElementById(`dna-pct-${cat}`);
+      if (fillEl && val !== null && val !== undefined) {
+        fillEl.style.width = Math.min(100, Math.max(0, val)) + '%';
+      }
+      if (pctEl && val !== null && val !== undefined) {
+        pctEl.innerText = val > 0 ? val + '%' : '—';
+      }
+    }
+
+    function updateCategoryCountsUI(counts) {
+      if (!counts) return;
+      const setPill = (id, val) => {
+        const el = document.getElementById(id);
+        if (el && val !== undefined && val !== null) el.innerText = val;
+      };
+      setPill('count-gaming', counts.gaming);
+      setPill('count-music', counts.music);
+      setPill('count-creators', counts.creators);
+      setPill('count-projects', counts.projects);
+      setPill('count-media', counts.media);
+      setPill('count-events', counts.events);
+      setPill('count-resources', counts.resources);
+    }
+
+    function insertLiveSessionCard(s) {
+      const grid = document.getElementById('live-now-grid');
+      if (!grid) return;
+      if (grid.querySelector('.state-box')) {
+        grid.innerHTML = '';
+      }
+      const existing = document.getElementById(`session-card-${s.id}`);
+      if (existing) {
+        existing.classList.add('pulse-val-updated');
+        setTimeout(() => existing.classList.remove('pulse-val-updated'), 700);
+        return;
+      }
+      const cardHtml = `
+        <div class="live-now-card live-card-enter" id="session-card-${s.id}">
+          <div>
+            <div class="live-now-top">
+              <span class="live-now-type">
+                <span class="live-dot"></span> ${s.type || 'SESSION'}
+              </span>
+              <span class="tag-badge" style="font-size:0.7rem;">👥 ${s.participants || (s.participant_count ? s.participant_count + ' active' : '1 active')}</span>
+            </div>
+            <div class="live-now-title">${s.title}</div>
+            <div class="live-now-community">📍 ${s.community || 'Rai Community OS'}</div>
+          </div>
+          <div>
+            <div class="live-now-meta">
+              <span>Started: Live now</span>
+              <span class="pill pill-green" style="font-size:0.68rem;">ACTIVE</span>
+            </div>
+            <div class="card-bottom-actions" style="margin-top:0.8rem;">
+              <button class="btn btn-primary btn-sm" style="flex:1;" onclick="navigate('${s.destination || '/communities'}')">${s.action_label || 'Join Space'} ↗</button>
+              <a href="https://discord.gg/raivora" target="_blank" class="btn btn-discord btn-sm" style="flex:1;">Join Discord</a>
+            </div>
+          </div>
+        </div>
+      `;
+      grid.insertAdjacentHTML('afterbegin', cardHtml);
+    }
+
+    function removeLiveSessionCard(sessionId) {
+      const card = document.getElementById(`session-card-${sessionId}`);
+      if (card) {
+        card.classList.add('live-card-leave');
+        setTimeout(() => {
+          if (card.parentNode) card.parentNode.removeChild(card);
+          const grid = document.getElementById('live-now-grid');
+          if (grid && grid.children.length === 0) {
+            updateLiveNowUI([]);
+          }
+        }, 400);
+      }
     }
 
     function setRealtimeStatus(state, label) {

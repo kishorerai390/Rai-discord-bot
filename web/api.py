@@ -19,6 +19,7 @@ from config import (
     DISCORD_CLIENT_ID,
 )
 from web.auth import AuthManager, SESSION_COOKIE_NAME
+from web.realtime import RealtimeGateway
 
 if TYPE_CHECKING:
     from database.database import Database
@@ -83,9 +84,10 @@ class SimpleRateLimiter:
 class ApiRouter:
     """Routes and controllers for the Rai Community OS Web API."""
 
-    def __init__(self, db: Database, bot: Optional[SentinelBot] = None):
+    def __init__(self, db: Database, bot: Optional[SentinelBot] = None, realtime: Optional[RealtimeGateway] = None):
         self.db = db
         self.bot = bot
+        self.realtime = realtime or RealtimeGateway(db, bot)
         self.auth = AuthManager(db, bot)
         self.rate_limiter = SimpleRateLimiter(limit=120, window_seconds=60.0)
 
@@ -258,198 +260,21 @@ class ApiRouter:
 
     async def get_pulse(self, request: web.Request) -> web.Response:
         """Returns real aggregate community heartbeat metrics."""
-        pulse_data = await self._fetch_pulse_data()
+        pulse_data = await self.realtime.collect_pulse_metrics()
         return json_success(pulse_data)
 
     async def _fetch_pulse_data(self) -> Dict[str, Any]:
         """Fetches real pulse telemetry. Never invents data. Never converts unknown to 0."""
-        members_online = None
-        in_voice = None
-
-        if self.bot and hasattr(self.bot, "is_ready") and self.bot.is_ready():
-            try:
-                guild = self.bot.get_guild(COMMUNITY_GUILD_ID)
-                if guild and hasattr(guild, "members"):
-                    online_m = [
-                        m for m in guild.members
-                        if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")
-                    ]
-                    members_online = len(online_m)
-                    v_members = sum(len(vc.members) for vc in getattr(guild, "voice_channels", []) if hasattr(vc, "members"))
-                    in_voice = v_members
-            except Exception as e:
-                logger.debug(f"Pulse bot presence query: {e}")
-
-        # Music listeners and playback
-        music_listeners = None
-        is_music_playing = False
-        track_name = None
-        if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
-            try:
-                for vc in self.bot.voice_clients:
-                    if hasattr(vc, "is_playing") and vc.is_playing():
-                        is_music_playing = True
-                        if hasattr(vc, "channel") and hasattr(vc.channel, "members"):
-                            music_listeners = (music_listeners or 0) + max(0, len([m for m in vc.channel.members if not getattr(m, "bot", False)]))
-            except Exception as e:
-                logger.debug(f"Pulse music query: {e}")
-
-        # Active projects count
-        active_projects = 0
-        try:
-            async with self.db._db.execute("SELECT COUNT(*) FROM projects WHERE status = 'active'") as cur:
-                row = await cur.fetchone()
-                active_projects = row[0] if row else 0
-        except Exception:
-            pass
-
-        # Scheduled events count
-        live_events = 0
-        try:
-            async with self.db._db.execute("SELECT COUNT(*) FROM community_events WHERE status = 'scheduled'") as cur:
-                row = await cur.fetchone()
-                live_events = row[0] if row else 0
-        except Exception:
-            pass
-
-        # Active gaming squads & players
-        gaming_squads = 0
-        gaming_players = 0
-        try:
-            async with self.db._db.execute("SELECT COUNT(*), SUM(current_players) FROM community_lfg WHERE status = 'OPEN'") as cur:
-                row = await cur.fetchone()
-                gaming_squads = row[0] if row else 0
-                gaming_players = row[1] if (row and row[1]) else 0
-        except Exception:
-            pass
-
-        # Creators count
-        creators_count = 0
-        try:
-            async with self.db._db.execute("SELECT COUNT(DISTINCT user_id) FROM creator_portfolios") as cur:
-                row = await cur.fetchone()
-                creators_count = row[0] if row else 0
-        except Exception:
-            pass
-
-        # Real Activity DNA calculation
-        total_act = (in_voice or 0) + gaming_players + (music_listeners or 0) + creators_count
-        dna = {}
-        if total_act > 0:
-            if in_voice:
-                dna["voice_pct"] = round((in_voice / total_act) * 100)
-            if gaming_players:
-                dna["gaming_pct"] = round((gaming_players / total_act) * 100)
-            if music_listeners:
-                dna["music_pct"] = round((music_listeners / total_act) * 100)
-            if creators_count:
-                dna["creating_pct"] = round((creators_count / total_act) * 100)
-
-        return {
-            "members_online": members_online,
-            "users_in_voice": in_voice,
-            "music_listeners": music_listeners,
-            "is_music_playing": is_music_playing,
-            "track_name": track_name,
-            "gaming_squads": gaming_squads,
-            "gaming_players": gaming_players,
-            "creators_active": creators_count,
-            "active_projects": active_projects,
-            "live_events": live_events,
-            "activity_dna": dna,
-            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        }
+        return await self.realtime.collect_pulse_metrics()
 
     async def get_live_sessions(self, request: web.Request) -> web.Response:
-        """Returns active live sessions across Gaming, Music, Projects, and Events."""
-        sessions = []
-
-        # 1. Gaming LFG Sessions
-        try:
-            async with self.db._db.execute("SELECT * FROM community_lfg WHERE status = 'OPEN' ORDER BY id DESC LIMIT 6") as cur:
-                lfg_rows = await cur.fetchall()
-            for g in lfg_rows:
-                gd = dict(g)
-                sessions.append({
-                    "id": f"lfg_{gd['id']}",
-                    "type": "Gaming Squad",
-                    "icon": "🎮",
-                    "title": f"{gd.get('game_name')}: {gd.get('mode', 'Ranked')}",
-                    "community": "Vora Gaming Realm",
-                    "participant_count": f"{gd.get('current_players', 1)}/{gd.get('max_players', 4)} players",
-                    "started_time": gd.get("created_at", "")[:16] or "Active Now",
-                    "status": "LIVE",
-                    "destination": "/gaming",
-                    "action_label": "Join Squad",
-                })
-        except Exception as e:
-            logger.debug(f"Live sessions LFG query: {e}")
-
-        # 2. Active Music Playback
-        if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
-            try:
-                for vc in self.bot.voice_clients:
-                    if hasattr(vc, "is_playing") and vc.is_playing():
-                        listeners = max(1, len([m for m in getattr(vc.channel, 'members', []) if not getattr(m, 'bot', False)]))
-                        sessions.append({
-                            "id": "music_live",
-                            "type": "Listening Party",
-                            "icon": "🎧",
-                            "title": getattr(vc, "current_title", "Lossless Hi-Fi Audio"),
-                            "community": "Nightwave Creative Studio",
-                            "participant_count": f"{listeners} listeners",
-                            "started_time": "Playing Now",
-                            "status": "LIVE",
-                            "destination": "/music",
-                            "action_label": "Join Audio Lounge",
-                        })
-                        break
-            except Exception as e:
-                logger.debug(f"Live sessions music query: {e}")
-
-        # 3. Active Projects Sprints
-        try:
-            async with self.db._db.execute("SELECT * FROM projects WHERE status = 'active' ORDER BY id DESC LIMIT 3") as cur:
-                p_rows = await cur.fetchall()
-            for p in p_rows:
-                pd = dict(p)
-                sessions.append({
-                    "id": f"proj_{pd['id']}",
-                    "type": "Project Sprint",
-                    "icon": "🚀",
-                    "title": pd.get("name", "Project Workspace"),
-                    "community": "The Raivora",
-                    "participant_count": f"{pd.get('members_count', 1)} contributors",
-                    "started_time": "Sprint Active",
-                    "status": "ACTIVE",
-                    "destination": f"/projects/{pd['id']}",
-                    "action_label": "View Tasks",
-                })
-        except Exception as e:
-            logger.debug(f"Live sessions project query: {e}")
-
-        # 4. Community Events Scheduled
-        try:
-            async with self.db._db.execute("SELECT * FROM community_events WHERE status = 'scheduled' ORDER BY start_time ASC LIMIT 2") as cur:
-                ev_rows = await cur.fetchall()
-            for ev in ev_rows:
-                ed = dict(ev)
-                sessions.append({
-                    "id": f"event_{ed['id']}",
-                    "type": "Community Event",
-                    "icon": "📅",
-                    "title": ed.get("title", "Community Gathering"),
-                    "community": "The Raivora",
-                    "participant_count": f"{ed.get('interested_count', 0)} attending",
-                    "started_time": ed.get("start_time", "")[:16] or "Upcoming",
-                    "status": "SCHEDULED",
-                    "destination": f"/events/{ed['id']}",
-                    "action_label": "RSVP Now",
-                })
-        except Exception as e:
-            logger.debug(f"Live sessions event query: {e}")
-
-        return json_success(sessions)
+        """Returns active live sessions across Gaming, Music, Voice, and Events."""
+        sessions = await self.realtime.collect_live_sessions()
+        return json_success({
+            "sessions": sessions,
+            "count": len(sessions),
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        })
 
     async def get_activity_feed(self, request: web.Request) -> web.Response:
         """Returns real-time chronological activity feed from database entities."""
@@ -681,30 +506,20 @@ class ApiRouter:
 
     async def realtime_stream(self, request: web.Request) -> web.StreamResponse:
         """Centralized Server-Sent Events (SSE) real-time stream."""
-        resp = web.StreamResponse(
-            status=200,
-            reason="OK",
-            headers={
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "Access-Control-Allow-Origin": "*",
-            },
-        )
-        await resp.prepare(request)
+        return await self.realtime.handle_sse(request)
 
-        try:
-            init_json = json.dumps({"status": "connected", "time": time.time()})
-            await resp.write(f"event: init\ndata: {init_json}\n\n".encode("utf-8"))
+    async def realtime_ws(self, request: web.Request) -> web.WebSocketResponse:
+        """Full-duplex WebSocket real-time event bus."""
+        return await self.realtime.handle_ws(request)
 
-            while True:
-                pulse = await self._fetch_pulse_data()
-                pulse_str = safe_json_dumps(pulse)
-                await resp.write(f"event: pulse\ndata: {pulse_str}\n\n".encode("utf-8"))
-                await asyncio.sleep(8)
-        except (asyncio.CancelledError, ConnectionResetError, Exception):
-            pass
-        return resp
+    async def get_realtime_diagnostics(self, request: web.Request) -> web.Response:
+        """Diagnostics telemetry for realtime streaming & event bus."""
+        return json_success(self.realtime.get_diagnostics())
+
+    async def get_category_counts(self, request: web.Request) -> web.Response:
+        """Dynamic counts for category navigation."""
+        counts = await self.realtime.collect_category_counts()
+        return json_success(counts)
 
     async def list_profiles(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
@@ -1563,25 +1378,49 @@ class ApiRouter:
         category = request.query.get("category", "").strip().lower()
         sort = request.query.get("sort", "trending").strip().lower()
 
-        # Build community items with real data
-        member_count = 124
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        # 1. Primary Discord Guild Hub
+        member_count = None
+        online_count = None
+        voice_count = None
         guild_name = "The Raivora Primary Hub"
         guild_desc = "The central community discovery and collaboration hub powered by Rai. Connect with fellow creators, gamers, and developers."
         guild_icon = "✦"
         guild_banner = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"
 
-        if self.bot:
+        if self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(COMMUNITY_GUILD_ID)
             if g:
                 guild_name = g.name
-                member_count = max(g.member_count or 0, 124)
+                member_count = g.member_count
+                if hasattr(g, "members"):
+                    online_count = len([m for m in g.members if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")])
+                if hasattr(g, "voice_channels"):
+                    voice_count = sum(len(vc.members) for vc in g.voice_channels if hasattr(vc, "members"))
                 if g.description:
                     guild_desc = g.description
                 if g.icon:
                     guild_icon = g.icon.url
 
-        projects = await self.db.list_projects(COMMUNITY_GUILD_ID)
-        events = await self.db.list_events(COMMUNITY_GUILD_ID)
+        # Active projects and events in DB
+        projects = await self.db.list_projects(COMMUNITY_GUILD_ID, status="active")
+        events = await self.db.list_events(COMMUNITY_GUILD_ID, status="scheduled")
+        creators = await self.db.list_creator_portfolios(limit=50)
+        creators_count = len(creators)
+
+        # Dynamic LFG query
+        lfg_row = None
+        try:
+            async with self.db._db.execute("SELECT COUNT(*), SUM(current_players) FROM community_lfg WHERE status = 'OPEN'") as cur:
+                lfg_row = await cur.fetchone()
+        except Exception:
+            pass
+        gaming_active = lfg_row[1] if (lfg_row and lfg_row[1]) else 0
+
+        # Activity statuses & trending scores
+        primary_activity = "🔥 Highly Active" if (voice_count and voice_count > 0) else ("🟢 Online" if online_count else "Online")
+        primary_trending = ((online_count or 0) * 2) + ((voice_count or 0) * 5) + (len(projects) * 3) + (len(events) * 4)
 
         communities = [
             {
@@ -1592,6 +1431,8 @@ class ApiRouter:
                 "category": "creators",
                 "description": guild_desc,
                 "members": member_count,
+                "online": online_count,
+                "voice": voice_count,
                 "active_projects": len(projects),
                 "upcoming_events": len(events),
                 "tags": ["Official", "Creators", "Dev", "AI", "Music"],
@@ -1599,7 +1440,9 @@ class ApiRouter:
                 "banner": guild_banner,
                 "invite_url": "https://discord.gg/raivora",
                 "verified": True,
-                "activity_status": "🔥 Highly Active",
+                "activity_status": primary_activity,
+                "trending_score": primary_trending,
+                "updated_at": now_iso,
                 "created_at": "2026-01-01"
             },
             {
@@ -1609,15 +1452,19 @@ class ApiRouter:
                 "type": "Creator Community",
                 "category": "creators",
                 "description": "Dedicated community for video editors, After Effects motion designers, 3D artists, and beatmakers. Weekly editing jams and LUT drops.",
-                "members": 88,
-                "active_projects": 12,
-                "upcoming_events": 2,
+                "members": creators_count if creators_count > 0 else None,
+                "online": None,
+                "voice": None,
+                "active_projects": len([p for p in projects if p.get("project_type") in ("creator", "media", "design")]),
+                "upcoming_events": len(events),
                 "tags": ["Editing", "Media", "Music", "VFX", "AfterEffects"],
                 "icon": "🎨",
                 "banner": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=1200&q=80",
                 "invite_url": "https://discord.gg/raivora",
                 "verified": True,
-                "activity_status": "🔥 Active",
+                "activity_status": "🎨 Active Studio" if creators_count > 0 else "Online",
+                "trending_score": creators_count * 4 + len(projects) * 2,
+                "updated_at": now_iso,
                 "created_at": "2026-02-15"
             },
             {
@@ -1627,15 +1474,19 @@ class ApiRouter:
                 "type": "Gaming Hub",
                 "category": "gaming",
                 "description": "Competitive and casual gaming squads. Ranked tournaments for BGMI, Valorant, Helldivers 2, and Apex Legends with Rai LFG Squad Matcher.",
-                "members": 156,
-                "active_projects": 8,
-                "upcoming_events": 3,
+                "members": None,
+                "online": None,
+                "voice": None,
+                "active_projects": len([p for p in projects if p.get("project_type") in ("gaming", "tournament")]),
+                "upcoming_events": len(events),
                 "tags": ["Gaming", "BGMI", "Valorant", "LFG", "Tournaments"],
                 "icon": "🎮",
                 "banner": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80",
                 "invite_url": "https://discord.gg/raivora",
                 "verified": True,
-                "activity_status": "🔥 Active",
+                "activity_status": f"🎮 {gaming_active} in Squads" if gaming_active > 0 else "Online",
+                "trending_score": gaming_active * 6 + len(projects) * 2,
+                "updated_at": now_iso,
                 "created_at": "2026-03-01"
             },
             {
@@ -1645,28 +1496,63 @@ class ApiRouter:
                 "type": "Developer Community",
                 "category": "projects",
                 "description": "Autonomous agents, Discord bot architecture, security sandboxing, and workflow automations built on Rai OS.",
-                "members": 64,
-                "active_projects": 7,
-                "upcoming_events": 1,
+                "members": None,
+                "online": None,
+                "voice": None,
+                "active_projects": len([p for p in projects if p.get("project_type") in ("bot", "dev", "ai")]),
+                "upcoming_events": 0,
                 "tags": ["AI", "Security", "Tools", "Automation", "Python"],
                 "icon": "🧠",
                 "banner": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80",
                 "invite_url": "https://discord.gg/raivora",
                 "verified": True,
                 "activity_status": "🟢 Online",
+                "trending_score": len(projects) * 3,
+                "updated_at": now_iso,
                 "created_at": "2026-03-10"
             }
         ]
+
+        # Multi-guild discovery if bot is connected to multiple guilds
+        if self.bot and hasattr(self.bot, "guilds"):
+            for og in self.bot.guilds:
+                if og.id != COMMUNITY_GUILD_ID:
+                    o_online = len([m for m in og.members if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")]) if hasattr(og, "members") else None
+                    o_voice = sum(len(vc.members) for vc in og.voice_channels if hasattr(vc, "members")) if hasattr(og, "voice_channels") else None
+                    communities.append({
+                        "id": str(og.id),
+                        "name": og.name,
+                        "badge": "CONNECTED SERVER",
+                        "type": "Discord Community",
+                        "category": "gaming",
+                        "description": og.description or f"Active Discord community connected to Rai OS.",
+                        "members": og.member_count,
+                        "online": o_online,
+                        "voice": o_voice,
+                        "active_projects": 0,
+                        "upcoming_events": 0,
+                        "tags": ["Discord", "Community", "Live"],
+                        "icon": og.icon.url if og.icon else "✦",
+                        "banner": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80",
+                        "invite_url": "https://discord.gg/raivora",
+                        "verified": False,
+                        "activity_status": "🟢 Online",
+                        "trending_score": (o_online or 0) * 2 + (o_voice or 0) * 5,
+                        "updated_at": now_iso,
+                        "created_at": "2026-01-01"
+                    })
 
         if search:
             communities = [c for c in communities if search in c["name"].lower() or search in c["description"].lower() or any(search in t.lower() for t in c["tags"])]
         if category and category != "all":
             communities = [c for c in communities if c["category"] == category or any(category in t.lower() for t in c["tags"])]
 
-        if sort == "most_active":
+        if sort == "trending":
+            communities.sort(key=lambda c: c.get("trending_score", 0), reverse=True)
+        elif sort == "most_active":
             communities.sort(key=lambda c: c["active_projects"], reverse=True)
         elif sort == "members":
-            communities.sort(key=lambda c: c["members"], reverse=True)
+            communities.sort(key=lambda c: (c["members"] or 0), reverse=True)
         elif sort == "newest":
             communities.sort(key=lambda c: c["created_at"], reverse=True)
 

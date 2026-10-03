@@ -18,6 +18,8 @@ from database.database import Database
 from web.api import ApiRouter
 from web.ui import UI_HTML
 
+from web.realtime import RealtimeGateway
+
 if TYPE_CHECKING:
     from main import SentinelBot
 
@@ -39,7 +41,8 @@ class RaiCommunityOSServer:
         self.app: Optional[web.Application] = None
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
-        self.api_router = ApiRouter(self.db, self.bot)
+        self.realtime_gateway = RealtimeGateway(self.db, self.bot)
+        self.api_router = ApiRouter(self.db, self.bot, realtime=self.realtime_gateway)
         self._outbox_task: Optional[asyncio.Task] = None
         self._is_running = False
 
@@ -113,6 +116,10 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/personal/discovery", r.get_personal_discovery)
         app.router.add_post("/api/spaces/create", r.create_space)
         app.router.add_get("/api/realtime/stream", r.realtime_stream)
+        app.router.add_get("/api/realtime/ws", r.realtime_ws)
+        app.router.add_get("/ws/live", r.realtime_ws)
+        app.router.add_get("/api/realtime/diagnostics", r.get_realtime_diagnostics)
+        app.router.add_get("/api/categories/counts", r.get_category_counts)
 
         # Communities Discovery API
         app.router.add_get("/api/communities", r.list_communities)
@@ -255,6 +262,7 @@ class RaiCommunityOSServer:
             self.site = web.TCPSite(self.runner, "0.0.0.0", self.port)
             await self.site.start()
             self._is_running = True
+            await self.realtime_gateway.start()
             self._outbox_task = asyncio.create_task(self._outbox_worker_loop())
             logger.info(f"✦ Rai Community OS Platform online at http://0.0.0.0:{self.port} ✦")
         except Exception as e:
@@ -263,6 +271,7 @@ class RaiCommunityOSServer:
     async def stop(self) -> None:
         """Gracefully stop web server and cleanup worker."""
         self._is_running = False
+        await self.realtime_gateway.stop()
         if self._outbox_task:
             self._outbox_task.cancel()
             try:
