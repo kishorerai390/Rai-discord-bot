@@ -85,7 +85,7 @@ class RaiCommunityOSServer:
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
             "/status", "/wiki", "/mission-control", "/login",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
-            "/discover/constellation"
+            "/discover/constellation", "/studio", "/bounties", "/passport"
         ]
         for path in ui_routes:
             app.router.add_get(path, self.handle_ui)
@@ -176,6 +176,19 @@ class RaiCommunityOSServer:
         # Wiki API
         app.router.add_get("/api/wiki", r.list_wiki)
         app.router.add_get("/api/wiki/{slug}", r.get_wiki_slug)
+
+        # Creator Bounties & Gigs API
+        app.router.add_get("/api/bounties", r.get_bounties)
+        app.router.add_post("/api/bounties", r.create_bounty)
+        app.router.add_post("/api/bounties/{id}/apply", r.apply_bounty)
+
+        # Web Studio & Playground API
+        app.router.add_get("/api/studio/templates", r.get_studio_templates)
+        app.router.add_post("/api/studio/test", r.test_studio_payload)
+
+        # Holographic Passport API
+        app.router.add_get("/api/passport/{user_id}", r.get_passport)
+        app.router.add_get("/api/passport", r.get_passport)
 
         # Labs & Constellation API
         app.router.add_get("/api/labs/constellation", r.get_constellation)

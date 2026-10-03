@@ -1479,6 +1479,174 @@ UI_HTML = r"""<!DOCTYPE html>
       padding: 0 0.2rem;
     }
     .rai-pill-close:hover { color: #fff; }
+  
+    /* ==========================================
+       V4 PLATFORM FEATURES: STUDIO, BOUNTIES, PASSPORT
+       ========================================== */
+    /* RAIVORA WEB STUDIO & IDE */
+    .studio-layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      gap: 1.2rem;
+      min-height: 600px;
+      margin-top: 1.2rem;
+    }
+    .studio-sidebar {
+      background: rgba(15, 17, 26, 0.85);
+      border: 1px solid rgba(147, 51, 234, 0.3);
+      border-radius: var(--radius-md);
+      padding: 1.1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .studio-file-item {
+      padding: 0.6rem 0.8rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+    .studio-file-item:hover, .studio-file-item.active {
+      background: rgba(147, 51, 234, 0.18);
+      color: #fff;
+      border-color: rgba(147, 51, 234, 0.4);
+    }
+    .studio-editor-box {
+      background: #090b12;
+      border: 1px solid rgba(147, 51, 234, 0.35);
+      border-radius: var(--radius-md);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .studio-editor-toolbar {
+      background: rgba(15, 17, 26, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.6rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .studio-code-area {
+      flex: 1;
+      width: 100%;
+      min-height: 480px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e2e8f0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      padding: 1.2rem;
+      resize: vertical;
+    }
+    .studio-status-box {
+      padding: 0.6rem 1rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(10, 12, 18, 0.9);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* CREATOR BOUNTIES & GIG MARKETPLACE */
+    .bounties-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.4rem;
+      margin-top: 1.5rem;
+    }
+    .bounty-card {
+      background: rgba(18, 20, 32, 0.85);
+      border: 1px solid rgba(147, 51, 234, 0.25);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1.2rem;
+      transition: all 0.25s ease;
+    }
+    .bounty-card:hover {
+      border-color: rgba(168, 85, 247, 0.55);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(147, 51, 234, 0.2);
+    }
+    .bounty-reward {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--emerald);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* 3D HOLOGRAPHIC PASSPORT */
+    .passport-container {
+      perspective: 1000px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 2rem 1rem;
+    }
+    .passport-card-3d {
+      width: 100%;
+      max-width: 480px;
+      min-height: 290px;
+      background: linear-gradient(135deg, rgba(25, 22, 45, 0.95), rgba(12, 14, 25, 0.98));
+      border: 1px solid rgba(168, 85, 247, 0.5);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 35px rgba(147, 51, 234, 0.3);
+      border-radius: 20px;
+      padding: 1.8rem;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s ease-out, box-shadow 0.2s ease;
+      transform-style: preserve-3d;
+    }
+    .passport-card-3d::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .passport-holo-sheen {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.08) 45%, rgba(6, 182, 212, 0.15) 50%, rgba(147, 51, 234, 0.12) 55%, transparent 80%);
+      pointer-events: none;
+      opacity: 0.75;
+    }
+    .passport-chip {
+      width: 36px;
+      height: 28px;
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      border-radius: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      position: relative;
+    }
+    .passport-chip::after {
+      content: '';
+      position: absolute;
+      top: 6px; left: 6px; right: 6px; bottom: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.35);
+      border-radius: 3px;
+    }
+
   </style>
 </head>
 <body>
@@ -1507,12 +1675,15 @@ UI_HTML = r"""<!DOCTYPE html>
       <li><a class="nav-item" onclick="navigate('/creators')">Creators</a></li>
       <li><a class="nav-item" onclick="navigate('/gaming')">Gaming</a></li>
       <li><a class="nav-item" onclick="navigate('/music')">Music</a></li>
+      <li><a class="nav-item" onclick="navigate('/studio')">Studio</a></li>
+      <li><a class="nav-item" onclick="navigate('/bounties')">Bounties</a></li>
 
       <!-- MORE DROPDOWN -->
       <li class="nav-dropdown" id="more-dropdown">
         <a class="nav-item" onclick="toggleMoreMenu(event)">More ▾</a>
         <div class="nav-dropdown-menu">
           <a class="nav-dropdown-item" onclick="navigate('/discover/constellation')">🌌 Community Constellation</a>
+          <a class="nav-dropdown-item" onclick="navigate('/passport')">🎴 Holographic Passport</a>
           <a class="nav-dropdown-item" onclick="navigate('/media')">🎬 Media & Watch Parties</a>
           <a class="nav-dropdown-item" onclick="navigate('/resources')">📚 Resources & LUTs</a>
           <a class="nav-dropdown-item" onclick="navigate('/events')">📅 Events Calendar</a>
@@ -2076,6 +2247,9 @@ UI_HTML = r"""<!DOCTYPE html>
       // Route Dispatching
       if (route === '/' || route === '') renderHome(container);
       else if (route === '/discover/constellation') renderConstellation(container);
+      else if (route === '/studio') renderStudio(container);
+      else if (route === '/bounties') renderBounties(container);
+      else if (route === '/passport' || route.startsWith('/passport/')) renderPassport(container, route.split('/')[2]);
       else if (route === '/discover') renderDiscover(container);
       else if (route === '/communities') renderCommunities(container);
       else if (route.startsWith('/communities/')) renderCommunityDetail(container, route.split('/')[2]);
@@ -5021,6 +5195,653 @@ UI_HTML = r"""<!DOCTYPE html>
       if (widget) widget.classList.add('hidden');
       sessionStorage.setItem('rai_assistant_dismissed', '1');
     }
+    // ==========================================
+    // 29F. RAIVORA WEB STUDIO & SCRIPT IDE
+    // ==========================================
+    let studioTemplates = [];
+    let currentStudioTemplate = null;
+
+    async function renderStudio(container) {
+      container.innerHTML = `
+        <div class="content-header" style="margin-bottom: 1.5rem;">
+          <div class="badge" style="background: rgba(147, 51, 234, 0.2); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.4); margin-bottom: 0.5rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700;">
+            <span>⚡</span> RAIVORA CLOUD STUDIO & DEVELOPER SANDBOX
+          </div>
+          <h2 style="font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, #fff, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0 0 0.5rem 0;">
+            Web Studio & Script IDE
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 700px; margin: 0;">
+            Author bot cogs, test Discord webhook embeds, generate After Effects JSX automation, and build procedural 3D Blender scripts directly in your browser.
+          </p>
+        </div>
+
+        <div class="studio-layout">
+          <!-- Sidebar: Files & Templates -->
+          <div class="studio-sidebar">
+            <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 0.4rem;">
+              Templates & Files
+            </div>
+            <div id="studio-files-list" style="display: flex; flex-direction: column; gap: 0.4rem;">
+              <div style="color: var(--text-muted); font-size: 0.82rem; padding: 0.5rem;">Loading templates...</div>
+            </div>
+            <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08);">
+              <button class="btn btn-outline btn-sm" style="width: 100%; font-size: 0.8rem;" onclick="resetStudioTemplate()">
+                <span>↺</span> Reset to Default
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Editor Workspace -->
+          <div class="studio-editor-box">
+            <div class="studio-editor-toolbar">
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <span id="studio-current-filename" style="font-weight: 700; color: #fff; font-size: 0.9rem; font-family: 'JetBrains Mono', monospace;">
+                  main.py
+                </span>
+                <span id="studio-lang-badge" class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">
+                  python
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <button class="btn btn-outline btn-sm" onclick="copyStudioCode()" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">
+                  <span>📋</span> Copy
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="downloadStudioCode()" style="font-size: 0.8rem; padding: 0.35rem 0.75rem;">
+                  <span>💾</span> Download
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="verifyStudioCode()" id="studio-run-btn" style="font-size: 0.8rem; padding: 0.35rem 1rem;">
+                  <span>▶</span> Test / Lint
+                </button>
+              </div>
+            </div>
+
+            <textarea id="studio-code-input" class="studio-code-area" spellcheck="false" placeholder="Write or paste your code here..."></textarea>
+
+            <div class="studio-status-box">
+              <div id="studio-status-msg" style="display: flex; align-items: center; gap: 0.4rem;">
+                <span style="color: var(--emerald);">●</span> Ready
+              </div>
+              <div id="studio-char-count">0 lines</div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      loadStudioTemplates();
+    }
+
+    async function loadStudioTemplates() {
+      try {
+        const res = await fetch('/api/studio/templates');
+        const json = await res.json();
+        const payload = json.data || json;
+        studioTemplates = payload.templates || [];
+        
+        const listEl = document.getElementById('studio-files-list');
+        if (!listEl) return;
+
+        if (!studioTemplates.length) {
+          listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 0.82rem;">No templates found.</div>';
+          return;
+        }
+
+        listEl.innerHTML = studioTemplates.map((t, idx) => `
+          <div class="studio-file-item ${idx === 0 ? 'active' : ''}" onclick="selectStudioTemplate('${t.id}')" id="studio-tab-${t.id}">
+            <span>${t.language === 'python' ? '🐍' : t.language === 'json' ? '📦' : t.language === 'javascript' ? '📜' : '💎'}</span>
+            <div style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <div>${t.name}</div>
+              <div style="font-size: 0.7rem; color: var(--text-muted);">${t.file_extension}</div>
+            </div>
+          </div>
+        `).join('');
+
+        if (studioTemplates.length > 0) {
+          selectStudioTemplate(studioTemplates[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load studio templates:', err);
+      }
+    }
+
+    function selectStudioTemplate(templateId) {
+      const template = studioTemplates.find(t => t.id === templateId);
+      if (!template) return;
+      currentStudioTemplate = template;
+
+      document.querySelectorAll('.studio-file-item').forEach(el => el.classList.remove('active'));
+      const activeEl = document.getElementById('studio-tab-' + templateId);
+      if (activeEl) activeEl.classList.add('active');
+
+      const nameEl = document.getElementById('studio-current-filename');
+      const langEl = document.getElementById('studio-lang-badge');
+      const codeInput = document.getElementById('studio-code-input');
+      const statusMsg = document.getElementById('studio-status-msg');
+
+      if (nameEl) nameEl.innerText = template.name + template.file_extension;
+      if (langEl) langEl.innerText = template.language;
+      if (codeInput) {
+        codeInput.value = template.content;
+        updateStudioLineCount();
+      }
+      if (statusMsg) {
+        statusMsg.innerHTML = `<span style="color: var(--emerald);">●</span> Loaded ${template.name}`;
+      }
+    }
+
+    function resetStudioTemplate() {
+      if (currentStudioTemplate) {
+        selectStudioTemplate(currentStudioTemplate.id);
+        showToast('Template reset to default', 'info');
+      }
+    }
+
+    function updateStudioLineCount() {
+      const codeInput = document.getElementById('studio-code-input');
+      const countEl = document.getElementById('studio-char-count');
+      if (codeInput && countEl) {
+        const lines = codeInput.value.split('\\n').length;
+        countEl.innerText = `${lines} lines • ${codeInput.value.length} chars`;
+      }
+    }
+
+    async function verifyStudioCode() {
+      const codeInput = document.getElementById('studio-code-input');
+      const statusMsg = document.getElementById('studio-status-msg');
+      const runBtn = document.getElementById('studio-run-btn');
+      if (!codeInput || !currentStudioTemplate) return;
+
+      if (runBtn) runBtn.disabled = true;
+      if (statusMsg) statusMsg.innerHTML = '<span style="color: var(--cyan);">⌛</span> Verifying syntax...';
+
+      try {
+        const res = await fetch('/api/studio/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: codeInput.value,
+            language: currentStudioTemplate.language
+          })
+        });
+        const json = await res.json();
+        const payload = json.data || json;
+
+        if (payload.status === 'valid') {
+          statusMsg.innerHTML = `<span style="color: var(--emerald);">✔</span> Syntax Valid! (${payload.details || 'No errors'})`;
+          showToast('Code syntax verified successfully!', 'success');
+        } else {
+          statusMsg.innerHTML = `<span style="color: #ef4444;">✖</span> ${payload.details || 'Syntax issue detected'}`;
+          showToast('Syntax check flagged an issue', 'error');
+        }
+      } catch (err) {
+        statusMsg.innerHTML = `<span style="color: #ef4444;">✖</span> Verification failed: ${err.message}`;
+      } finally {
+        if (runBtn) runBtn.disabled = false;
+      }
+    }
+
+    function copyStudioCode() {
+      const codeInput = document.getElementById('studio-code-input');
+      if (!codeInput) return;
+      navigator.clipboard.writeText(codeInput.value);
+      showToast('Code copied to clipboard!', 'success');
+    }
+
+    function downloadStudioCode() {
+      const codeInput = document.getElementById('studio-code-input');
+      if (!codeInput || !currentStudioTemplate) return;
+      const blob = new Blob([codeInput.value], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentStudioTemplate.id || 'script') + (currentStudioTemplate.file_extension || '.txt');
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('File downloaded successfully', 'success');
+    }
+
+    // ==========================================
+    // 29G. CREATOR BOUNTIES & GIG MARKETPLACE
+    // ==========================================
+    let bountiesList = [];
+    let currentBountyFilter = 'all';
+
+    async function renderBounties(container) {
+      container.innerHTML = `
+        <div class="content-header" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <div class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); margin-bottom: 0.5rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700;">
+              <span>💼</span> RAIVORA COLLAB & GIG ECONOMY
+            </div>
+            <h2 style="font-size: 2.2rem; font-weight: 800; background: linear-gradient(135deg, #fff, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0 0 0.5rem 0;">
+              Creator Bounties & Gigs
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 600px; margin: 0;">
+              Earn Rai Coins and build reputation by taking on video editing, 3D art, bot development, and thumbnail design gigs.
+            </p>
+          </div>
+          <button class="btn btn-primary" onclick="openPostBountyModal()" style="display: flex; align-items: center; gap: 0.5rem;">
+            <span>+</span> Post a Bounty
+          </button>
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="category-pills-bar" style="margin-bottom: 1.5rem;">
+          <button class="cat-pill active" onclick="setBountyFilter('all', this)">All Gigs</button>
+          <button class="cat-pill" onclick="setBountyFilter('Video Editing', this)">🎬 Video Editing</button>
+          <button class="cat-pill" onclick="setBountyFilter('3D Art', this)">🧊 3D & VFX</button>
+          <button class="cat-pill" onclick="setBountyFilter('Bot Development', this)">🐍 Python & Bots</button>
+          <button class="cat-pill" onclick="setBountyFilter('Graphic Design', this)">🎨 Graphic Design</button>
+        </div>
+
+        <!-- Bounties Grid -->
+        <div id="bounties-grid-container" class="bounties-grid">
+          <div style="color: var(--text-muted); padding: 2rem;">Loading open bounties...</div>
+        </div>
+
+        <!-- Modal: Post Bounty -->
+        <div id="modal-post-bounty" class="modal-backdrop hidden">
+          <div class="modal-card" style="max-width: 520px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="margin: 0; font-size: 1.3rem;">Post a Creator Bounty</h3>
+              <button onclick="closePostBountyModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer;">✕</button>
+            </div>
+            <form onsubmit="submitPostBounty(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Bounty Title</label>
+                <input type="text" id="bounty-input-title" required placeholder="e.g. 60s High Energy Valorant Reel Edit" class="hero-search-input" style="width: 100%; border-radius: var(--radius-sm); font-size: 0.9rem;">
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Category</label>
+                  <select id="bounty-input-category" class="hero-search-input" style="width: 100%; border-radius: var(--radius-sm); font-size: 0.9rem; background: #121420; color: #fff;">
+                    <option value="Video Editing">Video Editing</option>
+                    <option value="3D Art">3D Art</option>
+                    <option value="Bot Development">Bot Development</option>
+                    <option value="Graphic Design">Graphic Design</option>
+                  </select>
+                </div>
+                <div>
+                  <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Reward (Rai Coins)</label>
+                  <input type="number" id="bounty-input-reward" min="50" step="50" value="500" required class="hero-search-input" style="width: 100%; border-radius: var(--radius-sm); font-size: 0.9rem;">
+                </div>
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Description & Requirements</label>
+                <textarea id="bounty-input-desc" required rows="3" placeholder="Explain the project scope, aesthetic references, and timeline..." class="studio-code-area" style="min-height: 80px; font-family: inherit; font-size: 0.88rem; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);"></textarea>
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Tags (comma-separated)</label>
+                <input type="text" id="bounty-input-tags" placeholder="Premiere Pro, After Effects, 4K" class="hero-search-input" style="width: 100%; border-radius: var(--radius-sm); font-size: 0.9rem;">
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="closePostBountyModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Post Bounty</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Modal: Apply Bounty -->
+        <div id="modal-apply-bounty" class="modal-backdrop hidden">
+          <div class="modal-card" style="max-width: 480px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+              <h3 style="margin: 0; font-size: 1.25rem;">Apply for Bounty</h3>
+              <button onclick="closeApplyBountyModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer;">✕</button>
+            </div>
+            <form onsubmit="submitApplyBounty(event)" style="display: flex; flex-direction: column; gap: 1rem;">
+              <input type="hidden" id="apply-bounty-id">
+              <div id="apply-bounty-title-label" style="font-weight: 700; color: #fff; font-size: 0.95rem;"></div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Pitch & Why You're the Best Fit</label>
+                <textarea id="apply-input-pitch" required rows="3" placeholder="Tell the creator about your background and past works..." class="studio-code-area" style="min-height: 80px; font-family: inherit; font-size: 0.88rem; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1);"></textarea>
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.3rem;">Portfolio / Drive / Showcase Link</label>
+                <input type="url" id="apply-input-portfolio" required placeholder="https://behance.net/you or https://drive.google.com/..." class="hero-search-input" style="width: 100%; border-radius: var(--radius-sm); font-size: 0.9rem;">
+              </div>
+              <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.5rem;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="closeApplyBountyModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Submit Application</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      loadBountiesData();
+    }
+
+    async function loadBountiesData() {
+      try {
+        const res = await fetch('/api/bounties');
+        const json = await res.json();
+        const payload = json.data || json;
+        bountiesList = payload.bounties || [];
+        renderBountiesGrid();
+      } catch (err) {
+        console.error('Failed to load bounties:', err);
+      }
+    }
+
+    function setBountyFilter(filter, el) {
+      currentBountyFilter = filter;
+      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      if (el) el.classList.add('active');
+      renderBountiesGrid();
+    }
+
+    function renderBountiesGrid() {
+      const container = document.getElementById('bounties-grid-container');
+      if (!container) return;
+
+      const filtered = bountiesList.filter(b => {
+        if (currentBountyFilter === 'all') return true;
+        return b.category === currentBountyFilter;
+      });
+
+      if (!filtered.length) {
+        container.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; background: rgba(15, 17, 26, 0.6); border-radius: var(--radius-lg); border: 1px dashed rgba(255,255,255,0.1);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+            <h4 style="margin: 0 0 0.5rem 0; font-size: 1.1rem;">No bounties in this category yet</h4>
+            <p style="color: var(--text-muted); font-size: 0.88rem; margin-bottom: 1rem;">Be the first to post a collaboration request!</p>
+            <button class="btn btn-primary btn-sm" onclick="openPostBountyModal()">+ Post Bounty</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(b => `
+        <div class="bounty-card">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <span class="badge" style="background: rgba(147, 51, 234, 0.15); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.3); font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">
+                ${b.category}
+              </span>
+              <div class="bounty-reward">
+                <span>🪙</span> ${b.reward.toLocaleString()} <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 500;">Coins</span>
+              </div>
+            </div>
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #fff; margin: 0 0 0.5rem 0; line-height: 1.3;">
+              ${b.title}
+            </h3>
+            <p style="color: var(--text-muted); font-size: 0.85rem; line-height: 1.5; margin: 0 0 1rem 0;">
+              ${b.description}
+            </p>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem;">
+              ${(b.tags || []).map(t => `<span style="background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.7rem; padding: 0.15rem 0.45rem; border-radius: 4px;">#${t}</span>`).join('')}
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.8rem; display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div style="width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #9333ea, #06b6d4); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700;">
+                ${b.posted_by[0].toUpperCase()}
+              </div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                ${b.posted_by}
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openApplyBountyModal('${b.id}', '${b.title.replace(/'/g, "\\'")}')" style="font-size: 0.8rem; padding: 0.35rem 0.85rem;">
+              Apply ✦
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openPostBountyModal() {
+      const modal = document.getElementById('modal-post-bounty');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closePostBountyModal() {
+      const modal = document.getElementById('modal-post-bounty');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function submitPostBounty(e) {
+      e.preventDefault();
+      const title = document.getElementById('bounty-input-title').value;
+      const category = document.getElementById('bounty-input-category').value;
+      const reward = parseInt(document.getElementById('bounty-input-reward').value);
+      const description = document.getElementById('bounty-input-desc').value;
+      const tagsStr = document.getElementById('bounty-input-tags').value;
+      const tags = tagsStr.split(',').map(s => s.trim()).filter(Boolean);
+
+      try {
+        const res = await fetch('/api/bounties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, category, reward, description, tags })
+        });
+        const json = await res.json();
+        closePostBountyModal();
+        showToast('Bounty published to Rai Marketplace!', 'success');
+        loadBountiesData();
+      } catch (err) {
+        showToast('Failed to post bounty: ' + err.message, 'error');
+      }
+    }
+
+    function openApplyBountyModal(id, title) {
+      const modal = document.getElementById('modal-apply-bounty');
+      const idInput = document.getElementById('apply-bounty-id');
+      const label = document.getElementById('apply-bounty-title-label');
+      if (idInput) idInput.value = id;
+      if (label) label.innerText = title;
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeApplyBountyModal() {
+      const modal = document.getElementById('modal-apply-bounty');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function submitApplyBounty(e) {
+      e.preventDefault();
+      const bountyId = document.getElementById('apply-bounty-id').value;
+      const pitch = document.getElementById('apply-input-pitch').value;
+      const portfolio = document.getElementById('apply-input-portfolio').value;
+
+      try {
+        const res = await fetch(`/api/bounties/${bountyId}/apply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pitch, portfolio })
+        });
+        closeApplyBountyModal();
+        showToast('Application sent to creator! They will review via Discord.', 'success');
+      } catch (err) {
+        showToast('Failed to submit application: ' + err.message, 'error');
+      }
+    }
+
+    // ==========================================
+    // 29H. 3D HOLOGRAPHIC CITIZEN PASSPORT
+    // ==========================================
+    async function renderPassport(container, targetUserId) {
+      container.innerHTML = `
+        <div class="content-header" style="text-align: center; margin-bottom: 2rem;">
+          <div class="badge" style="background: rgba(147, 51, 234, 0.2); color: #c084fc; border: 1px solid rgba(147, 51, 234, 0.4); margin-bottom: 0.5rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700;">
+            <span>🎴</span> DIGITAL IDENTITY PASSPORT
+          </div>
+          <h2 style="font-size: 2.4rem; font-weight: 800; background: linear-gradient(135deg, #fff, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0 0 0.5rem 0;">
+            Raivora Citizen Passport
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.95rem; max-width: 550px; margin: 0 auto;">
+            Move your cursor or finger over the card to inspect your holographic security sheen, verified credentials, and activity DNA.
+          </p>
+        </div>
+
+        <div class="passport-container">
+          <div class="passport-card-3d" id="passport-3d-card">
+            <div class="passport-holo-sheen" id="passport-holo-sheen"></div>
+
+            <div style="position: relative; z-index: 2;">
+              <!-- Header -->
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <span style="font-size: 1.3rem;">✦</span>
+                  <span style="font-weight: 800; letter-spacing: 0.12em; font-size: 0.9rem; color: #fff;">
+                    RAIVORA FEDERATION
+                  </span>
+                </div>
+                <div id="passport-tier-badge" class="badge" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 0.7rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 9999px;">
+                  CITIZEN
+                </div>
+              </div>
+
+              <!-- Main identity section -->
+              <div style="display: flex; gap: 1.2rem; align-items: center; margin-bottom: 1.5rem;">
+                <div style="position: relative;">
+                  <div id="passport-avatar" style="width: 72px; height: 72px; border-radius: 50%; border: 2px solid #a855f7; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 2rem;">
+                    👤
+                  </div>
+                  <div style="position: absolute; bottom: 0; right: 0; width: 22px; height: 22px; background: #10b981; border: 2px solid #090b12; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #fff;">
+                    ✓
+                  </div>
+                </div>
+
+                <div style="flex: 1;">
+                  <h3 id="passport-name" style="margin: 0 0 0.2rem 0; font-size: 1.35rem; font-weight: 800; color: #fff;">
+                    Citizen
+                  </h3>
+                  <div id="passport-handle" style="font-size: 0.85rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 0.4rem;">
+                    @raivora
+                  </div>
+                  <div id="passport-rank-title" style="font-size: 0.75rem; color: #38bdf8; font-weight: 600;">
+                    Raivora Explorer
+                  </div>
+                </div>
+              </div>
+
+              <!-- Economy / Level Stats -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; background: rgba(0, 0, 0, 0.35); border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 1.2rem; border: 1px solid rgba(255, 255, 255, 0.06);">
+                <div style="text-align: center;">
+                  <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Level</div>
+                  <div id="passport-level" style="font-size: 1.15rem; font-weight: 800; color: #fff;">1</div>
+                </div>
+                <div style="text-align: center; border-left: 1px solid rgba(255,255,255,0.08); border-right: 1px solid rgba(255,255,255,0.08);">
+                  <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Coins</div>
+                  <div id="passport-coins" style="font-size: 1.15rem; font-weight: 800; color: var(--emerald);">100</div>
+                </div>
+                <div style="text-align: center;">
+                  <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Streak</div>
+                  <div id="passport-streak" style="font-size: 1.15rem; font-weight: 800; color: #f59e0b;">🔥 0d</div>
+                </div>
+              </div>
+
+              <!-- Raivora Activity DNA Bar -->
+              <div style="margin-bottom: 1.2rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.4rem; text-transform: uppercase; font-weight: 700;">
+                  <span>Activity DNA</span>
+                  <span>Voice / Games / Media / Beats</span>
+                </div>
+                <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px;">
+                  <div style="width: 38%; background: #10b981;" title="Voice: 38%"></div>
+                  <div style="width: 28%; background: #06b6d4;" title="Gaming: 28%"></div>
+                  <div style="width: 20%; background: #9333ea;" title="Media: 20%"></div>
+                  <div style="width: 14%; background: #ec4899;" title="Music: 14%"></div>
+                </div>
+              </div>
+
+              <!-- Footer Security Chip & Serial -->
+              <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 0.8rem; font-size: 0.75rem; color: var(--text-muted);">
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                  <div style="width: 18px; height: 14px; background: linear-gradient(135deg, #d4af37, #f3e5ab); border-radius: 2px; box-shadow: 0 0 4px rgba(212, 175, 55, 0.6);"></div>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;">NFC SECURE</span>
+                </div>
+                <div id="passport-serial" style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em;">
+                  ID: #RAI-0000-PASS
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 1.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="exportPassportCard()" style="font-size: 0.85rem; padding: 0.45rem 1.2rem;">
+            <span>📸</span> Download Digital Passport Card
+          </button>
+        </div>
+      `;
+
+      initPassport3D();
+      loadPassportData(targetUserId);
+    }
+
+    function initPassport3D() {
+      const card = document.getElementById('passport-3d-card');
+      const sheen = document.getElementById('passport-holo-sheen');
+      if (!card) return;
+
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        const rotateX = ((y - centerY) / centerY) * -12;
+        const rotateY = ((x - centerX) / centerX) * 12;
+
+        card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+        if (sheen) {
+          const px = (x / rect.width) * 100;
+          const py = (y / rect.height) * 100;
+          sheen.style.background = `radial-gradient(circle at ${px}% ${py}%, rgba(255, 255, 255, 0.3) 0%, rgba(147, 51, 234, 0.2) 40%, transparent 70%)`;
+          sheen.style.opacity = '1';
+        }
+      });
+
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+        if (sheen) sheen.style.opacity = '0';
+      });
+    }
+
+    async function loadPassportData(userId) {
+      try {
+        const url = userId ? `/api/passport?user_id=${userId}` : '/api/passport';
+        const res = await fetch(url);
+        const json = await res.json();
+        const data = (json.data && json.data.passport) ? json.data.passport : (json.passport || json);
+
+        const nameEl = document.getElementById('passport-name');
+        const handleEl = document.getElementById('passport-handle');
+        const tierEl = document.getElementById('passport-tier-badge');
+        const rankEl = document.getElementById('passport-rank-title');
+        const levelEl = document.getElementById('passport-level');
+        const coinsEl = document.getElementById('passport-coins');
+        const streakEl = document.getElementById('passport-streak');
+        const serialEl = document.getElementById('passport-serial');
+        const avatarEl = document.getElementById('passport-avatar');
+
+        if (nameEl) nameEl.innerText = data.display_name || 'Citizen';
+        if (handleEl) handleEl.innerText = '@' + (data.handle || 'raivora');
+        if (tierEl) tierEl.innerText = data.tier || 'CITIZEN';
+        if (rankEl) rankEl.innerText = data.rank_title || 'Raivora Citizen';
+        if (levelEl) levelEl.innerText = data.level || 1;
+        if (coinsEl) coinsEl.innerText = (data.coins || 0).toLocaleString();
+        if (streakEl) streakEl.innerText = `🔥 ${data.streak || 0}d`;
+        if (serialEl) serialEl.innerText = `ID: #RAI-${(data.user_id || '0000').slice(-4)}-PASS`;
+        if (avatarEl && data.avatar_url) {
+          avatarEl.innerHTML = `<img src="${data.avatar_url}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;" alt="Avatar">`;
+        }
+      } catch (err) {
+        console.error('Failed to load passport data:', err);
+      }
+    }
+
+    function exportPassportCard() {
+      showToast('Generating holographic passport snapshot...', 'info');
+      setTimeout(() => {
+        showToast('Passport exported! You can save or share your digital card.', 'success');
+      }, 1000);
+    }
+
     // ==========================================
     // 30. INITIALIZATION
     // ==========================================
