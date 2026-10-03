@@ -1039,16 +1039,446 @@ UI_HTML = r"""<!DOCTYPE html>
       .discovery-grid { grid-template-columns: 1fr; }
     }
 
-    /* REDUCED MOTION */
-    @media (prefers-reduced-motion: reduce) {
-      *, ::before, ::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-      }
-      #cursor-glow, #bg-canvas { display: none !important; }
+    /* ==========================================
+       V3 PLATFORM UPGRADE: PULSE, LIVE NOW & RT
+       ========================================== */
+    /* REALTIME STATUS PILL */
+    .rt-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.32rem 0.8rem;
+      border-radius: var(--radius-full);
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(15, 17, 26, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-muted);
+      cursor: default;
+      transition: all 0.25s ease;
+      white-space: nowrap;
     }
+    .rt-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .rt-dot.live {
+      background: var(--emerald);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
+      animation: slowPulse 2s infinite ease-in-out;
+    }
+    .rt-dot.reconnecting {
+      background: var(--amber);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+      animation: slowPulse 1.2s infinite ease-in-out;
+    }
+    .rt-dot.unavailable {
+      background: var(--text-dim);
+      box-shadow: none;
+    }
+    @keyframes slowPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.88); }
+    }
+
+    /* ✦ RAI PULSE SECTION */
+    .pulse-section {
+      background: linear-gradient(135deg, rgba(17, 19, 32, 0.95), rgba(11, 13, 22, 0.98));
+      border: 1px solid rgba(147, 51, 234, 0.35);
+      box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4), 0 0 25px rgba(147, 51, 234, 0.15);
+      border-radius: var(--radius-lg);
+      padding: 1.8rem;
+      margin: 2.5rem 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .pulse-section::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      right: -60px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(147, 51, 234, 0.22) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .pulse-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .pulse-title-wrap h3 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      letter-spacing: 0.4px;
+    }
+    .pulse-title-wrap p {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    .pulse-badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.9rem;
+      border-radius: var(--radius-full);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: var(--emerald);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .pulse-badge-live .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+      animation: slowPulse 2s infinite ease-in-out;
+    }
+    .pulse-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.6rem;
+    }
+    .pulse-stat-card {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      text-align: center;
+      transition: all 0.25s ease;
+    }
+    .pulse-stat-card:hover {
+      border-color: rgba(147, 51, 234, 0.4);
+      background: rgba(147, 51, 234, 0.08);
+      transform: translateY(-2px);
+    }
+    .pulse-stat-icon {
+      font-size: 1.4rem;
+      margin-bottom: 0.3rem;
+      display: block;
+    }
+    .pulse-stat-val {
+      font-size: 1.55rem;
+      font-weight: 800;
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1.2;
+      transition: color 0.3s;
+    }
+    .pulse-stat-label {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 0.3rem;
+      font-weight: 600;
+    }
+
+    /* ACTIVITY DNA BAR */
+    .pulse-dna-box {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-md);
+      padding: 1.1rem 1.4rem;
+    }
+    .pulse-dna-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.8rem;
+    }
+    .pulse-dna-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .dna-bars-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.9rem;
+    }
+    .dna-bar-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .dna-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+    .dna-track {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .dna-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .dna-fill.voice { background: linear-gradient(90deg, #10b981, #059669); }
+    .dna-fill.gaming { background: linear-gradient(90deg, #06b6d4, #0284c7); }
+    .dna-fill.music { background: linear-gradient(90deg, #9333ea, #c084fc); }
+    .dna-fill.creating { background: linear-gradient(90deg, #ec4899, #f43f5e); }
+
+    /* 🟢 LIVE NOW CARDS */
+    .live-now-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.2rem;
+      margin-top: 1rem;
+    }
+    .live-now-card {
+      background: rgba(18, 20, 32, 0.85);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 1.4rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .live-now-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(16, 185, 129, 0.6);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+    .live-now-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+    .live-now-type {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--emerald);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .live-now-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 0.4rem;
+      line-height: 1.3;
+    }
+    .live-now-community {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    .live-now-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      padding-top: 0.8rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* ⚡ HAPPENING AROUND RAI (ACTIVITY FEED) */
+    .activity-feed-container {
+      background: rgba(15, 17, 26, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-lg);
+      padding: 1.4rem;
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .activity-feed-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.7rem 1rem;
+      border-radius: var(--radius-sm);
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      transition: background 0.2s;
+    }
+    .activity-feed-item:hover {
+      background: rgba(147, 51, 234, 0.08);
+      border-color: rgba(147, 51, 234, 0.2);
+    }
+    .activity-feed-left {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+    .activity-feed-time {
+      font-size: 0.76rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    /* 🌌 CONSTELLATION BANNER & VIEW */
+    .constellation-banner {
+      background: radial-gradient(circle at 70% 50%, rgba(147, 51, 234, 0.25) 0%, rgba(6, 182, 212, 0.12) 40%, rgba(10, 12, 20, 0.95) 80%);
+      border: 1px solid rgba(147, 51, 234, 0.4);
+      border-radius: var(--radius-lg);
+      padding: 2.8rem 2.2rem;
+      margin: 3.5rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5), 0 0 35px rgba(147, 51, 234, 0.18);
+    }
+    .constellation-wrapper {
+      position: relative;
+      width: 100%;
+      height: 75vh;
+      min-height: 550px;
+      background: #040509;
+      border: 1px solid rgba(147, 51, 234, 0.3);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-top: 1.5rem;
+    }
+    #constellation-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: grab;
+    }
+    #constellation-canvas:active { cursor: grabbing; }
+    .constellation-drawer {
+      position: absolute;
+      top: 1.5rem;
+      right: 1.5rem;
+      width: 320px;
+      max-width: 90%;
+      background: rgba(15, 17, 26, 0.95);
+      border: 1px solid rgba(147, 51, 234, 0.5);
+      backdrop-filter: blur(20px);
+      border-radius: var(--radius-md);
+      padding: 1.4rem;
+      display: none;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 25px rgba(147, 51, 234, 0.3);
+      z-index: 10;
+    }
+    .constellation-drawer.active { display: block; }
+
+    /* CREATE A SPACE MODAL */
+    .space-type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 0.8rem;
+      margin-bottom: 1.4rem;
+    }
+    .space-type-card {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-md);
+      padding: 0.9rem 0.6rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .space-type-card:hover {
+      border-color: var(--primary);
+      background: rgba(147, 51, 234, 0.15);
+      transform: translateY(-2px);
+    }
+    .space-type-card.selected {
+      border-color: var(--cyan);
+      background: rgba(6, 182, 212, 0.18);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.35);
+    }
+    .space-type-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
+    .space-type-label { font-size: 0.78rem; font-weight: 700; color: #fff; }
+
+    /* ✦ FLOATING RAI ASSISTANT WIDGET */
+    #rai-assistant-widget {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 99;
+      background: rgba(15, 17, 26, 0.92);
+      border: 1px solid rgba(147, 51, 234, 0.45);
+      backdrop-filter: blur(20px);
+      border-radius: var(--radius-full);
+      padding: 0.6rem 1rem 0.6rem 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 25px rgba(147, 51, 234, 0.25);
+      font-size: 0.85rem;
+      transition: all 0.3s ease;
+    }
+    #rai-assistant-widget.hidden {
+      display: none;
+    }
+    .rai-pill-icon {
+      color: var(--cyan);
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+    .rai-pill-msg {
+      color: #fff;
+      font-weight: 500;
+    }
+    .rai-pill-btn {
+      background: rgba(147, 51, 234, 0.25);
+      border: 1px solid rgba(147, 51, 234, 0.5);
+      color: #fff;
+      padding: 0.25rem 0.65rem;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .rai-pill-btn:hover {
+      background: var(--primary);
+    }
+    .rai-pill-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.1rem;
+      line-height: 1;
+      padding: 0 0.2rem;
+    }
+    .rai-pill-close:hover { color: #fff; }
   </style>
 </head>
 <body>
@@ -1082,6 +1512,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <li class="nav-dropdown" id="more-dropdown">
         <a class="nav-item" onclick="toggleMoreMenu(event)">More ▾</a>
         <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item" onclick="navigate('/discover/constellation')">🌌 Community Constellation</a>
           <a class="nav-dropdown-item" onclick="navigate('/media')">🎬 Media & Watch Parties</a>
           <a class="nav-dropdown-item" onclick="navigate('/resources')">📚 Resources & LUTs</a>
           <a class="nav-dropdown-item" onclick="navigate('/events')">📅 Events Calendar</a>
@@ -1111,6 +1542,8 @@ UI_HTML = r"""<!DOCTYPE html>
 
     <!-- ACTIONS / USER -->
     <div class="nav-actions" id="nav-user-container">
+      <div class="rt-status-pill" id="global-rt-pill" title="Realtime SSE Stream"><span class="rt-dot live"></span> Live</div>
+      <button class="btn btn-primary btn-sm" onclick="openCreateSpaceModal()"><span>✦</span> + Create a Space</button>
       <a href="https://discord.com/oauth2/authorize?client_id=1554732669072445532&permissions=8&scope=bot%20applications.commands" target="_blank" class="btn btn-outline btn-sm">
         <span>+ Add to Discord</span>
       </a>
@@ -1135,6 +1568,14 @@ UI_HTML = r"""<!DOCTYPE html>
       </div>
       <div id="modal-body"></div>
     </div>
+  </div>
+
+  <!-- ✦ FLOATING RAI ASSISTANT WIDGET -->
+  <div id="rai-assistant-widget">
+    <span class="rai-pill-icon">✦ RAI</span>
+    <span class="rai-pill-msg" id="rai-assistant-msg">What's happening across the Raivora right now</span>
+    <button class="rai-pill-btn" id="rai-assistant-action" onclick="navigate('/discover/constellation')">Explore</button>
+    <button class="rai-pill-close" onclick="dismissAssistant()" title="Dismiss">&times;</button>
   </div>
 
   <!-- RICH 4-COLUMN FOOTER -->
@@ -1296,6 +1737,8 @@ UI_HTML = r"""<!DOCTYPE html>
       const container = document.getElementById('nav-user-container');
       if (currentUser) {
         container.innerHTML = `
+          <div class="rt-status-pill" id="global-rt-pill" title="Realtime SSE Stream"><span class="rt-dot live"></span> Live</div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateSpaceModal()"><span>✦</span> + Create a Space</button>
           <a href="https://discord.com/oauth2/authorize?client_id=1554732669072445532&permissions=8&scope=bot%20applications.commands" target="_blank" class="btn btn-outline btn-sm">
             <span>+ Add Bot</span>
           </a>
@@ -1632,6 +2075,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
       // Route Dispatching
       if (route === '/' || route === '') renderHome(container);
+      else if (route === '/discover/constellation') renderConstellation(container);
       else if (route === '/discover') renderDiscover(container);
       else if (route === '/communities') renderCommunities(container);
       else if (route.startsWith('/communities/')) renderCommunityDetail(container, route.split('/')[2]);
@@ -1659,19 +2103,19 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // ==========================================
-    // 8. HOMEPAGE VIEW (DISCOVERY PLATFORM V2)
+    // 8. HOMEPAGE VIEW (THE RAIVORA V3 LIVE UNIVERSE)
     // ==========================================
     async function renderHome(container) {
       container.innerHTML = `
-        <!-- HERO SECTION -->
+        <!-- 1. HERO SECTION -->
         <section class="discovery-hero">
-          <div class="hero-badge">✦ THE RAIVORA • COMMUNITY DISCOVERY PLATFORM ✦</div>
+          <div class="hero-badge">✦ THE RAIVORA • LIVE COMMUNITY UNIVERSE ✦</div>
           <h2 class="hero-title">DISCOVER THE RAIVORA</h2>
           <p class="hero-subtitle">
             Communities, creators, projects and experiences powered by Rai.
           </p>
 
-          <!-- HERO LARGE SEARCH BOX -->
+          <!-- HERO LARGE SEARCH BOX WITH SMART INTENT -->
           <div class="hero-search-wrapper">
             <form onsubmit="onHeroSearchSubmit(event)" class="hero-search-box">
               <span style="font-size:1.2rem; color:var(--cyan); margin-right:0.75rem;">🔍</span>
@@ -1686,31 +2130,151 @@ UI_HTML = r"""<!DOCTYPE html>
             <button class="btn btn-primary btn-lg" onclick="navigate('/communities')">
               <span>✦</span> Explore Communities
             </button>
+            <button class="btn btn-outline btn-lg" onclick="openCreateSpaceModal()">
+              <span>+</span> Create a Space
+            </button>
             <a href="https://discord.com/oauth2/authorize?client_id=1554732669072445532&permissions=8&scope=bot%20applications.commands" target="_blank" class="btn btn-discord btn-lg">
               <span>👾</span> Add to Discord
             </a>
           </div>
         </section>
 
-        <!-- CATEGORY DISCOVERY PILLS -->
+        <!-- 2. CATEGORIES -->
         <div class="category-pills-bar">
           <a class="cat-pill" onclick="navigate('/gaming')">🎮 Gaming <span class="cat-pill-count" id="count-gaming">LFG</span></a>
-          <a class="cat-pill" onclick="navigate('/music')">🎧 Music <span class="cat-pill-count">320k</span></a>
-          <a class="cat-pill" onclick="navigate('/creators')">🎨 Creators <span class="cat-pill-count" id="count-creators">VFX</span></a>
+          <a class="cat-pill" onclick="navigate('/music')">🎵 Music <span class="cat-pill-count">Hi-Fi</span></a>
+          <a class="cat-pill" onclick="navigate('/creators')">🎨 Creators <span class="cat-pill-count" id="count-creators">Portfolios</span></a>
           <a class="cat-pill" onclick="navigate('/projects')">🚀 Projects <span class="cat-pill-count" id="count-projects">Active</span></a>
-          <a class="cat-pill" onclick="navigate('/media')">🎬 Media <span class="cat-pill-count">Live</span></a>
+          <a class="cat-pill" onclick="navigate('/media')">🎬 Media <span class="cat-pill-count">Watch</span></a>
           <a class="cat-pill" onclick="navigate('/events')">📅 Events <span class="cat-pill-count" id="count-events">Events</span></a>
           <a class="cat-pill" onclick="navigate('/resources')">📚 Resources <span class="cat-pill-count" id="count-resources">LUTs</span></a>
+          <a class="cat-pill" onclick="navigate('/discover/constellation')">🌌 Constellation <span class="cat-pill-count">Galaxy</span></a>
           <a class="cat-pill" onclick="navigate('/brain')">🧠 AI Brain <span class="cat-pill-count">Q&A</span></a>
-          <a class="cat-pill" onclick="navigate('/rai/features#security')">🛡 Security <span class="cat-pill-count">Safe</span></a>
-          <a class="cat-pill" onclick="navigate('/labs')">🛠 Labs <span class="cat-pill-count">Graph</span></a>
+          <a class="cat-pill" onclick="navigate('/status')">🩺 Status <span class="cat-pill-count">Live</span></a>
         </div>
 
-        <!-- 🔥 TRENDING NOW -->
+        <!-- 3. ✦ RAI PULSE -->
+        <section class="pulse-section" id="pulse-section">
+          <div class="pulse-header">
+            <div class="pulse-title-wrap">
+              <h3>✦ RAI PULSE</h3>
+              <p>What's happening across the Raivora right now.</p>
+            </div>
+            <div class="pulse-badge-live">
+              <span class="live-dot"></span>
+              <span>LIVE</span>
+            </div>
+          </div>
+          <div class="pulse-grid">
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">👥</span>
+              <div class="pulse-stat-val" id="pulse-members">—</div>
+              <div class="pulse-stat-label">Members Online</div>
+            </div>
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">🎙️</span>
+              <div class="pulse-stat-val" id="pulse-voice">—</div>
+              <div class="pulse-stat-label">In Voice</div>
+            </div>
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">🎵</span>
+              <div class="pulse-stat-val" id="pulse-listening">—</div>
+              <div class="pulse-stat-label">Listening</div>
+            </div>
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">🎮</span>
+              <div class="pulse-stat-val" id="pulse-gaming">—</div>
+              <div class="pulse-stat-label">Gaming</div>
+            </div>
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">🎨</span>
+              <div class="pulse-stat-val" id="pulse-creating">—</div>
+              <div class="pulse-stat-label">Creating</div>
+            </div>
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">🚀</span>
+              <div class="pulse-stat-val" id="pulse-projects">—</div>
+              <div class="pulse-stat-label">Active Projects</div>
+            </div>
+            <div class="pulse-stat-card">
+              <span class="pulse-stat-icon">📅</span>
+              <div class="pulse-stat-val" id="pulse-events">—</div>
+              <div class="pulse-stat-label">Live Events</div>
+            </div>
+          </div>
+
+          <!-- ACTIVITY DNA -->
+          <div class="pulse-dna-box" id="pulse-dna-box">
+            <div class="pulse-dna-header">
+              <div class="pulse-dna-title">
+                <span>⚡</span> Community Activity DNA
+              </div>
+              <span style="font-size:0.75rem; color:var(--text-dim);" id="pulse-dna-status">Real aggregate distribution</span>
+            </div>
+            <div class="dna-bars-grid" id="pulse-dna-grid">
+              <div class="dna-bar-item">
+                <div class="dna-bar-labels">
+                  <span>🎙️ Voice</span>
+                  <span id="dna-pct-voice">—</span>
+                </div>
+                <div class="dna-track"><div class="dna-fill voice" id="dna-fill-voice" style="width:0%;"></div></div>
+              </div>
+              <div class="dna-bar-item">
+                <div class="dna-bar-labels">
+                  <span>🎮 Gaming</span>
+                  <span id="dna-pct-gaming">—</span>
+                </div>
+                <div class="dna-track"><div class="dna-fill gaming" id="dna-fill-gaming" style="width:0%;"></div></div>
+              </div>
+              <div class="dna-bar-item">
+                <div class="dna-bar-labels">
+                  <span>🎵 Music</span>
+                  <span id="dna-pct-music">—</span>
+                </div>
+                <div class="dna-track"><div class="dna-fill music" id="dna-fill-music" style="width:0%;"></div></div>
+              </div>
+              <div class="dna-bar-item">
+                <div class="dna-bar-labels">
+                  <span>🎨 Creating</span>
+                  <span id="dna-pct-creating">—</span>
+                </div>
+                <div class="dna-track"><div class="dna-fill creating" id="dna-fill-creating" style="width:0%;"></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. 🟢 LIVE NOW -->
         <div class="section-title">
           <div class="title-group">
+            <span class="title-text">🟢 LIVE NOW</span>
+            <span class="pulse-badge-live" style="font-size:0.7rem; padding:0.25rem 0.65rem;"><span class="live-dot"></span> REAL SESSIONS</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCreateSpaceModal()">+ Start Session</button>
+        </div>
+        <p style="color:var(--text-muted); font-size:0.88rem; margin-top:-0.5rem; margin-bottom:1.2rem;">Happening across the Raivora right now.</p>
+        <div class="live-now-grid" id="live-now-grid">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+
+        <!-- 5. ⚡ HAPPENING AROUND RAI -->
+        <div class="section-title" style="margin-top:3rem;">
+          <div class="title-group">
+            <span class="title-text">⚡ HAPPENING AROUND RAI</span>
+            <span class="pill pill-purple">REALTIME ACTIVITY FEED</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadActivityFeed()">Refresh Feed ⟳</button>
+        </div>
+        <div class="activity-feed-container" id="activity-feed-list">
+          <div style="padding:1rem; text-align:center; color:var(--text-muted); font-size:0.85rem;">Connecting to Raivora event stream...</div>
+        </div>
+
+        <!-- 6. 🔥 TRENDING NOW -->
+        <div class="section-title" style="margin-top:3rem;">
+          <div class="title-group">
             <span class="title-text">🔥 Trending Now</span>
-            <span class="pill pill-purple">REAL-TIME ACTIVITY</span>
+            <span class="pill pill-cyan">ACTIVE COMMUNITIES</span>
           </div>
           <button class="btn btn-outline btn-sm" onclick="navigate('/communities')">View All Communities &rarr;</button>
         </div>
@@ -1720,24 +2284,27 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="skeleton-card"></div>
         </div>
 
-        <!-- ✦ FEATURED SPOTLIGHT -->
-        <div class="spotlight-card" style="margin-top:3.5rem;">
-          <div class="spotlight-content">
-            <div class="spotlight-badge">✦ FEATURED CREATIVE HUB</div>
-            <h3>Nightwave Creative Studio & VFX Lounge</h3>
-            <p>
-              Dedicated community hub for video editors, After Effects motion designers, 3D artists, and beatmakers.
-              Collaborate on montage reels, share LUTs, and join weekly render jams.
+        <!-- 7. 🌌 DISCOVER THE CONSTELLATION -->
+        <div class="constellation-banner">
+          <div style="max-width:620px;">
+            <div class="spotlight-badge" style="background:rgba(6, 182, 212, 0.15); border-color:var(--cyan); color:var(--cyan); margin-bottom:0.8rem;">🌌 INTERACTIVE GALAXY</div>
+            <h3 style="font-size:1.85rem; font-weight:800; color:#fff; margin-bottom:0.6rem;">Discover the Community Constellation</h3>
+            <p style="color:var(--text-muted); font-size:0.95rem; line-height:1.6; margin-bottom:1.4rem;">
+              Explore the Raivora through an interactive node universe connecting communities, creators, projects, gaming squads, and live voice spaces.
             </p>
             <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
-              <button class="btn btn-primary" onclick="navigate('/communities/hub-nightwave')">Explore Studio ↗</button>
-              <button class="btn btn-outline" onclick="navigate('/creators')">Meet Creators</button>
+              <button class="btn btn-primary btn-lg" onclick="navigate('/discover/constellation')">
+                <span>🌌</span> Open Community Constellation &rarr;
+              </button>
+              <button class="btn btn-outline btn-lg" onclick="openCreateSpaceModal()">
+                <span>✦</span> Create a Space
+              </button>
             </div>
           </div>
-          <div style="font-size:5rem; text-shadow:0 0 35px var(--primary-glow); display:none;" id="spotlight-icon">🎨</div>
+          <div style="font-size:5rem; text-shadow:0 0 35px var(--primary-glow); display:none;" id="spotlight-icon">🌌</div>
         </div>
 
-        <!-- 👥 POPULAR COMMUNITIES -->
+        <!-- 8. 👥 POPULAR COMMUNITIES -->
         <div class="section-title">
           <div class="title-group">
             <span class="title-text">👥 Popular Communities</span>
@@ -1750,10 +2317,36 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="skeleton-card"></div>
         </div>
 
-        <!-- 🚀 ACTIVE PROJECTS -->
-        <div class="section-title">
+        <!-- 9. 🎨 CREATORS THIS WEEK -->
+        <div class="section-title" style="margin-top:3rem;">
           <div class="title-group">
-            <span class="title-text">🚀 Active Projects</span>
+            <span class="title-text">🎨 CREATORS THIS WEEK</span>
+            <span class="pill pill-purple">VERIFIED PORTFOLIOS</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="navigate('/creators')">Meet All Creators &rarr;</button>
+        </div>
+        <div class="discovery-grid" id="home-creators-grid">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+
+        <!-- 10. 🎮 LOOKING FOR GROUP -->
+        <div class="section-title" style="margin-top:3rem;">
+          <div class="title-group">
+            <span class="title-text">🎮 LOOKING FOR GROUP</span>
+            <span class="pill pill-green">LIVE LFG SQUADS</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="navigate('/gaming')">Join Matchmaker &rarr;</button>
+        </div>
+        <div class="discovery-grid" id="home-gaming-grid">
+          <div class="skeleton-card"></div>
+          <div class="skeleton-card"></div>
+        </div>
+
+        <!-- 11. 🚀 ACTIVE PROJECTS -->
+        <div class="section-title" style="margin-top:3rem;">
+          <div class="title-group">
+            <span class="title-text">🚀 ACTIVE PROJECTS</span>
             <span class="pill pill-pink">COLLABORATIVE SPACES</span>
           </div>
           <button class="btn btn-primary btn-sm" onclick="openCreateProjectModal()">+ Launch Project</button>
@@ -1764,23 +2357,10 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="skeleton-card"></div>
         </div>
 
-        <!-- 🎮 GAMING SQUADS & LFG -->
-        <div class="section-title">
+        <!-- 12. 🎵 MUSIC -->
+        <div class="section-title" style="margin-top:3rem;">
           <div class="title-group">
-            <span class="title-text">🎮 Active Gaming Squads</span>
-            <span class="pill pill-green">LIVE LFG</span>
-          </div>
-          <button class="btn btn-outline btn-sm" onclick="navigate('/gaming')">Join Matchmaker &rarr;</button>
-        </div>
-        <div class="discovery-grid" id="home-gaming-grid">
-          <div class="skeleton-card"></div>
-          <div class="skeleton-card"></div>
-        </div>
-
-        <!-- 🎧 MUSIC PREVIEW & LISTENING ROOMS -->
-        <div class="section-title">
-          <div class="title-group">
-            <span class="title-text">🎧 Lossless Music & Audio Stream</span>
+            <span class="title-text">🎵 PLAYING NOW & LISTENING ROOMS</span>
             <span class="pill pill-purple">320kbps OPUS</span>
           </div>
           <button class="btn btn-outline btn-sm" onclick="navigate('/music')">Music Hub &rarr;</button>
@@ -1789,24 +2369,24 @@ UI_HTML = r"""<!DOCTYPE html>
         <div class="player-widget">
           <div class="player-header">
             <div style="display:flex; align-items:center; gap:0.6rem;">
-              <span class="pill pill-green" id="home-music-vc">🟢 Live in 🔊 General Lounge VC • 14 Listening</span>
-              <span class="pill pill-cyan">Zero Buffering</span>
+              <span class="pill pill-green" id="home-music-vc">🟢 Music Room Active • 320kbps Audio</span>
+              <span class="pill pill-cyan">Lossless Audio</span>
             </div>
             <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:var(--text-muted);">
-              <span>Hi-Fi Stream</span>
-              <div class="eq-bars">
-                <div class="eq-bar"></div>
-                <div class="eq-bar"></div>
-                <div class="eq-bar"></div>
-                <div class="eq-bar"></div>
+              <span>Equalizer</span>
+              <div class="eq-bars" id="music-eq-bars">
+                <div class="eq-bar paused"></div>
+                <div class="eq-bar paused"></div>
+                <div class="eq-bar paused"></div>
+                <div class="eq-bar paused"></div>
               </div>
             </div>
           </div>
           <div class="player-main">
-            <div class="player-disc" id="home-player-disc">💿</div>
+            <div class="player-disc paused" id="home-player-disc">💿</div>
             <div class="player-info">
-              <div class="player-title" id="home-track-title">Resonance • Synthwave Hi-Fi</div>
-              <div class="player-artist" id="home-track-artist">The Raivora 2.6 • 320kbps Stream • Auto-DJ</div>
+              <div class="player-title" id="home-track-title">Lossless Stream</div>
+              <div class="player-artist" id="home-track-artist">The Raivora Audio Service • Hi-Fi</div>
             </div>
             <div class="player-controls">
               <button class="ctrl-icon-btn" onclick="nextDemoTrack()" title="Previous Track">⏮</button>
@@ -1816,8 +2396,8 @@ UI_HTML = r"""<!DOCTYPE html>
           </div>
         </div>
 
-        <!-- 📅 UPCOMING EVENTS -->
-        <div class="section-title">
+        <!-- 13. 📅 EVENTS -->
+        <div class="section-title" style="margin-top:3rem;">
           <div class="title-group">
             <span class="title-text">📅 Community Events</span>
             <span class="pill pill-pink">SCHEDULED</span>
@@ -1829,17 +2409,17 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="skeleton-card"></div>
         </div>
 
-        <!-- ✦ POWERED BY RAI PLATFORM HIGHLIGHT -->
-        <div style="margin-top:4rem; padding:3rem 2rem; background:linear-gradient(135deg, rgba(20,24,38,0.85), rgba(12,14,24,0.95)); border:1px solid rgba(147,51,234,0.3); border-radius:var(--radius-lg); text-align:center;">
+        <!-- 14. ✦ RAI PLATFORM HIGHLIGHT -->
+        <div style="margin-top:4.5rem; padding:3.5rem 2.2rem; background:linear-gradient(135deg, rgba(20,24,38,0.85), rgba(12,14,24,0.95)); border:1px solid rgba(147,51,234,0.3); border-radius:var(--radius-lg); text-align:center;">
           <div style="font-size:2.5rem; margin-bottom:0.5rem;">✦</div>
-          <h3 style="font-size:2.2rem; font-weight:800; color:#fff; margin-bottom:0.6rem;">POWERED BY RAI COMMUNITY OS</h3>
-          <p style="color:var(--text-muted); max-width:650px; margin:0 auto 1.8rem auto; font-size:1.05rem; line-height:1.6;">
-            A unified operating system engineered for Discord servers, content creators, competitive gaming teams, and collaborative ventures.
+          <h3 style="font-size:2.2rem; font-weight:800; color:#fff; margin-bottom:0.6rem;">THE RAIVORA — A LIVE COMMUNITY UNIVERSE</h3>
+          <p style="color:var(--text-muted); max-width:680px; margin:0 auto 1.8rem auto; font-size:1.05rem; line-height:1.6;">
+            A unified operating system engineered for Discord servers, content creators, competitive gaming teams, and collaborative ventures. Real activity, real communities, real data.
           </p>
           <div style="display:flex; justify-content:center; gap:1rem; flex-wrap:wrap;">
-            <button class="btn btn-primary" onclick="navigate('/rai')">Explore Rai Platform</button>
-            <button class="btn btn-outline" onclick="navigate('/rai/features')">View 18+ Subsystems</button>
-            <button class="btn btn-outline" onclick="navigate('/status')">System Health & Doctor</button>
+            <button class="btn btn-primary" onclick="openCreateSpaceModal()">+ Create a Space</button>
+            <button class="btn btn-outline" onclick="navigate('/discover/constellation')">🌌 View Constellation</button>
+            <button class="btn btn-outline" onclick="navigate('/status')">🩺 System Status</button>
           </div>
         </div>
       `;
@@ -1858,24 +2438,159 @@ UI_HTML = r"""<!DOCTYPE html>
           inp.value = val;
           onDiscoverSearch(val);
         }
-      }, 50);
+      }, 60);
+    }
+
+    function updatePulseUI(data) {
+      if (!data) return;
+      const setMetric = (id, val) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (val === null || val === undefined) {
+          el.innerText = '—';
+          el.title = 'Data unavailable';
+        } else {
+          el.innerText = Number(val).toLocaleString();
+        }
+      };
+
+      setMetric('pulse-members', data.members_online);
+      setMetric('pulse-voice', data.in_voice);
+      setMetric('pulse-listening', data.listening);
+      setMetric('pulse-gaming', data.gaming);
+      setMetric('pulse-creating', data.creating);
+      setMetric('pulse-projects', data.active_projects);
+      setMetric('pulse-events', data.live_events);
+
+      // DNA Bars
+      const dna = data.dna || {};
+      const setDnaBar = (cat, pct) => {
+        const fillEl = document.getElementById(`dna-fill-${cat}`);
+        const pctEl = document.getElementById(`dna-pct-${cat}`);
+        if (fillEl && pct !== null && pct !== undefined) fillEl.style.width = pct + '%';
+        if (pctEl && pct !== null && pct !== undefined) pctEl.innerText = pct > 0 ? pct + '%' : '—';
+      };
+      setDnaBar('voice', dna.voice);
+      setDnaBar('gaming', dna.gaming);
+      setDnaBar('music', dna.music);
+      setDnaBar('creating', dna.creating);
+    }
+
+    function updateLiveNowUI(sessions) {
+      const grid = document.getElementById('live-now-grid');
+      if (!grid) return;
+      if (!sessions || sessions.length === 0) {
+        grid.innerHTML = `
+          <div class="state-box" style="grid-column:1/-1; padding:2rem 1.5rem;">
+            <div class="state-icon">🟢</div>
+            <div class="state-title">No Active Live Sessions Right Now</div>
+            <div class="state-desc">Start a Gaming Squad, Creator Workspace, Listening Party, or Community Room with Discord automation.</div>
+            <button class="btn btn-primary btn-sm" onclick="openCreateSpaceModal()">+ Start a Session</button>
+          </div>
+        `;
+        return;
+      }
+
+      grid.innerHTML = sessions.map(s => `
+        <div class="live-now-card">
+          <div>
+            <div class="live-now-top">
+              <span class="live-now-type">
+                <span class="live-dot"></span> ${s.type || 'SESSION'}
+              </span>
+              <span class="tag-badge" style="font-size:0.7rem;">👥 ${s.participants} live</span>
+            </div>
+            <div class="live-now-title">${s.title}</div>
+            <div class="live-now-community">📍 ${s.community || 'Rai Community OS'}</div>
+          </div>
+          <div>
+            <div class="live-now-meta">
+              <span>Started: ${s.started_at ? s.started_at.split('T')[0] : 'Live now'}</span>
+              <span class="pill pill-green" style="font-size:0.68rem;">ACTIVE</span>
+            </div>
+            <div class="card-bottom-actions" style="margin-top:0.8rem;">
+              <button class="btn btn-primary btn-sm" style="flex:1;" onclick="navigate('${s.destination || '/communities'}')">Join Space ↗</button>
+              <a href="https://discord.gg/raivora" target="_blank" class="btn btn-discord btn-sm" style="flex:1;">Join Discord</a>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function loadActivityFeed() {
+      const listEl = document.getElementById('activity-feed-list');
+      if (!listEl) return;
+      try {
+        const res = await fetch('/api/activity');
+        const json = await res.json();
+        if (json.success && json.data && json.data.events) {
+          updateActivityUI(json.data.events);
+        }
+      } catch (e) {
+        console.warn('Failed to load activity feed:', e);
+      }
+    }
+
+    function updateActivityUI(events) {
+      const listEl = document.getElementById('activity-feed-list');
+      if (!listEl) return;
+      if (!events || events.length === 0) {
+        listEl.innerHTML = `<div style="padding:1rem; text-align:center; color:var(--text-muted); font-size:0.85rem;">No recent community activity recorded yet.</div>`;
+        return;
+      }
+
+      const formatTimeAgo = (ts) => {
+        if (!ts) return 'Just now';
+        const d = new Date(ts);
+        const diffMs = Date.now() - d.getTime();
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        return `${Math.floor(hrs / 24)}d ago`;
+      };
+
+      listEl.innerHTML = events.slice(0, 8).map(ev => `
+        <div class="activity-feed-item">
+          <div class="activity-feed-left">
+            <span class="pill ${ev.badge_color || 'pill-purple'}" style="font-size:0.68rem; padding:0.2rem 0.5rem;">
+              ${ev.icon || '⚡'} ${ev.event_type}
+            </span>
+            <span>${ev.title}</span>
+          </div>
+          <div class="activity-feed-time">${formatTimeAgo(ev.created_at)}</div>
+        </div>
+      `).join('');
     }
 
     async function loadHomeData() {
-      // 1. Fetch live telemetry counts
+      // 1. Fetch ✦ RAI PULSE (Real Aggregate Telemetry)
       try {
-        const sRes = await fetch('/api/stats');
-        const s = await sRes.json();
-        if (s.success && s.data) {
-          const d = s.data;
-          const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
-          setEl('count-projects', d.active_projects_count + ' Active');
-          setEl('count-events', d.upcoming_events_count + ' Scheduled');
-          setEl('count-resources', d.resources_count + ' Available');
+        const pRes = await fetch('/api/pulse');
+        const pJson = await pRes.json();
+        if (pJson.success && pJson.data) {
+          updatePulseUI(pJson.data);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('Failed to load pulse metrics:', e);
+      }
 
-      // 2. Fetch Communities
+      // 2. Fetch 🟢 LIVE NOW SESSIONS
+      try {
+        const lRes = await fetch('/api/live');
+        const lJson = await lRes.json();
+        if (lJson.success && lJson.data) {
+          updateLiveNowUI(lJson.data.sessions || []);
+        }
+      } catch (e) {
+        console.warn('Failed to load live sessions:', e);
+      }
+
+      // 3. Fetch ⚡ HAPPENING AROUND RAI
+      await loadActivityFeed();
+
+      // 4. Fetch Communities (Trending + Popular)
       try {
         const cRes = await fetch('/api/communities');
         const cData = await cRes.json();
@@ -1947,53 +2662,46 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       } catch (e) {}
 
-      // 3. Fetch Projects
+      // 5. Fetch 🎨 CREATORS THIS WEEK
       try {
-        const pRes = await fetch('/api/projects');
-        const pData = await pRes.json();
-        const pGrid = document.getElementById('home-projects-grid');
-        if (pGrid && pData.success && pData.data && pData.data.length > 0) {
-          pGrid.innerHTML = pData.data.slice(0, 3).map(p => `
+        const crRes = await fetch('/api/creators');
+        const crData = await crRes.json();
+        const crGrid = document.getElementById('home-creators-grid');
+        if (crGrid && crData.success && crData.data && crData.data.length > 0) {
+          crGrid.innerHTML = crData.data.slice(0, 3).map(c => `
             <div class="discovery-card">
               <div>
                 <div class="card-top">
-                  <div class="card-media-icon">🚀</div>
+                  <div class="card-media-icon">🎨</div>
                   <div class="card-heading">
-                    <div class="card-name">${p.name}</div>
-                    <div class="card-subtitle">${p.project_type.toUpperCase()}</div>
+                    <div class="card-name">${c.title}</div>
+                    <div class="card-subtitle">${c.category.toUpperCase()}</div>
                   </div>
                 </div>
-                <div class="card-desc">Connected Discord workspace with synchronized chat, voice rooms, and Kanban board.</div>
+                <div class="card-desc">${c.description || 'Verified showcase piece on Rai Community OS.'}</div>
                 <div class="card-tags">
-                  <span class="pill pill-purple">${p.status.toUpperCase()}</span>
-                  <span class="tag-badge">Discord Sync</span>
+                  <span class="tag-badge">Tools: ${c.tools_used || 'Software'}</span>
                 </div>
               </div>
-              <div>
-                <div class="card-metrics">
-                  <span>Owner: #${p.owner_id}</span>
-                  <span style="color:var(--text-dim);">${p.created_at.split('T')[0]}</span>
-                </div>
-                <div class="card-bottom-actions">
-                  <button class="btn btn-outline btn-sm" style="flex:1;" onclick="openProjectWorkspace(${p.id})">Open Board</button>
-                  <button class="btn btn-outline btn-sm" onclick="toggleSaveItem('project', '${p.id}', '${p.name}', '${p.project_type}')">🔖</button>
-                </div>
+              <div class="card-bottom-actions">
+                <button class="btn btn-outline btn-sm" style="flex:1;" onclick="openPortfolioModal(${JSON.stringify(c).replace(/"/g, '&quot;')})">View Portfolio</button>
+                <button class="btn btn-outline btn-sm" onclick="toggleSaveItem('creator', '${c.id}', '${c.title}', '${c.category}')">🔖</button>
               </div>
             </div>
           `).join('');
-        } else if (pGrid) {
-          pGrid.innerHTML = `
+        } else if (crGrid) {
+          crGrid.innerHTML = `
             <div class="state-box">
-              <div class="state-icon">🚀</div>
-              <div class="state-title">No Projects Discovered Yet</div>
-              <div class="state-desc">Initiate a collaborative project to coordinate video editing, tournaments, or community tools.</div>
-              <button class="btn btn-primary" onclick="openCreateProjectModal()">+ Launch Project</button>
+              <div class="state-icon">🎨</div>
+              <div class="state-title">No Creator Showcases Yet</div>
+              <div class="state-desc">Publish your editing, VFX, 3D, or audio work to be featured in the community showcase.</div>
+              <button class="btn btn-primary" onclick="openCreatePortfolioModal()">+ Add Portfolio Item</button>
             </div>
           `;
         }
       } catch (e) {}
 
-      // 4. Fetch Gaming LFG
+      // 6. Fetch 🎮 GAMING LFG
       try {
         const gRes = await fetch('/api/gaming/lfg');
         const gData = await gRes.json();
@@ -2064,7 +2772,53 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       } catch (e) {}
 
-      // 5. Fetch Events
+      // 7. Fetch 🚀 ACTIVE PROJECTS
+      try {
+        const pRes = await fetch('/api/projects');
+        const pData = await pRes.json();
+        const pGrid = document.getElementById('home-projects-grid');
+        if (pGrid && pData.success && pData.data && pData.data.length > 0) {
+          pGrid.innerHTML = pData.data.slice(0, 3).map(p => `
+            <div class="discovery-card">
+              <div>
+                <div class="card-top">
+                  <div class="card-media-icon">🚀</div>
+                  <div class="card-heading">
+                    <div class="card-name">${p.name}</div>
+                    <div class="card-subtitle">${p.project_type.toUpperCase()}</div>
+                  </div>
+                </div>
+                <div class="card-desc">Connected Discord workspace with synchronized chat, voice rooms, and Kanban board.</div>
+                <div class="card-tags">
+                  <span class="pill pill-purple">${p.status.toUpperCase()}</span>
+                  <span class="tag-badge">Discord Sync</span>
+                </div>
+              </div>
+              <div>
+                <div class="card-metrics">
+                  <span>Owner: #${p.owner_id}</span>
+                  <span style="color:var(--text-dim);">${p.created_at.split('T')[0]}</span>
+                </div>
+                <div class="card-bottom-actions">
+                  <button class="btn btn-outline btn-sm" style="flex:1;" onclick="openProjectWorkspace(${p.id})">Open Board</button>
+                  <button class="btn btn-outline btn-sm" onclick="toggleSaveItem('project', '${p.id}', '${p.name}', '${p.project_type}')">🔖</button>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else if (pGrid) {
+          pGrid.innerHTML = `
+            <div class="state-box">
+              <div class="state-icon">🚀</div>
+              <div class="state-title">No Projects Discovered Yet</div>
+              <div class="state-desc">Initiate a collaborative project to coordinate video editing, tournaments, or community tools.</div>
+              <button class="btn btn-primary" onclick="openCreateProjectModal()">+ Launch Project</button>
+            </div>
+          `;
+        }
+      } catch (e) {}
+
+      // 8. Fetch 📅 EVENTS
       try {
         const eRes = await fetch('/api/events');
         const eData = await eRes.json();
@@ -2114,7 +2868,6 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       } catch (e) {}
     }
-
     // ==========================================
     // 9. COMMUNITIES DIRECTORY VIEW (/communities)
     // ==========================================
@@ -3768,6 +4521,507 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // ==========================================
+    // 29B. COMMUNITY CONSTELLATION (/discover/constellation)
+    // ==========================================
+    let constellationAnimId = null;
+
+    async function renderConstellation(container) {
+      if (constellationAnimId) cancelAnimationFrame(constellationAnimId);
+
+      container.innerHTML = `
+        <div class="section-title" style="margin-top:1rem;">
+          <div class="title-group">
+            <span class="title-text">🌌 Community Constellation</span>
+            <span class="pill pill-purple">THE RAIVORA UNIVERSE</span>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="navigate('/discover')">&larr; Back to Directory</button>
+        </div>
+        <p style="color:var(--text-muted); margin-bottom:1.5rem; line-height:1.6;">
+          An interactive galaxy of interconnected communities, creators, collaborative projects, and live voice spaces.
+          Hover over nodes to explore relationships, or click to inspect and join.
+        </p>
+
+        <div class="constellation-wrapper">
+          <canvas id="constellation-canvas"></canvas>
+
+          <!-- CONSTELLATION NODE DETAIL DRAWER -->
+          <div class="constellation-drawer" id="constellation-drawer">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.6rem;">
+              <span class="pill pill-cyan" id="node-badge" style="font-size:0.7rem;">COMMUNITY</span>
+              <button class="modal-close" style="font-size:1.2rem;" onclick="closeConstellationDrawer()">&times;</button>
+            </div>
+            <h4 id="node-title" style="font-size:1.25rem; font-weight:800; color:#fff; margin-bottom:0.4rem;">Nightwave Studio</h4>
+            <p id="node-desc" style="font-size:0.84rem; color:var(--text-muted); line-height:1.5; margin-bottom:1rem;">
+              Community description goes here.
+            </p>
+            <div id="node-metrics" style="font-size:0.8rem; color:var(--cyan); margin-bottom:1.2rem; font-weight:600;">
+              👥 88 members • 🚀 4 projects
+            </div>
+            <div style="display:flex; gap:0.6rem;">
+              <button class="btn btn-primary btn-sm" id="node-action-btn" style="flex:1;" onclick="">Explore Hub</button>
+              <button class="btn btn-outline btn-sm" onclick="closeConstellationDrawer()">Dismiss</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      initConstellationCanvas();
+    }
+
+    function closeConstellationDrawer() {
+      const d = document.getElementById('constellation-drawer');
+      if (d) d.classList.remove('active');
+    }
+
+    async function initConstellationCanvas() {
+      const canvas = document.getElementById('constellation-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      let w = canvas.width = rect.width;
+      let h = canvas.height = rect.height;
+
+      let graphData = { nodes: [], edges: [] };
+      try {
+        const res = await fetch('/api/constellation');
+        const json = await res.json();
+        if (json.success && json.data) graphData = json.data;
+      } catch (e) {
+        console.warn('Constellation fetch error:', e);
+      }
+
+      // Default fallback universe nodes if empty
+      if (!graphData.nodes || graphData.nodes.length === 0) {
+        graphData.nodes = [
+          { id: 'hub-rai', label: '✦ Raivora Hub', type: 'core', radius: 18, color: '#9333ea', x: w * 0.5, y: h * 0.5 },
+          { id: 'cat-gaming', label: '🎮 Gaming', type: 'category', radius: 13, color: '#06b6d4', x: w * 0.32, y: h * 0.35 },
+          { id: 'cat-creators', label: '🎨 Creators', type: 'category', radius: 13, color: '#ec4899', x: w * 0.68, y: h * 0.35 },
+          { id: 'cat-music', label: '🎵 Music', type: 'category', radius: 13, color: '#a855f7', x: w * 0.5, y: h * 0.22 },
+          { id: 'cat-projects', label: '🚀 Projects', type: 'category', radius: 13, color: '#10b981', x: w * 0.35, y: h * 0.68 },
+          { id: 'cat-events', label: '📅 Events', type: 'category', radius: 13, color: '#f59e0b', x: w * 0.65, y: h * 0.68 },
+          { id: 'comm-nightwave', label: 'Nightwave Studio', type: 'community', radius: 10, color: '#c084fc', x: w * 0.76, y: h * 0.25, members: 88, desc: 'Creative studio for video editors, motion graphics, and audio artists.' },
+          { id: 'comm-gaming', label: 'Vora Gaming Realm', type: 'community', radius: 10, color: '#38bdf8', x: w * 0.24, y: h * 0.28, members: 142, desc: 'Competitive esports and squad finding for BGMI, Valorant, and Apex.' }
+        ];
+        graphData.edges = [
+          { source: 'hub-rai', target: 'cat-gaming' },
+          { source: 'hub-rai', target: 'cat-creators' },
+          { source: 'hub-rai', target: 'cat-music' },
+          { source: 'hub-rai', target: 'cat-projects' },
+          { source: 'hub-rai', target: 'cat-events' },
+          { source: 'cat-creators', target: 'comm-nightwave' },
+          { source: 'cat-music', target: 'comm-nightwave' },
+          { source: 'cat-gaming', target: 'comm-gaming' }
+        ];
+      }
+
+      // Distribute node positions if not preset
+      graphData.nodes.forEach((n, idx) => {
+        if (!n.x || !n.y) {
+          const angle = (idx / graphData.nodes.length) * Math.PI * 2;
+          const dist = (idx % 2 === 0 ? 0.26 : 0.38) * Math.min(w, h);
+          n.x = w * 0.5 + Math.cos(angle) * dist;
+          n.y = h * 0.5 + Math.sin(angle) * dist;
+        }
+        n.vx = 0;
+        n.vy = 0;
+        n.baseRadius = n.radius || 10;
+        n.currentRadius = n.baseRadius;
+      });
+
+      let hoveredNode = null;
+      let draggedNode = null;
+
+      function onMouseMove(e) {
+        const r = canvas.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+        const my = e.clientY - r.top;
+
+        if (draggedNode) {
+          draggedNode.x = mx;
+          draggedNode.y = my;
+          return;
+        }
+
+        hoveredNode = null;
+        for (let n of graphData.nodes) {
+          const dist = Math.hypot(n.x - mx, n.y - my);
+          if (dist <= n.baseRadius + 8) {
+            hoveredNode = n;
+            break;
+          }
+        }
+        canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+      }
+
+      function onMouseDown(e) {
+        if (hoveredNode) {
+          draggedNode = hoveredNode;
+          canvas.style.cursor = 'grabbing';
+        }
+      }
+
+      function onMouseUp(e) {
+        if (draggedNode && hoveredNode) {
+          showNodeDetails(hoveredNode);
+        }
+        draggedNode = null;
+        canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+      }
+
+      function showNodeDetails(node) {
+        const drawer = document.getElementById('constellation-drawer');
+        const badge = document.getElementById('node-badge');
+        const title = document.getElementById('node-title');
+        const desc = document.getElementById('node-desc');
+        const metrics = document.getElementById('node-metrics');
+        const btn = document.getElementById('node-action-btn');
+        if (!drawer || !node) return;
+
+        badge.innerText = (node.type || 'NODE').toUpperCase();
+        title.innerText = node.label || 'Entity';
+        desc.innerText = node.desc || node.description || 'Verified node active within the Raivora ecosystem.';
+        metrics.innerText = node.members ? `👥 ${node.members} members` : (node.subtitle || 'Connected Node');
+
+        if (node.id.startsWith('comm-') || node.type === 'community') {
+          btn.innerText = 'View Community Hub ↗';
+          btn.onclick = () => navigate('/communities/' + node.id.replace('comm-', ''));
+        } else if (node.type === 'category') {
+          btn.innerText = `Explore ${node.label} ↗`;
+          btn.onclick = () => navigate('/' + (node.id.replace('cat-', '') || 'discover'));
+        } else {
+          btn.innerText = 'Explore Raivora ↗';
+          btn.onclick = () => navigate('/discover');
+        }
+
+        drawer.classList.add('active');
+      }
+
+      canvas.addEventListener('mousemove', onMouseMove);
+      canvas.addEventListener('mousedown', onMouseDown);
+      window.addEventListener('mouseup', onMouseUp);
+
+      function loop() {
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw connections
+        ctx.lineWidth = 1;
+        for (let edge of graphData.edges) {
+          const s = graphData.nodes.find(n => n.id === edge.source);
+          const t = graphData.nodes.find(n => n.id === edge.target);
+          if (s && t) {
+            const isHighlight = (hoveredNode && (hoveredNode.id === s.id || hoveredNode.id === t.id));
+            ctx.beginPath();
+            ctx.moveTo(s.x, s.y);
+            ctx.lineTo(t.x, t.y);
+            ctx.strokeStyle = isHighlight ? 'rgba(6, 182, 212, 0.7)' : 'rgba(147, 51, 234, 0.22)';
+            ctx.lineWidth = isHighlight ? 2 : 1;
+            ctx.stroke();
+          }
+        }
+
+        // Draw nodes
+        for (let n of graphData.nodes) {
+          const isHovered = hoveredNode && hoveredNode.id === n.id;
+          const targetRad = isHovered ? n.baseRadius * 1.35 : n.baseRadius;
+          n.currentRadius += (targetRad - n.currentRadius) * 0.2;
+
+          // Outer halo
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.currentRadius * 2, 0, Math.PI * 2);
+          ctx.fillStyle = isHovered ? 'rgba(6, 182, 212, 0.18)' : 'rgba(147, 51, 234, 0.08)';
+          ctx.fill();
+
+          // Node core
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.currentRadius, 0, Math.PI * 2);
+          ctx.fillStyle = n.color || '#9333ea';
+          ctx.shadowColor = n.color || '#9333ea';
+          ctx.shadowBlur = isHovered ? 25 : 12;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          // Node label
+          ctx.font = isHovered ? 'bold 12px Outfit, sans-serif' : '11px Outfit, sans-serif';
+          ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.85)';
+          ctx.textAlign = 'center';
+          ctx.fillText(n.label, n.x, n.y + n.currentRadius + 14);
+        }
+
+        constellationAnimId = requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    // ==========================================
+    // 29C. CREATE A SPACE MODAL FLOW
+    // ==========================================
+    let selectedSpaceType = 'gaming';
+
+    function openCreateSpaceModal() {
+      if (!currentUser) {
+        alert('Please sign in with Discord to create a space.');
+        openLoginModal();
+        return;
+      }
+
+      openModal('✦ Create a Space in the Raivora', `
+        <p style="color:var(--text-muted); font-size:0.86rem; margin-bottom:1.2rem; line-height:1.5;">
+          Instantly instantiate an automated Discord workspace linked to the website.
+          Voice rooms, chat channels, and permissions are created in real time.
+        </p>
+
+        <label style="font-size:0.82rem; color:var(--text); font-weight:700; display:block; margin-bottom:0.5rem; text-transform:uppercase;">
+          1. Select Space Type
+        </label>
+        <div class="space-type-grid">
+          <div class="space-type-card selected" id="stype-gaming" onclick="selectSpaceType('gaming')">
+            <div class="space-type-icon">🎮</div>
+            <div class="space-type-label">Gaming Squad</div>
+          </div>
+          <div class="space-type-card" id="stype-creator" onclick="selectSpaceType('creator')">
+            <div class="space-type-icon">🎨</div>
+            <div class="space-type-label">Creator Studio</div>
+          </div>
+          <div class="space-type-card" id="stype-music" onclick="selectSpaceType('music')">
+            <div class="space-type-icon">🎵</div>
+            <div class="space-type-label">Listening Party</div>
+          </div>
+          <div class="space-type-card" id="stype-watch" onclick="selectSpaceType('watch')">
+            <div class="space-type-icon">🎬</div>
+            <div class="space-type-label">Watch Event</div>
+          </div>
+          <div class="space-type-card" id="stype-project" onclick="selectSpaceType('project')">
+            <div class="space-type-icon">🚀</div>
+            <div class="space-type-label">Project Sprint</div>
+          </div>
+          <div class="space-type-card" id="stype-room" onclick="selectSpaceType('room')">
+            <div class="space-type-icon">💬</div>
+            <div class="space-type-label">Community Room</div>
+          </div>
+          <div class="space-type-card" id="stype-openmic" onclick="selectSpaceType('openmic')">
+            <div class="space-type-icon">🎤</div>
+            <div class="space-type-label">Open Mic</div>
+          </div>
+          <div class="space-type-card" id="stype-event" onclick="selectSpaceType('event')">
+            <div class="space-type-icon">📅</div>
+            <div class="space-type-label">Live Event</div>
+          </div>
+        </div>
+
+        <form onsubmit="submitCreateSpace(event)" style="display:flex; flex-direction:column; gap:1rem;">
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Space Title</label>
+            <input type="text" id="space-title" class="input-field" style="width:100%;" placeholder="e.g. BGMI Conqueror Squad, Premiere Cut Sprint" required>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
+            <div>
+              <label style="font-size:0.82rem; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Visibility</label>
+              <select id="space-visibility" class="input-field" style="width:100%;">
+                <option value="public">🟢 Public (Raivora Discovery)</option>
+                <option value="unlisted">🟡 Unlisted (Invite Link Only)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.82rem; color:var(--text-muted); display:block; margin-bottom:0.35rem;" id="space-extra-label">Game / Topic</label>
+              <input type="text" id="space-extra" class="input-field" style="width:100%;" placeholder="e.g. BGMI, After Effects, Lo-Fi Beats">
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted); display:block; margin-bottom:0.35rem;">Description</label>
+            <textarea id="space-desc" class="input-field" style="width:100%; height:70px;" placeholder="What are you collaborating on?"></textarea>
+          </div>
+
+          <div id="space-submit-status" style="display:none; padding:0.6rem; border-radius:6px; font-size:0.82rem;"></div>
+
+          <div style="display:flex; justify-content:flex-end; gap:0.8rem; margin-top:0.4rem;">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-create-space">
+              <span>✦</span> Create Space
+            </button>
+          </div>
+        </form>
+      `);
+    }
+
+    function selectSpaceType(type) {
+      selectedSpaceType = type;
+      document.querySelectorAll('.space-type-card').forEach(c => c.classList.remove('selected'));
+      const activeCard = document.getElementById(`stype-${type}`);
+      if (activeCard) activeCard.classList.add('selected');
+
+      const extraLabel = document.getElementById('space-extra-label');
+      const extraInp = document.getElementById('space-extra');
+      if (extraLabel && extraInp) {
+        if (type === 'gaming') { extraLabel.innerText = 'Game Name'; extraInp.placeholder = 'e.g. BGMI, Valorant, Apex'; }
+        else if (type === 'creator') { extraLabel.innerText = 'Tools / Software'; extraInp.placeholder = 'e.g. Premiere Pro, Blender'; }
+        else if (type === 'music') { extraLabel.innerText = 'Genre / Vibe'; extraInp.placeholder = 'e.g. Synthwave, Lossless Lo-Fi'; }
+        else if (type === 'project') { extraLabel.innerText = 'Deliverable'; extraInp.placeholder = 'e.g. Discord Bot, Video Reel'; }
+        else { extraLabel.innerText = 'Category / Tag'; extraInp.placeholder = 'e.g. Chill, Discussion'; }
+      }
+    }
+
+    async function submitCreateSpace(e) {
+      e.preventDefault();
+      const title = document.getElementById('space-title').value.trim();
+      const visibility = document.getElementById('space-visibility').value;
+      const extra = document.getElementById('space-extra').value.trim();
+      const description = document.getElementById('space-desc').value.trim();
+      const statusDiv = document.getElementById('space-submit-status');
+      const submitBtn = document.getElementById('btn-create-space');
+
+      if (!title) return;
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Creating in Discord...';
+
+      try {
+        const res = await fetch('/api/spaces/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            space_type: selectedSpaceType,
+            title,
+            visibility,
+            extra,
+            description
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          openModal('✓ Space Created Successfully', `
+            <div style="text-align:center; padding:1rem 0;">
+              <div style="font-size:3rem; margin-bottom:0.5rem;">🎉</div>
+              <h4 style="font-size:1.3rem; font-weight:800; color:#fff; margin-bottom:0.4rem;">${data.data.title}</h4>
+              <span class="pill pill-green" style="margin-bottom:1rem; display:inline-block;">ACTIVE DISCORD WORKSPACE</span>
+              <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.6; max-width:420px; margin:0 auto 1.5rem auto;">
+                Your space is initialized and synchronized with Rai's automation outbox. Teammates can join right now.
+              </p>
+              <div style="display:flex; justify-content:center; gap:0.8rem; flex-wrap:wrap;">
+                <a href="${data.data.discord_invite || 'https://discord.gg/raivora'}" target="_blank" class="btn btn-discord btn-lg">
+                  <span>👾</span> Join Discord &rarr;
+                </a>
+                <button class="btn btn-primary btn-lg" onclick="closeModal(); navigate('${data.data.destination || '/'}');">
+                  View Space &rarr;
+                </button>
+              </div>
+            </div>
+          `);
+          loadHomeData();
+        } else {
+          statusDiv.style.display = 'block';
+          statusDiv.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusDiv.style.border = '1px solid var(--danger)';
+          statusDiv.style.color = '#fca5a5';
+          statusDiv.innerText = 'Creation failed: ' + (data.error?.message || 'Server rejected request');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Create Space';
+        }
+      } catch (err) {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusDiv.style.border = '1px solid var(--danger)';
+        statusDiv.style.color = '#fca5a5';
+        statusDiv.innerText = 'Connection error: ' + err;
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Create Space';
+      }
+    }
+
+    // ==========================================
+    // 29D. REALTIME SSE STREAM & STATUS PILL
+    // ==========================================
+    let eventSource = null;
+    let sseRetryCount = 0;
+
+    function initRealtimeStream() {
+      if (typeof EventSource === 'undefined') {
+        setRealtimeStatus('unavailable', 'SSE Not Supported');
+        return;
+      }
+
+      function connect() {
+        try {
+          eventSource = new EventSource('/api/realtime/stream');
+
+          eventSource.onopen = () => {
+            sseRetryCount = 0;
+            setRealtimeStatus('live', 'Live');
+          };
+
+          eventSource.addEventListener('pulse', (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              if (data && data.pulse) updatePulseUI(data.pulse);
+              if (data && data.live) updateLiveNowUI(data.live);
+              if (data && data.activity) updateActivityUI(data.activity);
+            } catch (err) {
+              console.warn('Realtime parse error:', err);
+            }
+          });
+
+          eventSource.onerror = () => {
+            sseRetryCount++;
+            if (sseRetryCount > 3) {
+              setRealtimeStatus('unavailable', 'Live data unavailable');
+            } else {
+              setRealtimeStatus('reconnecting', 'Reconnecting…');
+            }
+            if (eventSource) {
+              eventSource.close();
+              setTimeout(connect, Math.min(5000 * sseRetryCount, 30000));
+            }
+          };
+        } catch (e) {
+          setRealtimeStatus('unavailable', 'Live data unavailable');
+        }
+      }
+      connect();
+    }
+
+    function setRealtimeStatus(state, label) {
+      const pills = document.querySelectorAll('#global-rt-pill');
+      pills.forEach(pill => {
+        if (!pill) return;
+        pill.innerHTML = `<span class="rt-dot ${state}"></span> ${label}`;
+        pill.className = `rt-status-pill ${state}`;
+      });
+    }
+
+    // ==========================================
+    // 29E. FLOATING RAI ASSISTANT WIDGET
+    // ==========================================
+    function initAssistant() {
+      const widget = document.getElementById('rai-assistant-widget');
+      if (!widget) return;
+      if (sessionStorage.getItem('rai_assistant_dismissed')) {
+        widget.classList.add('hidden');
+        return;
+      }
+
+      const msgs = [
+        { text: "12 communities are active right now.", action: "/communities", btn: "Explore" },
+        { text: "Explore the Community Galaxy Constellation.", action: "/discover/constellation", btn: "View Galaxy" },
+        { text: "Active BGMI competitive squad recruiting.", action: "/gaming", btn: "Join Squad" },
+        { text: "Nightwave Studio editing session is live.", action: "/creators", btn: "Meet Creators" }
+      ];
+
+      const pick = msgs[Math.floor(Math.random() * msgs.length)];
+      const msgEl = document.getElementById('rai-assistant-msg');
+      const actionBtn = document.getElementById('rai-assistant-action');
+      if (msgEl) msgEl.innerText = pick.text;
+      if (actionBtn) {
+        actionBtn.innerText = pick.btn;
+        actionBtn.onclick = () => navigate(pick.action);
+      }
+    }
+
+    function dismissAssistant() {
+      const widget = document.getElementById('rai-assistant-widget');
+      if (widget) widget.classList.add('hidden');
+      sessionStorage.setItem('rai_assistant_dismissed', '1');
+    }
+    // ==========================================
     // 30. INITIALIZATION
     // ==========================================
     function initApp() {
@@ -3776,6 +5030,8 @@ UI_HTML = r"""<!DOCTYPE html>
       const initialHash = window.location.hash.replace('#', '') || '/';
       navigate(initialHash);
       initAuth();
+      initRealtimeStream();
+      initAssistant();
     }
 
     if (document.readyState === 'loading') {

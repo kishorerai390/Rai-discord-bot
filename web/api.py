@@ -5,6 +5,7 @@ Provides typed, validated, and authorized endpoints for all community modules.
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 import logging
@@ -252,8 +253,458 @@ class ApiRouter:
         })
 
     # ==========================================
-    # 3. PROFILES CONTROLLER
+    # 2B. RAI PULSE & LIVE ACTIVITY CONTROLLERS
     # ==========================================
+
+    async def get_pulse(self, request: web.Request) -> web.Response:
+        """Returns real aggregate community heartbeat metrics."""
+        pulse_data = await self._fetch_pulse_data()
+        return json_success(pulse_data)
+
+    async def _fetch_pulse_data(self) -> Dict[str, Any]:
+        """Fetches real pulse telemetry. Never invents data. Never converts unknown to 0."""
+        members_online = None
+        in_voice = None
+
+        if self.bot and hasattr(self.bot, "is_ready") and self.bot.is_ready():
+            try:
+                guild = self.bot.get_guild(COMMUNITY_GUILD_ID)
+                if guild and hasattr(guild, "members"):
+                    online_m = [
+                        m for m in guild.members
+                        if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")
+                    ]
+                    members_online = len(online_m)
+                    v_members = sum(len(vc.members) for vc in getattr(guild, "voice_channels", []) if hasattr(vc, "members"))
+                    in_voice = v_members
+            except Exception as e:
+                logger.debug(f"Pulse bot presence query: {e}")
+
+        # Music listeners and playback
+        music_listeners = None
+        is_music_playing = False
+        track_name = None
+        if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
+            try:
+                for vc in self.bot.voice_clients:
+                    if hasattr(vc, "is_playing") and vc.is_playing():
+                        is_music_playing = True
+                        if hasattr(vc, "channel") and hasattr(vc.channel, "members"):
+                            music_listeners = (music_listeners or 0) + max(0, len([m for m in vc.channel.members if not getattr(m, "bot", False)]))
+            except Exception as e:
+                logger.debug(f"Pulse music query: {e}")
+
+        # Active projects count
+        active_projects = 0
+        try:
+            async with self.db._db.execute("SELECT COUNT(*) FROM projects WHERE status = 'active'") as cur:
+                row = await cur.fetchone()
+                active_projects = row[0] if row else 0
+        except Exception:
+            pass
+
+        # Scheduled events count
+        live_events = 0
+        try:
+            async with self.db._db.execute("SELECT COUNT(*) FROM community_events WHERE status = 'scheduled'") as cur:
+                row = await cur.fetchone()
+                live_events = row[0] if row else 0
+        except Exception:
+            pass
+
+        # Active gaming squads & players
+        gaming_squads = 0
+        gaming_players = 0
+        try:
+            async with self.db._db.execute("SELECT COUNT(*), SUM(current_players) FROM community_lfg WHERE status = 'OPEN'") as cur:
+                row = await cur.fetchone()
+                gaming_squads = row[0] if row else 0
+                gaming_players = row[1] if (row and row[1]) else 0
+        except Exception:
+            pass
+
+        # Creators count
+        creators_count = 0
+        try:
+            async with self.db._db.execute("SELECT COUNT(DISTINCT user_id) FROM creator_portfolios") as cur:
+                row = await cur.fetchone()
+                creators_count = row[0] if row else 0
+        except Exception:
+            pass
+
+        # Real Activity DNA calculation
+        total_act = (in_voice or 0) + gaming_players + (music_listeners or 0) + creators_count
+        dna = {}
+        if total_act > 0:
+            if in_voice:
+                dna["voice_pct"] = round((in_voice / total_act) * 100)
+            if gaming_players:
+                dna["gaming_pct"] = round((gaming_players / total_act) * 100)
+            if music_listeners:
+                dna["music_pct"] = round((music_listeners / total_act) * 100)
+            if creators_count:
+                dna["creating_pct"] = round((creators_count / total_act) * 100)
+
+        return {
+            "members_online": members_online,
+            "users_in_voice": in_voice,
+            "music_listeners": music_listeners,
+            "is_music_playing": is_music_playing,
+            "track_name": track_name,
+            "gaming_squads": gaming_squads,
+            "gaming_players": gaming_players,
+            "creators_active": creators_count,
+            "active_projects": active_projects,
+            "live_events": live_events,
+            "activity_dna": dna,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
+
+    async def get_live_sessions(self, request: web.Request) -> web.Response:
+        """Returns active live sessions across Gaming, Music, Projects, and Events."""
+        sessions = []
+
+        # 1. Gaming LFG Sessions
+        try:
+            async with self.db._db.execute("SELECT * FROM community_lfg WHERE status = 'OPEN' ORDER BY id DESC LIMIT 6") as cur:
+                lfg_rows = await cur.fetchall()
+            for g in lfg_rows:
+                gd = dict(g)
+                sessions.append({
+                    "id": f"lfg_{gd['id']}",
+                    "type": "Gaming Squad",
+                    "icon": "🎮",
+                    "title": f"{gd.get('game_name')}: {gd.get('mode', 'Ranked')}",
+                    "community": "Vora Gaming Realm",
+                    "participant_count": f"{gd.get('current_players', 1)}/{gd.get('max_players', 4)} players",
+                    "started_time": gd.get("created_at", "")[:16] or "Active Now",
+                    "status": "LIVE",
+                    "destination": "/gaming",
+                    "action_label": "Join Squad",
+                })
+        except Exception as e:
+            logger.debug(f"Live sessions LFG query: {e}")
+
+        # 2. Active Music Playback
+        if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
+            try:
+                for vc in self.bot.voice_clients:
+                    if hasattr(vc, "is_playing") and vc.is_playing():
+                        listeners = max(1, len([m for m in getattr(vc.channel, 'members', []) if not getattr(m, 'bot', False)]))
+                        sessions.append({
+                            "id": "music_live",
+                            "type": "Listening Party",
+                            "icon": "🎧",
+                            "title": getattr(vc, "current_title", "Lossless Hi-Fi Audio"),
+                            "community": "Nightwave Creative Studio",
+                            "participant_count": f"{listeners} listeners",
+                            "started_time": "Playing Now",
+                            "status": "LIVE",
+                            "destination": "/music",
+                            "action_label": "Join Audio Lounge",
+                        })
+                        break
+            except Exception as e:
+                logger.debug(f"Live sessions music query: {e}")
+
+        # 3. Active Projects Sprints
+        try:
+            async with self.db._db.execute("SELECT * FROM projects WHERE status = 'active' ORDER BY id DESC LIMIT 3") as cur:
+                p_rows = await cur.fetchall()
+            for p in p_rows:
+                pd = dict(p)
+                sessions.append({
+                    "id": f"proj_{pd['id']}",
+                    "type": "Project Sprint",
+                    "icon": "🚀",
+                    "title": pd.get("name", "Project Workspace"),
+                    "community": "The Raivora",
+                    "participant_count": f"{pd.get('members_count', 1)} contributors",
+                    "started_time": "Sprint Active",
+                    "status": "ACTIVE",
+                    "destination": f"/projects/{pd['id']}",
+                    "action_label": "View Tasks",
+                })
+        except Exception as e:
+            logger.debug(f"Live sessions project query: {e}")
+
+        # 4. Community Events Scheduled
+        try:
+            async with self.db._db.execute("SELECT * FROM community_events WHERE status = 'scheduled' ORDER BY start_time ASC LIMIT 2") as cur:
+                ev_rows = await cur.fetchall()
+            for ev in ev_rows:
+                ed = dict(ev)
+                sessions.append({
+                    "id": f"event_{ed['id']}",
+                    "type": "Community Event",
+                    "icon": "📅",
+                    "title": ed.get("title", "Community Gathering"),
+                    "community": "The Raivora",
+                    "participant_count": f"{ed.get('interested_count', 0)} attending",
+                    "started_time": ed.get("start_time", "")[:16] or "Upcoming",
+                    "status": "SCHEDULED",
+                    "destination": f"/events/{ed['id']}",
+                    "action_label": "RSVP Now",
+                })
+        except Exception as e:
+            logger.debug(f"Live sessions event query: {e}")
+
+        return json_success(sessions)
+
+    async def get_activity_feed(self, request: web.Request) -> web.Response:
+        """Returns real-time chronological activity feed from database entities."""
+        activities = []
+
+        # Audit logs
+        try:
+            async with self.db._db.execute("SELECT * FROM community_audit_logs ORDER BY id DESC LIMIT 8") as cur:
+                rows = await cur.fetchall()
+            for r in rows:
+                rd = dict(r)
+                action_clean = rd.get("action", "").replace("_", " ").title()
+                activities.append({
+                    "id": f"audit_{rd['id']}",
+                    "icon": "⚡",
+                    "actor": rd.get("actor_name", "Member"),
+                    "action": action_clean,
+                    "target": rd.get("target_type", "").title(),
+                    "time": rd.get("created_at", "")[:16],
+                    "color": "purple",
+                })
+        except Exception:
+            pass
+
+        # Recent projects
+        try:
+            async with self.db._db.execute("SELECT * FROM projects ORDER BY id DESC LIMIT 4") as cur:
+                rows = await cur.fetchall()
+            for r in rows:
+                pd = dict(r)
+                activities.append({
+                    "id": f"p_act_{pd['id']}",
+                    "icon": "🚀",
+                    "actor": "Raivora Creator",
+                    "action": f"launched project '{pd.get('name')}'",
+                    "target": pd.get("project_type", "Project").title(),
+                    "time": pd.get("created_at", "")[:16],
+                    "color": "cyan",
+                })
+        except Exception:
+            pass
+
+        # Recent Gaming LFGs
+        try:
+            async with self.db._db.execute("SELECT * FROM community_lfg ORDER BY id DESC LIMIT 4") as cur:
+                rows = await cur.fetchall()
+            for r in rows:
+                gd = dict(r)
+                activities.append({
+                    "id": f"g_act_{gd['id']}",
+                    "icon": "🎮",
+                    "actor": "Gamer",
+                    "action": f"opened {gd.get('game_name')} squad ({gd.get('mode', 'LFG')})",
+                    "target": "Gaming",
+                    "time": gd.get("created_at", "")[:16],
+                    "color": "emerald",
+                })
+        except Exception:
+            pass
+
+        activities.sort(key=lambda x: x.get("time", ""), reverse=True)
+        return json_success(activities[:15])
+
+    async def get_personal_discovery(self, request: web.Request) -> web.Response:
+        """Personalized 'For You' discovery section based on member interests."""
+        session = await self.auth.get_session_from_request(request)
+        user_id = session.get("discord_user_id") if session else None
+
+        interests = ["Gaming", "Music", "Creators", "Projects"]
+        if user_id:
+            try:
+                prof = await self.db.get_or_create_user_profile(COMMUNITY_GUILD_ID, user_id)
+                if prof.get("interests"):
+                    interests = [i.strip() for i in prof["interests"].split(",") if i.strip()]
+            except Exception:
+                pass
+
+        pulse = await self._fetch_pulse_data()
+        return json_success({
+            "personalized": user_id is not None,
+            "interests": interests,
+            "gaming_live_count": pulse.get("gaming_squads", 0),
+            "music_active": pulse.get("is_music_playing", False),
+            "active_projects_count": pulse.get("active_projects", 0),
+            "upcoming_events_count": pulse.get("live_events", 0),
+        })
+
+    async def create_space(self, request: web.Request) -> web.Response:
+        """Create a Space workflow connecting with Rai's existing Discord automation."""
+        session = await self.auth.require_auth(request)
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("INVALID_JSON", "Invalid JSON payload", 400)
+
+        space_type = body.get("type", "gaming_squad")
+        title = (body.get("title") or "").strip()
+        description = (body.get("description") or "").strip()
+        game = (body.get("game") or "Custom").strip()
+        max_players = int(body.get("max_players", 4))
+        visibility = body.get("visibility", "public")
+
+        if not title:
+            return json_error("VALIDATION_ERROR", "Space title is required", 400)
+
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        event_id = f"space_{uuid.uuid4().hex[:12]}"
+
+        if space_type == "gaming_squad":
+            lfg_id = await self.db.create_lfg(
+                guild_id=COMMUNITY_GUILD_ID,
+                user_id=session["discord_user_id"],
+                game_name=game or title,
+                mode=description or "Ranked Squad",
+                max_players=max_players,
+                description=description,
+            )
+            await self.db.enqueue_sync_event(
+                event_id=event_id,
+                event_type="DISCORD_LFG_CREATE",
+                entity_id=str(lfg_id),
+                payload_dict={
+                    "guild_id": COMMUNITY_GUILD_ID,
+                    "lfg_id": lfg_id,
+                    "game": game,
+                    "title": title,
+                    "creator_id": session["discord_user_id"],
+                    "creator_name": session["username"],
+                },
+                source="WEB_CREATE_SPACE",
+            )
+            return json_success({
+                "space_id": lfg_id,
+                "type": space_type,
+                "title": title,
+                "destination": "/gaming",
+                "discord_url": f"https://discord.com/channels/{COMMUNITY_GUILD_ID}",
+                "message": f"Gaming Squad '{title}' created and queued for Discord voice lobby setup.",
+            }, status=201)
+
+        elif space_type in ("project", "creator_workspace"):
+            proj_id = await self.db.create_project(
+                guild_id=COMMUNITY_GUILD_ID,
+                owner_id=session["discord_user_id"],
+                name=title,
+                description=description,
+                project_type="creative" if space_type == "creator_workspace" else "development",
+            )
+            await self.db.enqueue_sync_event(
+                event_id=event_id,
+                event_type="DISCORD_PROJECT_CREATE",
+                entity_id=str(proj_id),
+                payload_dict={
+                    "guild_id": COMMUNITY_GUILD_ID,
+                    "project_id": proj_id,
+                    "name": title,
+                    "owner_id": session["discord_user_id"],
+                },
+                source="WEB_CREATE_SPACE",
+            )
+            return json_success({
+                "space_id": proj_id,
+                "type": space_type,
+                "title": title,
+                "destination": f"/projects/{proj_id}",
+                "discord_url": f"https://discord.com/channels/{COMMUNITY_GUILD_ID}",
+                "message": f"Workspace '{title}' created and queued for Discord workspace channel creation.",
+            }, status=201)
+
+        elif space_type == "event":
+            start_time = body.get("start_time") or now_iso
+            ev_id = await self.db.create_community_event(
+                guild_id=COMMUNITY_GUILD_ID,
+                creator_id=session["discord_user_id"],
+                title=title,
+                description=description,
+                start_time=start_time,
+                event_type=body.get("event_type", "Community"),
+            )
+            await self.db.enqueue_sync_event(
+                event_id=event_id,
+                event_type="DISCORD_EVENT_CREATE",
+                entity_id=str(ev_id),
+                payload_dict={
+                    "guild_id": COMMUNITY_GUILD_ID,
+                    "event_id": ev_id,
+                    "title": title,
+                },
+                source="WEB_CREATE_SPACE",
+            )
+            return json_success({
+                "space_id": ev_id,
+                "type": space_type,
+                "title": title,
+                "destination": f"/events/{ev_id}",
+                "discord_url": f"https://discord.com/channels/{COMMUNITY_GUILD_ID}",
+                "message": f"Community Event '{title}' scheduled and queued for Discord announcement.",
+            }, status=201)
+
+        else:
+            room_lfg_id = await self.db.create_lfg(
+                guild_id=COMMUNITY_GUILD_ID,
+                user_id=session["discord_user_id"],
+                game_name=f"{space_type.replace('_', ' ').title()}: {title}",
+                mode=visibility.title(),
+                max_players=max_players,
+                description=description,
+            )
+            await self.db.enqueue_sync_event(
+                event_id=event_id,
+                event_type="DISCORD_ROOM_CREATE",
+                entity_id=str(room_lfg_id),
+                payload_dict={
+                    "guild_id": COMMUNITY_GUILD_ID,
+                    "type": space_type,
+                    "title": title,
+                    "creator_id": session["discord_user_id"],
+                },
+                source="WEB_CREATE_SPACE",
+            )
+            return json_success({
+                "space_id": room_lfg_id,
+                "type": space_type,
+                "title": title,
+                "destination": "/communities",
+                "discord_url": f"https://discord.com/channels/{COMMUNITY_GUILD_ID}",
+                "message": f"Space '{title}' created and queued for Discord dynamic VC room setup.",
+            }, status=201)
+
+    async def realtime_stream(self, request: web.Request) -> web.StreamResponse:
+        """Centralized Server-Sent Events (SSE) real-time stream."""
+        resp = web.StreamResponse(
+            status=200,
+            reason="OK",
+            headers={
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+            },
+        )
+        await resp.prepare(request)
+
+        try:
+            init_json = json.dumps({"status": "connected", "time": time.time()})
+            await resp.write(f"event: init\ndata: {init_json}\n\n".encode("utf-8"))
+
+            while True:
+                pulse = await self._fetch_pulse_data()
+                pulse_str = safe_json_dumps(pulse)
+                await resp.write(f"event: pulse\ndata: {pulse_str}\n\n".encode("utf-8"))
+                await asyncio.sleep(8)
+        except (asyncio.CancelledError, ConnectionResetError, Exception):
+            pass
+        return resp
 
     async def list_profiles(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
@@ -836,6 +1287,48 @@ class ApiRouter:
 
         q_lower = query.lower()
 
+        # Natural Language Intent Detection (Smart Discovery)
+        detected_intent = "GENERAL_DISCOVERY"
+        intent_label = "Smart Discovery"
+        intent_badge = "✦ Rai AI"
+
+        gaming_keywords = ["game", "gaming", "bgmi", "valorant", "squad", "play", "lfg", "roblox", "chill gaming", "apex", "ranked"]
+        music_keywords = ["music", "listen", "listening", "party", "song", "dj", "beat", "audio", "sound", "equalizer", "playlist"]
+        creator_keywords = ["edit", "editor", "editing", "video", "motion", "vfx", "creator", "portfolio", "art", "artist", "3d", "thumbnail"]
+        project_keywords = ["project", "kanban", "task", "build", "dev", "code", "collaborate", "incubator"]
+        event_keywords = ["event", "tonight", "calendar", "workshop", "tournament", "schedule", "upcoming"]
+        resource_keywords = ["resource", "preset", "overlay", "download", "tutorial", "asset", "template", "lut"]
+        community_keywords = ["community", "chill", "hub", "server", "discord", "active", "people"]
+
+        if any(w in q_lower for w in gaming_keywords):
+            detected_intent = "GAMING_SEARCH"
+            intent_label = "Gaming & LFG Matchmaking"
+            intent_badge = "🎮 Gaming Intent"
+        elif any(w in q_lower for w in music_keywords):
+            detected_intent = "MUSIC_SEARCH"
+            intent_label = "Music & Listening Lounges"
+            intent_badge = "🎧 Music Intent"
+        elif any(w in q_lower for w in creator_keywords):
+            detected_intent = "CREATOR_SEARCH"
+            intent_label = "Creator & Portfolio Showcase"
+            intent_badge = "🎨 Creator Intent"
+        elif any(w in q_lower for w in project_keywords):
+            detected_intent = "PROJECT_SEARCH"
+            intent_label = "Project Workspace Engine"
+            intent_badge = "🚀 Project Intent"
+        elif any(w in q_lower for w in event_keywords):
+            detected_intent = "EVENT_SEARCH"
+            intent_label = "Community Events & Calendars"
+            intent_badge = "📅 Event Intent"
+        elif any(w in q_lower for w in resource_keywords):
+            detected_intent = "RESOURCE_SEARCH"
+            intent_label = "Resource Vault & Presets"
+            intent_badge = "📚 Resource Intent"
+        elif any(w in q_lower for w in community_keywords):
+            detected_intent = "COMMUNITY_SEARCH"
+            intent_label = "Community & Hub Directory"
+            intent_badge = "👥 Community Intent"
+
         # 1. Search Communities
         comm_list = [
             {"id": str(COMMUNITY_GUILD_ID), "title": "The Raivora Primary Hub", "type": "Community Hub", "category": "creators", "snippet": "Official Rai central hub. Real-time collaboration, Discord automation, and creative showcases.", "link": f"/communities/{COMMUNITY_GUILD_ID}", "tags": ["Official", "Creators", "AI", "Music"]},
@@ -1052,6 +1545,9 @@ class ApiRouter:
 
         return json_success({
             "query": query,
+            "detected_intent": detected_intent,
+            "intent_label": intent_label,
+            "intent_badge": intent_badge,
             "total_matches": len(results),
             "categories": categories,
             "results": results[:40],

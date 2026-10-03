@@ -84,7 +84,8 @@ class RaiCommunityOSServer:
             "/resources", "/events", "/events/{id}", "/ideas", "/ideas/{id}",
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
             "/status", "/wiki", "/mission-control", "/login",
-            "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features"
+            "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
+            "/discover/constellation"
         ]
         for path in ui_routes:
             app.router.add_get(path, self.handle_ui)
@@ -103,8 +104,15 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/auth/dev-login", r.auth_dev_login)
         app.router.add_post("/api/auth/discord-id-login", r.auth_dev_login)
 
-        # Telemetry & Stats API
+        # Telemetry, Pulse, and Realtime API
         app.router.add_get("/api/stats", r.get_stats)
+        app.router.add_get("/api/pulse", r.get_pulse)
+        app.router.add_get("/api/live", r.get_live_sessions)
+        app.router.add_get("/api/activity", r.get_activity_feed)
+        app.router.add_get("/api/constellation", r.get_constellation)
+        app.router.add_get("/api/personal/discovery", r.get_personal_discovery)
+        app.router.add_post("/api/spaces/create", r.create_space)
+        app.router.add_get("/api/realtime/stream", r.realtime_stream)
 
         # Communities Discovery API
         app.router.add_get("/api/communities", r.list_communities)
