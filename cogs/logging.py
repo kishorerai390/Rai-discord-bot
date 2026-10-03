@@ -170,6 +170,26 @@ class LoggingCog(commands.Cog, name="Logging"):
                 else:
                     channel_key = "system_report_id"
 
+                from utils.owner_reporter import get_owner_report_channel
+                cat_name = channel_key.replace("_report_id", "")
+                rep_channel = await get_owner_report_channel(self.bot, guild.id, cat_name)
+                if rep_channel and isinstance(rep_channel, discord.TextChannel):
+                    try:
+                        ch_view = OwnerIncidentActionView(
+                            bot=self.bot,
+                            guild_id=guild.id,
+                            target_id=target_id,
+                            target_name=target_name,
+                            actor_id=actor.id if actor else None,
+                            event_type=event_type,
+                            owner_id=target_user.id,
+                            analysis=analysis,
+                            pending_count=pending_count,
+                        )
+                        await rep_channel.send(embed=dm_embed, view=ch_view)
+                    except Exception as ch_send_err:
+                        logger.warning(f"Direct send to report channel failed: {ch_send_err}")
+
                 OwnerReporter.dispatch_report(self.bot, guild.id, channel_key, dm_embed, incident_id=inc_id)
             except Exception as e:
                 logger.warning(f"Failed to route activity embed to private report channel: {e}")

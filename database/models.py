@@ -656,7 +656,7 @@ class InteractiveIncident:
 @dataclass
 class IncidentActionAudit:
     """Individual action taken by a staff member on an InteractiveIncident."""
-    id: int
+    id: Optional[int]
     incident_id: str
     actor_id: int
     action: str
@@ -664,6 +664,7 @@ class IncidentActionAudit:
     target_id: Optional[int] = None
     details: Optional[str] = None
     created_at: str = ""
+    timestamp: str = ""
 
 
 # ---------------------------------------------------------------------------

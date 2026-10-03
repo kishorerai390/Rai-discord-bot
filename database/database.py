@@ -36,6 +36,24 @@ from database.models import (
     CommunityEvent,
     HiddenVoiceConfig,
     GamingLFG,
+    OwnerReportsConfig,
+    MemberInvites,
+    StreamTracker,
+    UserEconomy,
+    MusicConfig,
+    MusicPlaylist,
+    WatchEvent,
+    ReportDeliveryRecord,
+    MemberVotes,
+    ReportDestination,
+    GuildRole,
+    HiddenVoiceRoom,
+    CreatorShowcase,
+    ReportEventRecord,
+    ReportPermissionState,
+    MusicAnalytics,
+    InteractiveIncident,
+    IncidentActionAudit,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,8 +64,11 @@ def utcnow_iso() -> str:
 
 
 class Database:
-    def __init__(self, db_path: Optional[Path] = None):
-        self.db_path = db_path or DATABASE_PATH
+    def __init__(self, db_path: Optional[Any] = None):
+        if isinstance(db_path, str) and db_path != ":memory:":
+            self.db_path = Path(db_path)
+        else:
+            self.db_path = db_path if db_path is not None else DATABASE_PATH
         self._db: Optional[aiosqlite.Connection] = None
 
     @property
@@ -56,7 +77,8 @@ class Database:
 
     async def connect(self) -> None:
         """Connect to SQLite database, configure PRAGMAs and run migrations."""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        if isinstance(self.db_path, Path):
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
 
@@ -4213,3 +4235,334 @@ class Database:
 
         await self._db.commit()
         return counts
+
+    # ---------------------------------------------------------------------------
+    # Interactive Incidents
+    # ---------------------------------------------------------------------------
+
+    async def create_interactive_incident(self, incident: InteractiveIncident) -> None:
+        """Insert or replace an interactive incident."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS interactive_incidents (
+                incident_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                report_type TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id INTEGER,
+                actor_name TEXT,
+                target_id INTEGER,
+                target_name TEXT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                action_taken TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                severity TEXT NOT NULL DEFAULT 'HIGH',
+                details_json TEXT,
+                dm_message_id INTEGER,
+                dm_channel_id INTEGER,
+                channel_message_id INTEGER,
+                report_channel_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            )
+            """
+        )
+        sql = """
+            INSERT OR REPLACE INTO interactive_incidents (
+                incident_id, guild_id, report_type, event_type, actor_id, actor_name,
+                target_id, target_name, title, description, action_taken, status,
+                severity, details_json, dm_message_id, dm_channel_id,
+                channel_message_id, report_channel_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        now = utcnow_iso()
+        await self._db.execute(
+            sql,
+            (
+                incident.incident_id,
+                incident.guild_id,
+                incident.report_type,
+                incident.event_type,
+                incident.actor_id,
+                incident.actor_name,
+                incident.target_id,
+                incident.target_name,
+                incident.title,
+                incident.description,
+                incident.action_taken,
+                incident.status,
+                incident.severity,
+                incident.details_json,
+                incident.dm_message_id,
+                incident.dm_channel_id,
+                incident.channel_message_id,
+                incident.report_channel_id,
+                incident.created_at or now,
+                incident.updated_at or now,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_interactive_incident(self, incident_id: str) -> Optional[InteractiveIncident]:
+        """Fetch an interactive incident by ID."""
+        if not self._db:
+            return None
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS interactive_incidents (
+                incident_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                report_type TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id INTEGER,
+                actor_name TEXT,
+                target_id INTEGER,
+                target_name TEXT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                action_taken TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                severity TEXT NOT NULL DEFAULT 'HIGH',
+                details_json TEXT,
+                dm_message_id INTEGER,
+                dm_channel_id INTEGER,
+                channel_message_id INTEGER,
+                report_channel_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            )
+            """
+        )
+        async with self._db.execute(
+            "SELECT * FROM interactive_incidents WHERE incident_id = ?", (incident_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return InteractiveIncident(
+                incident_id=row["incident_id"],
+                guild_id=row["guild_id"],
+                report_type=row["report_type"],
+                event_type=row["event_type"],
+                actor_id=row["actor_id"],
+                actor_name=row["actor_name"],
+                target_id=row["target_id"],
+                target_name=row["target_name"],
+                title=row["title"],
+                description=row["description"],
+                action_taken=row["action_taken"],
+                status=row["status"],
+                severity=row["severity"],
+                details_json=row["details_json"] or "{}",
+                dm_message_id=row["dm_message_id"],
+                dm_channel_id=row["dm_channel_id"],
+                channel_message_id=row["channel_message_id"],
+                report_channel_id=row["report_channel_id"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+
+    async def update_interactive_incident_messages(
+        self,
+        incident_id: str,
+        dm_message_id: Optional[int] = None,
+        dm_channel_id: Optional[int] = None,
+        channel_message_id: Optional[int] = None,
+        report_channel_id: Optional[int] = None,
+    ) -> None:
+        """Update tracked message IDs for an incident."""
+        if not self._db:
+            return
+        fields = ["updated_at = ?"]
+        params: List[Any] = [utcnow_iso()]
+        if dm_message_id is not None:
+            fields.append("dm_message_id = ?")
+            params.append(dm_message_id)
+        if dm_channel_id is not None:
+            fields.append("dm_channel_id = ?")
+            params.append(dm_channel_id)
+        if channel_message_id is not None:
+            fields.append("channel_message_id = ?")
+            params.append(channel_message_id)
+        if report_channel_id is not None:
+            fields.append("report_channel_id = ?")
+            params.append(report_channel_id)
+
+        params.append(incident_id)
+        sql = f"UPDATE interactive_incidents SET {', '.join(fields)} WHERE incident_id = ?"
+        await self._db.execute(sql, params)
+        await self._db.commit()
+
+    async def update_interactive_incident_status(
+        self,
+        incident_id: str,
+        status: str,
+        action_taken: Optional[str] = None,
+    ) -> None:
+        """Update state and action note of an interactive incident."""
+        if not self._db:
+            return
+        fields = ["status = ?", "updated_at = ?"]
+        params: List[Any] = [status, utcnow_iso()]
+        if action_taken is not None:
+            fields.append("action_taken = ?")
+            params.append(action_taken)
+        params.append(incident_id)
+        sql = f"UPDATE interactive_incidents SET {', '.join(fields)} WHERE incident_id = ?"
+        await self._db.execute(sql, params)
+        await self._db.commit()
+
+    async def get_active_interactive_incidents_for_guild(self, guild_id: int) -> List[InteractiveIncident]:
+        """Fetch all non-resolved incidents for a guild."""
+        if not self._db:
+            return []
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS interactive_incidents (
+                incident_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                report_type TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id INTEGER,
+                actor_name TEXT,
+                target_id INTEGER,
+                target_name TEXT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                action_taken TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                severity TEXT NOT NULL DEFAULT 'HIGH',
+                details_json TEXT,
+                dm_message_id INTEGER,
+                dm_channel_id INTEGER,
+                channel_message_id INTEGER,
+                report_channel_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            )
+            """
+        )
+        async with self._db.execute(
+            "SELECT * FROM interactive_incidents WHERE guild_id = ? AND status != 'RESOLVED' ORDER BY created_at DESC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                InteractiveIncident(
+                    incident_id=r["incident_id"],
+                    guild_id=r["guild_id"],
+                    report_type=r["report_type"],
+                    event_type=r["event_type"],
+                    actor_id=r["actor_id"],
+                    actor_name=r["actor_name"],
+                    target_id=r["target_id"],
+                    target_name=r["target_name"],
+                    title=r["title"],
+                    description=r["description"],
+                    action_taken=r["action_taken"],
+                    status=r["status"],
+                    severity=r["severity"],
+                    details_json=r["details_json"] or "{}",
+                    dm_message_id=r["dm_message_id"],
+                    dm_channel_id=r["dm_channel_id"],
+                    channel_message_id=r["channel_message_id"],
+                    report_channel_id=r["report_channel_id"],
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                )
+                for r in rows
+            ]
+
+    async def record_incident_action(
+        self,
+        incident_id: str,
+        actor_id: int,
+        action: str,
+        result: str,
+        target_id: Optional[int] = None,
+        failure_reason: Optional[str] = None,
+    ) -> None:
+        """Audit an action performed against an incident."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS incident_action_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                actor_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_id INTEGER,
+                timestamp TEXT NOT NULL,
+                result TEXT NOT NULL,
+                failure_reason TEXT,
+                FOREIGN KEY (incident_id) REFERENCES interactive_incidents(incident_id) ON DELETE CASCADE
+            )
+            """
+        )
+        sql = """
+            INSERT INTO incident_action_audit (incident_id, actor_id, action, target_id, timestamp, result, failure_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """
+        now = utcnow_iso()
+        act_id = getattr(actor_id, "id", actor_id)
+        try:
+            act_id = int(act_id)
+        except Exception:
+            act_id = 0
+
+        tgt_id = getattr(target_id, "id", target_id)
+        if tgt_id is not None:
+            try:
+                tgt_id = int(tgt_id)
+            except Exception:
+                tgt_id = None
+
+        await self._db.execute(sql, (incident_id, act_id, str(action), tgt_id, now, str(result), str(failure_reason) if failure_reason else None))
+        await self._db.commit()
+
+    async def get_incident_actions(self, incident_id: str) -> List[IncidentActionAudit]:
+        """Fetch audit trail of actions taken on an incident."""
+        if not self._db:
+            return []
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS incident_action_audit (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                actor_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_id INTEGER,
+                timestamp TEXT NOT NULL,
+                result TEXT NOT NULL,
+                failure_reason TEXT,
+                FOREIGN KEY (incident_id) REFERENCES interactive_incidents(incident_id) ON DELETE CASCADE
+            )
+            """
+        )
+        async with self._db.execute(
+            "SELECT * FROM incident_action_audit WHERE incident_id = ? ORDER BY id ASC",
+            (incident_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                IncidentActionAudit(
+                    id=r["id"],
+                    incident_id=r["incident_id"],
+                    actor_id=r["actor_id"],
+                    action=r["action"],
+                    result=r["result"],
+                    target_id=r["target_id"],
+                    details=r["failure_reason"],
+                    created_at=r["timestamp"],
+                    timestamp=r["timestamp"],
+                )
+                for r in rows
+            ]
+

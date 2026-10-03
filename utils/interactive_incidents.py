@@ -313,6 +313,27 @@ class InteractiveIncidentManager:
             ))
 
         elif rep_type == "system":
+            if is_active:
+                view.add_item(discord.ui.Button(
+                    style=discord.ButtonStyle.success,
+                    label="Mark as Read",
+                    emoji="✅",
+                    custom_id=f"rai_inc:mark_read:{inc_id}",
+                ))
+                view.add_item(discord.ui.Button(
+                    style=discord.ButtonStyle.secondary,
+                    label="Mark All Read",
+                    emoji="📑",
+                    custom_id=f"rai_inc:mark_all_read:{inc_id}",
+                ))
+            else:
+                view.add_item(discord.ui.Button(
+                    style=discord.ButtonStyle.secondary,
+                    label="Read",
+                    emoji="👁️",
+                    disabled=True,
+                    custom_id=f"rai_inc:read_done:{inc_id}",
+                ))
             view.add_item(discord.ui.Button(
                 style=discord.ButtonStyle.primary,
                 label="Retry",
@@ -541,6 +562,30 @@ class InteractiveIncidentManager:
 
         # Acknowledge immediately ephemerally
         await interaction.response.defer(ephemeral=True, thinking=True)
+
+        if real_action == "mark_all_read":
+            active_list = await db.get_active_interactive_incidents_for_guild(incident.guild_id) if db else []
+            count = len(active_list)
+            for inc in active_list:
+                inc.status = "RESOLVED"
+                inc.action_taken = f"Bulk resolved by {interaction.user.mention}"
+                if db:
+                    await db.update_interactive_incident_status(inc.incident_id, "RESOLVED", inc.action_taken)
+            await interaction.followup.send(f"✅ **Bulk Acknowledged:** Resolved {count} active incidents.", ephemeral=True)
+            return True
+
+        if real_action in ("mark_read", "mark_as_read"):
+            incident.status = "RESOLVED"
+            incident.action_taken = f"Acknowledged and marked as read by {interaction.user.mention}"
+            if db:
+                await db.update_interactive_incident_status(incident.incident_id, "RESOLVED", incident.action_taken)
+            if interaction.message and hasattr(interaction.message, "delete"):
+                try:
+                    await interaction.message.delete()
+                except Exception:
+                    pass
+            await interaction.followup.send(f"✅ **Acknowledged:** Incident `{incident.incident_id}` marked as read.", ephemeral=True)
+            return True
 
         guild = bot.get_guild(incident.guild_id)
         if not guild and hasattr(bot, "fetch_guild"):
@@ -910,3 +955,46 @@ class InteractiveIncidentManager:
         except Exception as e:
             logger.error(f"Error executing incident action '{action}': {e}", exc_info=True)
             return False, "", f"Execution error: {str(e)[:200]}"
+
+    @classmethod
+    async def delete_incident_messages(cls, bot: Any, incident: Any) -> None:
+        """Deletes both DM and report channel messages for an incident if present."""
+        if not incident:
+            return
+
+        # 1. DM message
+        dm_ch_id = getattr(incident, "dm_channel_id", None)
+        dm_msg_id = getattr(incident, "dm_message_id", None)
+        if dm_ch_id and dm_msg_id:
+            try:
+                ch = bot.get_channel(dm_ch_id) if hasattr(bot, "get_channel") else None
+                if not ch and hasattr(bot, "fetch_channel"):
+                    try:
+                        ch = await bot.fetch_channel(dm_ch_id)
+                    except Exception:
+                        ch = None
+                if ch and hasattr(ch, "fetch_message"):
+                    msg = await ch.fetch_message(dm_msg_id)
+                    if msg and hasattr(msg, "delete"):
+                        await msg.delete()
+            except Exception as e:
+                logger.debug(f"Failed to delete incident DM message: {e}")
+
+        # 2. Report channel message
+        rep_ch_id = getattr(incident, "report_channel_id", None)
+        ch_msg_id = getattr(incident, "channel_message_id", None)
+        if rep_ch_id and ch_msg_id:
+            try:
+                ch = bot.get_channel(rep_ch_id) if hasattr(bot, "get_channel") else None
+                if not ch and hasattr(bot, "fetch_channel"):
+                    try:
+                        ch = await bot.fetch_channel(rep_ch_id)
+                    except Exception:
+                        ch = None
+                if ch and hasattr(ch, "fetch_message"):
+                    msg = await ch.fetch_message(ch_msg_id)
+                    if msg and hasattr(msg, "delete"):
+                        await msg.delete()
+            except Exception as e:
+                logger.debug(f"Failed to delete incident report channel message: {e}")
+

@@ -19,6 +19,8 @@ import logging
 import random
 import string
 import time
+import unicodedata
+import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
 import discord
@@ -32,6 +34,20 @@ logger = logging.getLogger(__name__)
 
 OWNER_ID = 1457380609641938981
 BOT_ID = 1554732669072445532
+
+SMALL_CAPS_MAP: Dict[str, str] = {
+    "ᴀ": "a", "ʙ": "b", "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ꜰ": "f", "ɢ": "g", "ʜ": "h",
+    "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l", "ᴍ": "m", "ɴ": "n", "ᴏ": "o", "ᴘ": "p",
+    "ǫ": "q", "ʀ": "r", "ꜱ": "s", "ᴛ": "t", "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "x": "x",
+    "ʏ": "y", "ᴢ": "z",
+}
+
+
+def normalize_channel_name(name: str) -> str:
+    """Normalizes channel names across styled unicode, math script, and small caps."""
+    s = "".join(SMALL_CAPS_MAP.get(c, c) for c in str(name))
+    s = unicodedata.normalize("NFKD", s)
+    return re.sub(r"[^a-zA-Z0-9]", "", s).lower()
 
 
 def generate_incident_id(prefix: str = "RAI-INC") -> str:
@@ -724,50 +740,7 @@ class OwnerReporter:
                 logger.warning(f"Interactive incident init note: {inc_err}")
 
         # ==========================================
-        # DESTINATION 1: 📩 SERVER OWNER DM
-        # ==========================================
-        owner_id = None
-        try:
-            if guild_obj:
-                owner_id = getattr(guild_obj, "owner_id", None)
-            if not owner_id and hasattr(bot, "db") and bot.db:
-                try:
-                    owner_id = await bot.db.get_founder_dm_recipient(guild_id)
-                except Exception:
-                    owner_id = None
-            if not owner_id:
-                owner_id = OWNER_ID
-
-            owner = bot.get_user(owner_id) if hasattr(bot, "get_user") else None
-            if not owner and hasattr(bot, "fetch_user"):
-                try:
-                    owner = await bot.fetch_user(owner_id)
-                except Exception:
-                    owner = None
-
-            is_bot = (getattr(owner, "bot", False) is True)
-            if owner and not is_bot:
-                send_fn = getattr(owner, "send", None)
-                if send_fn:
-                    send_kwargs = {"embed": embed}
-                    if dm_view is not None:
-                        send_kwargs["view"] = dm_view
-                    res = send_fn(**send_kwargs)
-                    if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
-                        dm_msg = await res
-                    else:
-                        dm_msg = res
-                    dm_success = True
-                    logger.info(f"[OWNER_REPORT_DM_SUCCESS] Delivered report ({inc_tag}) to owner {owner_id}")
-            else:
-                logger.warning(f"[OWNER_REPORT_DM_UNREACHABLE] Owner user {owner_id} unreachable or is a bot.")
-        except (discord.Forbidden, discord.HTTPException) as dm_err:
-            logger.warning(f"[OWNER_REPORT_DM_FAILED] Could not DM current owner ({owner_id}): {dm_err}")
-        except Exception as e:
-            logger.error(f"[OWNER_REPORT_DM_ERROR] Unexpected error sending DM to owner ({owner_id}): {e}", exc_info=True)
-
-        # ==========================================
-        # DESTINATION 2: 📋 PRIVATE SERVER REPORT CHANNEL
+        # DESTINATION 1: 📋 PRIVATE SERVER REPORT CHANNEL
         # ==========================================
         channel = None
         try:
@@ -791,19 +764,36 @@ class OwnerReporter:
                     except Exception:
                         channel = None
 
-            # Fallback for mocked/legacy channels before attempting auto-repair
+            # Fallback for existing or styled channels in guild
             if (not channel or not isinstance(channel, discord.TextChannel)) and guild_obj and hasattr(guild_obj, "text_channels") and guild_obj.text_channels:
+                key_targets = cls.CHANNEL_TARGETS.get(channel_key, [])
+                norm_key = channel_key.replace("_id", "").replace("_report", "")
+                target_tokens = [norm_key] + [t.replace("-", "").replace("_", "") for t in key_targets]
+
                 for ch in guild_obj.text_channels:
-                    cname = getattr(ch, "name", "").lower()
-                    if any(target in cname for target in ("security-report", "security-log", "alerts", "mod-report", "mod-log", "bot-report", "bot-log", "general")):
+                    cname = getattr(ch, "name", "")
+                    cnorm = normalize_channel_name(cname)
+                    if any(t in cnorm for t in target_tokens):
                         channel = ch
+                        if hasattr(bot, "db") and bot.db and hasattr(bot.db, "update_owner_reports_config"):
+                            try:
+                                await bot.db.update_owner_reports_config(guild_id, **{channel_key: ch.id})
+                            except Exception:
+                                pass
                         break
 
+                # Legacy/general fallback
+                if not channel or not isinstance(channel, discord.TextChannel):
+                    for ch in guild_obj.text_channels:
+                        cname = getattr(ch, "name", "").lower()
+                        if any(target in cname for target in ("security-report", "security-log", "alerts", "mod-report", "mod-log", "bot-report", "bot-log", "room-report", "system-report", "general")):
+                            channel = ch
+                            break
+
             # Auto-repair / ensure channel if missing or deleted
-            # Only auto-repair if the server owner has explicitly configured owner reports for this server
             has_owner_setup = bool(cfg and (getattr(cfg, "category_id", None) or getattr(cfg, "security_report_id", None)))
-            should_auto_repair = bool(getattr(cfg, "auto_repair", True) if cfg else False)
-            if (not channel or not isinstance(channel, discord.TextChannel)) and has_owner_setup and should_auto_repair and guild_obj:
+            should_auto_repair = bool(getattr(cfg, "auto_repair", True) if cfg else True)
+            if (not channel or not isinstance(channel, discord.TextChannel)) and should_auto_repair and guild_obj:
                 try:
                     channel = await cls.repair_missing_channel(bot, guild_obj, channel_key)
                 except Exception as rep_err:
@@ -828,6 +818,53 @@ class OwnerReporter:
             logger.warning(f"[OWNER_REPORT_CHANNEL_FAILED] Could not send to report channel {channel_key}: {ch_err}")
         except Exception as e:
             logger.error(f"[OWNER_REPORT_CHANNEL_ERROR] Unexpected error sending to report channel {channel_key}: {e}", exc_info=True)
+
+        # ==========================================
+        # DESTINATION 2: 📩 SERVER OWNER DM
+        # ==========================================
+        # Send to Owner DM if explicitly requested (force_dm) OR as safety fallback if server channel failed
+        if force_dm or not channel_success:
+            owner_id = None
+            try:
+                if guild_obj:
+                    owner_id = getattr(guild_obj, "owner_id", None)
+                if not owner_id and hasattr(bot, "db") and bot.db:
+                    try:
+                        owner_id = await bot.db.get_founder_dm_recipient(guild_id)
+                    except Exception:
+                        owner_id = None
+                if not owner_id:
+                    owner_id = OWNER_ID
+
+                owner = bot.get_user(owner_id) if hasattr(bot, "get_user") else None
+                if not owner and hasattr(bot, "fetch_user"):
+                    try:
+                        owner = await bot.fetch_user(owner_id)
+                    except Exception:
+                        owner = None
+
+                is_bot = (getattr(owner, "bot", False) is True)
+                if owner and not is_bot:
+                    send_fn = getattr(owner, "send", None)
+                    if send_fn:
+                        send_kwargs = {"embed": embed}
+                        if dm_view is not None:
+                            send_kwargs["view"] = dm_view
+                        res = send_fn(**send_kwargs)
+                        if asyncio.iscoroutine(res) or hasattr(res, "__await__"):
+                            dm_msg = await res
+                        else:
+                            dm_msg = res
+                        dm_success = True
+                        logger.info(f"[OWNER_REPORT_DM_SUCCESS] Delivered report ({inc_tag}) to owner {owner_id}")
+                else:
+                    logger.warning(f"[OWNER_REPORT_DM_UNREACHABLE] Owner user {owner_id} unreachable or is a bot.")
+            except (discord.Forbidden, discord.HTTPException) as dm_err:
+                logger.warning(f"[OWNER_REPORT_DM_FAILED] Could not DM current owner ({owner_id}): {dm_err}")
+            except Exception as e:
+                logger.error(f"[OWNER_REPORT_DM_ERROR] Unexpected error sending DM to owner ({owner_id}): {e}", exc_info=True)
+        else:
+            logger.debug(f"[OWNER_REPORT_DM_SUPPRESSED] Report delivered to server channel, suppressing DM ({inc_tag})")
 
         # DESTINATION 3: 🚨 SECURITY ALERTS (for security incidents)
         if channel_key == "security_report_id" and hasattr(bot, "db") and bot.db:
@@ -1371,8 +1408,9 @@ class OwnerReporter:
         target_name, topic = meta
 
         # Search existing channels under category
+        target_norm = normalize_channel_name(target_name)
         for ch in getattr(category, "text_channels", []):
-            if ch.name == target_name:
+            if ch.name == target_name or normalize_channel_name(ch.name) == target_norm:
                 if hasattr(bot, "db") and bot.db and hasattr(bot.db, "update_owner_reports_config"):
                     await bot.db.update_owner_reports_config(guild.id, **{channel_key: ch.id})
                 return ch
