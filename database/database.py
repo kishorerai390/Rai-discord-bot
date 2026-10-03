@@ -33,6 +33,9 @@ from database.models import (
     VoiceGuardConfig,
     VoiceIncident,
     AutomationConfig,
+    CommunityEvent,
+    HiddenVoiceConfig,
+    GamingLFG,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,6 +182,9 @@ class Database:
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
+
+    async def list_resources(self, guild_id: int, category: Optional[str] = None, limit: int = 50) -> List[dict]:
+        return await self.list_community_resources(guild_id, category=category)
 
     async def delete_community_resource(self, resource_id: int, guild_id: int, user_id: int, is_admin: bool = False) -> bool:
         if is_admin:
@@ -361,8 +367,60 @@ class Database:
         return (cur.rowcount or 0) > 0
 
     # ==========================================
-    # 10. PROJECT TASKS
+    # 10. PROJECTS & TASKS
     # ==========================================
+
+    async def create_project(
+        self,
+        guild_id: int,
+        name: str,
+        project_type: str,
+        owner_id: int,
+        category_id: Optional[int] = None,
+        chat_channel_id: Optional[int] = None,
+        voice_channel_id: Optional[int] = None,
+    ) -> int:
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        cur = await self._db.execute(
+            """
+            INSERT INTO projects (guild_id, name, project_type, owner_id, status, category_id, chat_channel_id, voice_channel_id, created_at)
+            VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?)
+            """,
+            (guild_id, name, project_type, owner_id, category_id, chat_channel_id, voice_channel_id, now),
+        )
+        await self._db.commit()
+        return cur.lastrowid or 0
+
+    async def get_project(self, project_id: int) -> Optional[Dict[str, Any]]:
+        async with self._db.execute("SELECT * FROM projects WHERE id = ?", (project_id,)) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+    async def list_projects(self, guild_id: int, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        if status:
+            query = "SELECT * FROM projects WHERE guild_id = ? AND status = ? ORDER BY id DESC"
+            params = (guild_id, status)
+        else:
+            query = "SELECT * FROM projects WHERE guild_id = ? ORDER BY id DESC"
+            params = (guild_id,)
+        async with self._db.execute(query, params) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+
+    async def list_project_members(self, project_id: int) -> List[Dict[str, Any]]:
+        proj = await self.get_project(project_id)
+        if not proj:
+            return []
+        members = [{"user_id": proj["owner_id"], "role": "Founder"}]
+        async with self._db.execute(
+            "SELECT DISTINCT assignee_id FROM project_tasks WHERE project_id = ? AND assignee_id IS NOT NULL",
+            (project_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+            for r in rows:
+                if r[0] and r[0] != proj["owner_id"]:
+                    members.append({"user_id": r[0], "role": "Contributor"})
+        return members
 
     async def create_project_task(
         self,
@@ -628,11 +686,20 @@ class Database:
         location: str = "Discord Voice",
         creator_id: int = 0,
         guild_id: int = 0,
+        event_type: str = "General",
+        status: str = "scheduled",
+        **kwargs: Any,
     ) -> int:
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         cur = await self._db.execute(
-            """INSERT INTO events (title, description, event_time, host_id, guild_id, created_at)
-               VALUES (?, ?, ?, ?, ?, datetime('now'))""",
-            (title, description, start_time, creator_id, guild_id),
+            """INSERT INTO events (guild_id, title, event_type, start_time, description, creator_id, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (guild_id, title, event_type, start_time, description, creator_id, status, now),
+        )
+        await self._db.execute(
+            """INSERT INTO community_events (guild_id, title, description, event_type, start_time, end_time, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (guild_id, title, description, event_type, start_time, end_time or "", status, now),
         )
         await self._db.commit()
         return cur.lastrowid or 0

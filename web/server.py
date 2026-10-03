@@ -92,6 +92,7 @@ class RaiCommunityOSServer:
         # Legacy KeepAlive & Health Endpoints
         app.router.add_get("/health", self.handle_health)
         app.router.add_get("/healthz", self.handle_health)
+        app.router.add_get("/api/health", self.handle_health)
         app.router.add_get("/api/leaderboard", self.handle_legacy_leaderboard)
 
         # Authentication API

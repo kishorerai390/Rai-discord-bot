@@ -598,7 +598,7 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
         ]
     ),
     (
-        14,
+        36,
         "Add community platform tables: user profiles, gaming, web sessions, projects, creators, LFG, resources, events, ideas, wiki, and notifications",
         [
             """
@@ -700,9 +700,13 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 project_id INTEGER NOT NULL,
                 title TEXT NOT NULL,
+                description TEXT DEFAULT '',
                 status TEXT DEFAULT 'TODO',
                 assignee_id INTEGER,
+                priority TEXT DEFAULT 'NORMAL',
+                due_date TEXT,
                 created_at TEXT NOT NULL,
+                updated_at TEXT,
                 FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
             );
             """,
@@ -717,6 +721,7 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 tools_used TEXT,
                 tags TEXT,
                 external_links TEXT,
+                is_featured INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             );
             """,
@@ -735,6 +740,22 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """,
             """
+            CREATE TABLE IF NOT EXISTS gaming_lfg (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                game TEXT NOT NULL,
+                role TEXT,
+                note TEXT,
+                max_players INTEGER NOT NULL DEFAULT 4,
+                current_players_json TEXT NOT NULL DEFAULT '[]',
+                channel_id INTEGER,
+                message_id INTEGER,
+                status TEXT NOT NULL DEFAULT 'open',
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
             CREATE TABLE IF NOT EXISTS community_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -748,6 +769,30 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """,
             """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                event_type TEXT NOT NULL DEFAULT 'General',
+                start_time TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                creator_id INTEGER NOT NULL DEFAULT 0,
+                channel_id INTEGER,
+                status TEXT NOT NULL DEFAULT 'scheduled',
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS event_participants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                joined_at TEXT NOT NULL,
+                UNIQUE(event_id, user_id),
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+            );
+            """,
+            """
             CREATE TABLE IF NOT EXISTS community_resources (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
@@ -757,6 +802,7 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 category TEXT DEFAULT 'General',
                 link TEXT,
                 tags TEXT,
+                status TEXT DEFAULT 'APPROVED',
                 downloads_count INTEGER DEFAULT 0,
                 created_at TEXT NOT NULL
             );
@@ -766,9 +812,11 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
+                author_name TEXT DEFAULT '',
                 title TEXT NOT NULL,
                 description TEXT,
                 category TEXT DEFAULT 'Feature',
+                tags TEXT DEFAULT '',
                 status TEXT DEFAULT 'NEW',
                 votes_count INTEGER DEFAULT 0,
                 comments_count INTEGER DEFAULT 0,
@@ -841,6 +889,8 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 event_id TEXT NOT NULL UNIQUE,
                 event_type TEXT NOT NULL,
+                entity_id TEXT DEFAULT '',
+                source TEXT DEFAULT 'WEB',
                 payload_json TEXT DEFAULT '{}',
                 status TEXT DEFAULT 'PENDING',
                 retry_count INTEGER DEFAULT 0,
@@ -872,6 +922,39 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 created_at TEXT NOT NULL,
                 UNIQUE(user_id, item_type, item_id)
             );
+            """
+        ]
+    ),
+    (
+        37,
+        "Ensure sync_outbox and project_tasks have all columns",
+        [
+            """
+            ALTER TABLE sync_outbox ADD COLUMN source TEXT DEFAULT 'WEB';
+            """,
+            """
+            ALTER TABLE project_tasks ADD COLUMN description TEXT DEFAULT '';
+            """,
+            """
+            ALTER TABLE project_tasks ADD COLUMN priority TEXT DEFAULT 'NORMAL';
+            """,
+            """
+            ALTER TABLE project_tasks ADD COLUMN due_date TEXT;
+            """,
+            """
+            ALTER TABLE project_tasks ADD COLUMN updated_at TEXT;
+            """
+        ]
+    ),
+    (
+        38,
+        "Ensure community_resources has tags and downloads_count",
+        [
+            """
+            ALTER TABLE community_resources ADD COLUMN tags TEXT DEFAULT '';
+            """,
+            """
+            ALTER TABLE community_resources ADD COLUMN downloads_count INTEGER DEFAULT 0;
             """
         ]
     )

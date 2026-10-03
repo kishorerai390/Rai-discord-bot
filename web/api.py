@@ -858,144 +858,165 @@ class ApiRouter:
                 citations.append(f"Community: {c['title']}")
 
         # 2. Search Active Projects
-        async with self.db._db.execute(
-            "SELECT * FROM projects WHERE guild_id = ? AND (name LIKE ? OR project_type LIKE ?) AND status = 'active' LIMIT 6",
-            (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
-        ) as cur:
-            p_rows = await cur.fetchall()
-        for p in p_rows:
-            pd = dict(p)
-            item = {
-                "type": "Project",
-                "title": pd.get("name", ""),
-                "snippet": f"Category: {pd.get('project_type', '').title()} • Status: Active",
-                "category": pd.get("project_type", "Project"),
-                "link": f"/projects/{pd.get('id')}",
-                "source": f"/projects/{pd.get('id')}",
-            }
-            categories["projects"].append(item)
-            results.append(item)
-            citations.append(f"Project: {pd.get('name')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM projects WHERE guild_id = ? AND (name LIKE ? OR project_type LIKE ?) AND status = 'active' LIMIT 6",
+                (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
+            ) as cur:
+                p_rows = await cur.fetchall()
+            for p in p_rows:
+                pd = dict(p)
+                item = {
+                    "type": "Project",
+                    "title": pd.get("name", ""),
+                    "snippet": f"Category: {pd.get('project_type', '').title()} • Status: Active",
+                    "category": pd.get("project_type", "Project"),
+                    "link": f"/projects/{pd.get('id')}",
+                    "source": f"/projects/{pd.get('id')}",
+                }
+                categories["projects"].append(item)
+                results.append(item)
+                citations.append(f"Project: {pd.get('name')}")
+        except Exception as e:
+            logger.debug(f"Search projects query notice: {e}")
 
         # 3. Search Creator Portfolios
-        async with self.db._db.execute(
-            "SELECT * FROM creator_portfolios WHERE title LIKE ? OR description LIKE ? OR tags LIKE ? LIMIT 6",
-            (f"%{query}%", f"%{query}%", f"%{query}%"),
-        ) as cur:
-            c_rows = await cur.fetchall()
-        for c in c_rows:
-            cd = dict(c)
-            item = {
-                "type": "Creator Showcase",
-                "title": cd.get("title", ""),
-                "snippet": cd.get("description", "")[:240],
-                "category": cd.get("category", "Creators"),
-                "link": f"/creators",
-                "source": f"Creator Showcase ({cd.get('category')})",
-            }
-            categories["creators"].append(item)
-            results.append(item)
-            citations.append(f"Creator: {cd.get('title')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM creator_portfolios WHERE title LIKE ? OR description LIKE ? LIMIT 6",
+                (f"%{query}%", f"%{query}%"),
+            ) as cur:
+                c_rows = await cur.fetchall()
+            for c in c_rows:
+                cd = dict(c)
+                item = {
+                    "type": "Creator Showcase",
+                    "title": cd.get("title", ""),
+                    "snippet": cd.get("description", "")[:240],
+                    "category": cd.get("category", "Creators"),
+                    "link": f"/creators",
+                    "source": f"Creator Showcase ({cd.get('category')})",
+                }
+                categories["creators"].append(item)
+                results.append(item)
+                citations.append(f"Creator: {cd.get('title')}")
+        except Exception as e:
+            logger.debug(f"Search creators query notice: {e}")
 
         # 4. Search Gaming LFG
-        async with self.db._db.execute(
-            "SELECT * FROM community_lfg WHERE guild_id = ? AND (game_name LIKE ? OR description LIKE ?) AND status = 'OPEN' LIMIT 6",
-            (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
-        ) as cur:
-            g_rows = await cur.fetchall()
-        for g in g_rows:
-            gd = dict(g)
-            item = {
-                "type": "Gaming Squad",
-                "title": f"🎮 {gd.get('game_name')}: {gd.get('mode', 'Ranked')}",
-                "snippet": f"Slots: {gd.get('current_players')}/{gd.get('max_players')} • Note: {gd.get('description', '')}",
-                "category": "Gaming",
-                "link": "/gaming",
-                "source": "LFG Matchmaker",
-            }
-            categories["gaming"].append(item)
-            results.append(item)
-            citations.append(f"Gaming Squad: {gd.get('game_name')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM community_lfg WHERE guild_id = ? AND (game_name LIKE ? OR description LIKE ?) AND status = 'OPEN' LIMIT 6",
+                (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
+            ) as cur:
+                g_rows = await cur.fetchall()
+            for g in g_rows:
+                gd = dict(g)
+                item = {
+                    "type": "Gaming Squad",
+                    "title": f"🎮 {gd.get('game_name')}: {gd.get('mode', 'Ranked')}",
+                    "snippet": f"Slots: {gd.get('current_players')}/{gd.get('max_players')} • Note: {gd.get('description', '')}",
+                    "category": "Gaming",
+                    "link": "/gaming",
+                    "source": "LFG Matchmaker",
+                }
+                categories["gaming"].append(item)
+                results.append(item)
+                citations.append(f"Gaming Squad: {gd.get('game_name')}")
+        except Exception as e:
+            logger.debug(f"Search gaming query notice: {e}")
 
         # 5. Search Public Resources
-        async with self.db._db.execute(
-            "SELECT * FROM community_resources WHERE guild_id = ? AND (title LIKE ? OR description LIKE ? OR tags LIKE ?) LIMIT 6",
-            (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%", f"%{query}%"),
-        ) as cur:
-            res_rows = await cur.fetchall()
-        for r in res_rows:
-            rd = dict(r)
-            item = {
-                "type": "Resource",
-                "title": rd.get("title", ""),
-                "snippet": rd.get("description", "")[:240],
-                "category": rd.get("category", "Resource"),
-                "link": rd.get("link") or "/resources",
-                "source": f"Resource Library ({rd.get('category')})",
-            }
-            categories["resources"].append(item)
-            results.append(item)
-            citations.append(f"Resource: {rd.get('title')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM community_resources WHERE guild_id = ? AND (title LIKE ? OR description LIKE ?) LIMIT 6",
+                (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
+            ) as cur:
+                res_rows = await cur.fetchall()
+            for r in res_rows:
+                rd = dict(r)
+                item = {
+                    "type": "Resource",
+                    "title": rd.get("title", ""),
+                    "snippet": rd.get("description", "")[:240],
+                    "category": rd.get("category", "Resource"),
+                    "link": rd.get("link") or "/resources",
+                    "source": f"Resource Library ({rd.get('category')})",
+                }
+                categories["resources"].append(item)
+                results.append(item)
+                citations.append(f"Resource: {rd.get('title')}")
+        except Exception as e:
+            logger.debug(f"Search resources query notice: {e}")
 
         # 6. Search Events
-        async with self.db._db.execute(
-            "SELECT * FROM community_events WHERE guild_id = ? AND (title LIKE ? OR description LIKE ?) LIMIT 6",
-            (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
-        ) as cur:
-            ev_rows = await cur.fetchall()
-        for e in ev_rows:
-            ed = dict(e)
-            item = {
-                "type": "Event",
-                "title": ed.get("title", ""),
-                "snippet": f"Scheduled: {ed.get('start_time', '')[:16]} • {ed.get('description', '')[:200]}",
-                "category": ed.get("event_type", "Event"),
-                "link": f"/events/{ed.get('id')}",
-                "source": "Events Calendar",
-            }
-            categories["events"].append(item)
-            results.append(item)
-            citations.append(f"Event: {ed.get('title')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM community_events WHERE guild_id = ? AND (title LIKE ? OR description LIKE ?) LIMIT 6",
+                (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
+            ) as cur:
+                ev_rows = await cur.fetchall()
+            for e in ev_rows:
+                ed = dict(e)
+                item = {
+                    "type": "Event",
+                    "title": ed.get("title", ""),
+                    "snippet": f"Scheduled: {ed.get('start_time', '')[:16]} • {ed.get('description', '')[:200]}",
+                    "category": ed.get("event_type", "Event"),
+                    "link": f"/events/{ed.get('id')}",
+                    "source": "Events Calendar",
+                }
+                categories["events"].append(item)
+                results.append(item)
+                citations.append(f"Event: {ed.get('title')}")
+        except Exception as e:
+            logger.debug(f"Search events query notice: {e}")
 
         # 7. Search Ideas & Feature Requests
-        async with self.db._db.execute(
-            "SELECT * FROM community_ideas WHERE guild_id = ? AND (title LIKE ? OR description LIKE ?) LIMIT 6",
-            (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
-        ) as cur:
-            i_rows = await cur.fetchall()
-        for i in i_rows:
-            idat = dict(i)
-            item = {
-                "type": "Idea",
-                "title": idat.get("title", ""),
-                "snippet": f"Status: {idat.get('status')} • Upvotes: {idat.get('upvotes', 0)} • {idat.get('description', '')[:180]}",
-                "category": idat.get("category", "Idea"),
-                "link": f"/ideas/{idat.get('id')}",
-                "source": "Idea Incubator",
-            }
-            categories["ideas"].append(item)
-            results.append(item)
-            citations.append(f"Idea: {idat.get('title')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM community_ideas WHERE guild_id = ? AND (title LIKE ? OR description LIKE ?) LIMIT 6",
+                (COMMUNITY_GUILD_ID, f"%{query}%", f"%{query}%"),
+            ) as cur:
+                i_rows = await cur.fetchall()
+            for i in i_rows:
+                idat = dict(i)
+                item = {
+                    "type": "Idea",
+                    "title": idat.get("title", ""),
+                    "snippet": f"Status: {idat.get('status')} • Upvotes: {idat.get('upvotes', 0)} • {idat.get('description', '')[:180]}",
+                    "category": idat.get("category", "Idea"),
+                    "link": f"/ideas/{idat.get('id')}",
+                    "source": "Idea Incubator",
+                }
+                categories["ideas"].append(item)
+                results.append(item)
+                citations.append(f"Idea: {idat.get('title')}")
+        except Exception as e:
+            logger.debug(f"Search ideas query notice: {e}")
 
         # 8. Search Wiki & Knowledge Base
-        async with self.db._db.execute(
-            "SELECT * FROM wiki_articles WHERE (title LIKE ? OR content LIKE ?) AND is_published = 1 LIMIT 5",
-            (f"%{query}%", f"%{query}%"),
-        ) as cur:
-            wiki_rows = await cur.fetchall()
-        for w in wiki_rows:
-            wd = dict(w)
-            item = {
-                "type": "Wiki",
-                "title": wd.get("title", ""),
-                "snippet": wd.get("content", "")[:240] + "...",
-                "category": wd.get("category", "Wiki"),
-                "link": f"/wiki/{wd.get('slug')}",
-                "source": f"/wiki/{wd.get('slug')}",
-            }
-            categories["wiki"].append(item)
-            results.append(item)
-            citations.append(f"Wiki: {wd.get('title')}")
+        try:
+            async with self.db._db.execute(
+                "SELECT * FROM wiki_articles WHERE (title LIKE ? OR content LIKE ?) AND is_published = 1 LIMIT 5",
+                (f"%{query}%", f"%{query}%"),
+            ) as cur:
+                wiki_rows = await cur.fetchall()
+            for w in wiki_rows:
+                wd = dict(w)
+                item = {
+                    "type": "Wiki",
+                    "title": wd.get("title", ""),
+                    "snippet": wd.get("content", "")[:240] + "...",
+                    "category": wd.get("category", "Wiki"),
+                    "link": f"/wiki/{wd.get('slug')}",
+                    "source": f"/wiki/{wd.get('slug')}",
+                }
+                categories["wiki"].append(item)
+                results.append(item)
+                citations.append(f"Wiki: {wd.get('title')}")
+        except Exception as e:
+            logger.debug(f"Search wiki query notice: {e}")
 
         # 9. Search Rai System Features
         rai_features = [

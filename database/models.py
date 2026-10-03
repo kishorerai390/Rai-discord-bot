@@ -4,7 +4,7 @@ Data models and type definitions for SQLite tables.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
 
@@ -548,5 +548,21 @@ class AutomationConfig:
     database_maintenance: bool = True
     health_monitor: bool = True
     updated_at: str = ""
+
+
+@dataclass
+class GamingLFG:
+    id: int
+    guild_id: int
+    user_id: int
+    game: str
+    role: Optional[str] = None
+    note: Optional[str] = None
+    max_players: int = 4
+    current_players: List[int] = field(default_factory=list)
+    message_id: Optional[int] = None
+    channel_id: Optional[int] = None
+    status: str = "open"
+    created_at: str = ""
 
 
