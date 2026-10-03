@@ -1,0 +1,3 @@
+"""
+Sentinel Bot Test Suite.
+"""

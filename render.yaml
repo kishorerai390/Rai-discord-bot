@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: rai-discord-security-bot
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: APPLICATION_ID
+        value: 1554732669072445532
+      - key: BOT_NAME
+        value: Rai
+      - key: EMBED_COLOR
+        value: 0x00F0FF
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DATABASE_PATH
+        value: data/bot.db

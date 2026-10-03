@@ -1,0 +1,3 @@
+"""
+Sentinel Bot Cogs Package.
+"""
