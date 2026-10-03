@@ -54,6 +54,12 @@ from database.models import (
     MusicAnalytics,
     InteractiveIncident,
     IncidentActionAudit,
+    SubsystemHealthRecord,
+    DynamicRoom,
+    RoomMember,
+    AutopilotConfig,
+    AutopilotAction,
+    SecurityBaseline,
 )
 
 logger = logging.getLogger(__name__)
@@ -91,6 +97,419 @@ class Database:
 
         # Run schema migrations
         await run_migrations(self._db)
+
+        # Dynamic rooms & autopilot tables
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS dynamic_rooms (
+                guild_id INTEGER NOT NULL,
+                voice_channel_id INTEGER PRIMARY KEY,
+                owner_id INTEGER NOT NULL,
+                room_type TEXT DEFAULT 'public',
+                privacy_mode TEXT DEFAULT 'public',
+                user_limit INTEGER DEFAULT 0,
+                locked INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active',
+                control_message_id INTEGER,
+                control_channel_id INTEGER,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS room_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                voice_channel_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                permission_type TEXT DEFAULT 'view',
+                added_at TEXT NOT NULL
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS autopilot_configs (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER DEFAULT 1,
+                dry_run INTEGER DEFAULT 0,
+                max_safety_level TEXT DEFAULT 'HIGH',
+                alert_channel_id INTEGER,
+                ticket_management INTEGER DEFAULT 1,
+                auto_safe_mode INTEGER DEFAULT 1,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS security_baselines (
+                guild_id INTEGER PRIMARY KEY,
+                joins_per_hour REAL DEFAULT 0.0,
+                messages_per_min REAL DEFAULT 0.0,
+                voice_users REAL DEFAULT 0.0,
+                sample_count INTEGER DEFAULT 0,
+                avg_joins_per_hour REAL DEFAULT 0.0,
+                avg_messages_per_min REAL DEFAULT 0.0,
+                updated_at TEXT NOT NULL
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS autopilot_actions (
+                id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                module TEXT NOT NULL,
+                trigger TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                risk_level TEXT NOT NULL,
+                action TEXT NOT NULL,
+                result TEXT NOT NULL,
+                target_id INTEGER,
+                target_type TEXT,
+                details TEXT,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+        await self._db.commit()
+
+    async def update_subsystem_health(self, subsystem: str, status: str, details: str = "") -> None:
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO subsystem_health (subsystem, status, last_check, failure_count, details)
+            VALUES (?, ?, ?, 0, ?)
+            ON CONFLICT(subsystem) DO UPDATE SET
+                status = excluded.status,
+                last_check = excluded.last_check,
+                details = excluded.details
+            """,
+            (subsystem, status, now_str, details),
+        )
+        await self._db.commit()
+
+    async def get_all_subsystem_health(self) -> List[SubsystemHealthRecord]:
+        async with self._db.execute("SELECT subsystem, status, details, last_check FROM subsystem_health") as cursor:
+            rows = await cursor.fetchall()
+            return [
+                SubsystemHealthRecord(
+                    subsystem=row["subsystem"],
+                    status=row["status"],
+                    details=row["details"] or "",
+                    updated_at=row["last_check"] or "",
+                )
+                for row in rows
+            ]
+
+    # --- DYNAMIC ROOMS CRUD ---
+
+    async def create_dynamic_room(self, room: DynamicRoom) -> None:
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO dynamic_rooms (
+                guild_id, voice_channel_id, owner_id, room_type, privacy_mode,
+                user_limit, locked, status, control_message_id, control_channel_id,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(voice_channel_id) DO UPDATE SET
+                guild_id = excluded.guild_id,
+                owner_id = excluded.owner_id,
+                room_type = excluded.room_type,
+                privacy_mode = excluded.privacy_mode,
+                user_limit = excluded.user_limit,
+                locked = excluded.locked,
+                status = excluded.status,
+                control_message_id = excluded.control_message_id,
+                control_channel_id = excluded.control_channel_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                room.guild_id, room.voice_channel_id, room.owner_id, room.room_type,
+                room.privacy_mode, room.user_limit, 1 if room.locked else 0,
+                room.status, room.control_message_id, room.control_channel_id,
+                room.created_at or now_str, room.updated_at or now_str
+            ),
+        )
+        await self._db.commit()
+
+    async def get_dynamic_room(self, voice_channel_id: int) -> Optional[DynamicRoom]:
+        async with self._db.execute(
+            "SELECT * FROM dynamic_rooms WHERE voice_channel_id = ?", (voice_channel_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return DynamicRoom(
+                guild_id=row["guild_id"],
+                voice_channel_id=row["voice_channel_id"],
+                owner_id=row["owner_id"],
+                room_type=row["room_type"],
+                privacy_mode=row["privacy_mode"],
+                user_limit=row["user_limit"],
+                locked=bool(row["locked"]),
+                status=row["status"],
+                control_message_id=row["control_message_id"],
+                control_channel_id=row["control_channel_id"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+
+    async def get_all_dynamic_rooms(self, guild_id: Optional[int] = None) -> List[DynamicRoom]:
+        query = "SELECT * FROM dynamic_rooms"
+        params = ()
+        if guild_id is not None:
+            query += " WHERE guild_id = ?"
+            params = (guild_id,)
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                DynamicRoom(
+                    guild_id=row["guild_id"],
+                    voice_channel_id=row["voice_channel_id"],
+                    owner_id=row["owner_id"],
+                    room_type=row["room_type"],
+                    privacy_mode=row["privacy_mode"],
+                    user_limit=row["user_limit"],
+                    locked=bool(row["locked"]),
+                    status=row["status"],
+                    control_message_id=row["control_message_id"],
+                    control_channel_id=row["control_channel_id"],
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+                for row in rows
+            ]
+
+    async def get_dynamic_room_by_control_message(self, control_message_id: int) -> Optional[DynamicRoom]:
+        async with self._db.execute(
+            "SELECT * FROM dynamic_rooms WHERE control_message_id = ?", (control_message_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return DynamicRoom(
+                guild_id=row["guild_id"],
+                voice_channel_id=row["voice_channel_id"],
+                owner_id=row["owner_id"],
+                room_type=row["room_type"],
+                privacy_mode=row["privacy_mode"],
+                user_limit=row["user_limit"],
+                locked=bool(row["locked"]),
+                status=row["status"],
+                control_message_id=row["control_message_id"],
+                control_channel_id=row["control_channel_id"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+
+    async def get_dynamic_room_by_owner(self, guild_id: int, owner_id: int) -> Optional[DynamicRoom]:
+        async with self._db.execute(
+            "SELECT * FROM dynamic_rooms WHERE guild_id = ? AND owner_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+            (guild_id, owner_id)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return DynamicRoom(
+                guild_id=row["guild_id"],
+                voice_channel_id=row["voice_channel_id"],
+                owner_id=row["owner_id"],
+                room_type=row["room_type"],
+                privacy_mode=row["privacy_mode"],
+                user_limit=row["user_limit"],
+                locked=bool(row["locked"]),
+                status=row["status"],
+                control_message_id=row["control_message_id"],
+                control_channel_id=row["control_channel_id"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+
+    async def update_dynamic_room(self, voice_channel_id: int, **kwargs: Any) -> None:
+        if not kwargs:
+            return
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            if k == "locked":
+                v = 1 if v else 0
+            fields.append(f"{k} = ?")
+            values.append(v)
+        fields.append("updated_at = ?")
+        values.append(utcnow_iso())
+        values.append(voice_channel_id)
+        query = f"UPDATE dynamic_rooms SET {', '.join(fields)} WHERE voice_channel_id = ?"
+        await self._db.execute(query, tuple(values))
+        await self._db.commit()
+
+    async def delete_dynamic_room(self, voice_channel_id: int) -> None:
+        await self._db.execute("DELETE FROM dynamic_rooms WHERE voice_channel_id = ?", (voice_channel_id,))
+        await self._db.execute("DELETE FROM room_members WHERE voice_channel_id = ?", (voice_channel_id,))
+        await self._db.commit()
+
+    async def add_room_member(self, voice_channel_id: int, user_id: int, permission_type: str = "view") -> None:
+        now_str = utcnow_iso()
+        await self._db.execute(
+            "INSERT INTO room_members (voice_channel_id, user_id, permission_type, added_at) VALUES (?, ?, ?, ?)",
+            (voice_channel_id, user_id, permission_type, now_str)
+        )
+        await self._db.commit()
+
+    async def remove_room_member(self, voice_channel_id: int, user_id: int) -> None:
+        await self._db.execute(
+            "DELETE FROM room_members WHERE voice_channel_id = ? AND user_id = ?",
+            (voice_channel_id, user_id)
+        )
+        await self._db.commit()
+
+    async def get_room_members(self, voice_channel_id: int) -> List[RoomMember]:
+        async with self._db.execute(
+            "SELECT * FROM room_members WHERE voice_channel_id = ?", (voice_channel_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                RoomMember(
+                    id=row["id"],
+                    room_channel_id=row["voice_channel_id"],
+                    member_id=row["user_id"],
+                    permission_type=row["permission_type"],
+                    added_at=row["added_at"],
+                )
+                for row in rows
+            ]
+
+    # --- AUTOPILOT CRUD ---
+
+    async def get_or_create_autopilot_config(self, guild_id: int) -> AutopilotConfig:
+        async with self._db.execute(
+            "SELECT * FROM autopilot_configs WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return AutopilotConfig(
+                    guild_id=row["guild_id"],
+                    enabled=bool(row["enabled"]),
+                    dry_run=bool(row["dry_run"]),
+                    max_safety_level=row["max_safety_level"],
+                    alert_channel_id=row["alert_channel_id"],
+                    ticket_management=bool(row["ticket_management"]),
+                    auto_safe_mode=bool(row["auto_safe_mode"]),
+                    updated_at=row["updated_at"],
+                )
+        now_str = utcnow_iso()
+        cfg = AutopilotConfig(guild_id=guild_id, updated_at=now_str)
+        await self._db.execute(
+            """
+            INSERT INTO autopilot_configs (
+                guild_id, enabled, dry_run, max_safety_level, alert_channel_id,
+                ticket_management, auto_safe_mode, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, 1, 0, "HIGH", None, 1, 1, now_str)
+        )
+        await self._db.commit()
+        return cfg
+
+    async def update_autopilot_config(self, guild_id: int, **kwargs: Any) -> None:
+        if not kwargs:
+            return
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            if isinstance(v, bool):
+                v = 1 if v else 0
+            fields.append(f"{k} = ?")
+            values.append(v)
+        fields.append("updated_at = ?")
+        values.append(utcnow_iso())
+        values.append(guild_id)
+        query = f"UPDATE autopilot_configs SET {', '.join(fields)} WHERE guild_id = ?"
+        await self._db.execute(query, tuple(values))
+        await self._db.commit()
+
+    async def get_or_create_security_baseline(self, guild_id: int) -> SecurityBaseline:
+        async with self._db.execute(
+            "SELECT * FROM security_baselines WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                sb = SecurityBaseline(
+                    guild_id=row["guild_id"],
+                    joins_per_hour=row["joins_per_hour"],
+                    messages_per_min=row["messages_per_min"],
+                    voice_users=row["voice_users"],
+                    updated_at=row["updated_at"],
+                )
+                sb.sample_count = row["sample_count"]
+                sb.avg_joins_per_hour = row["avg_joins_per_hour"]
+                sb.avg_messages_per_min = row["avg_messages_per_min"]
+                return sb
+        now_str = utcnow_iso()
+        sb = SecurityBaseline(guild_id=guild_id, updated_at=now_str)
+        sb.sample_count = 0
+        sb.avg_joins_per_hour = 0.0
+        sb.avg_messages_per_min = 0.0
+        await self._db.execute(
+            """
+            INSERT INTO security_baselines (
+                guild_id, joins_per_hour, messages_per_min, voice_users,
+                sample_count, avg_joins_per_hour, avg_messages_per_min, updated_at
+            ) VALUES (?, 0.0, 0.0, 0.0, 0, 0.0, 0.0, ?)
+            """,
+            (guild_id, now_str)
+        )
+        await self._db.commit()
+        return sb
+
+    async def update_security_baseline(self, guild_id: int, **kwargs: Any) -> None:
+        if not kwargs:
+            return
+        fields = []
+        values = []
+        for k, v in kwargs.items():
+            fields.append(f"{k} = ?")
+            values.append(v)
+        fields.append("updated_at = ?")
+        values.append(utcnow_iso())
+        values.append(guild_id)
+        query = f"UPDATE security_baselines SET {', '.join(fields)} WHERE guild_id = ?"
+        await self._db.execute(query, tuple(values))
+        await self._db.commit()
+
+    async def log_autopilot_action(
+        self,
+        guild_id: int,
+        module: str,
+        trigger: str,
+        reason: str,
+        risk_level: str,
+        action: str,
+        result: str,
+        target_id: Optional[int] = None,
+        target_type: Optional[str] = None,
+        details: Optional[str] = None,
+    ) -> str:
+        action_id = f"auto_{uuid.uuid4().hex[:10]}"
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO autopilot_actions (
+                id, guild_id, module, trigger, reason, risk_level,
+                action, result, target_id, target_type, details, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                action_id, guild_id, module, trigger, reason, risk_level,
+                action, result, target_id, target_type, details, now_str
+            )
+        )
+        await self._db.commit()
+        return action_id
+
 
     # ==========================================
     # COMMUNITY PLATFORM EXPANSION METHODS

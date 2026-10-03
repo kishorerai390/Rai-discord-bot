@@ -759,7 +759,7 @@ class DynamicRoom:
     guild_id: int
     voice_channel_id: int
     owner_id: int
-    room_type: str                # public / private / hidden
+    room_type: str = "public"                # public / private / hidden
     privacy_mode: str = "public"
     user_limit: int = 0
     locked: bool = False
@@ -778,6 +778,14 @@ class RoomMember:
     member_id: int
     permission_type: str = "view"  # view / speak / manage
     added_at: str = ""
+
+    @property
+    def user_id(self) -> int:
+        return self.member_id
+
+    @user_id.setter
+    def user_id(self, val: int) -> None:
+        self.member_id = val
 
 
 # ---------------------------------------------------------------------------
@@ -1002,3 +1010,13 @@ class WorkflowTemplate:
     trigger_config: Dict[str, Any] = field(default_factory=dict)
     category: str = "general"
     is_builtin: bool = True
+
+
+@dataclass
+class SubsystemHealthRecord:
+    """Subsystem operational health record."""
+    subsystem: str
+    status: str
+    details: str = ""
+    updated_at: str = ""
+
