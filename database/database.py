@@ -351,6 +351,12 @@ class Database:
         await self._db.execute("DELETE FROM room_members WHERE voice_channel_id = ?", (voice_channel_id,))
         await self._db.commit()
 
+    async def get_all_temp_voice_channels(self, guild_id: Optional[int] = None) -> List[DynamicRoom]:
+        return await self.get_all_dynamic_rooms(guild_id)
+
+    async def delete_temp_voice_channel(self, channel_id: int) -> None:
+        await self.delete_dynamic_room(channel_id)
+
     async def add_room_member(self, voice_channel_id: int, user_id: int, permission_type: str = "view") -> None:
         now_str = utcnow_iso()
         await self._db.execute(

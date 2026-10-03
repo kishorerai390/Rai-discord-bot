@@ -45,6 +45,20 @@ class DiscordConnectionWatchdog:
         self._reconnect_count += 1
         logger.warning(f"[ConnectionWatchdog] Gateway reconnect observed (Total: {self._reconnect_count})")
 
+    def record_identify(self) -> None:
+        """Called when Discord client completes IDENTIFY handshake."""
+        self._last_heartbeat_ack = time.time()
+        logger.info("[ConnectionWatchdog] Gateway IDENTIFY handshake completed.")
+
+    def record_resume(self) -> None:
+        """Called when Discord client completes RESUME handshake."""
+        self._last_heartbeat_ack = time.time()
+        logger.info("[ConnectionWatchdog] Gateway RESUME handshake completed.")
+
+    def record_disconnect(self, reason: str = "") -> None:
+        """Called when Discord client disconnects from Gateway."""
+        logger.warning(f"[ConnectionWatchdog] Gateway disconnect: {reason}")
+
     @property
     def current_latency_ms(self) -> float:
         """Returns the current Gateway latency in milliseconds."""

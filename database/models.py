@@ -769,6 +769,15 @@ class DynamicRoom:
     created_at: str = ""
     updated_at: str = ""
 
+    @property
+    def channel_id(self) -> int:
+        return self.voice_channel_id
+
+    @channel_id.setter
+    def channel_id(self, val: int) -> None:
+        self.voice_channel_id = val
+
+
 
 @dataclass
 class RoomMember:
