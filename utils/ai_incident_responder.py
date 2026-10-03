@@ -509,17 +509,23 @@ async def handle_incident_interaction(bot: SentinelBot, interaction: discord.Int
     if not cid.startswith("inc_"):
         return False
 
-    # 1. Authorize: Only guild owners / founder
+    # 1. Authorize: Only guild owners / founder / administrators
     founder_id = 1457380609641938981
-    if interaction.user.id != founder_id:
+    is_authorized = (interaction.user.id == founder_id)
+    if not is_authorized and interaction.guild:
+        is_authorized = (interaction.user.id == getattr(interaction.guild, "owner_id", None))
+    if not is_authorized and getattr(interaction.user, "guild_permissions", None) and getattr(interaction.user.guild_permissions, "administrator", False):
+        is_authorized = True
+
+    if not is_authorized:
         try:
             await interaction.response.send_message("❌ This incident console is private to the server owner.", ephemeral=True)
         except Exception:
             pass
         return True
 
-    # 2. Mark All as Read
-    if cid == "inc_mark_all_read":
+    # Immediate deferral to prevent Discord 3-second interaction timeout
+    if not interaction.response.is_done():
         try:
             await interaction.response.defer()
         except Exception:

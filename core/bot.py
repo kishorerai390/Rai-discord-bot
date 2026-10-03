@@ -158,6 +158,14 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling incident interaction {cid}: {e}", exc_info=True)
+            elif cid.startswith("rai_inc:"):
+                from utils.interactive_incidents import InteractiveIncidentManager
+                try:
+                    handled = await InteractiveIncidentManager.handle_component_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling interactive incident {cid}: {e}", exc_info=True)
 
     async def _tree_interaction_check(self, interaction: discord.Interaction) -> bool:
         """
