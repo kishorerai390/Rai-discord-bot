@@ -566,3 +566,438 @@ class GamingLFG:
     created_at: str = ""
 
 
+@dataclass
+class AutopilotConfig:
+    """Per-guild configuration for the Autopilot Engine."""
+    guild_id: int
+    enabled: bool = True
+    dry_run: bool = False
+    max_safety_level: str = "HIGH"
+    alert_channel_id: Optional[int] = None
+    ticket_management: bool = True
+    auto_safe_mode: bool = True
+    updated_at: str = ""
+
+
+@dataclass
+class AutopilotAction:
+    """Audit record for a single autonomous action taken by the Autopilot Engine."""
+    id: str
+    guild_id: int
+    module: str
+    trigger: str
+    reason: str
+    risk_level: str
+    action: str
+    result: str
+    target_id: Optional[int] = None
+    target_type: Optional[str] = None
+    details: Optional[str] = None
+    created_at: str = ""
+
+
+@dataclass
+class SecurityBaseline:
+    """Adaptive server-activity baseline used by the Autopilot Engine."""
+    guild_id: int
+    joins_per_hour: float = 0.0
+    messages_per_min: float = 0.0
+    voice_users: float = 0.0
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Self-Healing
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SelfHealingRecord:
+    """Audit record for a self-healing recovery attempt."""
+    id: str
+    component: str
+    error_class: str
+    error_message: str
+    recovery_action: str
+    result: str                   # SUCCESS / FAILED / SKIPPED
+    attempt_count: int = 1
+    details: Optional[str] = None
+    created_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Interactive Incidents
+# ---------------------------------------------------------------------------
+
+@dataclass
+class InteractiveIncident:
+    """A rich, actionable incident card sent to staff via DM or log channel."""
+    incident_id: str
+    guild_id: int
+    report_type: str              # security / mod / room / etc.
+    event_type: str
+    title: str
+    description: str
+    actor_id: Optional[int] = None
+    actor_name: Optional[str] = None
+    target_id: Optional[int] = None
+    target_name: Optional[str] = None
+    action_taken: Optional[str] = None
+    status: str = "ACTIVE"        # ACTIVE / RESOLVED / DISMISSED
+    severity: str = "MEDIUM"      # LOW / MEDIUM / HIGH / CRITICAL
+    details_json: Optional[str] = None
+    dm_message_id: Optional[int] = None
+    dm_channel_id: Optional[int] = None
+    channel_message_id: Optional[int] = None
+    report_channel_id: Optional[int] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class IncidentActionAudit:
+    """Individual action taken by a staff member on an InteractiveIncident."""
+    id: int
+    incident_id: str
+    actor_id: int
+    action: str
+    result: str
+    target_id: Optional[int] = None
+    details: Optional[str] = None
+    created_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Guild Roles
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GuildRole:
+    """A Discord role that Rai manages or tracks for a guild."""
+    id: int
+    guild_id: int
+    role_key: str
+    discord_role_id: int
+    role_name: str
+    role_type: str
+    managed_by_rai: bool = False
+    enabled: bool = True
+    position: int = 0
+    created_at: str = ""
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Bot Shield Audit
+# ---------------------------------------------------------------------------
+
+@dataclass
+class BotShieldAuditRecord:
+    """Audit log entry for Rai's third-party bot privilege shield actions."""
+    audit_id: str
+    guild_id: int
+    bot_id: int
+    bot_name: str
+    risk_level: str
+    dangerous_permissions: str
+    is_isolated: bool = False
+    isolated_at: Optional[str] = None
+    created_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Channel Access
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ChannelAccessConfig:
+    """Configuration for the automatic channel access recovery service."""
+    guild_id: int
+    enabled: bool = True
+    empty_channels_only: bool = True
+    include_text: bool = True
+    include_announcement: bool = True
+    include_forum: bool = True
+    include_voice: bool = False
+    include_stage: bool = False
+    include_private: bool = False
+    auto_update: bool = True
+    updated_at: str = ""
+
+
+@dataclass
+class ChannelAccessState:
+    """Last known access state for a single channel."""
+    guild_id: int
+    channel_id: int
+    channel_type: str
+    last_checked: str
+    access_status: str            # ACCESSIBLE / UPDATED / FAILED
+    last_updated: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Dynamic Voice Rooms
+# ---------------------------------------------------------------------------
+
+@dataclass
+class TempVoiceConfig:
+    """Guild-level configuration for the dynamic/temporary voice room system."""
+    guild_id: int
+    enabled: bool = True
+    hub_channel_id: Optional[int] = None
+    category_id: Optional[int] = None
+    default_user_limit: int = 0
+    name_format: str = "🎙️ {username}'s Room"
+    updated_at: str = ""
+
+
+@dataclass
+class DynamicRoom:
+    """An active temporary voice room provisioned for a member."""
+    guild_id: int
+    voice_channel_id: int
+    owner_id: int
+    room_type: str                # public / private / hidden
+    privacy_mode: str = "public"
+    user_limit: int = 0
+    locked: bool = False
+    status: str = "active"
+    control_message_id: Optional[int] = None
+    control_channel_id: Optional[int] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class RoomMember:
+    """A member with explicit access to a private/hidden DynamicRoom."""
+    id: int
+    room_channel_id: int
+    member_id: int
+    permission_type: str = "view"  # view / speak / manage
+    added_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Mention Spam
+# ---------------------------------------------------------------------------
+
+@dataclass
+class MentionSpamConfig:
+    """Per-guild configuration for the mention spam protection engine."""
+    guild_id: int
+    enabled: bool = True
+    warning_threshold: int = 5
+    high_threshold: int = 10
+    critical_threshold: int = 20
+    window_seconds: int = 10
+    cross_channel_threshold: int = 3
+    repeat_message_threshold: int = 3
+    action_low: str = "delete"
+    action_high: str = "timeout"
+    action_critical: str = "timeout_and_purge"
+    timeout_duration_high: int = 600
+    timeout_duration_critical: int = 86400
+    purge_window_seconds: int = 60
+    staff_exempt: bool = True
+    updated_at: str = ""
+
+
+@dataclass
+class MentionSpamIncident:
+    """A logged mention-spam incident for audit and analytics."""
+    id: int
+    guild_id: int
+    user_id: int
+    channel_id: int
+    mention_count: int
+    action_taken: str
+    severity: str
+    message_content: Optional[str] = None
+    created_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Pending Sync Operations (cloud sync queue)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PendingSyncOperation:
+    """A queued database sync operation waiting to be pushed to the cloud."""
+    operation_id: str
+    guild_id: int
+    target: str              # e.g. "firebase" / "postgres"
+    operation_type: str      # upsert / delete / etc.
+    payload: Dict[str, Any]
+    priority: int = 5
+    status: str = "PENDING"  # PENDING / RETRYING / SYNCED / DEAD_LETTER
+    attempt_count: int = 0
+    incident_id: Optional[str] = None
+    error_code: Optional[str] = None
+    next_attempt: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Private Control Center
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PrivateControlConfig:
+    """Configuration for Rai's owner-only private control centre channels."""
+    guild_id: int
+    enabled: bool = True
+    owner_category_id: Optional[int] = None
+    security_category_id: Optional[int] = None
+    admin_category_id: Optional[int] = None
+    owner_ids: List[int] = field(default_factory=list)
+    security_role_ids: List[int] = field(default_factory=list)
+    admin_role_ids: List[int] = field(default_factory=list)
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Security Risk State
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SecurityRiskState:
+    """Persistent risk posture snapshot for a guild."""
+    guild_id: int
+    risk_level: str = "NORMAL"      # NORMAL / ELEVATED / HIGH_ALERT / CRITICAL / EMERGENCY
+    hysteresis_state: str = "NORMAL"
+    threat_score: float = 0.0
+    incident_id: Optional[str] = None
+    cooldown_remaining: float = 0.0
+    reason: Optional[str] = None
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Server Billboard
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ServerBillboardConfig:
+    """Configuration for the live server-status billboard embed."""
+    guild_id: int
+    channel_id: Optional[int] = None
+    message_id: Optional[int] = None
+    is_active: bool = False
+    update_interval: int = 60      # minutes
+    last_updated_at: Optional[str] = None
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Verification
+# ---------------------------------------------------------------------------
+
+@dataclass
+class VerificationConfig:
+    """Per-guild configuration for the interactive member verification system."""
+    guild_id: int
+    enabled: bool = True
+    verified_role_id: Optional[int] = None
+    community_role_id: Optional[int] = None
+    verify_channel_id: Optional[int] = None
+    welcome_channel_id: Optional[int] = None
+    min_account_age_hours: int = 0
+    require_2fa: bool = False
+    updated_at: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Workflow Engine
+# ---------------------------------------------------------------------------
+
+@dataclass
+class Workflow:
+    """A user-defined multi-step automated workflow pipeline."""
+    id: str
+    guild_id: int
+    creator_id: int
+    name: str
+    status: str = "ACTIVE"           # ACTIVE / PAUSED / DISABLED
+    trigger_type: str = "manual"
+    description: Optional[str] = None
+    trigger_config: Dict[str, Any] = field(default_factory=dict)
+    missed_schedule_policy: str = "SKIP"  # SKIP / RUN_ONCE / RUN_ALL
+    version: int = 1
+    last_run_at: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class WorkflowStep:
+    """A single action step within a Workflow."""
+    id: str
+    workflow_id: str
+    step_order: int
+    action_type: str
+    action_config: Dict[str, Any] = field(default_factory=dict)
+    condition_config: Dict[str, Any] = field(default_factory=dict)
+    risk_level: str = "LOW"
+    failure_policy: str = "STOP"     # STOP / CONTINUE / RETRY / FALLBACK
+    timeout_seconds: int = 60
+    retry_policy: Dict[str, Any] = field(default_factory=dict)
+    created_at: str = ""
+
+
+@dataclass
+class WorkflowExecution:
+    """A single recorded execution run of a Workflow."""
+    id: str
+    workflow_id: str
+    guild_id: int
+    trigger_event: str
+    status: str = "RUNNING"          # RUNNING / COMPLETED / WAITING / FAILED
+    current_step_order: int = 1
+    step_results: List[Dict[str, Any]] = field(default_factory=list)
+    error: Optional[str] = None
+    started_at: str = ""
+    completed_at: Optional[str] = None
+
+
+@dataclass
+class WorkflowStepExecution:
+    """Result record for a single step within a WorkflowExecution."""
+    id: str
+    execution_id: str
+    workflow_id: str
+    step_order: int
+    action_type: str
+    status: str = "PENDING"          # PENDING / SUCCESS / FAILED / SKIPPED
+    result_data: Optional[str] = None
+    error: Optional[str] = None
+    duration_ms: int = 0
+    executed_at: str = ""
+
+
+@dataclass
+class WorkflowWaitingTimer:
+    """A persistent delay timer that pauses a workflow until a future time."""
+    id: str
+    execution_id: str
+    workflow_id: str
+    guild_id: int
+    resume_at: str
+    next_step_order: int
+    status: str = "WAITING"          # WAITING / COMPLETED / CANCELLED
+    created_at: str = ""
+
+
+@dataclass
+class WorkflowTemplate:
+    """A built-in or community workflow template."""
+    id: str
+    name: str
+    description: str
+    trigger_type: str
+    steps: List[Dict[str, Any]] = field(default_factory=list)
+    trigger_config: Dict[str, Any] = field(default_factory=dict)
+    category: str = "general"
+    is_builtin: bool = True
