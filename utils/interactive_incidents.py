@@ -460,6 +460,13 @@ class InteractiveIncidentManager:
         action = parts[1]
         incident_id = parts[2]
 
+        if action == "read_done":
+            await interaction.response.send_message(
+                f"ℹ️ Incident `{incident_id}` has already been marked as read.",
+                ephemeral=True
+            )
+            return True
+
         db = getattr(bot, "db", None)
         if not db:
             await interaction.response.send_message("❌ Database unavailable.", ephemeral=True)
