@@ -64,6 +64,20 @@ class LoggingCog(commands.Cog, name="Logging"):
         except Exception:
             enabled = False
 
+        if not enabled:
+            return
+
+        low_title = (embed.title or "").lower()
+        # Routine voice toggles and disconnects are purely local voice state changes; never dispatch as DM alerts
+        if any(term in low_title for term in [
+            "microphone muted", "microphone unmuted",
+            "audio deafened", "audio undeafened",
+            "camera turned on", "camera turned off",
+            "stream ended",
+            "voice room disconnected",
+        ]):
+            return
+
         now = time.time()
         timestamps = self._founder_dm_timestamps.get(guild.id, [])
         # Keep timestamps from the last 10 seconds
@@ -189,8 +203,6 @@ class LoggingCog(commands.Cog, name="Logging"):
                         await rep_channel.send(embed=dm_embed, view=ch_view)
                     except Exception as ch_send_err:
                         logger.warning(f"Direct send to report channel failed: {ch_send_err}")
-
-                OwnerReporter.dispatch_report(self.bot, guild.id, channel_key, dm_embed, incident_id=inc_id)
             except Exception as e:
                 logger.warning(f"Failed to route activity embed to private report channel: {e}")
 
@@ -200,6 +212,7 @@ class LoggingCog(commands.Cog, name="Logging"):
         channel_attr: str,
         embed: discord.Embed,
         context: Optional[Dict[str, Any]] = None,
+        dispatch_dm: bool = True,
     ) -> None:
         """Helper to send log embed to channel specified in logging_config, and to Founder in DM."""
         cfg = await self.bot.db.get_logging_config(guild.id)
@@ -214,7 +227,8 @@ class LoggingCog(commands.Cog, name="Logging"):
                     pass
 
         # Real-time alert to Founder in DM WITH AI analysis and interactive action buttons
-        await self._dispatch_founder_activity_dm(guild, embed, context)
+        if dispatch_dm:
+            await self._dispatch_founder_activity_dm(guild, embed, context)
 
     # ==========================================
     # EVENT LISTENERS
@@ -350,7 +364,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 embed.description = f"{member.mention} was **server-deafened** by staff in **#{after.channel.name}**."
 
             if embed:
-                await self._send_log(member.guild, "voice_channel_id", embed)
+                await self._send_log(member.guild, "voice_channel_id", embed, dispatch_dm=False)
             return
 
         if before.channel is None and after.channel is not None:
@@ -382,7 +396,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 f"{member.mention} left **#{before.channel.name}**\n"
                 f"⏱️ **Session Duration:** `{dur_str}`"
             )
-            await self._send_log(member.guild, "voice_channel_id", embed)
+            await self._send_log(member.guild, "voice_channel_id", embed, dispatch_dm=False)
 
         else:
             # User Switched VC

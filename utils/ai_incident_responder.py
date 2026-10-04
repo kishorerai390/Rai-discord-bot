@@ -83,6 +83,13 @@ class AIIncidentAnalyzer:
             recommendation = "Normal voice suite lifecycle event. No action required."
             actions = ["mark_safe"]
 
+        # 0.1 ROUTINE VOICE ACTIVITY
+        elif any(k in low_title for k in ("microphone", "audio deafened", "audio undeafened", "camera", "stream", "voice room", "voice connect", "voice disconnect", "voice switch")) or "voice" in event_type:
+            threat = "🟢 LOW"
+            assessment = f"Standard voice activity: {title}."
+            recommendation = "Routine voice channel event. No administrative action required."
+            actions = ["mark_safe"]
+
         # 1. CHANNEL CREATED
         elif "channel created" in low_title or event_type == "channel_create":
             is_bot = getattr(actor, "bot", False) if actor else False

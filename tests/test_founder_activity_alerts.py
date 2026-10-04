@@ -151,6 +151,32 @@ class TestFounderActivityAlerts(unittest.IsolatedAsyncioTestCase):
         # Founder DM is not called
         self.guild_owner.send.assert_not_called()
 
+    async def test_voice_mute_does_not_send_dm(self):
+        """Verifies microphone mute logs to voice log channel but NEVER spams Founder DM."""
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = self.vc1
+        before.self_mute = False
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = self.vc1
+        after.self_mute = True
+
+        await self.cog.on_voice_state_update(self.member, before, after)
+
+        self.log_channel.send.assert_called_once()
+        self.guild_owner.send.assert_not_called()
+
+    async def test_voice_disconnect_does_not_send_dm(self):
+        """Verifies leaving voice room logs to voice log channel but NEVER spams Founder DM."""
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = self.vc1
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = None
+
+        await self.cog.on_voice_state_update(self.member, before, after)
+
+        self.log_channel.send.assert_called_once()
+        self.guild_owner.send.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
