@@ -1151,6 +1151,36 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             CREATE INDEX IF NOT EXISTS idx_interaction_records_req ON interaction_records(request_id);
             """,
             """
+            CREATE TABLE IF NOT EXISTS interactive_incidents (
+                incident_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                report_type TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id INTEGER,
+                actor_name TEXT,
+                target_id INTEGER,
+                target_name TEXT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                action_taken TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                severity TEXT NOT NULL DEFAULT 'HIGH',
+                details_json TEXT,
+                dm_message_id INTEGER,
+                dm_channel_id INTEGER,
+                channel_message_id INTEGER,
+                report_channel_id INTEGER,
+                alert_message_id INTEGER,
+                alert_channel_id INTEGER,
+                event_count INTEGER DEFAULT 1,
+                fingerprint TEXT,
+                acknowledged_by INTEGER,
+                acknowledged_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
             ALTER TABLE interactive_incidents ADD COLUMN alert_message_id INTEGER;
             """,
             """

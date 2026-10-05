@@ -75,6 +75,8 @@ class RaiDoctor:
         """Probes all 12 subsystems concurrently and returns truthful diagnostics."""
         tasks = [
             cls.diagnose_core(bot),
+            cls.diagnose_interactions(bot),
+            cls.diagnose_channels(bot, guild),
             cls.diagnose_database(bot, guild),
             cls.diagnose_gateway(bot),
             cls.diagnose_commands(bot),
@@ -478,4 +480,106 @@ class RaiDoctor:
                 diagnostic_id="RAI-DOC-SB-ERR",
                 details={"error": str(e)},
                 repair_action="Verify soundboard audio directory permissions and voice connection.",
+            )
+
+    @classmethod
+    async def diagnose_interactions(cls, bot: discord.Client) -> SubsystemDiagnostic:
+        t0 = time.perf_counter()
+        try:
+            from core.interaction_manager import InteractionManager
+            m = InteractionManager.metrics
+            avg_ack = m.avg_ack_latency_ms
+            status = DiagnosticStatus.HEALTHY
+            repair = None
+
+            if m.critical_ack_count > 0 or avg_ack > 1000.0:
+                status = DiagnosticStatus.DEGRADED
+                repair = "Interaction ACK latency is high (>1s). Ensure all commands use immediate deferral."
+            elif m.failures_count > 5:
+                status = DiagnosticStatus.DEGRADED
+                repair = "Multiple interaction failures detected. Check logs for unhandled command exceptions."
+
+            latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+            return SubsystemDiagnostic(
+                name="Interaction Manager",
+                status=status,
+                latency_ms=latency_ms,
+                last_success=discord.utils.utcnow().isoformat(),
+                diagnostic_id="RAI-DOC-INT",
+                details={
+                    "total_interactions": m.total_processed,
+                    "avg_ack_latency_ms": avg_ack,
+                    "fast_acks (<100ms)": m.fast_ack_count,
+                    "healthy_acks (100-500ms)": m.healthy_ack_count,
+                    "double_replies_prevented": m.double_responses_prevented,
+                    "slow_operations": m.slow_operations_count,
+                    "failed_interactions": m.failures_count,
+                },
+                repair_action=repair,
+            )
+        except Exception as e:
+            return SubsystemDiagnostic(
+                name="Interaction Manager",
+                status=DiagnosticStatus.DEGRADED,
+                latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                last_error=str(e),
+                diagnostic_id="RAI-DOC-INT-ERR",
+                details={"error": str(e)},
+                repair_action="Inspect InteractionManager initialization and metrics counters.",
+            )
+
+    @classmethod
+    async def diagnose_channels(
+        cls, bot: discord.Client, guild: Optional[discord.Guild] = None
+    ) -> SubsystemDiagnostic:
+        t0 = time.perf_counter()
+        if not guild:
+            return SubsystemDiagnostic(
+                name="Channel Assignments",
+                status=DiagnosticStatus.HEALTHY,
+                latency_ms=0.0,
+                last_success=discord.utils.utcnow().isoformat(),
+                diagnostic_id="RAI-DOC-CHAN-GLOBAL",
+                details={"status": "Global audit: Run in a server for guild-specific mapping."},
+            )
+
+        try:
+            from services.channel_assignment_service import ChannelAssignmentService, ChannelHealthStatus
+            reports = await ChannelAssignmentService.audit_all_channels(bot, guild)
+            connected = sum(1 for r in reports if r.status == ChannelHealthStatus.CONNECTED)
+            missing = sum(1 for r in reports if r.status == ChannelHealthStatus.MISSING)
+            no_perm = sum(1 for r in reports if r.status == ChannelHealthStatus.NO_PERMISSION)
+            disabled = sum(1 for r in reports if r.status == ChannelHealthStatus.DISABLED)
+
+            status = DiagnosticStatus.HEALTHY
+            repair = None
+            if missing > 0 or no_perm > 0:
+                status = DiagnosticStatus.DEGRADED
+                repair = f"Found {missing} deleted channel(s) and {no_perm} channel(s) with missing permissions. Run /rai channels refresh."
+
+            latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+            return SubsystemDiagnostic(
+                name="Channel Assignments",
+                status=status,
+                latency_ms=latency_ms,
+                last_success=discord.utils.utcnow().isoformat(),
+                diagnostic_id="RAI-DOC-CHAN",
+                details={
+                    "total_canonical": len(reports),
+                    "connected": connected,
+                    "missing": missing,
+                    "no_permission": no_perm,
+                    "disabled": disabled,
+                },
+                repair_action=repair,
+            )
+        except Exception as e:
+            return SubsystemDiagnostic(
+                name="Channel Assignments",
+                status=DiagnosticStatus.DEGRADED,
+                latency_ms=round((time.perf_counter() - t0) * 1000.0, 2),
+                last_error=str(e),
+                diagnostic_id="RAI-DOC-CHAN-ERR",
+                details={"error": str(e)},
+                repair_action="Verify guild channel configuration database table and permissions.",
             )

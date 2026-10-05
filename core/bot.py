@@ -43,6 +43,7 @@ from utils.interaction_reliability import (
     PUBLIC_COMMANDS,
     safe_response,
 )
+from core.interaction_manager import InteractionManager
 
 logger = logging.getLogger("SentinelBot")
 
@@ -143,10 +144,13 @@ class SentinelBot(commands.Bot):
         self.role_manager = RoleManager(self)
 
     async def on_interaction(self, interaction: discord.Interaction) -> None:
-        """Global interaction entry point with duplicate protection."""
+        """Global interaction entry point with duplicate protection and InteractionManager registration."""
         if self.interaction_guard.is_duplicate(interaction.id):
             logger.debug(f"Duplicate interaction {interaction.id} dropped.")
             return
+
+        # Register in central InteractionManager state machine
+        await InteractionManager.register_interaction(interaction)
 
         if interaction.type == discord.InteractionType.component:
             cid = interaction.data.get("custom_id", "")
@@ -172,7 +176,7 @@ class SentinelBot(commands.Bot):
         Global Slash Command Guard:
         1. Checks duplicates.
         2. Records start timing in CommandWatchdog.
-        3. Acknowledges/defers interaction at gateway level within milliseconds.
+        3. Immediately acknowledges via InteractionManager under 100ms.
         """
         if self.interaction_guard.is_duplicate(interaction.id):
             return False
@@ -183,7 +187,7 @@ class SentinelBot(commands.Bot):
             cmd_name = interaction.command.name if interaction.command else ""
             is_ephemeral = cmd_name not in PUBLIC_COMMANDS
             try:
-                await interaction.response.defer(ephemeral=is_ephemeral, thinking=True)
+                await InteractionManager.acknowledge_immediately(interaction, ephemeral=is_ephemeral)
                 self.watchdog.record_ack(interaction)
             except Exception as e:
                 logger.debug(f"Immediate ACK note for {interaction.id}: {e}")

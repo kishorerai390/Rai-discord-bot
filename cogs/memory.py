@@ -60,7 +60,7 @@ class MemoryCog(commands.Cog, name="Memory"):
         embed.set_footer(text="Memory is strictly isolated to this server and never leaks.")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @rai_group.command(name="remember", description="Store a server preference, operational rule, or schedule in Rai's memory")
+    @memory_group.command(name="remember", description="Store a server preference, operational rule, or schedule in Rai's memory")
     @app_commands.describe(
         key="The topic or identifier (e.g. 'movie_night', 'rules_channel', 'tournament_day')",
         value="The content or instruction to remember",
@@ -97,7 +97,7 @@ class MemoryCog(commands.Cog, name="Memory"):
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @rai_group.command(name="forget", description="Remove an item from Rai's server memory")
+    @memory_group.command(name="forget", description="Remove an item from Rai's server memory")
     @app_commands.describe(key="The key identifier to delete")
     async def forget_cmd(self, interaction: discord.Interaction, key: str):
         await interaction.response.defer(ephemeral=True)
@@ -115,7 +115,7 @@ class MemoryCog(commands.Cog, name="Memory"):
         else:
             await interaction.followup.send(f"ℹ️ Key `{key}` was not found in server memory.", ephemeral=True)
 
-    @rai_group.command(name="profile", description="View or edit the server Rai operational profile")
+    @memory_group.command(name="profile", description="View or edit the server Rai operational profile")
     @app_commands.describe(
         action="Profile action (view, edit, reset)",
         server_type="Server style (Community, Gaming, Creator, Studio)",
