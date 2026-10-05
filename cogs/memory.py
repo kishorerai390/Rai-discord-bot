@@ -33,9 +33,9 @@ class MemoryCog(commands.Cog, name="Memory"):
     def __init__(self, bot: SentinelBot):
         self.bot = bot
 
-    rai_group = app_commands.Group(name="rai", description="Rai server memory and profile configuration")
+    memory_group = app_commands.Group(name="memory", description="Rai server memory and profile configuration")
 
-    @rai_group.command(name="context", description="View active server memory context and current conversation session")
+    @memory_group.command(name="context", description="View active server memory context and current conversation session")
     async def context_cmd(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:

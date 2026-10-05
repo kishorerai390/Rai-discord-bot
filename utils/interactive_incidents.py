@@ -581,6 +581,32 @@ class InteractiveIncidentManager:
             await interaction.followup.send(f"✅ **Bulk Acknowledged:** Resolved {count} active incidents.", ephemeral=True)
             return True
 
+        if real_action in ("mark_safe", "mark_as_safe"):
+            now_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            incident.status = "RESOLVED"
+            incident.action_taken = f"✓ Marked as Safe by {interaction.user.mention} at {now_iso}"
+            if db:
+                await db.update_interactive_incident_status(incident.incident_id, "RESOLVED", incident.action_taken)
+            safe_embed = discord.Embed(
+                title=f"✓ MARKED SAFE • {incident.incident_id}",
+                description=(
+                    f"**Incident:** `{incident.incident_id}`\n"
+                    f"**Acknowledged by:** {interaction.user.mention}\n"
+                    f"**Time:** `{now_iso}`\n"
+                    f"**Resolution:** Marked safe / false positive by authorized moderator."
+                ),
+                color=0x57F287,
+                timestamp=discord.utils.utcnow(),
+            )
+            safe_embed.set_footer(text=f"RAI • Incident Resolved • {incident.incident_id}")
+            if interaction.message:
+                try:
+                    await interaction.message.edit(embed=safe_embed, view=None)
+                except Exception:
+                    pass
+            await interaction.followup.send(f"✅ **Incident `{incident.incident_id}` Marked as Safe.** Repeated notifications halted.", ephemeral=True)
+            return True
+
         if real_action in ("mark_read", "mark_as_read"):
             incident.status = "RESOLVED"
             incident.action_taken = f"Acknowledged and marked as read by {interaction.user.mention}"

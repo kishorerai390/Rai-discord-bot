@@ -68,13 +68,19 @@ class LoggingCog(commands.Cog, name="Logging"):
             return
 
         low_title = (embed.title or "").lower()
-        # Routine voice toggles and disconnects are purely local voice state changes; never dispatch as DM alerts
+        # Routine voice lifecycle and state changes are purely local audio logs; NEVER dispatch as security incident alerts
         if any(term in low_title for term in [
             "microphone muted", "microphone unmuted",
             "audio deafened", "audio undeafened",
             "camera turned on", "camera turned off",
             "stream ended",
+            "voice room connected",
             "voice room disconnected",
+            "voice room switched",
+            "voice room created",
+            "voice room deleted",
+            "room closed",
+            "temporary voice",
         ]):
             return
 
@@ -377,7 +383,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 f"{member.mention} connected to **#{after.channel.name}**\n"
                 f"👥 **Occupants:** `{occupants} member(s) in room`"
             )
-            await self._send_log(member.guild, "voice_channel_id", embed)
+            await self._send_log(member.guild, "voice_channel_id", embed, dispatch_dm=False)
 
         elif before.channel is not None and after.channel is None:
             # User Left VC
@@ -416,7 +422,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 f"👥 **New Room Occupants:** `{occupants} member(s)`"
                 f"{warning_text}"
             )
-            await self._send_log(member.guild, "voice_channel_id", embed)
+            await self._send_log(member.guild, "voice_channel_id", embed, dispatch_dm=is_hopping)
 
     async def _flush_role_creations(self, guild: discord.Guild) -> None:
         await asyncio.sleep(2.5)

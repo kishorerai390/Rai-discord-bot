@@ -258,9 +258,37 @@ class ReportService:
         Resolve the destination Discord channel for a report type.
         Returns (channel, failure_reason).
         """
+        # 1. Primary: Check canonical GuildChannelConfig via ChannelAssignmentService
+        type_to_purpose = {
+            ReportType.SECURITY.value: "security_report",
+            "security_alerts": "security_alerts",
+            "anti_nuke": "anti_nuke",
+            ReportType.MOD.value: "moderation_report",
+            ReportType.MUSIC.value: "music_report",
+            ReportType.ROOM.value: "room_report",
+            ReportType.BOT.value: "bot_report",
+            ReportType.SYSTEM.value: "system_report",
+            ReportType.HEALTH.value: "system_health",
+            "audit": "audit_monitor",
+            "security_log": "security_log",
+            "admin": "admin_control",
+            ReportType.BACKUP.value: "backup_control",
+            ReportType.WORKFLOW.value: "automation_control",
+        }
+        purpose_key = type_to_purpose.get(report_type, "system_report")
+        try:
+            from services.channel_assignment_service import ChannelAssignmentService
+            channel_obj, health_status, _ = await ChannelAssignmentService.resolve_destination(
+                bot, guild_id, purpose_key
+            )
+            if channel_obj:
+                return channel_obj, None
+        except Exception as cas_err:
+            logger.debug(f"ChannelAssignmentService resolution note: {cas_err}")
+
         channel_id: Optional[int] = None
 
-        # 1. Check report_destinations table
+        # 2. Check report_destinations table
         if hasattr(bot, "db") and bot.db:
             try:
                 dest = await bot.db.get_report_destination(guild_id, report_type)
