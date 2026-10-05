@@ -135,8 +135,8 @@ class SecurityIncidentService:
         """
         norm_type = event_type.strip().lower().replace(" ", "_").replace("-", "_")
 
-        # 1. Immediate benign filter
-        if norm_type in BENIGN_EVENT_PATTERNS:
+        # 1. Immediate benign filter for single routine events
+        if count == 1 and norm_type in BENIGN_EVENT_PATTERNS:
             return EventClassification(
                 is_security_incident=False,
                 severity=IncidentSeverity.INFO,
@@ -418,8 +418,8 @@ class SecurityIncidentService:
             if alert_ch:
                 try:
                     alert_msg = await alert_ch.send(embed=embed, view=view)
-                    incident.channel_message_id = alert_msg.id
-                    incident.report_channel_id = alert_ch.id
+                    incident.alert_message_id = alert_msg.id
+                    incident.alert_channel_id = alert_ch.id
                 except Exception as e:
                     logger.warning(f"Could not deliver alert to security-alerts: {e}")
 
@@ -430,11 +430,15 @@ class SecurityIncidentService:
         if report_ch:
             try:
                 rep_msg = await report_ch.send(embed=embed, view=view)
-                if not incident.channel_message_id:
-                    incident.channel_message_id = rep_msg.id
-                    incident.report_channel_id = report_ch.id
+                incident.channel_message_id = rep_msg.id
+                incident.report_channel_id = report_ch.id
             except Exception as e:
                 logger.warning(f"Could not deliver to security-report: {e}")
+
+        # Fallback if only alert channel was used
+        if not incident.channel_message_id and hasattr(incident, "alert_message_id") and incident.alert_message_id:
+            incident.channel_message_id = incident.alert_message_id
+            incident.report_channel_id = incident.alert_channel_id
 
         # Update message IDs in DB
         if hasattr(bot, "db") and bot.db:
@@ -459,7 +463,20 @@ class SecurityIncidentService:
         """Edits existing incident messages in place to show updated count (e.g. 47 -> 62)."""
         embed = cls.build_security_alert_embed(incident, classification, count)
 
-        # Update in report channel
+        # 1. Update in alert channel if configured
+        alert_ch_id = getattr(incident, "alert_channel_id", None)
+        alert_msg_id = getattr(incident, "alert_message_id", None)
+        if alert_ch_id and alert_msg_id:
+            ch = guild.get_channel(alert_ch_id)
+            if ch and hasattr(ch, "fetch_message"):
+                try:
+                    msg = await ch.fetch_message(alert_msg_id)
+                    if msg:
+                        await msg.edit(embed=embed)
+                except Exception:
+                    pass
+
+        # 2. Update in report channel
         if incident.report_channel_id and incident.channel_message_id:
             ch = guild.get_channel(incident.report_channel_id)
             if ch and hasattr(ch, "fetch_message"):

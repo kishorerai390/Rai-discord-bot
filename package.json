@@ -1,0 +1,12 @@
+{
+  "name": "rai-ecosystem",
+  "version": "2.0.0",
+  "description": "Rai Ecosystem — Main Bot & Independent Music Bot Discord Applications",
+  "scripts": {
+    "start:rai": "python main.py",
+    "start:music": "python music_main.py",
+    "test": "python -m unittest discover tests"
+  },
+  "author": "Rai Core Team",
+  "license": "ISC"
+}

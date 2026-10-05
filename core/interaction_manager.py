@@ -424,4 +424,7 @@ class InteractionManager:
                     error_code=ctx.error_code,
                     created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 )
-                asyncio.create_task(bot.db.save_interaction_record(rec))
+                if hasattr(bot.db, "save_interaction_record"):
+                    coro = bot.db.save_interaction_record(rec)
+                    if asyncio.iscoroutine(coro):
+                        asyncio.create_task(coro)

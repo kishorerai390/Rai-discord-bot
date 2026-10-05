@@ -727,8 +727,9 @@ class ReliabilityCog(commands.Cog, name="Reliability"):
         embed.add_field(name="💾 Database Engine", value=f"{'🟢 HEALTHY' if db_ok else '🔴 UNHEALTHY'} (`{db_ms}ms`)", inline=True)
         embed.add_field(name="⚡ Interaction Manager", value=f"🟢 HEALTHY (`{im_avg}ms avg ACK`)", inline=True)
 
-        embed.add_field(name="🛡️ Security Engine", value="🟢 ACTIVE & CONTAINED", inline=True)
-        embed.add_field(name="🎵 Audio Engine", value="🟢 READY", inline=True)
+        from services.music_gateway import MusicGateway
+        music_info = await MusicGateway.get_status(interaction.guild)
+        embed.add_field(name="🎵 Music Gateway", value=f"{music_info.badge} (`{music_info.bot_name}`)", inline=True)
         embed.add_field(name="🔊 Dynamic Voice", value=f"🟢 ACTIVE (`{active_rooms} rooms`)", inline=True)
 
         embed.add_field(name="🤖 Worker Supervisor", value="🟢 HEALTHY", inline=True)

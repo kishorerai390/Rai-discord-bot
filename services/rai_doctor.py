@@ -81,8 +81,7 @@ class RaiDoctor:
             cls.diagnose_gateway(bot),
             cls.diagnose_commands(bot),
             cls.diagnose_workers(bot),
-            cls.diagnose_music_resolver(bot),
-            cls.diagnose_music_player(bot, guild),
+            cls.diagnose_music_gateway(bot, guild),
             cls.diagnose_dynamic_vc(bot, guild),
             cls.diagnose_reports(bot, guild),
             cls.diagnose_security(bot, guild),
@@ -261,79 +260,40 @@ class RaiDoctor:
         )
 
     @classmethod
-    async def diagnose_music_resolver(cls, bot: discord.Client) -> SubsystemDiagnostic:
+    async def diagnose_music_gateway(cls, bot: discord.Client, guild: Optional[discord.Guild] = None) -> SubsystemDiagnostic:
         t0 = time.perf_counter()
-        circuit = CircuitBreakerRegistry.get("music_audio_source")
+        from services.music_gateway import MusicGateway, MusicBotStatus
 
-        if circuit.state == CircuitState.OPEN:
-            rem = circuit.get_remaining_open_time()
-            return SubsystemDiagnostic(
-                name="Music Resolver",
-                status=DiagnosticStatus.FAILED,
-                diagnostic_id="RAI-DOC-MUSRES",
-                last_error=f"Circuit Breaker OPEN ({rem:.1f}s cooldown remaining)",
-                repair_action="Audio provider circuit open due to upstream YouTube errors. Automatically recovers after timeout.",
-            )
-
-        try:
-            from music.providers.youtube import YouTubeMusicProvider
-            prov = YouTubeMusicProvider()
-            candidates = await asyncio.wait_for(prov.search("test audio", limit=1), timeout=8.0)
-            latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-
-            if candidates:
-                return SubsystemDiagnostic(
-                    name="Music Resolver",
-                    status=DiagnosticStatus.HEALTHY,
-                    latency_ms=latency_ms,
-                    last_success=time.strftime("%H:%M:%S UTC", time.gmtime()),
-                    diagnostic_id="RAI-DOC-MUSRES",
-                    details={"sample_resolved": candidates[0].title[:30]},
-                )
-            else:
-                return SubsystemDiagnostic(
-                    name="Music Resolver",
-                    status=DiagnosticStatus.DEGRADED,
-                    latency_ms=latency_ms,
-                    diagnostic_id="RAI-DOC-MUSRES",
-                    last_error="Search probe returned empty candidate list",
-                    repair_action="Check yt-dlp extractor updates or IP rate limits.",
-                )
-        except Exception as e:
-            return SubsystemDiagnostic(
-                name="Music Resolver",
-                status=DiagnosticStatus.FAILED,
-                diagnostic_id="RAI-DOC-MUSRES",
-                last_error=str(e),
-                repair_action="Update yt-dlp package or check outbound connection to YouTube.",
-            )
-
-    @classmethod
-    async def diagnose_music_player(cls, bot: discord.Client, guild: Optional[discord.Guild] = None) -> SubsystemDiagnostic:
-        t0 = time.perf_counter()
-        music_cog = bot.cogs.get("Music")
-        if not music_cog:
-            return SubsystemDiagnostic(
-                name="Music Player",
-                status=DiagnosticStatus.DISABLED,
-                diagnostic_id="RAI-DOC-MUSPLY",
-                repair_action="Music cog is not loaded in bot extension registry.",
-            )
-
-        active_vc = guild.voice_client if guild else None
-        active_count = len(getattr(bot, "voice_clients", []))
+        status_info = await MusicGateway.get_status(guild)
         latency_ms = round((time.perf_counter() - t0) * 1000.0, 2)
 
+        if status_info.status == MusicBotStatus.CONNECTED:
+            status = DiagnosticStatus.HEALTHY
+            repair = None
+        elif status_info.status == MusicBotStatus.NOT_INSTALLED:
+            status = DiagnosticStatus.DISABLED
+            repair = "Invite the independent Rai Music Bot to this server to enable audio capabilities."
+        elif status_info.status == MusicBotStatus.DEGRADED:
+            status = DiagnosticStatus.DEGRADED
+            repair = "Music Bot provider latency elevated. Check network connectivity or yt-dlp version."
+        else:
+            status = DiagnosticStatus.FAILED
+            repair = "Rai Music Bot process is offline. Run 'python music_main.py' or 'npm run start:music' to launch it."
+
         return SubsystemDiagnostic(
-            name="Music Player",
-            status=DiagnosticStatus.HEALTHY,
+            name="Music Gateway",
+            status=status,
             latency_ms=latency_ms,
-            last_success=time.strftime("%H:%M:%S UTC", time.gmtime()),
-            diagnostic_id="RAI-DOC-MUSPLY",
+            last_success=time.strftime("%H:%M:%S UTC", time.gmtime()) if status == DiagnosticStatus.HEALTHY else None,
+            last_error=f"Music Bot {status_info.status.value}" if status != DiagnosticStatus.HEALTHY else None,
+            diagnostic_id="RAI-DOC-MUSGTW",
             details={
-                "global_active_voice_sessions": active_count,
-                "current_guild_connected": bool(active_vc and active_vc.is_connected()),
+                "bot_name": status_info.bot_name,
+                "version": status_info.version,
+                "status": status_info.status.value,
+                "active_sessions": status_info.active_sessions,
             },
+            repair_action=repair,
         )
 
     @classmethod

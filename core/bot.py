@@ -52,7 +52,6 @@ COGS_LIST: List[str] = [
     "cogs.automod",
     "cogs.moderation",
     "cogs.welcome",
-    "cogs.music",
     "cogs.soundboard",
     "cogs.tickets",
     "cogs.logging",
@@ -82,7 +81,6 @@ COGS_LIST: List[str] = [
     "cogs.game_stats",
     "cogs.stream_radar",
     "cogs.ai_vision",
-    "cogs.lyrics",
     "cogs.growth",
 ]
 

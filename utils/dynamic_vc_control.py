@@ -1872,7 +1872,10 @@ class DynamicMusicPlayModal(ui.Modal):
 
         music_cog = bot.cogs.get("Music")
         if not music_cog:
-            await interaction.response.send_message("❌ Music system is currently unavailable.", ephemeral=True)
+            await interaction.response.send_message(
+                "🎵 Music is powered by the independent **Rai Music Bot**. Join your voice room and use `/music play` or `/play`.",
+                ephemeral=True,
+            )
             return
 
         await interaction.response.defer(ephemeral=True)

@@ -343,6 +343,7 @@ class TestChannelAssignmentAndReports(unittest.IsolatedAsyncioTestCase):
         mock_sent_msg.edit = AsyncMock()
         sec_alert_ch.send.return_value = mock_sent_msg
         sec_rep_ch.send.return_value = mock_sent_msg
+        sec_alert_ch.fetch_message = AsyncMock(return_value=mock_sent_msg)
         sec_rep_ch.fetch_message = AsyncMock(return_value=mock_sent_msg)
 
         # First trigger: Mass channel deletions
