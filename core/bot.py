@@ -263,6 +263,42 @@ class SentinelBot(commands.Bot):
         except Exception as e:
             logger.error(f"Command synchronization note: {e}")
 
+    async def on_error(self, event_method: str, *args: Any, **kwargs: Any) -> None:
+        """Global event error boundary catching unhandled listener exceptions."""
+        exc_type, exc_val, exc_tb = sys.exc_info()
+        logger.error(f"Global event error in {event_method}: {exc_val}", exc_info=True)
+        if hasattr(self, "supervisor") and "Security" in self.supervisor.subsystems:
+            self.supervisor.subsystems["Security"].record_degraded(f"{event_method} error: {exc_val}")
+        if hasattr(self, "self_healing"):
+            await self.self_healing.handle_component_error(f"event_{event_method}", exc_val, generate_error_id())
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
+        """Global error boundary for prefix commands."""
+        if hasattr(ctx.command, "has_error_handler") and ctx.command.has_error_handler():
+            return
+
+        if isinstance(error, commands.CommandOnCooldown):
+            await ctx.reply(f"⏳ This command is on cooldown. Try again in `{round(error.retry_after, 1)}s`.")
+            return
+
+        if isinstance(error, commands.MissingPermissions):
+            missing = ", ".join(f"`{p}`" for p in error.missing_permissions)
+            embed = error_embed("MISSING PERMISSIONS", f"You need the following permissions:\n{missing}")
+            await ctx.reply(embed=embed)
+            return
+
+        orig_error = getattr(error, "original", error)
+        error_id = generate_error_id()
+        logger.error(f"[{error_id}] Unhandled prefix command error in {ctx.command}: {orig_error}", exc_info=True)
+        embed = error_embed(
+            "COMMAND ERROR",
+            f"⚠️ An operational note occurred while executing this command.\n\n"
+            f"**Diagnostic ID:** `{error_id}`",
+        )
+        await ctx.reply(embed=embed)
+        if hasattr(self, "self_healing"):
+            await self.self_healing.handle_component_error("prefix_command", orig_error, error_id)
+
     async def on_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
@@ -292,15 +328,16 @@ class SentinelBot(commands.Bot):
             )
             self.watchdog.record_end(interaction, status="CHECK_FAILURE")
         else:
-            logger.error(f"[{error_id}] Unhandled app command error in /{cmd_name}: {error}", exc_info=True)
+            orig_error = getattr(error, "original", error)
+            logger.error(f"[{error_id}] Unhandled app command error in /{cmd_name}: {orig_error}", exc_info=True)
             embed = error_embed(
                 "Request Failed",
-                f"⚠️ Rai encountered an operational note while processing `/{cmd_name}`.\n\n"
-                f"**Diagnostic ID:** `{error_id}`\n"
+                f"**Diagnostic ID:** `{error_id}`\n\n"
+                f"⚠️ Rai encountered an operational note while processing `/{cmd_name}`.\n"
                 f"*Security subsystems remain fully active.*",
             )
-            await self.self_healing.handle_component_error("command_pipeline", error, error_id)
-            self.watchdog.record_end(interaction, status="FAILED", error_id=error_id)
+            await self.self_healing.handle_component_error("command_pipeline", orig_error, error_id)
+            self.watchdog.record_end(interaction, status="INTERNAL_ERROR", error_id=error_id)
 
         await safe_response(interaction, embed=embed, ephemeral=True)
 
@@ -333,7 +370,6 @@ class SentinelBot(commands.Bot):
         try:
             from utils.owner_reporter import OwnerReporter
             for guild in self.guilds:
-                # Do NOT broadcast startup announcements to servers unless explicitly permitted by the server owner
                 cfg = None
                 if hasattr(self, "db") and self.db:
                     try:
@@ -363,6 +399,11 @@ class SentinelBot(commands.Bot):
     async def close(self) -> None:
         """Graceful shutdown preserving state without corrupting persistent data."""
         logger.info("Initiating graceful shutdown for Rai Bot...")
+        try:
+            await BackgroundTaskManager.get_instance().cancel_all(timeout=5.0)
+        except Exception as e:
+            logger.debug(f"Task cancellation note during shutdown: {e}")
+
         self.supervisor.stop()
         self.rate_limiter.stop()
         self.autopilot.stop()

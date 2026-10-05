@@ -84,3 +84,29 @@ def info_embed(title: str = "Information", description: Optional[str] = None) ->
         description=description,
         color=Colors.INFO,
     )
+
+
+def music_now_playing_embed(
+    track_title: str,
+    artist: str = "Unknown Artist",
+    duration_str: str = "00:00",
+    requested_by: str = "",
+    queue_position: str = "Playing",
+    player_status: str = "▶️ Playing",
+    track_url: Optional[str] = None,
+    thumbnail_url: Optional[str] = None,
+) -> discord.Embed:
+    """Standardized luxury now-playing embed for Rai Music."""
+    if track_url:
+        desc = f"**[{track_title}]({track_url})**\n`{artist}`\n\n"
+    else:
+        desc = f"**{track_title}**\n`{artist}`\n\n"
+    desc += f"⏱️ `{duration_str}` • 👤 {requested_by} • 🎚️ `{queue_position}`\n"
+    desc += f"Status: `{player_status}`"
+    return create_embed(
+        title="🎵 RAI MUSIC • NOW PLAYING",
+        description=desc,
+        color=Colors.PRIMARY,
+        thumbnail_url=thumbnail_url,
+        footer_text="Rai Audio Engine",
+    )

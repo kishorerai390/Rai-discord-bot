@@ -33,8 +33,16 @@ logger = logging.getLogger("Rai.MusicResolverService")
 class MusicResolverService:
     """Validates and resolves candidates and URLs into playable audio sources."""
 
+    _instance: Optional["MusicResolverService"] = None
+
     def __init__(self, search_service: Optional[MusicSearchService] = None):
-        self.search_service = search_service or MusicSearchService()
+        self.search_service = search_service or MusicSearchService.get_instance()
+
+    @classmethod
+    def get_instance(cls) -> "MusicResolverService":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     async def resolve_track(
         self,

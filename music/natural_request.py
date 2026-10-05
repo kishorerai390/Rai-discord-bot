@@ -564,3 +564,15 @@ class NaturalMusicService:
                 logger.error(f"Playback error in {guild.name}: {exc}")
                 await channel.send(f"❌ Failed to start playback: {exc}")
                 return False
+
+
+class NaturalMusicRequestHandler:
+    """Convenience handler binding NaturalMusicService to a specific bot & cog instance."""
+
+    def __init__(self, bot: Any, cog: Any):
+        self.bot = bot
+        self.cog = cog
+        self.service = NaturalMusicService.get_instance()
+
+    async def handle_message(self, message: discord.Message) -> bool:
+        return await self.service.handle_message(self.bot, message)

@@ -957,6 +957,67 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             ALTER TABLE community_resources ADD COLUMN downloads_count INTEGER DEFAULT 0;
             """
         ]
+    ),
+    (
+        39,
+        "Create dynamic_rooms, room_members, and temp_voice_configs tables for dynamic voice lifecycle",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS temp_voice_configs (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                hub_channel_id INTEGER,
+                category_id INTEGER,
+                default_user_limit INTEGER NOT NULL DEFAULT 0,
+                name_format TEXT NOT NULL DEFAULT '🎙️ {username}''s Room',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS dynamic_rooms (
+                guild_id INTEGER NOT NULL,
+                voice_channel_id INTEGER PRIMARY KEY,
+                owner_id INTEGER NOT NULL,
+                room_type TEXT DEFAULT 'public',
+                privacy_mode TEXT DEFAULT 'public',
+                user_limit INTEGER DEFAULT 0,
+                locked INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'active',
+                control_message_id INTEGER,
+                control_channel_id INTEGER,
+                cleanup_status TEXT DEFAULT 'active',
+                empty_since TEXT,
+                cleanup_due_at TEXT,
+                last_empty_at TEXT,
+                protected_until TEXT,
+                last_voice_activity TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            ALTER TABLE dynamic_rooms ADD COLUMN last_empty_at TEXT;
+            """,
+            """
+            ALTER TABLE dynamic_rooms ADD COLUMN protected_until TEXT;
+            """,
+            """
+            ALTER TABLE dynamic_rooms ADD COLUMN last_voice_activity TEXT;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS room_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                voice_channel_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                permission_type TEXT DEFAULT 'view',
+                added_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_dynamic_rooms_guild ON dynamic_rooms(guild_id);
+            """
+        ]
     )
 ]
 

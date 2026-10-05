@@ -27,6 +27,8 @@ logger = logging.getLogger("Rai.MusicSearchService")
 class MusicSearchService:
     """Manages music search providers, query parsing, and fallback ranking."""
 
+    _instance: Optional["MusicSearchService"] = None
+
     def __init__(self, providers: Optional[List[MusicProvider]] = None):
         self.providers: List[MusicProvider] = providers or [
             DirectAudioProvider(),
@@ -35,6 +37,12 @@ class MusicSearchService:
         ]
         self._youtube_provider = next((p for p in self.providers if isinstance(p, YouTubeMusicProvider)), YouTubeMusicProvider())
         self._sc_provider = next((p for p in self.providers if isinstance(p, SoundCloudMusicProvider)), SoundCloudMusicProvider())
+
+    @classmethod
+    def get_instance(cls) -> "MusicSearchService":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     @classmethod
     def classify_query(cls, raw_query: str) -> Tuple[QueryType, str]:

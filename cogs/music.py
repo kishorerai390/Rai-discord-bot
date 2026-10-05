@@ -103,6 +103,21 @@ class Song:
             "thumbnail": self.thumbnail,
         }
 
+    def to_resolved(self) -> Any:
+        from music.provider import TrackCandidate, ResolvedTrack
+        cand = TrackCandidate(
+            title=self.title,
+            url=self.url,
+            duration=self.duration,
+            artist=self.artist,
+            thumbnail=self.thumbnail,
+            requester=self.requester,
+        )
+        return ResolvedTrack(
+            candidate=cand,
+            stream_url=self.stream_url,
+        )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any], requester: discord.Member) -> "Song":
         return cls(
@@ -113,6 +128,25 @@ class Song:
             requester=requester,
             artist=data.get("artist", "Unknown Artist"),
             thumbnail=data.get("thumbnail"),
+        )
+
+    @classmethod
+    def from_resolved(cls, resolved_track: Any, requester: discord.Member) -> "Song":
+        candidate = getattr(resolved_track, "candidate", resolved_track)
+        title = getattr(candidate, "title", "Unknown Title")
+        url = getattr(candidate, "url", "")
+        stream_url = getattr(resolved_track, "stream_url", url)
+        duration = getattr(candidate, "duration_seconds", getattr(candidate, "duration", 0))
+        artist = getattr(candidate, "artist", "Unknown Artist")
+        thumbnail = getattr(candidate, "thumbnail_url", getattr(candidate, "thumbnail", None))
+        return cls(
+            title=title,
+            url=url,
+            stream_url=stream_url,
+            duration=duration,
+            requester=requester,
+            artist=artist,
+            thumbnail=thumbnail,
         )
 
     @classmethod
@@ -393,22 +427,68 @@ class MusicControlView(discord.ui.View):
 # SEARCH RESULT SELECTION VIEW
 # ==========================================
 
+class SearchSelectButton(discord.ui.Button):
+    def __init__(self, index: int, track: Any):
+        super().__init__(
+            label=str(index),
+            style=discord.ButtonStyle.primary,
+            custom_id=f"search_select_{index}",
+        )
+        self.index = index
+        self.track = track
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SearchSelectView = self.view
+        if interaction.user.id != view.requester.id:
+            await interaction.response.send_message("❌ This search menu was created for someone else.", ephemeral=True)
+            return
+        view.selected_song = self.track
+        view.stop()
+        await interaction.response.defer()
+        await view.cog._enqueue_and_play(interaction, self.track)
+
+
+class SearchCancelButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Cancel",
+            style=discord.ButtonStyle.danger,
+            custom_id="search_cancel",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        view: SearchSelectView = self.view
+        if interaction.user.id != view.requester.id:
+            await interaction.response.send_message("❌ This search menu was created for someone else.", ephemeral=True)
+            return
+        view.stop()
+        await interaction.response.send_message("Search cancelled.", ephemeral=True)
+
+
 class SearchSelectView(discord.ui.View):
-    def __init__(self, cog: "MusicCog", songs: List[Song], requester: discord.Member):
+    def __init__(self, cog: "MusicCog", songs: List[Any], requester: discord.Member, search_query: str = ""):
         super().__init__(timeout=45.0)
         self.cog = cog
         self.songs = songs
         self.requester = requester
-        self.selected_song: Optional[Song] = None
+        self.search_query = search_query
+        self.selected_song: Optional[Any] = None
+
+        # Add buttons 1..N
+        for idx, song in enumerate(songs[:5], 1):
+            self.add_item(SearchSelectButton(idx, song))
+        self.add_item(SearchCancelButton())
 
         options = []
         for idx, song in enumerate(songs[:5], 1):
-            dur = f"{song.duration // 60}:{song.duration % 60:02d}"
-            title_clean = song.title[:80]
+            dur_val = getattr(song, "duration", 0)
+            dur = f"{dur_val // 60}:{dur_val % 60:02d}"
+            title_clean = getattr(song, "title", "Unknown")[:80]
+            artist = getattr(song, "artist", "Unknown Artist")
             options.append(
                 discord.SelectOption(
                     label=f"{idx}. {title_clean}",
-                    description=f"{song.artist} • {dur}",
+                    description=f"{artist} • {dur}",
                     value=str(idx - 1),
                     emoji="🎵",
                 )
@@ -734,7 +814,20 @@ class MusicCog(commands.Cog, name="Music"):
     def __init__(self, bot: SentinelBot):
         self.bot = bot
         self.players: Dict[int, GuildMusicPlayer] = {}
+        from music.search_service import MusicSearchService
+        from music.resolver_service import MusicResolverService
+        from music.natural_request import NaturalMusicService, NaturalMusicRequestHandler
+        self.search_service = MusicSearchService.get_instance()
+        self.resolver_service = MusicResolverService.get_instance()
+        self.natural_request_service = NaturalMusicService.get_instance()
+        self.natural_request_handler = NaturalMusicRequestHandler(self.bot, self)
         self.watchdog_task = self._music_watchdog.start()
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        if message.author.bot or not message.guild:
+            return
+        await self.natural_request_handler.handle_message(message)
 
     def cog_unload(self):
         self.watchdog_task.cancel()
@@ -754,6 +847,11 @@ class MusicCog(commands.Cog, name="Music"):
     session_group = app_commands.Group(
         name="session",
         description="Music session state management and recovery",
+        parent=music_group,
+    )
+    party_group = app_commands.Group(
+        name="party",
+        description="Listening party management",
         parent=music_group,
     )
 

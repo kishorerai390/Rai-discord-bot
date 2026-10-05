@@ -766,6 +766,12 @@ class DynamicRoom:
     status: str = "active"
     control_message_id: Optional[int] = None
     control_channel_id: Optional[int] = None
+    cleanup_status: Any = "active"
+    empty_since: Optional[str] = None
+    cleanup_due_at: Optional[str] = None
+    last_empty_at: Optional[str] = None
+    protected_until: Optional[str] = None
+    last_voice_activity: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
 

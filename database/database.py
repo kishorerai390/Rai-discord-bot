@@ -57,6 +57,7 @@ from database.models import (
     SubsystemHealthRecord,
     DynamicRoom,
     RoomMember,
+    TempVoiceConfig,
     AutopilotConfig,
     AutopilotAction,
     SecurityBaseline,
@@ -112,11 +113,23 @@ class Database:
                 status TEXT DEFAULT 'active',
                 control_message_id INTEGER,
                 control_channel_id INTEGER,
+                cleanup_status TEXT DEFAULT 'active',
+                empty_since TEXT,
+                cleanup_due_at TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
             """
         )
+        for col_def in [
+            "ALTER TABLE dynamic_rooms ADD COLUMN cleanup_status TEXT DEFAULT 'active'",
+            "ALTER TABLE dynamic_rooms ADD COLUMN empty_since TEXT",
+            "ALTER TABLE dynamic_rooms ADD COLUMN cleanup_due_at TEXT",
+        ]:
+            try:
+                await self._db.execute(col_def)
+            except Exception:
+                pass
         await self._db.execute(
             """
             CREATE TABLE IF NOT EXISTS room_members (
@@ -206,6 +219,29 @@ class Database:
 
     # --- DYNAMIC ROOMS CRUD ---
 
+    def _row_to_dynamic_room(self, row: Any) -> DynamicRoom:
+        keys = row.keys()
+        return DynamicRoom(
+            guild_id=row["guild_id"],
+            voice_channel_id=row["voice_channel_id"],
+            owner_id=row["owner_id"],
+            room_type=row["room_type"],
+            privacy_mode=row["privacy_mode"],
+            user_limit=row["user_limit"],
+            locked=bool(row["locked"]),
+            status=row["status"],
+            control_message_id=row["control_message_id"],
+            control_channel_id=row["control_channel_id"],
+            cleanup_status=row["cleanup_status"] if "cleanup_status" in keys else "active",
+            empty_since=row["empty_since"] if "empty_since" in keys else None,
+            cleanup_due_at=row["cleanup_due_at"] if "cleanup_due_at" in keys else None,
+            last_empty_at=row["last_empty_at"] if "last_empty_at" in keys else None,
+            protected_until=row["protected_until"] if "protected_until" in keys else None,
+            last_voice_activity=row["last_voice_activity"] if "last_voice_activity" in keys else None,
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
     async def create_dynamic_room(self, room: DynamicRoom) -> None:
         now_str = utcnow_iso()
         await self._db.execute(
@@ -213,8 +249,9 @@ class Database:
             INSERT INTO dynamic_rooms (
                 guild_id, voice_channel_id, owner_id, room_type, privacy_mode,
                 user_limit, locked, status, control_message_id, control_channel_id,
+                cleanup_status, empty_since, cleanup_due_at, last_empty_at, protected_until, last_voice_activity,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(voice_channel_id) DO UPDATE SET
                 guild_id = excluded.guild_id,
                 owner_id = excluded.owner_id,
@@ -225,12 +262,24 @@ class Database:
                 status = excluded.status,
                 control_message_id = excluded.control_message_id,
                 control_channel_id = excluded.control_channel_id,
+                cleanup_status = excluded.cleanup_status,
+                empty_since = excluded.empty_since,
+                cleanup_due_at = excluded.cleanup_due_at,
+                last_empty_at = excluded.last_empty_at,
+                protected_until = excluded.protected_until,
+                last_voice_activity = excluded.last_voice_activity,
                 updated_at = excluded.updated_at
             """,
             (
                 room.guild_id, room.voice_channel_id, room.owner_id, room.room_type,
                 room.privacy_mode, room.user_limit, 1 if room.locked else 0,
                 room.status, room.control_message_id, room.control_channel_id,
+                getattr(room, "cleanup_status", "active"),
+                getattr(room, "empty_since", None),
+                getattr(room, "cleanup_due_at", None),
+                getattr(room, "last_empty_at", None),
+                getattr(room, "protected_until", None),
+                getattr(room, "last_voice_activity", None),
                 room.created_at or now_str, room.updated_at or now_str
             ),
         )
@@ -243,20 +292,7 @@ class Database:
             row = await cursor.fetchone()
             if not row:
                 return None
-            return DynamicRoom(
-                guild_id=row["guild_id"],
-                voice_channel_id=row["voice_channel_id"],
-                owner_id=row["owner_id"],
-                room_type=row["room_type"],
-                privacy_mode=row["privacy_mode"],
-                user_limit=row["user_limit"],
-                locked=bool(row["locked"]),
-                status=row["status"],
-                control_message_id=row["control_message_id"],
-                control_channel_id=row["control_channel_id"],
-                created_at=row["created_at"],
-                updated_at=row["updated_at"],
-            )
+            return self._row_to_dynamic_room(row)
 
     async def get_all_dynamic_rooms(self, guild_id: Optional[int] = None) -> List[DynamicRoom]:
         query = "SELECT * FROM dynamic_rooms"
@@ -266,23 +302,7 @@ class Database:
             params = (guild_id,)
         async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-            return [
-                DynamicRoom(
-                    guild_id=row["guild_id"],
-                    voice_channel_id=row["voice_channel_id"],
-                    owner_id=row["owner_id"],
-                    room_type=row["room_type"],
-                    privacy_mode=row["privacy_mode"],
-                    user_limit=row["user_limit"],
-                    locked=bool(row["locked"]),
-                    status=row["status"],
-                    control_message_id=row["control_message_id"],
-                    control_channel_id=row["control_channel_id"],
-                    created_at=row["created_at"],
-                    updated_at=row["updated_at"],
-                )
-                for row in rows
-            ]
+            return [self._row_to_dynamic_room(row) for row in rows]
 
     async def get_dynamic_room_by_control_message(self, control_message_id: int) -> Optional[DynamicRoom]:
         async with self._db.execute(
@@ -291,20 +311,7 @@ class Database:
             row = await cursor.fetchone()
             if not row:
                 return None
-            return DynamicRoom(
-                guild_id=row["guild_id"],
-                voice_channel_id=row["voice_channel_id"],
-                owner_id=row["owner_id"],
-                room_type=row["room_type"],
-                privacy_mode=row["privacy_mode"],
-                user_limit=row["user_limit"],
-                locked=bool(row["locked"]),
-                status=row["status"],
-                control_message_id=row["control_message_id"],
-                control_channel_id=row["control_channel_id"],
-                created_at=row["created_at"],
-                updated_at=row["updated_at"],
-            )
+            return self._row_to_dynamic_room(row)
 
     async def get_dynamic_room_by_owner(self, guild_id: int, owner_id: int) -> Optional[DynamicRoom]:
         async with self._db.execute(
@@ -314,20 +321,7 @@ class Database:
             row = await cursor.fetchone()
             if not row:
                 return None
-            return DynamicRoom(
-                guild_id=row["guild_id"],
-                voice_channel_id=row["voice_channel_id"],
-                owner_id=row["owner_id"],
-                room_type=row["room_type"],
-                privacy_mode=row["privacy_mode"],
-                user_limit=row["user_limit"],
-                locked=bool(row["locked"]),
-                status=row["status"],
-                control_message_id=row["control_message_id"],
-                control_channel_id=row["control_channel_id"],
-                created_at=row["created_at"],
-                updated_at=row["updated_at"],
-            )
+            return self._row_to_dynamic_room(row)
 
     async def update_dynamic_room(self, voice_channel_id: int, **kwargs: Any) -> None:
         if not kwargs:
@@ -1319,6 +1313,58 @@ class Database:
                 res.append(item)
             return res
 
+
+    # ==========================================
+    # TEMPORARY / DYNAMIC VOICE CONFIG
+    # ==========================================
+
+    async def get_temp_voice_config(self, guild_id: int) -> TempVoiceConfig:
+        await self.get_or_create_guild_config(guild_id)
+        if not self._db:
+            return TempVoiceConfig(guild_id=guild_id)
+        async with self._db.execute(
+            "SELECT * FROM temp_voice_configs WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if not row:
+            now = utcnow_iso()
+            await self._db.execute(
+                """
+                INSERT OR IGNORE INTO temp_voice_configs (
+                    guild_id, enabled, hub_channel_id, category_id, default_user_limit,
+                    name_format, updated_at
+                ) VALUES (?, 1, NULL, NULL, 0, '🎙️ {username}''s Room', ?)
+                """,
+                (guild_id, now),
+            )
+            await self._db.commit()
+            return TempVoiceConfig(guild_id=guild_id, updated_at=now)
+
+        return TempVoiceConfig(
+            guild_id=row["guild_id"],
+            enabled=bool(row["enabled"]),
+            hub_channel_id=row["hub_channel_id"],
+            category_id=row["category_id"],
+            default_user_limit=row["default_user_limit"],
+            name_format=row["name_format"] or "🎙️ {username}'s Room",
+            updated_at=row["updated_at"] or "",
+        )
+
+    async def update_temp_voice_config(self, guild_id: int, **kwargs: Any) -> None:
+        await self.get_temp_voice_config(guild_id)
+        if not self._db:
+            return
+        valid = {"enabled", "hub_channel_id", "category_id", "default_user_limit", "name_format"}
+        updates = {k: (int(v) if isinstance(v, bool) else v) for k, v in kwargs.items() if k in valid}
+        if not updates:
+            return
+        updates["updated_at"] = utcnow_iso()
+        set_clauses = [f"{k} = ?" for k in updates]
+        params = list(updates.values()) + [guild_id]
+        sql = f"UPDATE temp_voice_configs SET {', '.join(set_clauses)} WHERE guild_id = ?"
+        await self._db.execute(sql, params)
+        await self._db.commit()
 
     # ==========================================
     # HIDDEN VOICE ROOMS

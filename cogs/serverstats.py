@@ -265,12 +265,6 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
             )
         else:
             await ch_bot.edit(name=name_bot, overwrites=overwrites)
-                category=category,
-                overwrites=overwrites,
-                reason="Rai ServerStats: Created Bots counter",
-            )
-        else:
-            await ch_bot.edit(name=f"Bots: {bots}", overwrites=overwrites)
 
         # Save IDs to DB
         await self.bot.db.update_server_stats_config(

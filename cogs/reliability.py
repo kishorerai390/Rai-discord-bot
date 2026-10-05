@@ -45,6 +45,11 @@ class ReliabilityCog(commands.Cog, name="Reliability"):
         name="rai",
         description="Rai autonomous health, reliability, diagnostics, and self-healing controls",
     )
+    channel_access_group = app_commands.Group(
+        name="channel-access",
+        description="Rai channel access repair and diagnostic commands",
+        parent=rai_group,
+    )
 
     # ==========================================
     # /rai health
