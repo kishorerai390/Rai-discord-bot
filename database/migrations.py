@@ -992,6 +992,9 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 last_empty_at TEXT,
                 protected_until TEXT,
                 last_voice_activity TEXT,
+                co_host_ids TEXT,
+                dj_ids TEXT,
+                template_id TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -1006,6 +1009,15 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             ALTER TABLE dynamic_rooms ADD COLUMN last_voice_activity TEXT;
             """,
             """
+            ALTER TABLE dynamic_rooms ADD COLUMN co_host_ids TEXT;
+            """,
+            """
+            ALTER TABLE dynamic_rooms ADD COLUMN dj_ids TEXT;
+            """,
+            """
+            ALTER TABLE dynamic_rooms ADD COLUMN template_id TEXT;
+            """,
+            """
             CREATE TABLE IF NOT EXISTS room_members (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 voice_channel_id INTEGER NOT NULL,
@@ -1016,6 +1028,66 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             """,
             """
             CREATE INDEX IF NOT EXISTS idx_dynamic_rooms_guild ON dynamic_rooms(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS room_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                template_name TEXT NOT NULL,
+                settings TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS room_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_id INTEGER NOT NULL,
+                metadata TEXT,
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS room_knock_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS nl_audits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                user_name TEXT NOT NULL,
+                channel_id INTEGER NOT NULL,
+                raw_message TEXT NOT NULL,
+                intent TEXT NOT NULL,
+                confidence REAL NOT NULL,
+                action TEXT NOT NULL,
+                result TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_nl_audits_guild ON nl_audits(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS music_config (
+                guild_id INTEGER PRIMARY KEY,
+                dj_role_id INTEGER,
+                request_channel_id INTEGER,
+                default_volume INTEGER DEFAULT 50,
+                autoplay_enabled INTEGER DEFAULT 0,
+                inactivity_timeout INTEGER DEFAULT 180,
+                updated_at TEXT
+            );
             """
         ]
     )

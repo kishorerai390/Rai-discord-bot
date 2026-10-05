@@ -1379,168 +1379,72 @@ class ApiRouter:
         sort = request.query.get("sort", "trending").strip().lower()
 
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        communities = []
 
-        # 1. Primary Discord Guild Hub
-        member_count = None
-        online_count = None
-        voice_count = None
-        guild_name = "The Raivora Primary Hub"
-        guild_desc = "The central community discovery and collaboration hub powered by Rai. Connect with fellow creators, gamers, and developers."
-        guild_icon = "✦"
-        guild_banner = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80"
-
-        if self.bot and hasattr(self.bot, "get_guild"):
-            g = self.bot.get_guild(COMMUNITY_GUILD_ID)
-            if g:
-                guild_name = g.name
-                member_count = g.member_count
-                if hasattr(g, "members"):
-                    online_count = len([m for m in g.members if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")])
-                if hasattr(g, "voice_channels"):
-                    voice_count = sum(len(vc.members) for vc in g.voice_channels if hasattr(vc, "members"))
-                if g.description:
-                    guild_desc = g.description
-                if g.icon:
-                    guild_icon = g.icon.url
-
-        # Active projects and events in DB
-        projects = await self.db.list_projects(COMMUNITY_GUILD_ID, status="active")
-        events = await self.db.list_events(COMMUNITY_GUILD_ID, status="scheduled")
-        creators = await self.db.list_creator_portfolios(limit=50)
-        creators_count = len(creators)
-
-        # Dynamic LFG query
-        lfg_row = None
-        try:
-            async with self.db._db.execute("SELECT COUNT(*), SUM(current_players) FROM community_lfg WHERE status = 'OPEN'") as cur:
-                lfg_row = await cur.fetchone()
-        except Exception:
-            pass
-        gaming_active = lfg_row[1] if (lfg_row and lfg_row[1]) else 0
-
-        # Activity statuses & trending scores
-        primary_activity = "🔥 Highly Active" if (voice_count and voice_count > 0) else ("🟢 Online" if online_count else "Online")
-        primary_trending = ((online_count or 0) * 2) + ((voice_count or 0) * 5) + (len(projects) * 3) + (len(events) * 4)
-
-        communities = [
-            {
-                "id": str(COMMUNITY_GUILD_ID),
-                "name": guild_name,
-                "badge": "OFFICIAL HUB",
-                "type": "Primary Hub",
-                "category": "creators",
-                "description": guild_desc,
-                "members": member_count,
-                "online": online_count,
-                "voice": voice_count,
-                "active_projects": len(projects),
-                "upcoming_events": len(events),
-                "tags": ["Official", "Creators", "Dev", "AI", "Music"],
-                "icon": guild_icon,
-                "banner": guild_banner,
-                "invite_url": "https://discord.gg/raivora",
-                "verified": True,
-                "activity_status": primary_activity,
-                "trending_score": primary_trending,
-                "updated_at": now_iso,
-                "created_at": "2026-01-01"
-            },
-            {
-                "id": "hub-nightwave",
-                "name": "Nightwave Creative Studio",
-                "badge": "VERIFIED CREATIVE",
-                "type": "Creator Community",
-                "category": "creators",
-                "description": "Dedicated community for video editors, After Effects motion designers, 3D artists, and beatmakers. Weekly editing jams and LUT drops.",
-                "members": creators_count if creators_count > 0 else None,
-                "online": None,
-                "voice": None,
-                "active_projects": len([p for p in projects if p.get("project_type") in ("creator", "media", "design")]),
-                "upcoming_events": len(events),
-                "tags": ["Editing", "Media", "Music", "VFX", "AfterEffects"],
-                "icon": "🎨",
-                "banner": "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=1200&q=80",
-                "invite_url": "https://discord.gg/raivora",
-                "verified": True,
-                "activity_status": "🎨 Active Studio" if creators_count > 0 else "Online",
-                "trending_score": creators_count * 4 + len(projects) * 2,
-                "updated_at": now_iso,
-                "created_at": "2026-02-15"
-            },
-            {
-                "id": "hub-vora-gaming",
-                "name": "Vora Gaming Realm",
-                "badge": "ESPORTS & LFG",
-                "type": "Gaming Hub",
-                "category": "gaming",
-                "description": "Competitive and casual gaming squads. Ranked tournaments for BGMI, Valorant, Helldivers 2, and Apex Legends with Rai LFG Squad Matcher.",
-                "members": None,
-                "online": None,
-                "voice": None,
-                "active_projects": len([p for p in projects if p.get("project_type") in ("gaming", "tournament")]),
-                "upcoming_events": len(events),
-                "tags": ["Gaming", "BGMI", "Valorant", "LFG", "Tournaments"],
-                "icon": "🎮",
-                "banner": "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1200&q=80",
-                "invite_url": "https://discord.gg/raivora",
-                "verified": True,
-                "activity_status": f"🎮 {gaming_active} in Squads" if gaming_active > 0 else "Online",
-                "trending_score": gaming_active * 6 + len(projects) * 2,
-                "updated_at": now_iso,
-                "created_at": "2026-03-01"
-            },
-            {
-                "id": "hub-rai-incubator",
-                "name": "Rai Systems & AI Incubator",
-                "badge": "TECHNOLOGY & LABS",
-                "type": "Developer Community",
-                "category": "projects",
-                "description": "Autonomous agents, Discord bot architecture, security sandboxing, and workflow automations built on Rai OS.",
-                "members": None,
-                "online": None,
-                "voice": None,
-                "active_projects": len([p for p in projects if p.get("project_type") in ("bot", "dev", "ai")]),
-                "upcoming_events": 0,
-                "tags": ["AI", "Security", "Tools", "Automation", "Python"],
-                "icon": "🧠",
-                "banner": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80",
-                "invite_url": "https://discord.gg/raivora",
-                "verified": True,
-                "activity_status": "🟢 Online",
-                "trending_score": len(projects) * 3,
-                "updated_at": now_iso,
-                "created_at": "2026-03-10"
-            }
-        ]
-
-        # Multi-guild discovery if bot is connected to multiple guilds
         if self.bot and hasattr(self.bot, "guilds"):
-            for og in self.bot.guilds:
-                if og.id != COMMUNITY_GUILD_ID:
-                    o_online = len([m for m in og.members if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")]) if hasattr(og, "members") else None
-                    o_voice = sum(len(vc.members) for vc in og.voice_channels if hasattr(vc, "members")) if hasattr(og, "voice_channels") else None
-                    communities.append({
-                        "id": str(og.id),
-                        "name": og.name,
-                        "badge": "CONNECTED SERVER",
-                        "type": "Discord Community",
-                        "category": "gaming",
-                        "description": og.description or f"Active Discord community connected to Rai OS.",
-                        "members": og.member_count,
-                        "online": o_online,
-                        "voice": o_voice,
-                        "active_projects": 0,
-                        "upcoming_events": 0,
-                        "tags": ["Discord", "Community", "Live"],
-                        "icon": og.icon.url if og.icon else "✦",
-                        "banner": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80",
-                        "invite_url": "https://discord.gg/raivora",
-                        "verified": False,
-                        "activity_status": "🟢 Online",
-                        "trending_score": (o_online or 0) * 2 + (o_voice or 0) * 5,
-                        "updated_at": now_iso,
-                        "created_at": "2026-01-01"
-                    })
+            for g in self.bot.guilds:
+                try:
+                    guild_config = await self.db.get_or_create_guild_config(g.id)
+                except Exception:
+                    guild_config = None
+
+                member_count = getattr(g, "member_count", None)
+                online_count = None
+                if hasattr(g, "members") and g.members:
+                    online_count = len([m for m in g.members if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")])
+
+                voice_count = 0
+                if hasattr(g, "voice_channels") and g.voice_channels:
+                    voice_count = sum(len(vc.members) for vc in g.voice_channels if hasattr(vc, "members"))
+
+                try:
+                    projects = await self.db.list_projects(g.id, status="active")
+                except Exception:
+                    projects = []
+
+                try:
+                    events = await self.db.list_events(g.id, status="scheduled")
+                except Exception:
+                    events = []
+
+                activity_status = "🔥 Highly Active" if voice_count > 0 else ("🟢 Online" if online_count else "Online")
+                trending_score = ((online_count or 0) * 2) + (voice_count * 5) + (len(projects) * 3) + (len(events) * 4)
+
+                icon_url = g.icon.url if g.icon else None
+                banner_url = g.banner.url if getattr(g, "banner", None) else None
+
+                created_date = "2026-01-01"
+                if hasattr(g, "created_at") and g.created_at:
+                    try:
+                        created_date = g.created_at.strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                communities.append({
+                    "id": str(g.id),
+                    "name": g.name,
+                    "badge": "OFFICIAL HUB" if g.id == COMMUNITY_GUILD_ID else "CONNECTED COMMUNITY",
+                    "type": "Primary Hub" if g.id == COMMUNITY_GUILD_ID else "Discord Community",
+                    "category": "community",
+                    "description": g.description or f"Verified Discord community connected to Rai OS.",
+                    "members": member_count,
+                    "online": online_count,
+                    "voice": voice_count,
+                    "active_projects": len(projects),
+                    "upcoming_events": len(events),
+                    "tags": ["Verified", "Community", "Discord", "Rai OS"],
+                    "icon": icon_url or "✦",
+                    "banner": banner_url or "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80",
+                    "invite_url": getattr(guild_config, "invite_url", None) or "https://discord.gg/raivora",
+                    "verified": True,
+                    "activity_status": activity_status,
+                    "trending_score": trending_score,
+                    "updated_at": now_iso,
+                    "created_at": created_date
+                })
+
+        if not communities:
+            return json_success([], metadata={"message": "No public communities connected yet."})
 
         if search:
             communities = [c for c in communities if search in c["name"].lower() or search in c["description"].lower() or any(search in t.lower() for t in c["tags"])]
@@ -1560,19 +1464,78 @@ class ApiRouter:
 
     async def get_community(self, request: web.Request) -> web.Response:
         comm_id = request.match_info.get("id", "").strip()
-        res = await self.list_communities(request)
-        import json
-        data = json.loads(res.text).get("data", [])
-        matched = next((c for c in data if str(c["id"]) == str(comm_id)), None)
-        if not matched and data:
-            matched = data[0]
-        if not matched:
-            return json_error("NOT_FOUND", "Community not found", 404)
+        try:
+            guild_id_int = int(comm_id)
+        except ValueError:
+            return json_error("INVALID_ID", "Community ID must be a valid numeric Discord Guild ID", 400)
 
-        projects = await self.db.list_projects(COMMUNITY_GUILD_ID)
-        events = await self.db.list_events(COMMUNITY_GUILD_ID)
-        creators = await self.db.list_creator_portfolios(limit=8)
-        resources = await self.db.list_resources(COMMUNITY_GUILD_ID, limit=6)
+        g = self.bot.get_guild(guild_id_int) if (self.bot and hasattr(self.bot, "get_guild")) else None
+        if not g:
+            return json_error("NOT_FOUND", "No connected Discord community found with this ID", 404)
+
+        try:
+            guild_config = await self.db.get_or_create_guild_config(g.id)
+        except Exception:
+            guild_config = None
+
+        member_count = getattr(g, "member_count", None)
+        online_count = None
+        if hasattr(g, "members") and g.members:
+            online_count = len([m for m in g.members if getattr(m, "status", None) and str(m.status) not in ("offline", "invisible")])
+
+        voice_count = 0
+        if hasattr(g, "voice_channels") and g.voice_channels:
+            voice_count = sum(len(vc.members) for vc in g.voice_channels if hasattr(vc, "members"))
+
+        try:
+            projects = await self.db.list_projects(g.id)
+        except Exception:
+            projects = []
+
+        try:
+            events = await self.db.list_events(g.id)
+        except Exception:
+            events = []
+
+        try:
+            creators = await self.db.list_creator_portfolios(limit=8)
+        except Exception:
+            creators = []
+
+        try:
+            resources = await self.db.list_resources(g.id, limit=6)
+        except Exception:
+            resources = []
+
+        created_date = "2026-01-01"
+        if hasattr(g, "created_at") and g.created_at:
+            try:
+                created_date = g.created_at.strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        matched = {
+            "id": str(g.id),
+            "name": g.name,
+            "badge": "OFFICIAL HUB" if g.id == COMMUNITY_GUILD_ID else "CONNECTED COMMUNITY",
+            "type": "Primary Hub" if g.id == COMMUNITY_GUILD_ID else "Discord Community",
+            "category": "community",
+            "description": g.description or f"Verified Discord community connected to Rai OS.",
+            "members": member_count,
+            "online": online_count,
+            "voice": voice_count,
+            "active_projects": len([p for p in projects if p.get("status") == "active"]),
+            "upcoming_events": len([e for e in events if getattr(e, "status", "") == "scheduled"]),
+            "tags": ["Verified", "Community", "Discord", "Rai OS"],
+            "icon": g.icon.url if g.icon else "✦",
+            "banner": g.banner.url if getattr(g, "banner", None) else "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200&q=80",
+            "invite_url": getattr(guild_config, "invite_url", None) or "https://discord.gg/raivora",
+            "verified": True,
+            "activity_status": "🔥 Highly Active" if voice_count > 0 else ("🟢 Online" if online_count else "Online"),
+            "trending_score": ((online_count or 0) * 2) + (voice_count * 5) + (len(projects) * 3) + (len(events) * 4),
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "created_at": created_date
+        }
 
         return json_success({
             "community": matched,

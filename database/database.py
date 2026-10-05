@@ -58,6 +58,8 @@ from database.models import (
     DynamicRoom,
     RoomMember,
     TempVoiceConfig,
+    RoomTemplate,
+    RoomKnockRequest,
     AutopilotConfig,
     AutopilotAction,
     SecurityBaseline,
@@ -221,6 +223,19 @@ class Database:
 
     def _row_to_dynamic_room(self, row: Any) -> DynamicRoom:
         keys = row.keys()
+        co_host_ids = None
+        if "co_host_ids" in keys and row["co_host_ids"]:
+            try:
+                co_host_ids = json.loads(row["co_host_ids"])
+            except Exception:
+                co_host_ids = []
+        dj_ids = None
+        if "dj_ids" in keys and row["dj_ids"]:
+            try:
+                dj_ids = json.loads(row["dj_ids"])
+            except Exception:
+                dj_ids = []
+
         return DynamicRoom(
             guild_id=row["guild_id"],
             voice_channel_id=row["voice_channel_id"],
@@ -238,20 +253,26 @@ class Database:
             last_empty_at=row["last_empty_at"] if "last_empty_at" in keys else None,
             protected_until=row["protected_until"] if "protected_until" in keys else None,
             last_voice_activity=row["last_voice_activity"] if "last_voice_activity" in keys else None,
+            co_host_ids=co_host_ids,
+            dj_ids=dj_ids,
+            template_id=row["template_id"] if "template_id" in keys else None,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
 
     async def create_dynamic_room(self, room: DynamicRoom) -> None:
         now_str = utcnow_iso()
+        co_host_ids_str = json.dumps(room.co_host_ids) if room.co_host_ids is not None else None
+        dj_ids_str = json.dumps(room.dj_ids) if room.dj_ids is not None else None
         await self._db.execute(
             """
             INSERT INTO dynamic_rooms (
                 guild_id, voice_channel_id, owner_id, room_type, privacy_mode,
                 user_limit, locked, status, control_message_id, control_channel_id,
                 cleanup_status, empty_since, cleanup_due_at, last_empty_at, protected_until, last_voice_activity,
+                co_host_ids, dj_ids, template_id,
                 created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(voice_channel_id) DO UPDATE SET
                 guild_id = excluded.guild_id,
                 owner_id = excluded.owner_id,
@@ -268,6 +289,9 @@ class Database:
                 last_empty_at = excluded.last_empty_at,
                 protected_until = excluded.protected_until,
                 last_voice_activity = excluded.last_voice_activity,
+                co_host_ids = excluded.co_host_ids,
+                dj_ids = excluded.dj_ids,
+                template_id = excluded.template_id,
                 updated_at = excluded.updated_at
             """,
             (
@@ -280,6 +304,9 @@ class Database:
                 getattr(room, "last_empty_at", None),
                 getattr(room, "protected_until", None),
                 getattr(room, "last_voice_activity", None),
+                co_host_ids_str,
+                dj_ids_str,
+                getattr(room, "template_id", None),
                 room.created_at or now_str, room.updated_at or now_str
             ),
         )
@@ -331,6 +358,8 @@ class Database:
         for k, v in kwargs.items():
             if k == "locked":
                 v = 1 if v else 0
+            elif k in ("co_host_ids", "dj_ids") and isinstance(v, list):
+                v = json.dumps(v)
             fields.append(f"{k} = ?")
             values.append(v)
         fields.append("updated_at = ?")
@@ -381,6 +410,161 @@ class Database:
                 )
                 for row in rows
             ]
+
+    # --- ROOM TEMPLATES, EVENTS, & KNOCK REQUESTS ---
+
+    async def save_room_template(self, guild_id: int, user_id: int, template_name: str, settings: str) -> None:
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO room_templates (guild_id, user_id, template_name, settings, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (guild_id, user_id, template_name, settings, now_str)
+        )
+        await self._db.commit()
+
+    async def get_room_templates(self, guild_id: int, user_id: int) -> List[RoomTemplate]:
+        async with self._db.execute(
+            "SELECT * FROM room_templates WHERE guild_id = ? AND user_id = ? ORDER BY id DESC",
+            (guild_id, user_id)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                RoomTemplate(
+                    guild_id=row["guild_id"],
+                    user_id=row["user_id"],
+                    template_name=row["template_name"],
+                    settings=row["settings"],
+                    created_at=row["created_at"],
+                )
+                for row in rows
+            ]
+
+    async def record_room_event(self, room_id: int, event_type: str, actor_id: int, metadata: str = "") -> None:
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO room_events (room_id, event_type, actor_id, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (room_id, event_type, actor_id, metadata, now_str)
+        )
+        await self._db.commit()
+
+    async def create_room_knock_request(
+        self, room_id: int, user_id: int, expires_in_seconds: int = 120
+    ) -> RoomKnockRequest:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        now_str = now.isoformat()
+        expires_at_str = (now + datetime.timedelta(seconds=expires_in_seconds)).isoformat()
+        cursor = await self._db.execute(
+            """
+            INSERT INTO room_knock_requests (room_id, user_id, status, expires_at, created_at)
+            VALUES (?, ?, 'pending', ?, ?)
+            """,
+            (room_id, user_id, expires_at_str, now_str)
+        )
+        req_id = cursor.lastrowid
+        await self._db.commit()
+        return RoomKnockRequest(
+            id=req_id,
+            room_id=room_id,
+            user_id=user_id,
+            status="pending",
+            expires_at=expires_at_str,
+            created_at=now_str
+        )
+
+    async def get_room_knock_request(self, request_id: int) -> Optional[RoomKnockRequest]:
+        async with self._db.execute(
+            "SELECT * FROM room_knock_requests WHERE id = ?", (request_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return RoomKnockRequest(
+                id=row["id"],
+                room_id=row["room_id"],
+                user_id=row["user_id"],
+                status=row["status"],
+                expires_at=row["expires_at"],
+                created_at=row["created_at"]
+            )
+
+    async def get_pending_knock_request(self, room_id: int, user_id: int) -> Optional[RoomKnockRequest]:
+        now_str = utcnow_iso()
+        async with self._db.execute(
+            """
+            SELECT * FROM room_knock_requests
+            WHERE room_id = ? AND user_id = ? AND status = 'pending' AND expires_at > ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (room_id, user_id, now_str)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return RoomKnockRequest(
+                id=row["id"],
+                room_id=row["room_id"],
+                user_id=row["user_id"],
+                status=row["status"],
+                expires_at=row["expires_at"],
+                created_at=row["created_at"]
+            )
+
+    async def update_room_knock_request_status(self, request_id: int, status: str) -> None:
+        await self._db.execute(
+            "UPDATE room_knock_requests SET status = ? WHERE id = ?",
+            (status, request_id)
+        )
+        await self._db.commit()
+
+    async def update_room_knock_request(self, request_id: int, status: str) -> None:
+        await self.update_room_knock_request_status(request_id, status)
+
+    # --- NATURAL LANGUAGE AUDIT CRUD ---
+
+    async def record_nl_audit(
+        self,
+        incident_id: str,
+        guild_id: int,
+        user_id: int,
+        user_name: str,
+        channel_id: int,
+        raw_message: str,
+        intent: str,
+        confidence: float,
+        action: str,
+        result: str,
+    ) -> None:
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO nl_audits (
+                incident_id, guild_id, user_id, user_name, channel_id,
+                raw_message, intent, confidence, action, result, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                incident_id, guild_id, user_id, user_name, channel_id,
+                raw_message, intent, confidence, action, result, now_str
+            )
+        )
+        await self._db.commit()
+
+    async def get_recent_nl_audits(self, guild_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        async with self._db.execute(
+            """
+            SELECT * FROM nl_audits
+            WHERE guild_id = ?
+            ORDER BY id DESC LIMIT ?
+            """,
+            (guild_id, limit)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
 
     # --- AUTOPILOT CRUD ---
 

@@ -4689,18 +4689,57 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // ==========================================
-    // 29. AUDIO CONTROLLER
+    // 29. AUDIO CONTROLLER (REALTIME LIVE SYNC)
     // ==========================================
     let isPlaying = false;
-    let currentTrackIdx = 0;
-    const demoTracks = [
-      { title: "Resonance • Synthwave Hi-Fi", artist: "The Raivora 2.6 • 320kbps Stream", vc: "🟢 Live in 🔊 General Lounge VC • 14 Listening" },
-      { title: "Midnight City Lights", artist: "Synthwave Beats • Auto-DJ", vc: "🟢 Live in 🔊 Chill & Study VC • 8 Listening" },
-      { title: "Cyber Horizon", artist: "Lo-Fi Collective • Lossless Audio", vc: "🟢 Live in 🔊 Gaming Lobby VC • 21 Listening" }
-    ];
-    let audioCtx = null;
+    let liveTrack = null;
 
-    function toggleAudioPreview() {
+    async function syncLiveMusicTrack() {
+      try {
+        const res = await fetch('/api/live');
+        if (res.ok) {
+          const json = await res.json();
+          const sessions = (json.data && json.data.sessions) || [];
+          const musicSession = sessions.find(s => s.type === 'music');
+          if (musicSession) {
+            liveTrack = {
+              title: musicSession.title || 'Live Audio Stream',
+              artist: musicSession.artist || 'The Raivora Music Service',
+              vc: `🟢 Live in ${musicSession.channel_name || 'Voice Channel'}`
+            };
+          } else {
+            liveTrack = null;
+          }
+        }
+      } catch (e) {
+        liveTrack = null;
+      }
+      updatePlayerUI();
+    }
+
+    function updatePlayerUI() {
+      const setTexts = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
+      if (liveTrack) {
+        setTexts('home-track-title', liveTrack.title);
+        setTexts('home-track-artist', liveTrack.artist);
+        setTexts('home-music-vc', liveTrack.vc);
+        setTexts('music-track-title', liveTrack.title);
+        setTexts('music-track-artist', liveTrack.artist);
+      } else {
+        setTexts('home-track-title', 'No Active Music Stream');
+        setTexts('home-track-artist', 'Join a voice channel and use /music play in Discord');
+        setTexts('home-music-vc', 'Idle');
+        setTexts('music-track-title', 'No Active Music Stream');
+        setTexts('music-track-artist', 'Join a voice channel and use /music play in Discord');
+      }
+    }
+
+    async function toggleAudioPreview() {
+      await syncLiveMusicTrack();
+      if (!liveTrack) {
+        showToast('ℹ️ No active music session in Discord. Use /music play in any connected server.', 'info');
+        return;
+      }
       isPlaying = !isPlaying;
       const playBtns = [document.getElementById('home-play-btn'), document.getElementById('music-play-btn')];
       const discs = [document.getElementById('home-player-disc'), document.getElementById('music-disc')];
@@ -4717,40 +4756,10 @@ UI_HTML = r"""<!DOCTYPE html>
         if (isPlaying) b.classList.remove('paused');
         else b.classList.add('paused');
       });
-
-      try {
-        if (isPlaying) {
-          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-          if (audioCtx.state === 'suspended') audioCtx.resume();
-          playAudioTone(audioCtx);
-        }
-      } catch (e) {}
     }
 
     function nextDemoTrack() {
-      currentTrackIdx = (currentTrackIdx + 1) % demoTracks.length;
-      const t = demoTracks[currentTrackIdx];
-      const setTexts = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
-      setTexts('home-track-title', t.title);
-      setTexts('home-track-artist', t.artist);
-      setTexts('home-music-vc', t.vc);
-      setTexts('music-track-title', t.title);
-      setTexts('music-track-artist', t.artist);
-      if (!isPlaying) toggleAudioPreview();
-    }
-
-    function playAudioTone(ctx) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(329.63, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(523.25, ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.8);
+      syncLiveMusicTrack();
     }
 
     // ==========================================

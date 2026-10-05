@@ -772,6 +772,9 @@ class DynamicRoom:
     last_empty_at: Optional[str] = None
     protected_until: Optional[str] = None
     last_voice_activity: Optional[str] = None
+    co_host_ids: Optional[List[int]] = None
+    dj_ids: Optional[List[int]] = None
+    template_id: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -801,6 +804,27 @@ class RoomMember:
     @user_id.setter
     def user_id(self, val: int) -> None:
         self.member_id = val
+
+
+@dataclass
+class RoomTemplate:
+    """User-saved voice room preset/template."""
+    guild_id: int
+    user_id: int
+    template_name: str
+    settings: str
+    created_at: str = ""
+
+
+@dataclass
+class RoomKnockRequest:
+    """Knock / access request for a private dynamic voice room."""
+    id: int
+    room_id: int
+    user_id: int
+    status: str = "pending"  # pending, allowed, declined, expired
+    expires_at: str = ""
+    created_at: str = ""
 
 
 # ---------------------------------------------------------------------------
