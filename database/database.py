@@ -63,6 +63,8 @@ from database.models import (
     AutopilotConfig,
     AutopilotAction,
     SecurityBaseline,
+    GuildChannelConfig,
+    InteractionRecord,
 )
 
 logger = logging.getLogger(__name__)
@@ -5220,4 +5222,185 @@ class Database:
                 )
                 for r in rows
             ]
+
+    # ---------------------------------------------------------------------------
+    # Guild Channel Config (Canonical 17-Channel Purpose System)
+    # ---------------------------------------------------------------------------
+
+    async def get_guild_channel_config(self, guild_id: int) -> Optional[GuildChannelConfig]:
+        """Fetch the canonical channel assignment configuration for a guild."""
+        if not self._db:
+            return None
+        sql = "SELECT * FROM guild_channel_configs WHERE guild_id = ?"
+        async with self._db.execute(sql, (guild_id,)) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return GuildChannelConfig(
+                guild_id=row["guild_id"],
+                security_alerts_channel_id=row["security_alerts_channel_id"],
+                anti_nuke_channel_id=row["anti_nuke_channel_id"],
+                lockdown_control_channel_id=row["lockdown_control_channel_id"],
+                security_log_channel_id=row["security_log_channel_id"],
+                audit_monitor_channel_id=row["audit_monitor_channel_id"],
+                security_report_channel_id=row["security_report_channel_id"],
+                moderation_report_channel_id=row["moderation_report_channel_id"],
+                music_report_channel_id=row["music_report_channel_id"],
+                room_report_channel_id=row["room_report_channel_id"],
+                bot_report_channel_id=row["bot_report_channel_id"],
+                system_report_channel_id=row["system_report_channel_id"],
+                admin_control_channel_id=row["admin_control_channel_id"],
+                server_dashboard_channel_id=row["server_dashboard_channel_id"],
+                bot_config_channel_id=row["bot_config_channel_id"],
+                automation_control_channel_id=row["automation_control_channel_id"],
+                backup_control_channel_id=row["backup_control_channel_id"],
+                system_health_channel_id=row["system_health_channel_id"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+
+    async def set_guild_channel_config(self, guild_id: int, **kwargs) -> GuildChannelConfig:
+        """Insert or replace the full canonical channel assignment configuration for a guild."""
+        if not self._db:
+            return GuildChannelConfig(guild_id=guild_id)
+        now = utcnow_iso()
+        existing = await self.get_guild_channel_config(guild_id)
+        created_at = existing.created_at if existing else now
+
+        fields = [
+            "security_alerts_channel_id", "anti_nuke_channel_id", "lockdown_control_channel_id",
+            "security_log_channel_id", "audit_monitor_channel_id",
+            "security_report_channel_id", "moderation_report_channel_id", "music_report_channel_id",
+            "room_report_channel_id", "bot_report_channel_id", "system_report_channel_id",
+            "admin_control_channel_id", "server_dashboard_channel_id", "bot_config_channel_id",
+            "automation_control_channel_id", "backup_control_channel_id", "system_health_channel_id",
+        ]
+        values = [guild_id]
+        for f in fields:
+            if f in kwargs:
+                values.append(kwargs[f])
+            elif existing:
+                values.append(getattr(existing, f, None))
+            else:
+                values.append(None)
+        values.extend([created_at, now])
+
+        cols = ["guild_id"] + fields + ["created_at", "updated_at"]
+        placeholders = ", ".join(["?"] * len(cols))
+        sql = f"INSERT OR REPLACE INTO guild_channel_configs ({', '.join(cols)}) VALUES ({placeholders})"
+        await self._db.execute(sql, tuple(values))
+        await self._db.commit()
+
+        cfg = await self.get_guild_channel_config(guild_id)
+        return cfg or GuildChannelConfig(guild_id=guild_id, created_at=created_at, updated_at=now)
+
+    async def update_guild_channel_config(self, guild_id: int, **kwargs) -> Optional[GuildChannelConfig]:
+        """Update specific channel fields in the canonical channel assignment configuration."""
+        if not self._db or not kwargs:
+            return await self.get_guild_channel_config(guild_id)
+
+        existing = await self.get_guild_channel_config(guild_id)
+        if not existing:
+            return await self.set_guild_channel_config(guild_id, **kwargs)
+
+        now = utcnow_iso()
+        set_clauses = []
+        params = []
+        for k, v in kwargs.items():
+            set_clauses.append(f"{k} = ?")
+            params.append(v)
+        set_clauses.append("updated_at = ?")
+        params.append(now)
+        params.append(guild_id)
+
+        sql = f"UPDATE guild_channel_configs SET {', '.join(set_clauses)} WHERE guild_id = ?"
+        await self._db.execute(sql, tuple(params))
+        await self._db.commit()
+        return await self.get_guild_channel_config(guild_id)
+
+    # ---------------------------------------------------------------------------
+    # Interaction Telemetry & Latency Records
+    # ---------------------------------------------------------------------------
+
+    async def save_interaction_record(self, record: InteractionRecord) -> None:
+        """Persist an interaction execution telemetry record."""
+        if not self._db:
+            return
+        sql = """
+            INSERT OR REPLACE INTO interaction_records (
+                request_id, guild_id, user_id, interaction_id, interaction_type,
+                command_name, module, received_at, ack_at, completed_at,
+                ack_latency_ms, duration_ms, status, error_code, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        now = utcnow_iso()
+        await self._db.execute(
+            sql,
+            (
+                record.request_id,
+                record.guild_id,
+                record.user_id,
+                record.interaction_id,
+                record.interaction_type,
+                record.command_name,
+                record.module or "general",
+                record.received_at,
+                record.ack_at,
+                record.completed_at,
+                record.ack_latency_ms,
+                record.duration_ms,
+                record.status,
+                record.error_code,
+                record.created_at or now,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_interaction_metrics(
+        self, guild_id: Optional[int] = None, limit: int = 200
+    ) -> Dict[str, Any]:
+        """Fetch aggregated interaction latency and reliability metrics."""
+        if not self._db:
+            return {
+                "total": 0,
+                "avg_ack_latency_ms": 0.0,
+                "slow_count": 0,
+                "failed_count": 0,
+                "success_count": 0,
+            }
+
+        where = "WHERE guild_id = ?" if guild_id else ""
+        params = (guild_id, limit) if guild_id else (limit,)
+        sql = f"""
+            SELECT ack_latency_ms, duration_ms, status
+            FROM interaction_records
+            {where}
+            ORDER BY received_at DESC
+            LIMIT ?
+        """
+        async with self._db.execute(sql, params) as cursor:
+            rows = await cursor.fetchall()
+            if not rows:
+                return {
+                    "total": 0,
+                    "avg_ack_latency_ms": 0.0,
+                    "slow_count": 0,
+                    "failed_count": 0,
+                    "success_count": 0,
+                }
+
+            total = len(rows)
+            ack_latencies = [r["ack_latency_ms"] for r in rows if r["ack_latency_ms"] is not None]
+            avg_ack = round(sum(ack_latencies) / len(ack_latencies), 1) if ack_latencies else 0.0
+            slow = sum(1 for r in rows if (r["duration_ms"] or 0) > 3000.0)
+            failed = sum(1 for r in rows if r["status"] == "FAILED")
+            success = sum(1 for r in rows if r["status"] == "COMPLETED")
+
+            return {
+                "total": total,
+                "avg_ack_latency_ms": avg_ack,
+                "slow_count": slow,
+                "failed_count": failed,
+                "success_count": success,
+            }
 

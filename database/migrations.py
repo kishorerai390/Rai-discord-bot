@@ -1090,6 +1090,85 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """
         ]
+    ),
+    (
+        40,
+        "Add guild_channel_configs, interaction_records, and incident aggregation columns",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS guild_channel_configs (
+                guild_id INTEGER PRIMARY KEY,
+                security_alerts_channel_id INTEGER,
+                anti_nuke_channel_id INTEGER,
+                lockdown_control_channel_id INTEGER,
+                security_log_channel_id INTEGER,
+                audit_monitor_channel_id INTEGER,
+
+                security_report_channel_id INTEGER,
+                moderation_report_channel_id INTEGER,
+                music_report_channel_id INTEGER,
+                room_report_channel_id INTEGER,
+                bot_report_channel_id INTEGER,
+                system_report_channel_id INTEGER,
+
+                admin_control_channel_id INTEGER,
+                server_dashboard_channel_id INTEGER,
+                bot_config_channel_id INTEGER,
+                automation_control_channel_id INTEGER,
+                backup_control_channel_id INTEGER,
+                system_health_channel_id INTEGER,
+
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_guild_channel_configs_guild ON guild_channel_configs(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS interaction_records (
+                request_id TEXT PRIMARY KEY,
+                guild_id INTEGER,
+                user_id INTEGER NOT NULL,
+                interaction_id INTEGER,
+                interaction_type TEXT NOT NULL,
+                command_name TEXT NOT NULL,
+                module TEXT,
+                received_at REAL NOT NULL,
+                ack_at REAL,
+                completed_at REAL,
+                ack_latency_ms REAL,
+                duration_ms REAL,
+                status TEXT NOT NULL DEFAULT 'COMPLETED',
+                error_code TEXT,
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_interaction_records_guild ON interaction_records(guild_id);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_interaction_records_req ON interaction_records(request_id);
+            """,
+            """
+            ALTER TABLE interactive_incidents ADD COLUMN alert_message_id INTEGER;
+            """,
+            """
+            ALTER TABLE interactive_incidents ADD COLUMN alert_channel_id INTEGER;
+            """,
+            """
+            ALTER TABLE interactive_incidents ADD COLUMN event_count INTEGER DEFAULT 1;
+            """,
+            """
+            ALTER TABLE interactive_incidents ADD COLUMN fingerprint TEXT;
+            """,
+            """
+            ALTER TABLE interactive_incidents ADD COLUMN acknowledged_by INTEGER;
+            """,
+            """
+            ALTER TABLE interactive_incidents ADD COLUMN acknowledged_at TEXT;
+            """
+        ]
     )
 ]
 

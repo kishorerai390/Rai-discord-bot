@@ -1059,3 +1059,55 @@ class SubsystemHealthRecord:
     details: str = ""
     updated_at: str = ""
 
+
+# ---------------------------------------------------------------------------
+# Channel Assignment & Interaction Telemetry Models
+# ---------------------------------------------------------------------------
+
+@dataclass
+class GuildChannelConfig:
+    """Guild-specific canonical channel assignment configuration."""
+    guild_id: int
+    security_alerts_channel_id: Optional[int] = None
+    anti_nuke_channel_id: Optional[int] = None
+    lockdown_control_channel_id: Optional[int] = None
+    security_log_channel_id: Optional[int] = None
+    audit_monitor_channel_id: Optional[int] = None
+
+    security_report_channel_id: Optional[int] = None
+    moderation_report_channel_id: Optional[int] = None
+    music_report_channel_id: Optional[int] = None
+    room_report_channel_id: Optional[int] = None
+    bot_report_channel_id: Optional[int] = None
+    system_report_channel_id: Optional[int] = None
+
+    admin_control_channel_id: Optional[int] = None
+    server_dashboard_channel_id: Optional[int] = None
+    bot_config_channel_id: Optional[int] = None
+    automation_control_channel_id: Optional[int] = None
+    backup_control_channel_id: Optional[int] = None
+    system_health_channel_id: Optional[int] = None
+
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class InteractionRecord:
+    """Interaction execution record for ACK latency and reliability tracking."""
+    request_id: str
+    guild_id: Optional[int]
+    user_id: int
+    interaction_id: Optional[int]
+    interaction_type: str
+    command_name: str
+    module: Optional[str]
+    received_at: float
+    ack_at: Optional[float] = None
+    completed_at: Optional[float] = None
+    ack_latency_ms: Optional[float] = None
+    duration_ms: Optional[float] = None
+    status: str = "COMPLETED"
+    error_code: Optional[str] = None
+    created_at: str = ""
+
