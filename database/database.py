@@ -5659,27 +5659,55 @@ class Database:
         """Persist channel access config."""
         if not self._db:
             return
-        await self._db.execute(
-            """
-            INSERT OR REPLACE INTO channel_access_config (
-                guild_id, enabled, empty_channels_only, include_text, include_announcement,
-                include_forum, include_voice, include_stage, include_private, auto_update, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                config.guild_id,
-                int(config.enabled),
-                int(config.empty_channels_only),
-                int(config.include_text),
-                int(config.include_announcement),
-                int(config.include_forum),
-                int(config.include_voice),
-                int(config.include_stage),
-                int(config.include_private),
-                int(config.auto_update),
-                config.updated_at or utcnow_iso(),
-            ),
-        )
+        now_str = config.updated_at or utcnow_iso()
+        async with self._db.execute("PRAGMA table_info(channel_access_config)") as cursor:
+            cols = {row[1] for row in await cursor.fetchall()}
+
+        if "created_at" in cols:
+            await self._db.execute(
+                """
+                INSERT OR REPLACE INTO channel_access_config (
+                    guild_id, enabled, empty_channels_only, include_text, include_announcement,
+                    include_forum, include_voice, include_stage, include_private, auto_update, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    config.guild_id,
+                    int(config.enabled),
+                    int(config.empty_channels_only),
+                    int(config.include_text),
+                    int(config.include_announcement),
+                    int(config.include_forum),
+                    int(config.include_voice),
+                    int(config.include_stage),
+                    int(config.include_private),
+                    int(config.auto_update),
+                    now_str,
+                    now_str,
+                ),
+            )
+        else:
+            await self._db.execute(
+                """
+                INSERT OR REPLACE INTO channel_access_config (
+                    guild_id, enabled, empty_channels_only, include_text, include_announcement,
+                    include_forum, include_voice, include_stage, include_private, auto_update, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    config.guild_id,
+                    int(config.enabled),
+                    int(config.empty_channels_only),
+                    int(config.include_text),
+                    int(config.include_announcement),
+                    int(config.include_forum),
+                    int(config.include_voice),
+                    int(config.include_stage),
+                    int(config.include_private),
+                    int(config.auto_update),
+                    now_str,
+                ),
+            )
         await self._db.commit()
 
     async def record_channel_access_state(self, state: ChannelAccessState) -> None:
