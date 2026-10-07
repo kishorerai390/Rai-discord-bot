@@ -392,7 +392,7 @@ class DynamicVCControlManager:
         try:
             _, _, _, control_channel = await cls.ensure_dynamic_vc_structure(guild)
             embed = cls.build_panel_embed(room, vc, bot)
-            view = cls.build_panel_view(room.voice_channel_id)
+            view = cls.build_panel_view(room.voice_channel_id, has_music=False, locked=room.locked)
 
             msg = await control_channel.send(embed=embed, view=view)
             await bot.db.update_dynamic_room(
@@ -439,7 +439,7 @@ class DynamicVCControlManager:
                     has_music = True
 
             embed = cls.build_panel_embed(room, vc_obj, bot)
-            view = cls.build_panel_view(room.voice_channel_id, has_music=has_music)
+            view = cls.build_panel_view(room.voice_channel_id, has_music=has_music, locked=room.locked)
 
             await msg.edit(embed=embed, view=view)
         except Exception as e:
