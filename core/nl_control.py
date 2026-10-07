@@ -2727,3 +2727,10 @@ class NLControlEngine:
         view = NLNextActionsView(bot, guild.id, interaction.user.id, interaction.channel_id or 0, res.next_actions) if res.next_actions else None
         await interaction.followup.send(embed=res.embed, view=view)
         return True
+
+    # Alias handle_interaction to handle_component_interaction
+    handle_interaction = handle_component_interaction
+
+
+# Backwards compatibility alias for central on_interaction router
+NaturalLanguageControlManager = NLControlEngine

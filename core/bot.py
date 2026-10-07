@@ -160,6 +160,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling dynamic VC interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Dynamic voice service is temporarily recovering.", ephemeral=True)
+                        except Exception:
+                            pass
             elif cid.startswith("rai_inc:"):
                 from utils.interactive_incidents import InteractiveIncidentManager
                 try:
@@ -168,6 +173,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling interactive incident {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Security incident action is temporarily unavailable.", ephemeral=True)
+                        except Exception:
+                            pass
             elif cid.startswith("rai_ctrl:"):
                 from utils.private_control import PrivateControlManager
                 try:
@@ -176,6 +186,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling private control interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Private control is temporarily unavailable.", ephemeral=True)
+                        except Exception:
+                            pass
             elif cid.startswith("inc_"):
                 from utils.ai_incident_responder import handle_incident_interaction
                 try:
@@ -184,6 +199,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling incident interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Incident handler is temporarily unavailable.", ephemeral=True)
+                        except Exception:
+                            pass
             elif cid.startswith("rai_nl:"):
                 from core.nl_control import NaturalLanguageControlManager
                 try:
@@ -192,6 +212,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling natural language control interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Command execution encountered an issue.", ephemeral=True)
+                        except Exception:
+                            pass
             elif (
                 cid.startswith("rai_pulse:")
                 or cid.startswith("rai_clock:")
@@ -206,6 +231,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling luxury console interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Console action is temporarily unavailable.", ephemeral=True)
+                        except Exception:
+                            pass
             elif (
                 cid.startswith("m_req:")
                 or cid.startswith("m_q:")
@@ -219,6 +249,11 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling music console interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Music console is temporarily recovering. Please try again.", ephemeral=True)
+                        except Exception:
+                            pass
 
     async def _tree_interaction_check(self, interaction: discord.Interaction) -> bool:
         """

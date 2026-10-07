@@ -790,3 +790,7 @@ class LuxuryConsolesDispatcher:
                 color=0x1ABC9C,
             )
             await interaction.response.send_message(embed=t_embed, ephemeral=True)
+
+
+# Backwards compatibility alias for central on_interaction router
+LuxuryConsolesManager = LuxuryConsolesDispatcher
