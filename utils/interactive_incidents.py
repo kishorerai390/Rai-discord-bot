@@ -497,6 +497,15 @@ class InteractiveIncidentManager:
         # Fetch incident record
         incident = await db.get_interactive_incident(incident_id)
         if not incident:
+            perms = getattr(interaction.user, "guild_permissions", None)
+            is_adm = (isinstance(perms, discord.Permissions) and perms.administrator) or (interaction.guild and interaction.guild.owner_id == interaction.user.id)
+            if is_adm and interaction.message:
+                try:
+                    await interaction.message.delete()
+                    await _reply(f"ℹ️ Obsolete incident card `{incident_id}` has been cleared from this channel.")
+                    return True
+                except Exception:
+                    pass
             await _reply(f"❌ Incident `{incident_id}` record not found in database.")
             return True
 

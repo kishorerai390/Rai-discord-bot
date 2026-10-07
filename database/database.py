@@ -47,6 +47,7 @@ from database.models import (
     MemberVotes,
     ReportDestination,
     GuildRole,
+    RoleAuditLog,
     HiddenVoiceRoom,
     CreatorShowcase,
     ReportEventRecord,
@@ -192,6 +193,44 @@ class Database:
                 target_type TEXT,
                 details TEXT,
                 created_at TEXT NOT NULL
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS guild_roles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                role_key TEXT NOT NULL,
+                discord_role_id INTEGER NOT NULL,
+                role_name TEXT NOT NULL,
+                role_type TEXT NOT NULL,
+                managed_by_rai INTEGER NOT NULL DEFAULT 1,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                position INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE (guild_id, role_key),
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS role_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER,
+                role_id INTEGER,
+                role_key TEXT,
+                action TEXT NOT NULL,
+                reason TEXT,
+                trigger TEXT,
+                executor TEXT,
+                success INTEGER NOT NULL DEFAULT 1,
+                error TEXT,
+                timestamp TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
             );
             """
         )

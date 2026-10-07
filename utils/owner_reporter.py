@@ -1440,6 +1440,31 @@ class OwnerReporter:
             logger.error(f"Failed to auto-repair channel {channel_key} in {guild.name}: {e}")
             return None
 
+    @classmethod
+    async def ensure_all_report_channels(
+        cls,
+        bot: SentinelBot,
+        guild: discord.Guild,
+    ) -> List[discord.TextChannel]:
+        """Proactively provisions and verifies all 6 confidential owner report channels."""
+        channels = []
+        keys = [
+            "security_report_id",
+            "mod_report_id",
+            "room_report_id",
+            "bot_report_id",
+            "system_report_id",
+            "music_report_id",
+        ]
+        for key in keys:
+            try:
+                ch = await cls.repair_missing_channel(bot, guild, key)
+                if ch:
+                    channels.append(ch)
+            except Exception as e:
+                logger.warning(f"Could not provision {key}: {e}")
+        return channels
+
 
 async def get_owner_report_channel(
     bot: SentinelBot,

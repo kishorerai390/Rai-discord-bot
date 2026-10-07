@@ -530,13 +530,38 @@ class DynamicVCControlManager:
         # Verify Room in Database
         room = await bot.db.get_dynamic_room(target_vc_id)
         if not room:
-            await interaction.response.send_message(
-                embed=error_embed(
-                    "Room Closed",
-                    "This room has already been deleted or does not exist in the dynamic room database.",
-                ),
-                ephemeral=True,
-            )
+            # Self-healing: Delete obsolete control panel message if present
+            try:
+                if interaction.message and interaction.message.channel:
+                    await interaction.message.delete()
+            except Exception:
+                pass
+
+            # Self-healing: Delete orphaned VC if it exists on Discord and is empty
+            if interaction.guild:
+                orphan_vc = interaction.guild.get_channel(target_vc_id)
+                if isinstance(orphan_vc, discord.VoiceChannel) and len(orphan_vc.members) == 0:
+                    try:
+                        await orphan_vc.delete(reason="Rai Dynamic VC: Cleaned up orphaned voice channel")
+                    except Exception:
+                        pass
+
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    embed=info_embed(
+                        "Room Closed & Cleared",
+                        "This temporary room is no longer active. Its obsolete panel and channel have been cleaned up.",
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    embed=info_embed(
+                        "Room Closed & Cleared",
+                        "This temporary room is no longer active. Its obsolete panel and channel have been cleaned up.",
+                    ),
+                    ephemeral=True,
+                )
             return True
 
         guild = interaction.guild

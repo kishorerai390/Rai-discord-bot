@@ -187,6 +187,21 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                                 last_empty_at=None,
                             )
                             await DynamicVCControlManager.update_room_panel(self.bot, guild, room.voice_channel_id)
+
+                # 3. Orphaned Voice Channels Sweep (channels created during past DB errors/crashes)
+                tracked_ids = {r.voice_channel_id for r in rooms}
+                cfg = await self.bot.db.get_temp_voice_config(guild.id)
+                hub_ids = {cfg.hub_channel_id, getattr(cfg, "private_hub_channel_id", None), 1554891386577485927}
+                for vc in guild.voice_channels:
+                    if vc.id in tracked_ids or vc.id in hub_ids:
+                        continue
+                    norm = normalize_channel_name(vc.name)
+                    if ("room" in norm or "sanctum" in norm or "suite" in norm or "chamber" in norm or "lounge" in norm) and len(vc.members) == 0:
+                        try:
+                            await vc.delete(reason="Rai Dynamic VC: Automatic purge of untracked orphaned voice room")
+                            logger.info(f"Cleaned up untracked orphaned voice room #{vc.name} ({vc.id}) in {guild.name}")
+                        except Exception as vc_err:
+                            logger.debug(f"Could not purge orphaned VC {vc.id}: {vc_err}")
             except Exception as e:
                 logger.error(f"Error in dynamic VC supervisor for {guild.name}: {e}")
 

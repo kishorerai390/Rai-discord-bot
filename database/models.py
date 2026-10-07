@@ -688,6 +688,23 @@ class GuildRole:
     updated_at: str = ""
 
 
+@dataclass
+class RoleAuditLog:
+    """Audit entry for automatic or manual role changes."""
+    id: int
+    guild_id: int
+    user_id: Optional[int]
+    role_id: Optional[int]
+    role_key: Optional[str]
+    action: str
+    reason: Optional[str]
+    trigger: Optional[str]
+    executor: Optional[str]
+    success: bool
+    error: Optional[str]
+    timestamp: str
+
+
 # ---------------------------------------------------------------------------
 # Bot Shield Audit
 # ---------------------------------------------------------------------------
