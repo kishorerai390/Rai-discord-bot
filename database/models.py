@@ -981,7 +981,9 @@ class ServerBillboardConfig:
 class VerificationConfig:
     """Per-guild configuration for the interactive member verification system."""
     guild_id: int
-    enabled: bool = True
+    enabled: bool = False
+    role_id: Optional[int] = None
+    channel_id: Optional[int] = None
     verified_role_id: Optional[int] = None
     community_role_id: Optional[int] = None
     verify_channel_id: Optional[int] = None

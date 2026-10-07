@@ -430,6 +430,30 @@ class VerificationCog(commands.Cog, name="Verification"):
             from utils.rules_view import RulesConsoleView
             view = RulesConsoleView()
             await view.acknowledge_btn(interaction, None)  # type: ignore
+        elif custom_id.startswith("rai_role_opt:"):
+            role_key = custom_id.split(":", 1)[1]
+            role_map = {
+                "announcements": (1550199913093144649, "Announcements"),
+                "giveaways": (1550199917262143560, "Giveaways"),
+                "tournaments": (1550199921007792188, "Tournaments"),
+                "valorant": (1551184094313062470, "Valorant / Gaming"),
+            }
+            if role_key in role_map and interaction.guild and isinstance(interaction.user, discord.Member):
+                r_id, r_name = role_map[role_key]
+                role = interaction.guild.get_role(r_id)
+                if role:
+                    if role in interaction.user.roles:
+                        try:
+                            await interaction.user.remove_roles(role, reason="Self-assigned role toggle")
+                            await interaction.response.send_message(f"➖ Removed **{role.name}** from your profile.", ephemeral=True)
+                        except Exception as e:
+                            await interaction.response.send_message(f"❌ Could not remove role: {e}", ephemeral=True)
+                    else:
+                        try:
+                            await interaction.user.add_roles(role, reason="Self-assigned role toggle")
+                            await interaction.response.send_message(f"➕ Added **{role.name}** to your profile!", ephemeral=True)
+                        except Exception as e:
+                            await interaction.response.send_message(f"❌ Could not add role: {e}", ephemeral=True)
 
 
 async def setup(bot: SentinelBot):

@@ -70,6 +70,7 @@ from database.models import (
     InteractionRecord,
     ChannelAccessConfig,
     ChannelAccessState,
+    VerificationConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -232,6 +233,45 @@ class Database:
                 error TEXT,
                 timestamp TEXT NOT NULL,
                 FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS subsystem_health (
+                subsystem TEXT PRIMARY KEY,
+                status TEXT NOT NULL,
+                last_check TEXT NOT NULL,
+                failure_count INTEGER DEFAULT 0,
+                details TEXT
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS verification_configs (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                role_id INTEGER,
+                channel_id INTEGER,
+                verified_role_id INTEGER,
+                community_role_id INTEGER,
+                verify_channel_id INTEGER,
+                welcome_channel_id INTEGER,
+                min_account_age_hours INTEGER NOT NULL DEFAULT 0,
+                require_2fa INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT ''
+            );
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS verification_records (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                account_age_hours REAL DEFAULT 0,
+                verified_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, user_id)
             );
             """
         )
@@ -5833,6 +5873,92 @@ class Database:
                 duration_ms,
                 utcnow_iso(),
             ),
+        )
+        await self._db.commit()
+
+    # ==========================================
+    # VERIFICATION SYSTEM
+    # ==========================================
+
+    async def get_verification_config(self, guild_id: int) -> VerificationConfig:
+        if not self._db:
+            return VerificationConfig(guild_id=guild_id)
+        async with self._db.execute(
+            "SELECT * FROM verification_configs WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if not row:
+            now = utcnow_iso()
+            await self._db.execute(
+                """
+                INSERT OR IGNORE INTO verification_configs (
+                    guild_id, enabled, role_id, channel_id, min_account_age_hours, updated_at
+                ) VALUES (?, 0, NULL, NULL, 0, ?)
+                """,
+                (guild_id, now),
+            )
+            await self._db.commit()
+            return VerificationConfig(guild_id=guild_id, updated_at=now)
+
+        return VerificationConfig(
+            guild_id=row["guild_id"],
+            enabled=bool(row["enabled"]),
+            role_id=row["role_id"],
+            channel_id=row["channel_id"],
+            verified_role_id=row["verified_role_id"] or row["role_id"],
+            community_role_id=row["community_role_id"],
+            verify_channel_id=row["verify_channel_id"] or row["channel_id"],
+            welcome_channel_id=row["welcome_channel_id"],
+            min_account_age_hours=row["min_account_age_hours"],
+            require_2fa=bool(row["require_2fa"]),
+            updated_at=row["updated_at"] or "",
+        )
+
+    async def update_verification_config(self, guild_id: int, **kwargs: Any) -> None:
+        await self.get_verification_config(guild_id)
+        if not self._db:
+            return
+        valid = {
+            "enabled", "role_id", "channel_id", "verified_role_id",
+            "community_role_id", "verify_channel_id", "welcome_channel_id",
+            "min_account_age_hours", "require_2fa"
+        }
+        updates = {k: (int(v) if isinstance(v, bool) else v) for k, v in kwargs.items() if k in valid}
+        if "role_id" in updates and "verified_role_id" not in updates:
+            updates["verified_role_id"] = updates["role_id"]
+        if "channel_id" in updates and "verify_channel_id" not in updates:
+            updates["verify_channel_id"] = updates["channel_id"]
+        if not updates:
+            return
+        updates["updated_at"] = utcnow_iso()
+        set_clauses = [f"{k} = ?" for k in updates]
+        params = list(updates.values()) + [guild_id]
+        await self._db.execute(
+            f"UPDATE verification_configs SET {', '.join(set_clauses)} WHERE guild_id = ?",
+            params,
+        )
+        await self._db.commit()
+
+    async def is_user_verified(self, guild_id: int, user_id: int) -> bool:
+        if not self._db:
+            return False
+        async with self._db.execute(
+            "SELECT 1 FROM verification_records WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        ) as cursor:
+            return (await cursor.fetchone()) is not None
+
+    async def record_verification(self, guild_id: int, user_id: int, account_age_hours: float = 0.0) -> None:
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO verification_records (
+                guild_id, user_id, account_age_hours, verified_at
+            ) VALUES (?, ?, ?, ?)
+            """,
+            (guild_id, user_id, account_age_hours, now),
         )
         await self._db.commit()
 
