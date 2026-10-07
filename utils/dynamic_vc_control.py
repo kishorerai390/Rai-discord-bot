@@ -497,12 +497,82 @@ class DynamicVCControlManager:
     # =========================================================================
 
     @classmethod
+    async def _dispatch_hub_action(
+        cls,
+        bot: SentinelBot,
+        interaction: discord.Interaction,
+        action: str,
+    ) -> bool:
+        """Handles button clicks on the permanent Master Hub in ROOM-CONTROL."""
+        if not interaction.response.is_done():
+            try:
+                await interaction.response.defer(ephemeral=True, thinking=True)
+            except Exception:
+                pass
+
+        guild = interaction.guild
+        if not guild:
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ This button must be used in a server.", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ This button must be used in a server.", ephemeral=True)
+            return True
+
+        member = guild.get_member(interaction.user.id)
+        if not member:
+            try:
+                member = await guild.fetch_member(interaction.user.id)
+            except Exception:
+                member = interaction.user
+
+        cog = bot.cogs.get("TempVoice")
+        if not cog:
+            msg = "❌ Dynamic voice system is currently initializing. Please try again in a moment."
+            if not interaction.response.is_done():
+                await interaction.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction.followup.send(msg, ephemeral=True)
+            return True
+
+        is_private = (action == "create_private")
+        try:
+            vc = await cog.create_room_for_member(member, is_private=is_private)
+            if vc:
+                room_type = "Private" if is_private else "Public"
+                emb = success_embed(
+                    f"🎙️ {room_type} Room Created",
+                    f"Your temporary voice room **<#{vc.id}>** has been provisioned!\n\n"
+                    f"• Click the room link above to connect.\n"
+                    f"• Use the interactive controls posted in this channel to manage your room.",
+                )
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=emb, ephemeral=True)
+                else:
+                    await interaction.followup.send(embed=emb, ephemeral=True)
+            else:
+                emb = warning_embed(
+                    "Room Creation Notice",
+                    "Could not create a room at this time. You may already have an active room or be on a brief cooldown.",
+                )
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(embed=emb, ephemeral=True)
+                else:
+                    await interaction.followup.send(embed=emb, ephemeral=True)
+        except Exception as e:
+            logger.error(f"Error creating dynamic room from hub for {member}: {e}", exc_info=True)
+            emb = error_embed("Creation Failed", f"An error occurred while creating your room: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=emb, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=emb, ephemeral=True)
+
+        return True
+
+    @classmethod
     async def handle_interaction(cls, bot: SentinelBot, interaction: discord.Interaction) -> bool:
         """Central gateway router for all dynamic voice room button & select interactions."""
         cid = interaction.data.get("custom_id", "")
         parts = cid.split(":")
-        if len(parts) < 3:
-            return False
 
         prefix = parts[0]
         action = parts[1] if len(parts) > 1 else ""

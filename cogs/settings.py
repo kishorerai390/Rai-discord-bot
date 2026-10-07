@@ -395,6 +395,25 @@ class SettingsCog(commands.Cog, name="Settings"):
         embed.set_footer(text="Use /autorole set to configure new member join roles.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @settings_group.command(name="setup_reports", description="Provision and verify private owner report channels (📋 | RAI REPORTS)")
+    @is_admin_or_owner()
+    async def settings_setup_reports_cmd(self, interaction: discord.Interaction):
+        """Automatically deploys or repairs the 6 confidential report channels in private category."""
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("❌ This command must be executed inside a server.", ephemeral=True)
+            return
+
+        from utils.owner_reporter import OwnerReporter
+        channels = await OwnerReporter.ensure_all_report_channels(self.bot, guild)
+        desc = "\n".join(f"• <#{ch.id}> (`#{ch.name}`)" for ch in channels if ch)
+        embed = success_embed(
+            "📋 RAI Reports Infrastructure Configured",
+            f"Successfully verified and secured the private reports suite under category **📋 | RAI REPORTS**:\n\n{desc}\n\nAll security alerts, moderation actions, voice room events, and bot logs are now safely routed to these channels.",
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
     # ==========================================
     # BACKGROUND TASKS
     # ==========================================

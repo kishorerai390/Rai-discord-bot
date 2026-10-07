@@ -10,6 +10,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import uuid
 import aiosqlite
 
 from config import DATABASE_PATH
