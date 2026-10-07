@@ -130,6 +130,7 @@ class Database:
             "ALTER TABLE dynamic_rooms ADD COLUMN cleanup_status TEXT DEFAULT 'active'",
             "ALTER TABLE dynamic_rooms ADD COLUMN empty_since TEXT",
             "ALTER TABLE dynamic_rooms ADD COLUMN cleanup_due_at TEXT",
+            "ALTER TABLE dynamic_rooms ADD COLUMN updated_at TEXT",
         ]:
             try:
                 await self._db.execute(col_def)

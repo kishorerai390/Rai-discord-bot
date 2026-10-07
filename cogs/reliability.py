@@ -23,7 +23,7 @@ from database.manager import DatabaseManager
 from observability.health import ObservabilityHealthService
 from observability.metrics import PROMETHEUS_AVAILABLE
 from backups.manager import BackupManager
-from core.channel_access import ChannelAccessService
+from core.channel_access import ChannelAccessService, ChannelAccessConfig
 from core.interaction_manager import InteractionManager, ManagedInteractionContext
 from services.channel_assignment_service import (
     ChannelAssignmentService,
