@@ -1,6 +1,6 @@
 """
-Rai Music Bot Configuration and Secret Management.
-Independent configuration decoupled from Main Rai Bot.
+Neko Songs — Independent Discord Music Bot Configuration and Secret Management.
+Decoupled architecture strictly separated from Main Rai Bot.
 """
 
 from __future__ import annotations
@@ -20,10 +20,34 @@ if ENV_PATH.exists():
 else:
     load_dotenv()
 
-# Music Bot Credentials
-MUSIC_BOT_TOKEN: str = os.getenv("MUSIC_BOT_TOKEN", "").strip()
+# Neko Songs Brand Identity
+BOT_NAME: str = "Neko Songs"
+BOT_BRAND_TAG: str = "🎵 NEKO SONGS"
+MUSIC_BOT_VERSION: str = "2.1.0"
+
+# Brand Palette
+COLOR_MIDNIGHT_BLACK: int = 0x0B0E14
+COLOR_NEON_BLUE: int = 0x00B0FF
+COLOR_ELECTRIC_CYAN: int = 0x00E5FF
+COLOR_WHITE: int = 0xFFFFFF
+COLOR_VIOLET_ACCENT: int = 0x9B59B6
+
+# Neko Personality Dialogues
+DIALOGUE_JOIN: str = "🐱 Neko has entered the listening room!"
+DIALOGUE_START: str = "🎵 Found it! Let's listen."
+DIALOGUE_EMPTY_QUEUE: str = "🐾 The queue is empty. Give Neko another song?"
+DIALOGUE_UNPLAYABLE: str = "😿 I found the request, but couldn't resolve a playable audio source."
+DIALOGUE_UNAVAILABLE: str = "🐱 Neko's music source is temporarily unavailable. Please try again later."
+DIALOGUE_PLAYBACK_END: str = "🎶 That was a good one!"
+
+# Neko Songs Bot Credentials
+# Prioritizes NEKO_SONGS_BOT_TOKEN; falls back gracefully to MUSIC_BOT_TOKEN
+NEKO_SONGS_BOT_TOKEN: str = os.getenv(
+    "NEKO_SONGS_BOT_TOKEN", os.getenv("MUSIC_BOT_TOKEN", "")
+).strip()
+MUSIC_BOT_TOKEN: str = NEKO_SONGS_BOT_TOKEN
+
 MUSIC_BOT_ID: int = int(os.getenv("MUSIC_BOT_ID", "1556676516274905218"))
-MUSIC_BOT_VERSION: str = "2.0.0"
 MUSIC_PREFIX: str = os.getenv("MUSIC_BOT_PREFIX", "m!").strip()
 LOG_LEVEL_STR: str = os.getenv("LOG_LEVEL", "INFO").upper()
 
@@ -56,16 +80,18 @@ MUSIC_RATE_LIMIT_WINDOW_SECONDS: float = float(os.getenv("MUSIC_RATE_LIMIT_WINDO
 
 def is_music_token_valid() -> bool:
     """Validate token format without revealing its content."""
-    if not MUSIC_BOT_TOKEN:
+    tok = NEKO_SONGS_BOT_TOKEN
+    if not tok:
         return False
-    parts = MUSIC_BOT_TOKEN.split(".")
-    return len(parts) >= 2 and len(MUSIC_BOT_TOKEN) > 30
+    parts = tok.split(".")
+    return len(parts) >= 2 and len(tok) > 30
 
 
 def get_masked_music_token() -> str:
     """Return a masked representation of the token for diagnostics."""
-    if not MUSIC_BOT_TOKEN:
+    tok = NEKO_SONGS_BOT_TOKEN
+    if not tok:
         return "NOT_SET"
-    if len(MUSIC_BOT_TOKEN) < 10:
+    if len(tok) < 10:
         return "INVALID_TOO_SHORT"
-    return f"{MUSIC_BOT_TOKEN[:4]}...{MUSIC_BOT_TOKEN[-4:]}"
+    return f"{tok[:4]}...{tok[-4:]}"

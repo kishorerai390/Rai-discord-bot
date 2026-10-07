@@ -23,6 +23,10 @@ class MusicGuildSettings:
     allowed_channels: List[int] = field(default_factory=list)
     allowed_voice_channels: List[int] = field(default_factory=list)
     queue_limit: int = 200
+    quiet_mode: bool = False
+    response_style: str = "normal"  # normal, minimal, cute
+    vote_skip_threshold: float = 0.5  # 50% of listeners must vote
+    dj_mode_enabled: bool = False
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -64,6 +68,32 @@ class QueuedTrack:
 
 
 @dataclass
+class MusicFavorite:
+    id: int
+    user_id: int
+    title: str
+    url: str
+    duration: int = 0
+    artist: str = "Unknown Artist"
+    thumbnail: Optional[str] = None
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@dataclass
+class MusicDJSettings:
+    guild_id: int
+    enabled: bool = False
+    auto_queue: bool = True
+    recommendation_mode: str = "similar"  # similar, discover, mood, genre
+    preferred_genres: List[str] = field(default_factory=list)
+    explicit_allowed: bool = True
+    repeat_avoidance_count: int = 15
+    max_queue_size: int = 50
+    recommendation_cooldown: int = 15
+    updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+@dataclass
 class MusicPlaylist:
     id: int
     guild_id: int
@@ -82,3 +112,4 @@ class MusicHeartbeat:
     active_sessions: int
     playing_count: int
     last_heartbeat: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+

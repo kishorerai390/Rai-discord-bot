@@ -131,7 +131,25 @@ class MusicPlayerService:
                 await cls.start_playback(bot, session, next_track)
                 return
 
-            # Check autoplay if enabled
+            # Check Neko DJ & Autoplay if enabled
+            if session.history:
+                try:
+                    dj_settings = await bot.db.get_dj_settings(session.guild_id)
+                    if dj_settings.enabled:
+                        from music_bot.services.dj_service import NekoDJService
+                        rec = await NekoDJService.get_recommendation(bot, session)
+                        if rec:
+                            track, rationale = rec
+                            if dj_settings.auto_queue:
+                                logger.info(f"Neko DJ auto-queueing recommended track: '{track.title}'")
+                                await cls.start_playback(bot, session, track)
+                                return
+                            else:
+                                await NekoDJService.post_recommendation_card(bot, session)
+                except Exception as e:
+                    logger.warning(f"Neko DJ hook error: {e}")
+
+            # Fallback to standard autoplay
             if session.autoplay and session.history:
                 last_played = session.history[-1]
                 logger.info(f"Queue exhausted. Autoplaying related track for '{last_played.title}'...")
@@ -141,7 +159,7 @@ class MusicPlayerService:
                     for c in candidates:
                         if c["title"] != last_played.title and not any(h.title == c["title"] for h in session.history[-5:]):
                             resolved = await AudioResolver.resolve_track(
-                                c["url"], 0, "Rai Autoplay"
+                                c["url"], 0, "Neko Autoplay"
                             )
                             if resolved:
                                 await cls.start_playback(bot, session, resolved)
@@ -153,9 +171,9 @@ class MusicPlayerService:
             session.reset()
             if session.text_channel:
                 embed = discord.Embed(
-                    title="🎵 QUEUE FINISHED",
-                    description="The music queue is now empty. Add more songs using `/music play` or `/play`.",
-                    color=0x5865F2,
+                    title="🐾 QUEUE FINISHED",
+                    description="The queue is empty. Give Neko another song? 🐱\nUse `/music play` or `/play` to continue.",
+                    color=0x00B0FF,
                 )
                 try:
                     await session.text_channel.send(embed=embed)
@@ -164,47 +182,44 @@ class MusicPlayerService:
 
     @classmethod
     def build_now_playing_embed(cls, session: GuildMusicSession) -> discord.Embed:
-        """Construct professional Now Playing embed with progress bar and metadata."""
+        """Construct official Neko Songs Now Playing embed with progress bar and metadata."""
         track = session.current_track
         if not track:
             return discord.Embed(
-                title="🎵 NOT PLAYING",
-                description="No music is currently playing in this server.",
-                color=0x2B2D31,
+                title="╭────────────────────────────╮\n       🎵 NEKO SONGS\n╰────────────────────────────╯",
+                description="🐱 **NOW PLAYING**\n\n*No music is currently playing in this server.*",
+                color=0x0B0E14,
             )
 
         elapsed = session.elapsed_seconds
+        progress_str = f"{format_duration(elapsed)} / {format_duration(track.duration)}"
         progress_bar = create_progress_bar(elapsed, track.duration)
 
-        status_text = "▶ Playing" if session.is_playing else ("⏸ Paused" if session.is_paused else "⏹ Idle")
+        status_text = "🟢 Playing" if session.is_playing else ("⏸️ Paused" if session.is_paused else "⏹️ Idle")
+        requester_str = f"<@{track.requester_id}>" if track.requester_id else track.requester_name
 
         embed = discord.Embed(
-            title="🎵 NOW PLAYING",
-            description=f"### [{track.title}]({track.url})\n**Artist:** `{track.artist}`",
-            color=0x57F287 if session.is_playing else 0xFEE75C,
+            title="╭────────────────────────────╮\n       🎵 NEKO SONGS\n╰────────────────────────────╯",
+            description=(
+                f"🐱 **NOW PLAYING**\n\n"
+                f"**{track.artist}** — **[{track.title}]({track.url})**\n\n"
+                f"**Requested by:** {requester_str}\n\n"
+                f"**Progress:**\n`{progress_bar}`\n`{progress_str}`\n\n"
+                f"**Queue:**\n`{len(session.queue)} tracks`\n\n"
+                f"**Volume:**\n`{session.volume}%`\n\n"
+                f"**Playback:**\n{status_text}"
+            ),
+            color=0x00B0FF if session.is_playing else 0x9B59B6,
         )
-
-        embed.add_field(name="Playback Progress", value=f"`{progress_bar}`", inline=False)
-
-        state_info = (
-            f"**Status:** {status_text}\n"
-            f"**Volume:** `{session.volume}%`\n"
-            f"**Loop Mode:** `{session.loop_mode.value.title()}`\n"
-            f"**Autoplay:** `{'ON' if session.autoplay else 'OFF'}`"
-        )
-        embed.add_field(name="Session Status", value=state_info, inline=True)
-
-        queue_info = (
-            f"**Queue:** `{len(session.queue)} tracks`\n"
-            f"**Requested by:** <@{track.requester_id}>\n"
-            f"**History:** `{len(session.history)} played`"
-        )
-        embed.add_field(name="Queue Details", value=queue_info, inline=True)
 
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
 
-        embed.set_footer(text="Rai Music • Complete High-Fidelity Audio Platform")
+        loop_badge = f"Loop: {session.loop_mode.value.title()}" if session.loop_mode != LoopMode.OFF else ""
+        autoplay_badge = "Autoplay: ON" if session.autoplay else ""
+        badges = [b for b in [loop_badge, autoplay_badge] if b]
+        footer_text = f"Neko Songs • {(' | '.join(badges)) if badges else 'Cute & Futuristic Audio'}"
+        embed.set_footer(text=footer_text)
         return embed
 
     @classmethod
@@ -231,11 +246,44 @@ class MusicPlayerService:
 
 
 # =============================================================================
-# INTERACTIVE BUTTON CONTROLS
+# INTERACTIVE BUTTON CONTROLS (9 EXACT BUTTONS)
 # =============================================================================
 
+class VolumeAdjustView(discord.ui.View):
+    """Ephemeral volume control quick selector."""
+
+    def __init__(self, session: GuildMusicSession):
+        super().__init__(timeout=60)
+        self.session = session
+
+    @discord.ui.button(label="20%", style=discord.ButtonStyle.secondary, row=0)
+    async def v20(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._set_vol(interaction, 20)
+
+    @discord.ui.button(label="50%", style=discord.ButtonStyle.secondary, row=0)
+    async def v50(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._set_vol(interaction, 50)
+
+    @discord.ui.button(label="80%", style=discord.ButtonStyle.primary, row=0)
+    async def v80(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._set_vol(interaction, 80)
+
+    @discord.ui.button(label="100%", style=discord.ButtonStyle.success, row=0)
+    async def v100(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._set_vol(interaction, 100)
+
+    async def _set_vol(self, interaction: discord.Interaction, vol: int):
+        await interaction.response.defer(ephemeral=True)
+        self.session.volume = vol
+        if self.session.voice_client and hasattr(self.session.voice_client.source, "volume"):
+            self.session.voice_client.source.volume = vol / 100.0  # type: ignore
+        await MusicPlayerService.send_now_playing_panel(self.session)
+        await interaction.followup.send(f"🔊 Volume set to `{vol}%`.", ephemeral=True)
+        self.stop()
+
+
 class NowPlayingControlView(discord.ui.View):
-    """Interactive Discord UI buttons for Now Playing panel."""
+    """Interactive Discord UI buttons for Neko Songs Now Playing panel."""
 
     def __init__(self, session: GuildMusicSession):
         super().__init__(timeout=None)
@@ -243,7 +291,6 @@ class NowPlayingControlView(discord.ui.View):
         self._update_button_states()
 
     def _update_button_states(self):
-        # Update pause/resume button label
         for child in self.children:
             if isinstance(child, discord.ui.Button):
                 if child.custom_id == "music_btn_play_pause":
@@ -251,7 +298,8 @@ class NowPlayingControlView(discord.ui.View):
                     child.emoji = "▶" if self.session.is_paused else "⏸"
                     child.style = discord.ButtonStyle.success if self.session.is_paused else discord.ButtonStyle.secondary
 
-    @discord.ui.button(emoji="⏮", label="Prev", style=discord.ButtonStyle.secondary, custom_id="music_btn_prev", row=0)
+    # --- ROW 0: [⏮ Previous] [⏸ Pause / Resume] [⏭ Skip] ---
+    @discord.ui.button(emoji="⏮", label="Previous", style=discord.ButtonStyle.secondary, custom_id="music_btn_prev", row=0)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         if not self.session.history:
@@ -303,45 +351,18 @@ class NowPlayingControlView(discord.ui.View):
         self.session.voice_client.stop()  # Triggers after_playback -> handle_track_finished
         await interaction.followup.send(f"⏭ Skipped **{track_title}**.", ephemeral=True)
 
-    @discord.ui.button(emoji="🔀", label="Shuffle", style=discord.ButtonStyle.secondary, custom_id="music_btn_shuffle", row=0)
-    async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        if len(self.session.queue) < 2:
-            await interaction.followup.send("❌ Need at least 2 tracks in queue to shuffle.", ephemeral=True)
-            return
-
-        tracks = list(self.session.queue)
-        random.shuffle(tracks)
-        self.session.queue = asyncio.queues.deque(tracks)  # type: ignore
-        await interaction.followup.send(f"🔀 Shuffled `{len(tracks)}` tracks in queue.", ephemeral=True)
-
-    @discord.ui.button(emoji="🔁", label="Loop", style=discord.ButtonStyle.secondary, custom_id="music_btn_loop", row=0)
-    async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
-        if self.session.loop_mode == LoopMode.OFF:
-            self.session.loop_mode = LoopMode.TRACK
-            msg = "🔂 Track loop **ENABLED**."
-        elif self.session.loop_mode == LoopMode.TRACK:
-            self.session.loop_mode = LoopMode.QUEUE
-            msg = "🔁 Queue loop **ENABLED**."
-        else:
-            self.session.loop_mode = LoopMode.OFF
-            msg = "➡️ Loop **DISABLED**."
-
-        await MusicPlayerService.send_now_playing_panel(self.session)
-        await interaction.followup.send(msg, ephemeral=True)
-
-    @discord.ui.button(emoji="📜", label="Queue", style=discord.ButtonStyle.primary, custom_id="music_btn_queue", row=1)
+    # --- ROW 1: [📜 Queue] [🔀 Shuffle] [🔁 Loop] ---
+    @discord.ui.button(emoji="📜", label="Queue", style=discord.ButtonStyle.secondary, custom_id="music_btn_queue", row=1)
     async def queue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         tracks = list(self.session.queue)
         if not tracks and not self.session.current_track:
-            await interaction.followup.send("The music queue is currently empty.", ephemeral=True)
+            await interaction.followup.send("🐾 The music queue is currently empty.", ephemeral=True)
             return
 
         embed = discord.Embed(
-            title=f"🎵 MUSIC QUEUE ({len(tracks)} in queue)",
-            color=0x5865F2,
+            title=f"📜 NEKO SONGS QUEUE ({len(tracks)} tracks)",
+            color=0x00B0FF,
         )
         if self.session.current_track:
             embed.description = f"**Now Playing:** [{self.session.current_track.title}]({self.session.current_track.url})\n\n"
@@ -361,7 +382,63 @@ class NowPlayingControlView(discord.ui.View):
 
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=1)
+    @discord.ui.button(emoji="🔀", label="Shuffle", style=discord.ButtonStyle.secondary, custom_id="music_btn_shuffle", row=1)
+    async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if len(self.session.queue) < 2:
+            await interaction.followup.send("❌ Need at least 2 tracks in queue to shuffle.", ephemeral=True)
+            return
+
+        tracks = list(self.session.queue)
+        random.shuffle(tracks)
+        self.session.queue = asyncio.queues.deque(tracks)  # type: ignore
+        await interaction.followup.send(f"🔀 Shuffled `{len(tracks)}` tracks in queue.", ephemeral=True)
+
+    @discord.ui.button(emoji="🔁", label="Loop", style=discord.ButtonStyle.secondary, custom_id="music_btn_loop", row=1)
+    async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if self.session.loop_mode == LoopMode.OFF:
+            self.session.loop_mode = LoopMode.TRACK
+            msg = "🔂 Track loop **ENABLED**."
+        elif self.session.loop_mode == LoopMode.TRACK:
+            self.session.loop_mode = LoopMode.QUEUE
+            msg = "🔁 Queue loop **ENABLED**."
+        else:
+            self.session.loop_mode = LoopMode.OFF
+            msg = "➡️ Loop **DISABLED**."
+
+        await MusicPlayerService.send_now_playing_panel(self.session)
+        await interaction.followup.send(msg, ephemeral=True)
+
+    # --- ROW 2: [🔊 Volume] [❤️ Favorite] [⏹ Stop] ---
+    @discord.ui.button(emoji="🔊", label="Volume", style=discord.ButtonStyle.secondary, custom_id="music_btn_vol", row=2)
+    async def volume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        view = VolumeAdjustView(self.session)
+        await interaction.response.send_message(
+            f"🔊 **Volume Adjustment** (Current: `{self.session.volume}%`):", view=view, ephemeral=True
+        )
+
+    @discord.ui.button(emoji="❤️", label="Favorite", style=discord.ButtonStyle.secondary, custom_id="music_btn_fav", row=2)
+    async def favorite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not self.session.current_track:
+            await interaction.followup.send("❌ No track currently playing to add to favorites.", ephemeral=True)
+            return
+
+        bot: RaiMusicBot = interaction.client  # type: ignore
+        success = await bot.db.add_favorite(interaction.user.id, self.session.current_track)
+        if success:
+            await interaction.followup.send(
+                f"❤️ Saved **{self.session.current_track.title}** to your favorites! View with `/music favorites`.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                f"❤️ **{self.session.current_track.title}** is already in your favorites!",
+                ephemeral=True,
+            )
+
+    @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=2)
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         self.session.queue.clear()
@@ -371,4 +448,5 @@ class NowPlayingControlView(discord.ui.View):
             self.session.voice_client = None
 
         self.session.reset()
-        await interaction.followup.send("⏹ Stopped music playback and disconnected.", ephemeral=True)
+        await interaction.followup.send("⏹ Stopped music playback and disconnected. 🐾", ephemeral=True)
+

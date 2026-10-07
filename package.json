@@ -5,6 +5,7 @@
   "scripts": {
     "start:rai": "python main.py",
     "start:music": "python music_main.py",
+    "start:neko": "python music_main.py",
     "test": "python -m unittest discover tests"
   },
   "author": "Rai Core Team",

@@ -1,5 +1,5 @@
 """
-Dedicated Discord Client and Gateway Manager for Rai Music Bot.
+Dedicated Discord Client and Gateway Manager for Neko Songs.
 Operates completely independently with its own intents, heartbeat, database, and life cycle.
 """
 
@@ -13,6 +13,7 @@ from discord.ext import commands, tasks
 
 from music_bot.commands.music_cog import MusicCog
 from music_bot.config import (
+    BOT_NAME,
     COMMAND_SYNC_MODE,
     MUSIC_BOT_ID,
     MUSIC_BOT_VERSION,
@@ -22,11 +23,11 @@ from music_bot.config import (
 from music_bot.database.db import MusicDatabase
 from music_bot.services.session_service import SessionManager
 
-logger = logging.getLogger("RaiMusic.Client")
+logger = logging.getLogger("NekoSongs.Client")
 
 
-class RaiMusicBot(commands.Bot):
-    """Independent Discord Bot application powering Rai Music."""
+class NekoSongsBot(commands.Bot):
+    """Independent Discord Bot application powering Neko Songs."""
 
     def __init__(self):
         intents = discord.Intents.default()
@@ -47,7 +48,7 @@ class RaiMusicBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         """Executed during bot startup before connecting to Discord Gateway."""
-        logger.info("Initializing Rai Music Bot subsystem...")
+        logger.info(f"Initializing {BOT_NAME} subsystem...")
 
         # 1. Connect independent database
         await self.db.connect()
@@ -64,7 +65,7 @@ class RaiMusicBot(commands.Bot):
                 logger.info(f"Synchronized {len(synced)} slash commands to test guild {TEST_GUILD_ID}")
             else:
                 synced = await self.tree.sync()
-                logger.info(f"Synchronized {len(synced)} global slash commands for Rai Music Bot")
+                logger.info(f"Synchronized {len(synced)} global slash commands for {BOT_NAME}")
         except Exception as e:
             logger.error(f"Failed to synchronize slash commands: {e}")
 
@@ -73,13 +74,13 @@ class RaiMusicBot(commands.Bot):
 
     async def on_ready(self) -> None:
         logger.info(
-            f"🎵 Rai Music Bot online as {self.user.name}#{self.user.discriminator} (ID: {self.user.id})"
+            f"🎵 {BOT_NAME} online as {self.user.name}#{self.user.discriminator} (ID: {self.user.id})"
         )
-        logger.info(f"Serving {len(self.guilds)} guilds with independent music architecture.")
+        logger.info(f"Serving {len(self.guilds)} guilds with independent audio architecture.")
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
-                name="/music play | /play",
+                name="/music play | Neko Songs 🐱",
             ),
             status=discord.Status.online,
         )
@@ -126,7 +127,7 @@ class RaiMusicBot(commands.Bot):
 
     async def close(self) -> None:
         """Gracefully release all resources, voice connections, and DB handles."""
-        logger.info("Initiating graceful shutdown for Rai Music Bot...")
+        logger.info(f"Initiating graceful shutdown for {BOT_NAME}...")
         self.heartbeat_loop.cancel()
 
         # Disconnect all active voice clients
@@ -143,4 +144,9 @@ class RaiMusicBot(commands.Bot):
         # Close database
         await self.db.close()
         await super().close()
-        logger.info("Rai Music Bot shutdown complete.")
+        logger.info(f"{BOT_NAME} shutdown complete.")
+
+
+# Backwards compatibility alias
+RaiMusicBot = NekoSongsBot
+
