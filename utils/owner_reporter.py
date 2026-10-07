@@ -611,9 +611,9 @@ class OwnerReporter:
 
     CHANNEL_TARGETS = {
         "system_report_id": ["system-report", "system_report", "system-health", "system-log"],
-        "room_report_id": ["room-report", "room_report", "room-control", "voice-log"],
+        "room_report_id": ["room-report", "room_report", "room-logs", "voice-log", "voice-logs"],
         "bot_report_id": ["bot-report", "bot_report", "bot-config", "bot-log", "admin-operations"],
-        "music_report_id": ["music-report", "music_report", "music-control"],
+        "music_report_id": ["music-report", "music_report", "music-logs", "music-log"],
         "mod_report_id": ["mod-report", "mod_report", "mod-log"],
         "security_report_id": ["security-report", "security_report", "security-alerts", "security-log", "alerts"],
     }

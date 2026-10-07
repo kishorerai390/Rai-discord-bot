@@ -179,4 +179,13 @@ class RulesConsoleView(ui.View):
             color=0x2ECC71,
         )
         ack_embed.set_footer(text="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Community Integrity Confirmed ✦")
-        await interaction.response.send_message(embed=ack_embed, ephemeral=True)
+        if not interaction.response.is_done():
+            try:
+                await interaction.response.send_message(embed=ack_embed, ephemeral=True)
+            except discord.HTTPException as he:
+                if he.code == 40060:
+                    await interaction.followup.send(embed=ack_embed, ephemeral=True)
+                else:
+                    raise
+        else:
+            await interaction.followup.send(embed=ack_embed, ephemeral=True)

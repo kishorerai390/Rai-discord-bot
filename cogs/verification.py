@@ -406,6 +406,8 @@ class VerificationCog(commands.Cog, name="Verification"):
         """Fallback listener for legacy or button custom_ids."""
         if interaction.type != discord.InteractionType.component:
             return
+        if interaction.response.is_done():
+            return
         custom_id = interaction.data.get("custom_id", "") if interaction.data else ""
         if custom_id in ("btn_verify_member", "rai_verification_button"):
             view = VerificationButtonView()
@@ -420,8 +422,12 @@ class VerificationCog(commands.Cog, name="Verification"):
             from utils.rules_view import get_rules_tab_embed
             tab = custom_id.split(":", 1)[1]
             embed = get_rules_tab_embed(tab, interaction.guild)  # type: ignore
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
         elif custom_id == "rai_rules_acknowledge":
+            from utils.rules_view import RulesConsoleView
             view = RulesConsoleView()
             await view.acknowledge_btn(interaction, None)  # type: ignore
 

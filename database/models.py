@@ -576,6 +576,7 @@ class AutopilotConfig:
     alert_channel_id: Optional[int] = None
     ticket_management: bool = True
     auto_safe_mode: bool = True
+    anti_nuke: bool = True
     updated_at: str = ""
 
 

@@ -281,7 +281,7 @@ class AutopilotCog(commands.Cog, name="Autopilot"):
         """Autopilot detection for sudden channel deletions."""
         guild = channel.guild
         cfg = await self.bot.db.get_or_create_autopilot_config(guild.id)
-        if not cfg.enabled or not cfg.anti_nuke:
+        if not cfg.enabled or not getattr(cfg, "anti_nuke", True):
             return
 
         await self.bot.autopilot.dispatch(
@@ -301,7 +301,7 @@ class AutopilotCog(commands.Cog, name="Autopilot"):
         """Autopilot detection for sudden role deletions."""
         guild = role.guild
         cfg = await self.bot.db.get_or_create_autopilot_config(guild.id)
-        if not cfg.enabled or not cfg.anti_nuke:
+        if not cfg.enabled or not getattr(cfg, "anti_nuke", True):
             return
 
         await self.bot.autopilot.dispatch(

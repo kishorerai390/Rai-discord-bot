@@ -66,6 +66,8 @@ from database.models import (
     SecurityBaseline,
     GuildChannelConfig,
     InteractionRecord,
+    ChannelAccessConfig,
+    ChannelAccessState,
 )
 
 logger = logging.getLogger(__name__)
@@ -4997,6 +4999,11 @@ class Database:
         """Insert or replace an interactive incident."""
         if not self._db:
             return
+        if incident.guild_id:
+            try:
+                await self.get_or_create_guild_config(incident.guild_id)
+            except Exception:
+                pass
         await self._db.execute(
             """
             CREATE TABLE IF NOT EXISTS interactive_incidents (
@@ -5499,4 +5506,205 @@ class Database:
                 "failed_count": failed,
                 "success_count": success,
             }
+
+    # ---------------------------------------------------------------------------
+    # Channel Access Config
+    # ---------------------------------------------------------------------------
+
+    async def get_channel_access_config(self, guild_id: int) -> ChannelAccessConfig:
+        """Fetch or create default channel access config."""
+        if not self._db:
+            return ChannelAccessConfig(guild_id=guild_id)
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_access_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                empty_channels_only INTEGER NOT NULL DEFAULT 1,
+                include_text INTEGER NOT NULL DEFAULT 1,
+                include_announcement INTEGER NOT NULL DEFAULT 1,
+                include_forum INTEGER NOT NULL DEFAULT 1,
+                include_voice INTEGER NOT NULL DEFAULT 0,
+                include_stage INTEGER NOT NULL DEFAULT 0,
+                include_private INTEGER NOT NULL DEFAULT 0,
+                auto_update INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        async with self._db.execute(
+            "SELECT * FROM channel_access_config WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return ChannelAccessConfig(
+                    guild_id=row["guild_id"],
+                    enabled=bool(row["enabled"]),
+                    empty_channels_only=bool(row["empty_channels_only"]),
+                    include_text=bool(row["include_text"]),
+                    include_announcement=bool(row["include_announcement"]),
+                    include_forum=bool(row["include_forum"]),
+                    include_voice=bool(row["include_voice"]),
+                    include_stage=bool(row["include_stage"]),
+                    include_private=bool(row["include_private"]),
+                    auto_update=bool(row["auto_update"]),
+                    updated_at=row["updated_at"] or "",
+                )
+        cfg = ChannelAccessConfig(guild_id=guild_id)
+        await self.update_channel_access_config(cfg)
+        return cfg
+
+    async def update_channel_access_config(self, config: ChannelAccessConfig) -> None:
+        """Persist channel access config."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO channel_access_config (
+                guild_id, enabled, empty_channels_only, include_text, include_announcement,
+                include_forum, include_voice, include_stage, include_private, auto_update, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                config.guild_id,
+                int(config.enabled),
+                int(config.empty_channels_only),
+                int(config.include_text),
+                int(config.include_announcement),
+                int(config.include_forum),
+                int(config.include_voice),
+                int(config.include_stage),
+                int(config.include_private),
+                int(config.auto_update),
+                config.updated_at or utcnow_iso(),
+            ),
+        )
+        await self._db.commit()
+
+    async def record_channel_access_state(self, state: ChannelAccessState) -> None:
+        """Persist channel access inspection/modification state."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_access_state (
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                channel_type TEXT NOT NULL,
+                last_checked TEXT NOT NULL,
+                access_status TEXT NOT NULL,
+                last_updated TEXT,
+                error_code TEXT,
+                PRIMARY KEY (guild_id, channel_id)
+            )
+            """
+        )
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO channel_access_state (
+                guild_id, channel_id, channel_type, last_checked, access_status, last_updated, error_code
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                state.guild_id,
+                state.channel_id,
+                state.channel_type,
+                state.last_checked,
+                state.access_status,
+                state.last_updated,
+                state.error_code,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_channel_access_state(self, guild_id: int, channel_id: int) -> Optional[ChannelAccessState]:
+        """Fetch channel access state by guild and channel."""
+        if not self._db:
+            return None
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_access_state (
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                channel_type TEXT NOT NULL,
+                last_checked TEXT NOT NULL,
+                access_status TEXT NOT NULL,
+                last_updated TEXT,
+                error_code TEXT,
+                PRIMARY KEY (guild_id, channel_id)
+            )
+            """
+        )
+        async with self._db.execute(
+            "SELECT * FROM channel_access_state WHERE guild_id = ? AND channel_id = ?",
+            (guild_id, channel_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return ChannelAccessState(
+                    guild_id=row["guild_id"],
+                    channel_id=row["channel_id"],
+                    channel_type=row["channel_type"],
+                    last_checked=row["last_checked"],
+                    access_status=row["access_status"],
+                    last_updated=row["last_updated"],
+                    error_code=row["error_code"],
+                )
+            return None
+
+    # ---------------------------------------------------------------------------
+    # Self-Healing Logs
+    # ---------------------------------------------------------------------------
+
+    async def log_self_healing_record(
+        self,
+        recovery_id: str,
+        error_id: str,
+        component: str,
+        failure_type: str,
+        action_taken: str,
+        attempt_number: int,
+        result: str,
+        duration_ms: float,
+    ) -> None:
+        """Persist self-healing event in SQLite."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS self_healing_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recovery_id TEXT,
+                error_id TEXT,
+                component TEXT,
+                failure_type TEXT,
+                action_taken TEXT,
+                attempt_number INTEGER,
+                result TEXT,
+                duration_ms REAL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        await self._db.execute(
+            """
+            INSERT INTO self_healing_logs (
+                recovery_id, error_id, component, failure_type,
+                action_taken, attempt_number, result, duration_ms, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                recovery_id,
+                error_id,
+                component,
+                failure_type,
+                action_taken,
+                attempt_number,
+                result,
+                duration_ms,
+                utcnow_iso(),
+            ),
+        )
+        await self._db.commit()
+
 

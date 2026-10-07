@@ -460,25 +460,44 @@ class InteractiveIncidentManager:
         action = parts[1]
         incident_id = parts[2]
 
+        async def _reply(content=None, embed=None, view=None):
+            done = False
+            try:
+                res = interaction.response.is_done()
+                if isinstance(res, bool):
+                    done = res
+            except Exception:
+                done = False
+
+            if done:
+                try:
+                    return await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=True)
+                except Exception:
+                    pass
+            else:
+                try:
+                    if content is not None:
+                        return await interaction.response.send_message(content, embed=embed, view=view, ephemeral=True)
+                    else:
+                        return await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                except discord.HTTPException as he:
+                    if he.code == 40060:
+                        return await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=True)
+                    raise
+
         if action == "read_done":
-            await interaction.response.send_message(
-                f"ℹ️ Incident `{incident_id}` has already been marked as read.",
-                ephemeral=True
-            )
+            await _reply(f"ℹ️ Incident `{incident_id}` has already been marked as read.")
             return True
 
         db = getattr(bot, "db", None)
         if not db:
-            await interaction.response.send_message("❌ Database unavailable.", ephemeral=True)
+            await _reply("❌ Database unavailable.")
             return True
 
         # Fetch incident record
         incident = await db.get_interactive_incident(incident_id)
         if not incident:
-            await interaction.response.send_message(
-                f"❌ Incident `{incident_id}` record not found in database.",
-                ephemeral=True
-            )
+            await _reply(f"❌ Incident `{incident_id}` record not found in database.")
             return True
 
         # 1. Authorize: Current server owner, guild administrator, or dynamic room owner for room incidents
@@ -504,10 +523,7 @@ class InteractiveIncidentManager:
                 target_id=incident.target_id,
                 failure_reason=f"User {interaction.user} (ID: {interaction.user.id}) is not the server owner.",
             )
-            await interaction.response.send_message(
-                "❌ **Unauthorized**\n\nYou are not authorized to control this incident. Only the server owner can execute actions.",
-                ephemeral=True,
-            )
+            await _reply("❌ **Unauthorized**\n\nYou are not authorized to control this incident. Only the server owner can execute actions.")
             return True
 
         # 2. Confirmation Check for Destructive Actions
@@ -538,20 +554,19 @@ class InteractiveIncidentManager:
             confirm_view.add_item(confirm_btn)
             confirm_view.add_item(cancel_btn)
 
-            await interaction.response.send_message(
+            await _reply(
                 f"⚠️ **CONFIRM ACTION: {title.upper()}**\n\n"
                 f"• **Target:** {target_str}\n"
                 f"• **Incident:** `{incident_id}`\n"
                 f"• **Note:** {prompt_text}\n\n"
                 f"*Click confirm below to proceed or cancel.*",
                 view=confirm_view,
-                ephemeral=True,
             )
             return True
 
         # 3. Handle Cancel
         if action == "cancel":
-            await interaction.response.send_message("✖️ Action cancelled. The incident remains unchanged.", ephemeral=True)
+            await _reply("✖️ Action cancelled. The incident remains unchanged.")
             return True
 
         # 4. Handle Confirmed Action Stripping
@@ -561,14 +576,24 @@ class InteractiveIncidentManager:
 
         # 5. Idempotency Check
         if real_action in ("lockdown", "restrict", "timeout", "ban", "kick", "delete_room") and incident.status == "RESOLVED":
-            await interaction.response.send_message(
-                f"ℹ️ **This action has already been completed.**\nIncident `{incident_id}` is already resolved.",
-                ephemeral=True,
-            )
+            await _reply(f"ℹ️ **This action has already been completed.**\nIncident `{incident_id}` is already resolved.")
             return True
 
         # Acknowledge immediately ephemerally
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        done = False
+        try:
+            res = interaction.response.is_done()
+            if isinstance(res, bool):
+                done = res
+        except Exception:
+            done = False
+
+        if not done:
+            try:
+                await interaction.response.defer(ephemeral=True, thinking=True)
+            except discord.HTTPException as he:
+                if he.code != 40060:
+                    raise
 
         if real_action == "mark_all_read":
             active_list = await db.get_active_interactive_incidents_for_guild(incident.guild_id) if db else []
