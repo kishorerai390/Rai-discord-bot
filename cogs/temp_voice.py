@@ -363,7 +363,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 pass
             return
 
-        await self.create_room_for_member(member, is_private=is_private, trigger_channel=after.channel)
+        await self.create_room_for_member(member, is_private=is_private, trigger_channel=trigger_channel)
 
     async def create_room_for_member(
         self,
@@ -374,7 +374,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         """Creates a temporary dynamic voice room for member, sets permissions, and posts control panel."""
         guild = member.guild
         cfg = await self.bot.db.get_temp_voice_config(guild.id)
-        now_ts = asyncio.get_event_loop().time()
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
         # 1. Check if user already owns an active room
         existing = await self.bot.db.get_dynamic_room_by_owner(guild.id, member.id)

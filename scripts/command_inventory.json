@@ -3034,7 +3034,7 @@
     "api_usage": true,
     "premium": false,
     "response_type": "ephemeral/embed",
-    "error_handling": false,
+    "error_handling": true,
     "status": "WORKING"
   },
   {

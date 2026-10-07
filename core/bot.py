@@ -152,14 +152,14 @@ class SentinelBot(commands.Bot):
 
         if interaction.type == discord.InteractionType.component:
             cid = interaction.data.get("custom_id", "")
-            if cid.startswith("inc_"):
-                from utils.ai_incident_responder import handle_incident_interaction
+            if cid.startswith("rai_vc"):
+                from utils.dynamic_vc_control import DynamicVCControlManager
                 try:
-                    handled = await handle_incident_interaction(self, interaction)
+                    handled = await DynamicVCControlManager.handle_interaction(self, interaction)
                     if handled:
                         return
                 except Exception as e:
-                    logger.error(f"Error handling incident interaction {cid}: {e}", exc_info=True)
+                    logger.error(f"Error handling dynamic VC interaction {cid}: {e}", exc_info=True)
             elif cid.startswith("rai_inc:"):
                 from utils.interactive_incidents import InteractiveIncidentManager
                 try:
@@ -168,6 +168,57 @@ class SentinelBot(commands.Bot):
                         return
                 except Exception as e:
                     logger.error(f"Error handling interactive incident {cid}: {e}", exc_info=True)
+            elif cid.startswith("rai_ctrl:"):
+                from utils.private_control import PrivateControlManager
+                try:
+                    handled = await PrivateControlManager.handle_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling private control interaction {cid}: {e}", exc_info=True)
+            elif cid.startswith("inc_"):
+                from utils.ai_incident_responder import handle_incident_interaction
+                try:
+                    handled = await handle_incident_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling incident interaction {cid}: {e}", exc_info=True)
+            elif cid.startswith("rai_nl:"):
+                from core.nl_control import NaturalLanguageControlManager
+                try:
+                    handled = await NaturalLanguageControlManager.handle_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling natural language control interaction {cid}: {e}", exc_info=True)
+            elif (
+                cid.startswith("rai_pulse:")
+                or cid.startswith("rai_clock:")
+                or cid.startswith("rai_vip:")
+                or cid.startswith("rai_quarantine:")
+                or cid.startswith("rai_soundscape:")
+            ):
+                from utils.luxury_consoles import LuxuryConsolesManager
+                try:
+                    handled = await LuxuryConsolesManager.handle_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling luxury console interaction {cid}: {e}", exc_info=True)
+            elif (
+                cid.startswith("m_req:")
+                or cid.startswith("m_q:")
+                or cid.startswith("m_dj:")
+                or cid.startswith("m_pl:")
+            ):
+                from utils.music_consoles import MusicConsolesManager
+                try:
+                    handled = await MusicConsolesManager.handle_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling music console interaction {cid}: {e}", exc_info=True)
 
     async def _tree_interaction_check(self, interaction: discord.Interaction) -> bool:
         """
