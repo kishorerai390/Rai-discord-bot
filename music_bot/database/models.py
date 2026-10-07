@@ -34,10 +34,10 @@ class MusicGuildSettings:
 class QueuedTrack:
     title: str
     url: str
-    stream_url: str
-    duration: int
-    requester_id: int
-    requester_name: str
+    duration: int = 0
+    requester_id: int = 0
+    requester_name: str = "Unknown"
+    stream_url: str = ""
     artist: str = "Unknown Artist"
     thumbnail: Optional[str] = None
 
@@ -69,14 +69,15 @@ class QueuedTrack:
 
 @dataclass
 class MusicFavorite:
-    id: int
     user_id: int
     title: str
     url: str
+    id: Optional[int] = None
     duration: int = 0
     artist: str = "Unknown Artist"
     thumbnail: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 
 
 @dataclass

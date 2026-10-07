@@ -507,7 +507,7 @@ class MusicCog(commands.Cog, name="Music"):
         await MusicPlayerService.send_now_playing_panel(session)
         await interaction.followup.send(f"🔊 Volume set to `{percent}%`.")
 
-    @music_group.command(name="seek", description="Seek to a specific timestamp in the current song")
+    @app_commands.command(name="seek", description="Seek to a specific timestamp in the current song")
     @app_commands.describe(seconds="Target time in seconds")
     async def music_seek(self, interaction: discord.Interaction, seconds: int) -> None:
         await interaction.response.defer(ephemeral=True)
@@ -552,7 +552,7 @@ class MusicCog(commands.Cog, name="Music"):
         await MusicPlayerService.send_now_playing_panel(session)
         await interaction.followup.send(f"🔁 Loop mode set to **{mode.name}**.")
 
-    @music_group.command(name="remove", description="Remove a track from the queue by its number")
+    @app_commands.command(name="remove", description="Remove a track from the queue by its number")
     @app_commands.describe(position="Position number in /music queue")
     async def music_remove(self, interaction: discord.Interaction, position: int) -> None:
         await interaction.response.defer(ephemeral=False)
@@ -566,7 +566,7 @@ class MusicCog(commands.Cog, name="Music"):
         session.queue = asyncio.queues.deque(tracks)  # type: ignore
         await interaction.followup.send(f"🗑️ Removed **{removed.title}** from queue.")
 
-    @music_group.command(name="move", description="Move a song in queue from one position to another")
+    @app_commands.command(name="move", description="Move a song in queue from one position to another")
     @app_commands.describe(from_pos="Current position", to_pos="New position")
     async def music_move(self, interaction: discord.Interaction, from_pos: int, to_pos: int) -> None:
         await interaction.response.defer(ephemeral=False)
@@ -644,7 +644,7 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_leave(self, interaction: discord.Interaction) -> None:
         await self.music_stop.callback(self, interaction)
 
-    @music_group.command(name="disconnect", description="Disconnect Neko Songs from voice")
+    @app_commands.command(name="disconnect", description="Disconnect Neko Songs from voice")
     async def music_disconnect(self, interaction: discord.Interaction) -> None:
         await self.music_stop.callback(self, interaction)
 
@@ -924,7 +924,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     # --- 5. HISTORY & STATS ---
 
-    @music_group.command(name="history", description="View recent song playback history")
+    @app_commands.command(name="history", description="View recent song playback history")
     async def music_history(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         history = await self.bot.db.get_history(interaction.guild_id, limit=10)  # type: ignore
@@ -943,7 +943,7 @@ class MusicCog(commands.Cog, name="Music"):
         )
         await interaction.followup.send(embed=embed)
 
-    @music_group.command(name="stats", description="View truthful server music listening statistics")
+    @app_commands.command(name="stats", description="View truthful server music listening statistics")
     async def music_stats(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         stats = await self.bot.db.get_guild_stats(interaction.guild_id)  # type: ignore
@@ -1004,7 +1004,7 @@ class MusicCog(commands.Cog, name="Music"):
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @music_group.command(name="permissions", description="View voice and command permissions")
+    @app_commands.command(name="permissions", description="View voice and command permissions")
     async def music_permissions(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
         settings = await self.bot.db.get_guild_settings(interaction.guild_id)  # type: ignore
@@ -1111,6 +1111,21 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.describe(song="Optional song title")
     async def alias_lyrics(self, interaction: discord.Interaction, song: Optional[str] = None) -> None:
         await self.music_lyrics.callback(self, interaction, song)
+
+    @app_commands.command(name="shuffle", description="Shuffle songs in current queue (Shortcut for /music shuffle)")
+    async def alias_shuffle(self, interaction: discord.Interaction) -> None:
+        await self.music_shuffle.callback(self, interaction)
+
+    @app_commands.command(name="loop", description="Configure loop mode (Shortcut for /music loop)")
+    @app_commands.describe(mode="Loop mode to apply")
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="Off", value="off"),
+        app_commands.Choice(name="Current Track", value="track"),
+        app_commands.Choice(name="Whole Queue", value="queue"),
+    ])
+    async def alias_loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]) -> None:
+        await self.music_loop.callback(self, interaction, mode)
+
 
     # =========================================================================
     # NATURAL MUSIC REQUEST LISTENER (SECTION 12)

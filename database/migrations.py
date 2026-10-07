@@ -1199,8 +1199,32 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             ALTER TABLE interactive_incidents ADD COLUMN acknowledged_at TEXT;
             """
         ]
+    ),
+    (
+        41,
+        "Add music_playlists table for server and user playlist storage",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS music_playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                tracks_json TEXT NOT NULL DEFAULT '[]',
+                is_guild_playlist INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(guild_id, user_id, name)
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_music_playlists_guild_user
+            ON music_playlists(guild_id, user_id);
+            """
+        ]
     )
 ]
+
 
 
 def backup_database(db_path: Path) -> Path | None:

@@ -29,11 +29,26 @@ logger = logging.getLogger("RaiMusic.DJ")
 class DJRecommendationCardView(discord.ui.View):
     """Interactive action buttons for Neko DJ recommendation card."""
 
-    def __init__(self, bot: RaiMusicBot, session: GuildMusicSession, track: QueuedTrack):
+    def __init__(
+        self,
+        bot: RaiMusicBot,
+        session: GuildMusicSession,
+        track: Optional[QueuedTrack] = None,
+        recommended_query: Optional[str] = None,
+        reason: Optional[str] = None,
+        requester_id: Optional[int] = None,
+    ):
         super().__init__(timeout=60.0)
         self.bot = bot
         self.session = session
-        self.track = track
+        self.track = track or QueuedTrack(
+            title=recommended_query or "Neko Recommendation",
+            url="https://youtube.com",
+            duration=180,
+            requester_id=requester_id or 0,
+            requester_name="Neko DJ",
+        )
+
 
     @discord.ui.button(emoji="➕", label="Add to Queue", style=discord.ButtonStyle.primary, custom_id="neko_dj_add_queue")
     async def add_queue_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -73,9 +88,23 @@ class NekoDJService:
     """Intelligent queue assistant and track recommender."""
 
     @classmethod
+    async def recommend_next_track(cls, session: GuildMusicSession) -> Optional[dict[str, str]]:
+        """Inspect session and return recommendation query and reason."""
+        base_track = session.current_track
+        if not base_track and session.history:
+            base_track = session.history[-1]
+        if not base_track:
+            return None
+        artist = base_track.artist if base_track.artist != "Unknown Artist" else None
+        query = f"{artist} songs" if artist else f"{base_track.title} mix"
+        reason = f"Similar artist ({artist}) and musical style." if artist else "Similar musical style."
+        return {"query": query, "reason": reason}
+
+    @classmethod
     async def get_recommendation(
         cls, bot: RaiMusicBot, session: GuildMusicSession
     ) -> Optional[tuple[QueuedTrack, str]]:
+
         """
         Inspect session metadata and find a suitable next track that hasn't
         been played in the recent history window.

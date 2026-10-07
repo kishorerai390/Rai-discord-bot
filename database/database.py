@@ -2094,6 +2094,8 @@ class Database:
             (guild_id, user_id, name),
         )
         await self._db.commit()
+        return cursor.rowcount > 0
+
     async def run_retention_cleanup(
         self,
         command_metric_retention_days: int = 30,

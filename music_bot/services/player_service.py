@@ -450,3 +450,8 @@ class NowPlayingControlView(discord.ui.View):
         self.session.reset()
         await interaction.followup.send("⏹ Stopped music playback and disconnected. 🐾", ephemeral=True)
 
+
+# Module-level convenience function
+build_now_playing_embed = MusicPlayerService.build_now_playing_embed
+
+
