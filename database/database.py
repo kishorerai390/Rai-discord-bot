@@ -58,6 +58,7 @@ from database.models import (
     DynamicRoom,
     RoomMember,
     TempVoiceConfig,
+    ServerStatsConfig,
     RoomTemplate,
     RoomKnockRequest,
     AutopilotConfig,
@@ -1567,6 +1568,82 @@ class Database:
         sql = f"UPDATE temp_voice_configs SET {', '.join(set_clauses)} WHERE guild_id = ?"
         await self._db.execute(sql, params)
         await self._db.commit()
+
+    # ==========================================
+    # SERVER STATS COUNTER CONFIG
+    # ==========================================
+
+    async def get_or_create_server_stats_config(self, guild_id: int) -> ServerStatsConfig:
+        await self.get_or_create_guild_config(guild_id)
+        if not self._db:
+            return ServerStatsConfig(guild_id=guild_id)
+        async with self._db.execute(
+            "SELECT * FROM server_stats_config WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if not row:
+            now = utcnow_iso()
+            await self._db.execute(
+                """
+                INSERT OR IGNORE INTO server_stats_config (
+                    guild_id, enabled, category_id, all_members_channel_id,
+                    members_channel_id, bots_channel_id, updated_at
+                ) VALUES (?, 0, NULL, NULL, NULL, NULL, ?)
+                """,
+                (guild_id, now),
+            )
+            await self._db.commit()
+            return ServerStatsConfig(guild_id=guild_id, enabled=False, updated_at=now)
+
+        return ServerStatsConfig(
+            guild_id=row["guild_id"],
+            enabled=bool(row["enabled"]),
+            category_id=row["category_id"],
+            all_members_channel_id=row["all_members_channel_id"],
+            members_channel_id=row["members_channel_id"],
+            bots_channel_id=row["bots_channel_id"],
+            updated_at=row["updated_at"],
+        )
+
+    async def update_server_stats_config(
+        self,
+        guild_id: int,
+        enabled: Optional[int] = None,
+        category_id: Optional[int] = None,
+        all_members_channel_id: Optional[int] = None,
+        members_channel_id: Optional[int] = None,
+        bots_channel_id: Optional[int] = None,
+    ) -> None:
+        await self.get_or_create_server_stats_config(guild_id)
+        if not self._db:
+            return
+        fields = []
+        values = []
+        if enabled is not None:
+            fields.append("enabled = ?")
+            values.append(int(enabled))
+        if category_id is not None:
+            fields.append("category_id = ?")
+            values.append(category_id)
+        if all_members_channel_id is not None:
+            fields.append("all_members_channel_id = ?")
+            values.append(all_members_channel_id)
+        if members_channel_id is not None:
+            fields.append("members_channel_id = ?")
+            values.append(members_channel_id)
+        if bots_channel_id is not None:
+            fields.append("bots_channel_id = ?")
+            values.append(bots_channel_id)
+
+        fields.append("updated_at = ?")
+        values.append(utcnow_iso())
+        values.append(guild_id)
+
+        query = f"UPDATE server_stats_config SET {', '.join(fields)} WHERE guild_id = ?"
+        await self._db.execute(query, tuple(values))
+        await self._db.commit()
+
 
     # ==========================================
     # HIDDEN VOICE ROOMS

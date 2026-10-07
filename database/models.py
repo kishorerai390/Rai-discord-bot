@@ -754,6 +754,18 @@ class TempVoiceConfig:
 
 
 @dataclass
+class ServerStatsConfig:
+    """Guild-level configuration for automated server statistics voice counters."""
+    guild_id: int
+    enabled: bool = False
+    category_id: Optional[int] = None
+    all_members_channel_id: Optional[int] = None
+    members_channel_id: Optional[int] = None
+    bots_channel_id: Optional[int] = None
+    updated_at: str = ""
+
+
+@dataclass
 class DynamicRoom:
     """An active temporary voice room provisioned for a member."""
     guild_id: int
