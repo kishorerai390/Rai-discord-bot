@@ -346,6 +346,24 @@ def build_playlists_console_view() -> ui.View:
     return view
 
 
+class MusicRequestModal(ui.Modal, title="Request a Song"):
+    query = ui.TextInput(
+        label="Song Title, Artist, or URL",
+        placeholder="e.g. Blinding Lights, or YouTube / Spotify link",
+        required=True,
+        max_length=200,
+    )
+
+    def __init__(self, music_cog):
+        super().__init__()
+        self.music_cog = music_cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
+        await self.music_cog._handle_play(interaction, self.query.value.strip())
+
+
 # ==========================================
 # MASTER INTERACTION DISPATCHER
 # ==========================================
@@ -381,7 +399,6 @@ class MusicConsolesDispatcher:
 
         if action == "search":
             if music_cog:
-                from cogs.music import MusicRequestModal
                 await interaction.response.send_modal(MusicRequestModal(music_cog))
             else:
                 await interaction.response.send_message("❌ Music engine currently initializing.", ephemeral=True)
@@ -490,7 +507,10 @@ class MusicConsolesDispatcher:
         action = cid.split(":", 1)[1]
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not member or not member.voice or not member.voice.channel:
-            await interaction.response.send_message("❌ Please connect to a voice channel first to load playlists!", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ Please connect to a voice channel first to load playlists!", ephemeral=True)
+            else:
+                await interaction.followup.send("❌ Please connect to a voice channel first to load playlists!", ephemeral=True)
             return
 
         music_cog = bot.get_cog("Music")
@@ -503,13 +523,24 @@ class MusicConsolesDispatcher:
 
         if action in playlists:
             name, url = playlists[action]
-            await interaction.response.send_message(f"🎵 **Loading Playlist**: `{name}` into your room queue!", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"🎵 **Loading Playlist**: `{name}` into your room queue!", ephemeral=True)
+            else:
+                await interaction.followup.send(f"🎵 **Loading Playlist**: `{name}` into your room queue!", ephemeral=True)
             if music_cog:
                 await music_cog._handle_play(interaction, url)
         elif action == "import":
-            await interaction.response.send_message(
+            msg = (
                 "📥 **How to Import Your Playlist**:\n"
                 "Simply paste your Spotify, Apple Music, or YouTube playlist link directly in <#1555283396660428830>.\n"
-                "RAI will parse all tracks and automatically enqueue them in order!",
-                ephemeral=True,
+                "RAI will parse all tracks and automatically enqueue them in order!"
             )
+            if not interaction.response.is_done():
+                await interaction.response.send_message(msg, ephemeral=True)
+            else:
+                await interaction.followup.send(msg, ephemeral=True)
+
+
+# Backwards compatibility alias for central on_interaction router
+MusicConsolesManager = MusicConsolesDispatcher
+
