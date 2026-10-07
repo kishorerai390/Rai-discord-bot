@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
+import unicodedata
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import discord
@@ -24,6 +25,17 @@ if TYPE_CHECKING:
     from main import SentinelBot
 
 logger = logging.getLogger(__name__)
+
+# Small caps translation map for styled Discord channel/category names
+_SMALL_CAPS_MAP = str.maketrans("ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢ", "abcdefghijklmnopqrstuvwxyz")
+
+
+def normalize_channel_name(text: str) -> str:
+    """Normalizes Unicode mathematical, styled, and small caps fonts into plain lowercase ASCII."""
+    if not text:
+        return ""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return decomposed.translate(_SMALL_CAPS_MAP).lower()
 
 # Built-in room templates
 BUILTIN_TEMPLATES: Dict[str, Dict[str, Any]] = {
@@ -53,12 +65,23 @@ class DynamicVCControlManager:
         cls, guild: discord.Guild
     ) -> Tuple[discord.CategoryChannel, discord.VoiceChannel, discord.VoiceChannel, discord.TextChannel]:
         """Ensures the central category, trigger voice hubs, and room-control text channel exist."""
-        # 1. Locate or create category
+        # 1. Locate category
         category = None
         for cat in guild.categories:
-            if "DYNAMIC VOICE ROOMS" in cat.name.upper():
+            norm_cat = normalize_channel_name(cat.name)
+            if "dynamic voice" in norm_cat or "private voice" in norm_cat or "voice room" in norm_cat:
                 category = cat
                 break
+
+        if not category:
+            for cat in guild.categories:
+                for ch in cat.channels:
+                    n = normalize_channel_name(ch.name)
+                    if ("create" in n and "room" in n) or ("room" in n and "control" in n):
+                        category = cat
+                        break
+                if category:
+                    break
 
         if not category:
             category = await guild.create_category(
@@ -72,15 +95,16 @@ class DynamicVCControlManager:
         private_hub = None
         control_channel = None
 
-        for ch in category.channels:
+        search_channels = category.channels if category else guild.channels
+        for ch in search_channels:
+            norm_name = normalize_channel_name(ch.name)
             if isinstance(ch, discord.VoiceChannel):
-                name_upper = ch.name.upper()
-                if "CREATE YOUR ROOM" in name_upper:
+                if "create" in norm_name and "room" in norm_name and "private" not in norm_name:
                     public_hub = ch
-                elif "CREATE PRIVATE ROOM" in name_upper:
+                elif "private" in norm_name and "room" in norm_name:
                     private_hub = ch
             elif isinstance(ch, discord.TextChannel):
-                if "ROOM-CONTROL" in ch.name.upper():
+                if "room-control" in norm_name or ("room" in norm_name and "control" in norm_name):
                     control_channel = ch
 
         if not public_hub:

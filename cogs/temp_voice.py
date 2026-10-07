@@ -23,6 +23,7 @@ from utils.dynamic_vc_control import (
     BUILTIN_TEMPLATES,
     DynamicAdminEmergencyView,
     DynamicVCControlManager,
+    normalize_channel_name,
 )
 from utils.embeds import (
     create_embed,
@@ -208,21 +209,27 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         # 1. DETECT JOIN TO TRIGGER CHANNEL (CREATE ROOM)
         # -------------------------------------------------------------
         if after.channel and before.channel != after.channel:
-            ch_name = after.channel.name.upper()
-            is_public_trigger = (
-                (cfg.enabled and cfg.hub_channel_id and after.channel.id == cfg.hub_channel_id)
-                or "CREATE YOUR ROOM" in ch_name
-            )
-            is_private_trigger = "CREATE PRIVATE ROOM" in ch_name
-
-            if is_public_trigger or is_private_trigger:
-                await self._handle_trigger_join(
-                    member=member,
-                    trigger_channel=after.channel,
-                    is_private=is_private_trigger,
-                    cfg=cfg,
+            existing_room = await self.bot.db.get_dynamic_room(after.channel.id)
+            if not existing_room:
+                norm_name = normalize_channel_name(after.channel.name)
+                is_private_trigger = (
+                    ("private" in norm_name and "room" in norm_name)
+                    or (after.channel.id == 1554891386577485927)
                 )
-                return
+                is_public_trigger = not is_private_trigger and (
+                    (cfg.hub_channel_id and after.channel.id == cfg.hub_channel_id)
+                    or ("create" in norm_name and "room" in norm_name)
+                    or (after.channel.id == 1554891383117193307)
+                )
+
+                if is_public_trigger or is_private_trigger:
+                    await self._handle_trigger_join(
+                        member=member,
+                        trigger_channel=after.channel,
+                        is_private=is_private_trigger,
+                        cfg=cfg,
+                    )
+                    return
 
         # -------------------------------------------------------------
         # 2. OCCUPANCY UPDATES ON DYNAMIC ROOMS
