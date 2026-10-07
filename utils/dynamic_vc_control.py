@@ -167,13 +167,20 @@ class DynamicVCControlManager:
         except Exception:
             ts_str = "Just now"
 
+        owner_display = f"<@{room.owner_id}>"
+        if vc and vc.guild:
+            owner_member = vc.guild.get_member(room.owner_id)
+            if owner_member:
+                owner_display = f"{owner_member.display_name} (<@{room.owner_id}>)"
+
         embed = create_embed(
-            title=f"🎙️ {vc_name.upper()}",
+            title=f"🎙️ YOUR ROOM • {vc_name.upper()}",
             description=(
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"👑 **Owner:** <@{room.owner_id}>\n"
+                f"**{vc_name}**\n\n"
                 f"👥 **Members:** `{member_count} / {limit_str}`\n"
-                f"🔓 **Visibility:** {privacy_display}\n"
+                f"{privacy_display}\n"
+                f"👑 **Owner:** {owner_display}\n"
                 f"⚡ **Status:** {status_display}\n"
                 f"⏱️ **Created:** {ts_str}\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -202,11 +209,84 @@ class DynamicVCControlManager:
         return embed
 
     @classmethod
-    def build_panel_view(cls, voice_channel_id: int, has_music: bool = False) -> ui.View:
+    def build_hub_embed(cls) -> discord.Embed:
+        """Constructs the permanent Master Hub embed for ROOM-CONTROL."""
+        embed = create_embed(
+            title="🔧・ROOM-CONTROL",
+            description=(
+                "**➕ CREATE ROOM**\n"
+                "Create your own temporary voice room.\n\n"
+                "**🔒 PRIVATE ROOM**\n"
+                "Create a hidden private room.\n\n"
+                "────────────────────\n"
+                "Click a button below or join a trigger voice channel to spawn your room!"
+            ),
+            color=Colors.PRIMARY,
+        )
+        return embed
+
+    @classmethod
+    def build_hub_view(cls) -> ui.View:
+        """Constructs buttons for the permanent Master Hub in ROOM-CONTROL."""
+        view = ui.View(timeout=None)
+        view.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.primary,
+                label="CREATE ROOM",
+                emoji="➕",
+                custom_id="rai_vc_hub:create_public",
+                row=0,
+            )
+        )
+        view.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="PRIVATE ROOM",
+                emoji="🔒",
+                custom_id="rai_vc_hub:create_private",
+                row=0,
+            )
+        )
+        return view
+
+    @classmethod
+    def build_panel_view(
+        cls,
+        voice_channel_id: int,
+        has_music: bool = False,
+        locked: bool = False,
+    ) -> ui.View:
         """Builds interactive UI buttons strictly keyed to the target voice_channel_id."""
         view = ui.View(timeout=None)
 
-        # Row 0: Primary Customization & Privacy
+        # Row 0: Primary Management, Lock/Unlock, Invite, Rename
+        view.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Manage Room",
+                emoji="⚙️",
+                custom_id=f"rai_vc:manage:{voice_channel_id}",
+                row=0,
+            )
+        )
+        view.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.primary if locked else discord.ButtonStyle.secondary,
+                label="Unlock" if locked else "Lock",
+                emoji="🔓" if locked else "🔒",
+                custom_id=f"rai_vc:lock_toggle:{voice_channel_id}",
+                row=0,
+            )
+        )
+        view.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Invite",
+                emoji="👥",
+                custom_id=f"rai_vc:invite:{voice_channel_id}",
+                row=0,
+            )
+        )
         view.add_item(
             ui.Button(
                 style=discord.ButtonStyle.secondary,
@@ -216,50 +296,23 @@ class DynamicVCControlManager:
                 row=0,
             )
         )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Privacy",
-                emoji="🔐",
-                custom_id=f"rai_vc:privacy:{voice_channel_id}",
-                row=0,
-            )
-        )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Members",
-                emoji="👥",
-                custom_id=f"rai_vc:members:{voice_channel_id}",
-                row=0,
-            )
-        )
+
+        # Row 1: User Limit, DJ, Co-Host, Delete Room
         view.add_item(
             ui.Button(
                 style=discord.ButtonStyle.secondary,
                 label="User Limit",
-                emoji="🔢",
+                emoji="👤",
                 custom_id=f"rai_vc:limit:{voice_channel_id}",
-                row=0,
+                row=1,
             )
         )
         view.add_item(
             ui.Button(
                 style=discord.ButtonStyle.secondary,
-                label="Customize",
-                emoji="🎨",
-                custom_id=f"rai_vc:customize:{voice_channel_id}",
-                row=0,
-            )
-        )
-
-        # Row 1: Moderation, Delegation & Ownership
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Transfer",
-                emoji="👑",
-                custom_id=f"rai_vc:transfer:{voice_channel_id}",
+                label="DJ",
+                emoji="🎵",
+                custom_id=f"rai_vc:dj:{voice_channel_id}",
                 row=1,
             )
         )
@@ -274,24 +327,6 @@ class DynamicVCControlManager:
         )
         view.add_item(
             ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="DJ",
-                emoji="🎧",
-                custom_id=f"rai_vc:dj:{voice_channel_id}",
-                row=1,
-            )
-        )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Clear",
-                emoji="🧹",
-                custom_id=f"rai_vc:clear:{voice_channel_id}",
-                row=1,
-            )
-        )
-        view.add_item(
-            ui.Button(
                 style=discord.ButtonStyle.danger,
                 label="Delete Room",
                 emoji="🗑️",
@@ -300,52 +335,44 @@ class DynamicVCControlManager:
             )
         )
 
-        # Row 2: Music controls & Disconnect
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.primary,
-                label="Play",
-                emoji="▶️",
-                custom_id=f"rai_vc:music_play:{voice_channel_id}",
-                row=2,
+        # Row 2: Optional Music Controls if active or requested
+        if has_music:
+            view.add_item(
+                ui.Button(
+                    style=discord.ButtonStyle.primary,
+                    label="Play",
+                    emoji="▶️",
+                    custom_id=f"rai_vc:music_play:{voice_channel_id}",
+                    row=2,
+                )
             )
-        )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Pause",
-                emoji="⏸️",
-                custom_id=f"rai_vc:music_pause:{voice_channel_id}",
-                row=2,
+            view.add_item(
+                ui.Button(
+                    style=discord.ButtonStyle.secondary,
+                    label="Pause",
+                    emoji="⏸️",
+                    custom_id=f"rai_vc:music_pause:{voice_channel_id}",
+                    row=2,
+                )
             )
-        )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Skip",
-                emoji="⏭️",
-                custom_id=f"rai_vc:music_skip:{voice_channel_id}",
-                row=2,
+            view.add_item(
+                ui.Button(
+                    style=discord.ButtonStyle.secondary,
+                    label="Skip",
+                    emoji="⏭️",
+                    custom_id=f"rai_vc:music_skip:{voice_channel_id}",
+                    row=2,
+                )
             )
-        )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Queue",
-                emoji="📋",
-                custom_id=f"rai_vc:music_queue:{voice_channel_id}",
-                row=2,
+            view.add_item(
+                ui.Button(
+                    style=discord.ButtonStyle.secondary,
+                    label="Queue",
+                    emoji="📋",
+                    custom_id=f"rai_vc:music_queue:{voice_channel_id}",
+                    row=2,
+                )
             )
-        )
-        view.add_item(
-            ui.Button(
-                style=discord.ButtonStyle.secondary,
-                label="Disconnect",
-                emoji="🚪",
-                custom_id=f"rai_vc:disconnect:{voice_channel_id}",
-                row=2,
-            )
-        )
 
         return view
 
