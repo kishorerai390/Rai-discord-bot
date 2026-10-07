@@ -561,7 +561,6 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             color=Colors.SUCCESS,
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @tempvoice_group.command(name="setup", description="Configure Join-to-Create temporary voice hub")
     @is_admin_or_owner()
