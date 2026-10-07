@@ -782,7 +782,7 @@ class DynamicVCControlManager:
                         await interaction.response.send_message("⏸️ Paused music playback.", ephemeral=True)
                     await cls.update_room_panel(bot, interaction.guild, vc.id)
                     return True
-            await interaction.response.send_message("🎵 No active music session in this voice room. Use `/music play` from **Rai Music Bot**.", ephemeral=True)
+            await interaction.response.send_message("🎵 No active music session connected to this voice room.", ephemeral=True)
             return True
 
         elif action == "music_skip":
@@ -794,7 +794,7 @@ class DynamicVCControlManager:
                     await interaction.response.send_message("⏭️ Skipped current track.", ephemeral=True)
                     await cls.update_room_panel(bot, interaction.guild, vc.id)
                     return True
-            await interaction.response.send_message("🎵 No active music session in this voice room. Use `/music skip` from **Rai Music Bot**.", ephemeral=True)
+            await interaction.response.send_message("🎵 No active music session connected to this voice room.", ephemeral=True)
             return True
 
         elif action == "music_queue":
@@ -817,7 +817,7 @@ class DynamicVCControlManager:
                         ephemeral=True,
                     )
                     return True
-            await interaction.response.send_message("🎵 No active music queue in this voice room. Use `/music queue` from **Rai Music Bot**.", ephemeral=True)
+            await interaction.response.send_message("🎵 No active music session connected to this voice room.", ephemeral=True)
             return True
 
         return False
