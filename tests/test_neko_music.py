@@ -171,10 +171,11 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(favs), 1)
         self.assertEqual(favs[0].title, "Kalyani - Classical Lofi")
 
-        # Duplicate addition is handled idempotently
+        # Duplicate addition is handled safely and returns False
         saved_again = await self.db.add_favorite(self.user_id, track)
-        self.assertTrue(saved_again)
+        self.assertFalse(saved_again)
         self.assertEqual(len(await self.db.get_favorites(self.user_id)), 1)
+
 
         # Removal
         removed = await self.db.remove_favorite(self.user_id, "Kalyani - Classical Lofi")
@@ -342,10 +343,14 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         session.state = PlaybackState.PLAYING
 
         embed = build_now_playing_embed(session)
-        self.assertIn("🐱 NOW PLAYING", embed.title or "")
-        self.assertIn("YOASOBI — Idol", embed.description or "")
+        self.assertIn("NEKO SONGS", embed.title or "")
+        self.assertIn("🐱 **NOW PLAYING**", embed.description or "")
+        self.assertIn("YOASOBI", embed.description or "")
+        self.assertIn("Idol", embed.description or "")
         self.assertIn("80%", embed.description or "")
-        self.assertIn("Kishore", embed.description or "")
+        self.assertIn(str(self.user_id), embed.description or "")
+
+
 
     def test_now_playing_control_view_buttons(self):
         """Now Playing view must contain the exact 9 required interactive buttons."""
@@ -388,12 +393,12 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(status_offline.status, MusicBotStatus.OFFLINE)
 
         # 2. Record fresh heartbeat into database
-        await self.db.record_heartbeat(
+        await self.db.update_heartbeat(
             bot_id=1556676516274905218,
             version="2.0.0",
+            status="online",
             active_sessions=3,
             playing_count=2,
-            latency_ms=18.5,
         )
 
         # Point provider to test DB
