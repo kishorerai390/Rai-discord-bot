@@ -525,7 +525,7 @@ class DynamicVCControlManager:
             except Exception:
                 member = interaction.user
 
-        cog = bot.cogs.get("TempVoice")
+        cog = bot.cogs.get("TempVoice") or bot.cogs.get("TempVoiceCog")
         if not cog:
             msg = "❌ Dynamic voice system is currently initializing. Please try again in a moment."
             if not interaction.response.is_done():
@@ -702,58 +702,6 @@ class DynamicVCControlManager:
             return await cls._dispatch_template_action(bot, interaction, room, vc, action)
 
         return False
-
-    @classmethod
-    async def _dispatch_hub_action(
-        cls,
-        bot: SentinelBot,
-        interaction: discord.Interaction,
-        action: str,
-    ) -> bool:
-        """Handles permanent Master Hub interactions (Create Room / Private Room)."""
-        guild = interaction.guild
-        member = interaction.user
-        if not guild or not isinstance(member, discord.Member):
-            return False
-
-        temp_cog = bot.cogs.get("TempVoiceCog")
-        if not temp_cog:
-            await interaction.response.send_message(
-                "❌ Dynamic voice service is currently unavailable.", ephemeral=True
-            )
-            return True
-
-        is_private = (action == "create_private")
-        existing = await bot.db.get_dynamic_room_by_owner(guild.id, member.id)
-        if existing and existing.status != "deleted":
-            vc = guild.get_channel(existing.voice_channel_id)
-            if isinstance(vc, discord.VoiceChannel):
-                await interaction.response.send_message(
-                    f"⚠️ You already own an active voice room: {vc.mention} (`{vc.name}`).",
-                    ephemeral=True,
-                )
-                return True
-
-        await interaction.response.defer(ephemeral=True)
-        try:
-            created_vc = await temp_cog.create_room_for_member(member, is_private=is_private)
-            if created_vc:
-                await interaction.followup.send(
-                    f"🎉 Your {'private' if is_private else 'temporary'} voice room {created_vc.mention} has been created!\n"
-                    f"Join {created_vc.mention} now.",
-                    ephemeral=True,
-                )
-            else:
-                await interaction.followup.send(
-                    "❌ Could not create voice room. Please try again or join a trigger voice channel.",
-                    ephemeral=True,
-                )
-        except Exception as e:
-            logger.error(f"Error handling hub room creation: {e}")
-            await interaction.followup.send(
-                f"❌ Error creating room: {e}", ephemeral=True
-            )
-        return True
 
     @classmethod
     async def _dispatch_main_action(

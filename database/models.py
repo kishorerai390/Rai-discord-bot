@@ -596,6 +596,10 @@ class AutopilotAction:
     details: Optional[str] = None
     created_at: str = ""
 
+    @property
+    def action_id(self) -> str:
+        return self.id
+
 
 @dataclass
 class SecurityBaseline:

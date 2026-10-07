@@ -739,22 +739,83 @@ class Database:
         target_type: Optional[str] = None,
         details: Optional[str] = None,
     ) -> str:
-        action_id = f"auto_{uuid.uuid4().hex[:10]}"
+        action_id = f"AP-{uuid.uuid4().hex[:8].upper()}"
         now_str = utcnow_iso()
-        await self._db.execute(
-            """
-            INSERT INTO autopilot_actions (
-                id, guild_id, module, trigger, reason, risk_level,
-                action, result, target_id, target_type, details, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                action_id, guild_id, module, trigger, reason, risk_level,
-                action, result, target_id, target_type, details, now_str
-            )
-        )
+        if not self._db:
+            return action_id
+
+        async with self._db.execute("PRAGMA table_info(autopilot_actions)") as cursor:
+            cols = {row[1] for row in await cursor.fetchall()}
+
+        col_names = []
+        vals = []
+        if "action_id" in cols:
+            col_names.append("action_id")
+            vals.append(action_id)
+        if "id" in cols:
+            col_names.append("id")
+            vals.append(action_id)
+
+        col_names.extend(["guild_id", "module", "trigger", "reason", "risk_level", "action", "result"])
+        vals.extend([guild_id, module, trigger, reason, risk_level, action, result])
+
+        if "target_id" in cols:
+            col_names.append("target_id")
+            vals.append(target_id)
+        if "target_type" in cols:
+            col_names.append("target_type")
+            vals.append(target_type)
+        if "details" in cols:
+            col_names.append("details")
+            vals.append(details)
+
+        if "timestamp" in cols:
+            col_names.append("timestamp")
+            vals.append(now_str)
+        if "created_at" in cols:
+            col_names.append("created_at")
+            vals.append(now_str)
+
+        placeholders = ", ".join("?" for _ in col_names)
+        sql = f"INSERT INTO autopilot_actions ({', '.join(col_names)}) VALUES ({placeholders})"
+        await self._db.execute(sql, tuple(vals))
         await self._db.commit()
         return action_id
+
+    async def get_recent_autopilot_actions(self, guild_id: int, limit: int = 10) -> List[AutopilotAction]:
+        """Fetch recent autopilot actions for a guild."""
+        if not self._db:
+            return []
+        async with self._db.execute("PRAGMA table_info(autopilot_actions)") as cursor:
+            cols = {row[1] for row in await cursor.fetchall()}
+        order_col = "timestamp" if "timestamp" in cols else "created_at"
+        async with self._db.execute(
+            f"SELECT * FROM autopilot_actions WHERE guild_id = ? ORDER BY {order_col} DESC LIMIT ?",
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            results = []
+            for r in rows:
+                row_dict = dict(r)
+                act_id = row_dict.get("id") or row_dict.get("action_id") or ""
+                c_at = row_dict.get("created_at") or row_dict.get("timestamp") or ""
+                results.append(
+                    AutopilotAction(
+                        id=act_id,
+                        guild_id=row_dict["guild_id"],
+                        module=row_dict["module"],
+                        trigger=row_dict["trigger"],
+                        reason=row_dict["reason"],
+                        risk_level=row_dict["risk_level"],
+                        action=row_dict["action"],
+                        result=row_dict["result"],
+                        target_id=row_dict.get("target_id"),
+                        target_type=row_dict.get("target_type"),
+                        details=row_dict.get("details"),
+                        created_at=c_at,
+                    )
+                )
+            return results
 
 
     # ==========================================

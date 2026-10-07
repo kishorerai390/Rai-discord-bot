@@ -410,6 +410,11 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 except Exception as e:
                     logger.warning(f"Could not move {member} to existing room: {e}")
                     return existing_vc
+            else:
+                try:
+                    await self.bot.db.delete_dynamic_room(existing.voice_channel_id)
+                except Exception:
+                    pass
 
         # 2. Determine target category
         category = None
