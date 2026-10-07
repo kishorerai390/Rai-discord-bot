@@ -745,7 +745,7 @@ class ChannelAccessState:
 class TempVoiceConfig:
     """Guild-level configuration for the dynamic/temporary voice room system."""
     guild_id: int
-    enabled: bool = True
+    enabled: bool = False
     hub_channel_id: Optional[int] = None
     category_id: Optional[int] = None
     default_user_limit: int = 0

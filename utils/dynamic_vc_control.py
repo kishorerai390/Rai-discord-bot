@@ -481,7 +481,14 @@ class DynamicVCControlManager:
             return False
 
         prefix = parts[0]
-        action = parts[1]
+        action = parts[1] if len(parts) > 1 else ""
+
+        # 0. MASTER HUB GATEWAY
+        if prefix == "rai_vc_hub":
+            return await cls._dispatch_hub_action(bot, interaction, action)
+
+        if len(parts) < 3:
+            return False
 
         # 1. KNOCK/WAITING ROOM GATEWAY
         if prefix == "rai_vc_knock":
@@ -532,8 +539,8 @@ class DynamicVCControlManager:
         is_cohost = interaction.user.id in (room.co_host_ids or [])
         is_dj = interaction.user.id in (room.dj_ids or [])
 
-        owner_admin_only_actions = {"rename", "privacy", "limit", "customize", "transfer", "delete", "cohost", "dj"}
-        cohost_allowed_actions = {"members", "mute", "disconnect", "clear", "invite", "remove"}
+        owner_admin_only_actions = {"rename", "privacy", "limit", "customize", "transfer", "delete", "cohost", "dj", "lock_toggle", "manage"}
+        cohost_allowed_actions = {"members", "mute", "disconnect", "clear", "invite", "remove", "lock_toggle", "manage"}
         dj_allowed_actions = {"music_play", "music_pause", "music_toggle", "music_skip", "music_queue"}
 
         if action in owner_admin_only_actions:
@@ -578,6 +585,58 @@ class DynamicVCControlManager:
         return False
 
     @classmethod
+    async def _dispatch_hub_action(
+        cls,
+        bot: SentinelBot,
+        interaction: discord.Interaction,
+        action: str,
+    ) -> bool:
+        """Handles permanent Master Hub interactions (Create Room / Private Room)."""
+        guild = interaction.guild
+        member = interaction.user
+        if not guild or not isinstance(member, discord.Member):
+            return False
+
+        temp_cog = bot.cogs.get("TempVoiceCog")
+        if not temp_cog:
+            await interaction.response.send_message(
+                "❌ Dynamic voice service is currently unavailable.", ephemeral=True
+            )
+            return True
+
+        is_private = (action == "create_private")
+        existing = await bot.db.get_dynamic_room_by_owner(guild.id, member.id)
+        if existing and existing.status != "deleted":
+            vc = guild.get_channel(existing.voice_channel_id)
+            if isinstance(vc, discord.VoiceChannel):
+                await interaction.response.send_message(
+                    f"⚠️ You already own an active voice room: {vc.mention} (`{vc.name}`).",
+                    ephemeral=True,
+                )
+                return True
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            created_vc = await temp_cog.create_room_for_member(member, is_private=is_private)
+            if created_vc:
+                await interaction.followup.send(
+                    f"🎉 Your {'private' if is_private else 'temporary'} voice room {created_vc.mention} has been created!\n"
+                    f"Join {created_vc.mention} now.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    "❌ Could not create voice room. Please try again or join a trigger voice channel.",
+                    ephemeral=True,
+                )
+        except Exception as e:
+            logger.error(f"Error handling hub room creation: {e}")
+            await interaction.followup.send(
+                f"❌ Error creating room: {e}", ephemeral=True
+            )
+        return True
+
+    @classmethod
     async def _dispatch_main_action(
         cls,
         bot: SentinelBot,
@@ -587,8 +646,74 @@ class DynamicVCControlManager:
         action: str,
     ) -> bool:
         """Executes the specific control panel action requested by the room owner."""
+        guild = interaction.guild or vc.guild
+
+        # 0. MANAGE ROOM -> Management Center View
+        if action == "manage":
+            view = DynamicManageView(vc.id)
+            await interaction.response.send_message(
+                embed=create_embed(
+                    title=f"⚙️ Manage Room — {vc.name}",
+                    description=(
+                        f"Advanced customization & moderation options for **{vc.name}**:\n\n"
+                        f"• 🔐 **Privacy** — Switch between Public, Locked, Invite-Only & Owner-Only\n"
+                        f"• 🎨 **Templates** — Apply instant themes (Gaming, Chill, Music, etc.)\n"
+                        f"• 👑 **Transfer Owner** — Hand ownership to another occupant\n"
+                        f"• 🔇 **Voice Moderation** — Mute or deafen members\n"
+                        f"• 🚪 **Disconnect** — Disconnect a member\n"
+                        f"• 🧹 **Clear Room** — Disconnect all other members"
+                    ),
+                    color=Colors.PRIMARY,
+                ),
+                view=view,
+                ephemeral=True,
+            )
+            return True
+
+        # 0.1 LOCK TOGGLE -> Direct Lock / Unlock
+        elif action == "lock_toggle":
+            new_locked = not room.locked
+            room.locked = new_locked
+            new_mode = "locked" if new_locked else "public"
+            room.privacy_mode = new_mode
+
+            if guild:
+                try:
+                    overwrite = vc.overwrites_for(guild.default_role)
+                    overwrite.connect = False if new_locked else None
+                    await vc.set_permissions(
+                        guild.default_role,
+                        overwrite=overwrite,
+                        reason=f"Rai Dynamic VC: {'Locked' if new_locked else 'Unlocked'} by {interaction.user}",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to update VC permissions for lock_toggle: {e}")
+
+            await bot.db.update_dynamic_room(vc.id, locked=new_locked, privacy_mode=new_mode)
+            await bot.db.record_room_event(vc.id, "lock" if new_locked else "unlock", interaction.user.id)
+            if guild:
+                await cls.update_room_panel(bot, guild, vc.id)
+
+            status_msg = f"🔒 **{vc.name}** is now locked. New members cannot join." if new_locked else f"🔓 **{vc.name}** is now unlocked. Public members can join."
+            await interaction.response.send_message(status_msg, ephemeral=True)
+            return True
+
+        # 0.2 INVITE -> Instant Friend Selector View
+        elif action == "invite":
+            view = DynamicInviteView(vc)
+            await interaction.response.send_message(
+                embed=create_embed(
+                    title=f"👥 Invite Friends — {vc.name}",
+                    description="Select a member from the server below to grant them instant view & join access:",
+                    color=Colors.PRIMARY,
+                ),
+                view=view,
+                ephemeral=True,
+            )
+            return True
+
         # 1. RENAME -> Modal
-        if action == "rename":
+        elif action == "rename":
             await interaction.response.send_modal(DynamicRenameModal(vc.id, room.owner_id))
             return True
 
@@ -1585,6 +1710,120 @@ class DynamicMembersView(ui.View):
             )
         except Exception as e:
             await interaction.response.send_message(f"❌ Failed to invite member: {e}", ephemeral=True)
+
+
+class DynamicInviteView(ui.View):
+    """View to select a friend and grant instant access to a private or locked room."""
+
+    def __init__(self, vc: discord.VoiceChannel):
+        super().__init__(timeout=120)
+        self.vc = vc
+
+        user_select = ui.UserSelect(
+            placeholder="Select a friend to invite to this room...",
+            min_values=1,
+            max_values=1,
+            custom_id=f"rai_vc_invite_sel:{vc.id}",
+        )
+        user_select.callback = self._invite_callback
+        self.add_item(user_select)
+
+    async def _invite_callback(self, interaction: discord.Interaction):
+        bot: SentinelBot = interaction.client  # type: ignore
+        guild = interaction.guild
+        selected_user = interaction.data["values"][0]  # type: ignore
+        member = guild.get_member(int(selected_user)) if guild else None
+
+        if not member:
+            await interaction.response.send_message("❌ Member not found in server.", ephemeral=True)
+            return
+
+        try:
+            await self.vc.set_permissions(member, view_channel=True, connect=True)
+            await bot.db.add_room_member(self.vc.id, member.id, permission_type="invited")
+            await interaction.response.send_message(
+                embed=success_embed(
+                    "Member Invited",
+                    f"👥 Granted access to {member.mention}. They can now view and join **{self.vc.name}**.",
+                ),
+                ephemeral=True,
+            )
+            OwnerReporter.send_room_report(
+                bot,
+                guild.id if guild else 0,
+                event="Room Member Invited",
+                user=interaction.user,
+                action_taken=f"Granted voice room access to **{member.display_name}**",
+                details={"Voice Channel": f"`{self.vc.name}`", "Invited User ID": f"`{member.id}`"},
+            )
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Failed to invite member: {e}", ephemeral=True)
+
+
+class DynamicManageView(ui.View):
+    """Ephemeral room management center for advanced customization & moderation."""
+
+    def __init__(self, voice_channel_id: int):
+        super().__init__(timeout=120)
+        self.voice_channel_id = voice_channel_id
+
+        # Row 0: Privacy, Templates, Transfer
+        self.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Privacy",
+                emoji="🔐",
+                custom_id=f"rai_vc:privacy:{voice_channel_id}",
+                row=0,
+            )
+        )
+        self.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Templates",
+                emoji="🎨",
+                custom_id=f"rai_vc:customize:{voice_channel_id}",
+                row=0,
+            )
+        )
+        self.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Transfer Owner",
+                emoji="👑",
+                custom_id=f"rai_vc:transfer:{voice_channel_id}",
+                row=0,
+            )
+        )
+
+        # Row 1: Moderation
+        self.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Voice Moderation",
+                emoji="🔇",
+                custom_id=f"rai_vc:mute:{voice_channel_id}",
+                row=1,
+            )
+        )
+        self.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Disconnect",
+                emoji="🚪",
+                custom_id=f"rai_vc:disconnect:{voice_channel_id}",
+                row=1,
+            )
+        )
+        self.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Clear Room",
+                emoji="🧹",
+                custom_id=f"rai_vc:clear:{voice_channel_id}",
+                row=1,
+            )
+        )
 
 
 class DynamicTransferSelectView(ui.View):

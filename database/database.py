@@ -379,6 +379,22 @@ class Database:
     async def get_all_temp_voice_channels(self, guild_id: Optional[int] = None) -> List[DynamicRoom]:
         return await self.get_all_dynamic_rooms(guild_id)
 
+    async def create_temp_voice_channel(self, channel_id: int, guild_id: int, owner_id: int) -> None:
+        now_str = utcnow_iso()
+        room = DynamicRoom(
+            guild_id=guild_id,
+            voice_channel_id=channel_id,
+            owner_id=owner_id,
+            room_type="public",
+            privacy_mode="public",
+            created_at=now_str,
+            status="active",
+        )
+        await self.create_dynamic_room(room)
+
+    async def get_temp_voice_channel(self, channel_id: int) -> Optional[DynamicRoom]:
+        return await self.get_dynamic_room(channel_id)
+
     async def delete_temp_voice_channel(self, channel_id: int) -> None:
         await self.delete_dynamic_room(channel_id)
 
@@ -1520,7 +1536,7 @@ class Database:
                 INSERT OR IGNORE INTO temp_voice_configs (
                     guild_id, enabled, hub_channel_id, category_id, default_user_limit,
                     name_format, updated_at
-                ) VALUES (?, 1, NULL, NULL, 0, '🎙️ {username}''s Room', ?)
+                ) VALUES (?, 0, NULL, NULL, 0, '🎙️ {username}''s Room', ?)
                 """,
                 (guild_id, now),
             )

@@ -363,6 +363,19 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 pass
             return
 
+        await self.create_room_for_member(member, is_private=is_private, trigger_channel=after.channel)
+
+    async def create_room_for_member(
+        self,
+        member: discord.Member,
+        is_private: bool = False,
+        trigger_channel: Optional[discord.VoiceChannel] = None,
+    ) -> Optional[discord.VoiceChannel]:
+        """Creates a temporary dynamic voice room for member, sets permissions, and posts control panel."""
+        guild = member.guild
+        cfg = await self.bot.db.get_temp_voice_config(guild.id)
+        now_ts = asyncio.get_event_loop().time()
+
         # 1. Check if user already owns an active room
         existing = await self.bot.db.get_dynamic_room_by_owner(guild.id, member.id)
         if existing and existing.status != "deleted":
@@ -371,15 +384,16 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 try:
                     await member.move_to(existing_vc, reason="Rai Dynamic VC: Moved to existing owned room")
                     logger.info(f"Moved {member} to their existing room #{existing_vc.name}")
-                    return
+                    return existing_vc
                 except Exception as e:
                     logger.warning(f"Could not move {member} to existing room: {e}")
+                    return existing_vc
 
         # 2. Determine target category
         category = None
         if cfg.category_id:
             category = guild.get_channel(cfg.category_id)
-        elif trigger_channel.category:
+        elif trigger_channel and trigger_channel.category:
             category = trigger_channel.category
 
         # 3. Configure permissions and initial metadata
@@ -428,7 +442,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             self._creation_cooldowns[member.id] = now_ts
         except Exception as e:
             logger.error(f"Failed to create temporary voice channel on Discord: {e}")
-            return
+            return None
 
         # 5. Persist to Database
         now_str = utcnow_iso()
@@ -445,11 +459,12 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         )
         await self.bot.db.create_dynamic_room(dyn_room)
 
-        # 6. Move Creator to their new Room
-        try:
-            await member.move_to(temp_vc, reason="Rai Dynamic VC: Moved owner into created room")
-        except Exception as e:
-            logger.warning(f"Failed to move {member} to new voice room {temp_vc.id}: {e}")
+        # 6. Move Creator to their new Room if in voice
+        if member.voice and member.voice.channel:
+            try:
+                await member.move_to(temp_vc, reason="Rai Dynamic VC: Moved owner into created room")
+            except Exception as e:
+                logger.warning(f"Failed to move {member} to new voice room {temp_vc.id}: {e}")
 
         # 7. Post Control Panel in 🛠️・ROOM-CONTROL
         msg = await DynamicVCControlManager.create_room_panel(self.bot, guild, dyn_room, temp_vc)
@@ -490,7 +505,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         except Exception:
             pass
 
-        # 10. Native Voice Channel Text Chat Welcome (Phase 13)
+        # 10. Native Voice Channel Text Chat Welcome
         try:
             vc_chat_welcome = create_embed(
                 title=f"🎙️ Welcome to {temp_vc.name}!",
@@ -505,6 +520,8 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             await temp_vc.send(embed=vc_chat_welcome)
         except Exception:
             pass
+
+        return temp_vc
 
     # ==========================================
     # SLASH COMMANDS
@@ -524,6 +541,14 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             category_id=cat.id,
         )
 
+        # Deploy Master Hub in ROOM-CONTROL
+        try:
+            hub_embed = DynamicVCControlManager.build_hub_embed()
+            hub_view = DynamicVCControlManager.build_hub_view()
+            await ctrl_ch.send(embed=hub_embed, view=hub_view)
+        except Exception as e:
+            logger.warning(f"Failed to post Master Hub in ROOM-CONTROL: {e}")
+
         embed = create_embed(
             title="🔊 Dynamic Voice System Deployed",
             description=(
@@ -535,6 +560,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             ),
             color=Colors.SUCCESS,
         )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @tempvoice_group.command(name="setup", description="Configure Join-to-Create temporary voice hub")
