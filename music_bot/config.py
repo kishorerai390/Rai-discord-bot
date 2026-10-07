@@ -37,6 +37,7 @@ DIALOGUE_JOIN: str = "🐱 Neko has entered the listening room!"
 DIALOGUE_START: str = "🎵 Found it! Let's listen."
 DIALOGUE_EMPTY_QUEUE: str = "🐾 The queue is empty. Give Neko another song?"
 DIALOGUE_UNPLAYABLE: str = "😿 I found the request, but couldn't resolve a playable audio source."
+DIALOGUE_NOTHING_PLAYABLE: str = DIALOGUE_UNPLAYABLE
 DIALOGUE_UNAVAILABLE: str = "🐱 Neko's music source is temporarily unavailable. Please try again later."
 DIALOGUE_PLAYBACK_END: str = "🎶 That was a good one!"
 

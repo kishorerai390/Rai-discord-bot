@@ -101,12 +101,12 @@ class RaiMusicBotProvider(MusicGatewayProvider):
     """
 
     DEFAULT_BOT_ID = 1556676516274905218
-    DEFAULT_BOT_NAME = "Rai Music"
+    DEFAULT_BOT_NAME = "Neko Songs"
 
     def __init__(self, db_path: Optional[Path] = None, bot_id: Optional[int] = None):
         base_dir = Path(__file__).resolve().parent.parent
         self.db_path = db_path or (base_dir / "data" / "music.db")
-        self.bot_id = bot_id or int(os.getenv("MUSIC_BOT_ID", str(self.DEFAULT_BOT_ID)))
+        self.bot_id = bot_id or int(os.getenv("NEKO_SONGS_BOT_ID", os.getenv("MUSIC_BOT_ID", str(self.DEFAULT_BOT_ID))))
 
     async def is_installed(self, guild: discord.Guild) -> bool:
         """Check if Music Bot member is currently in the guild."""
@@ -286,3 +286,8 @@ class MusicGateway:
     @classmethod
     async def stop(cls, guild_id: int) -> GatewayResult:
         return await cls._provider.stop(guild_id)
+
+
+# Backward-compatibility & Brand alias
+NekoSongsBotProvider = RaiMusicBotProvider
+

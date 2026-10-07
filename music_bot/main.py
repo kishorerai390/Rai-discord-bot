@@ -40,48 +40,48 @@ logging.basicConfig(
         logging.FileHandler(MUSIC_LOGS_DIR / "music.log", encoding="utf-8"),
     ],
 )
-logger = logging.getLogger("RaiMusic")
+logger = logging.getLogger("NekoSongs")
 
-from music_bot.bot import RaiMusicBot
+from music_bot.bot import NekoSongsBot
 
 
 def main():
-    print("=" * 55)
-    print("             RAI MUSIC DISCORD BOT               ")
-    print("         Independent Audio Architecture          ")
-    print("=" * 55)
+    print("=" * 60)
+    print("           🐱 NEKO SONGS — DISCORD MUSIC BOT            ")
+    print("     Cute, Futuristic & Independent Audio Companion      ")
+    print("=" * 60)
 
     if not is_music_token_valid():
-        print("\n[ERROR] MUSIC_BOT_TOKEN is missing or invalid in your .env file!")
+        print("\n[ERROR] NEKO_SONGS_BOT_TOKEN is missing or unconfigured!")
         print(f"Current Token State: {get_masked_music_token()}")
-        print("\nTo start the music bot:")
-        print("1. Set MUSIC_BOT_TOKEN in .env")
-        print("2. Ensure Voice & Message Content intents are enabled.")
-        print("3. Rerun: python music_main.py\n")
+        print("\nTo start Neko Songs:")
+        print("1. Set NEKO_SONGS_BOT_TOKEN=<your_token> in .env (or MUSIC_BOT_TOKEN)")
+        print("2. Ensure Voice and Message Content intents are enabled.")
+        print("3. Rerun: npm run start:neko  OR  python music_main.py\n")
         sys.exit(2)
 
-    # Acquire instance lock for music bot
+    # Acquire instance lock for Neko Songs bot
     from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError
-    lock_file = Path(__file__).resolve().parent.parent / ".music_bot.lock"
+    lock_file = Path(__file__).resolve().parent.parent / ".neko_songs.lock"
     lock = SingleInstanceLock(lock_file=lock_file)
     try:
         lock.acquire()
     except InstanceAlreadyRunningError as e:
         print(f"\n[WARNING] {e}")
-        print("Startup aborted to prevent duplicate Music Bot instances.\n")
+        print("Startup aborted to prevent duplicate Neko Songs instances.\n")
         sys.exit(0)
 
-    bot = RaiMusicBot()
+    bot = NekoSongsBot()
 
     try:
         bot.run(MUSIC_BOT_TOKEN, log_handler=None)
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received. Stopping Rai Music Bot.")
+        logger.info("🐾 Keyboard interrupt received. Stopping Neko Songs.")
     except Exception as e:
         if "LoginFailure" in type(e).__name__:
-            print("\n[ERROR] Discord rejected MUSIC_BOT_TOKEN! Please check your credentials.")
+            print("\n[ERROR] Discord rejected the bot token! Please verify NEKO_SONGS_BOT_TOKEN.")
             sys.exit(2)
-        logger.critical(f"Critical music bot failure: {e}", exc_info=True)
+        logger.critical(f"Critical Neko Songs failure: {e}", exc_info=True)
         sys.exit(1)
     finally:
         lock.release()
