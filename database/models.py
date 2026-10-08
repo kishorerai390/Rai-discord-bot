@@ -1032,6 +1032,18 @@ class WorkflowStep:
 
 
 @dataclass
+class WorkflowEvent:
+    """An event log entry emitted during workflow processing."""
+    id: str
+    workflow_id: str
+    execution_id: str
+    guild_id: int
+    event_type: str
+    payload: Dict[str, Any] = field(default_factory=dict)
+    created_at: str = ""
+
+
+@dataclass
 class WorkflowExecution:
     """A single recorded execution run of a Workflow."""
     id: str

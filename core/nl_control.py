@@ -22,6 +22,7 @@ import logging
 import re
 import string
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
@@ -44,6 +45,9 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 class NLIntent(str, Enum):
+    # Workflow Pipelines & Automation
+    WORKFLOW_CREATE = "WORKFLOW_CREATE"
+
     # Disaster Recovery & Backups
     BACKUP_CREATE = "BACKUP_CREATE"
     BACKUP_LIST = "BACKUP_LIST"
@@ -777,6 +781,8 @@ class NLActionDispatcher:
                 return await cls._execute_simulate_lockdown(bot, guild, user, session)
             elif intent == NLIntent.SIMULATE_RECOVERY:
                 return await cls._execute_simulate_recovery(bot, guild, user, session)
+            elif intent == NLIntent.WORKFLOW_CREATE:
+                return await cls._execute_workflow_create(bot, guild, user, session, task.entities.get("query", task.raw_segment))
             else:
                 return DispatchResult(
                     success=False,
@@ -799,9 +805,103 @@ class NLActionDispatcher:
                 ),
             )
 
+class WorkflowPreviewView(ui.View):
+    def __init__(self, bot: SentinelBot, guild: discord.Guild, user: discord.Member, wf: Any, steps: List[Any]):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild = guild
+        self.user = user
+        self.wf = wf
+        self.steps = steps
+
+        self.activate_btn = ui.Button(label="Activate", style=discord.ButtonStyle.success, emoji="▶️")
+        self.activate_btn.callback = self._on_activate
+        self.add_item(self.activate_btn)
+
+    async def _on_activate(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            return
+        await self.bot.db.create_workflow(self.wf)
+        for st in self.steps:
+            await self.bot.db.add_workflow_step(st)
+        if hasattr(interaction, "response") and not interaction.response.is_done():
+            await interaction.response.edit_message(
+                embed=success_embed("Workflow Activated", f"Pipeline **{self.wf.name}** is now ACTIVE."),
+                view=None,
+            )
+        elif hasattr(interaction, "followup"):
+            await interaction.followup.send(
+                embed=success_embed("Workflow Activated", f"Pipeline **{self.wf.name}** is now ACTIVE."),
+                ephemeral=True,
+            )
+
+
     # -------------------------------------------------------------------------
     # Subsystem Implementations (Invoking Existing Services)
     # -------------------------------------------------------------------------
+
+    @classmethod
+    async def _execute_workflow_create(
+        cls,
+        bot: SentinelBot,
+        guild: discord.Guild,
+        user: discord.Member,
+        session: NLSessionContext,
+        query: str,
+    ) -> DispatchResult:
+        wf_id = f"wf_{uuid.uuid4().hex[:8]}"
+        q_low = (query or "").lower()
+        if "sunday" in q_low or "weekly" in q_low:
+            trigger_type = "weekly"
+        elif "daily" in q_low:
+            trigger_type = "daily"
+        else:
+            trigger_type = "schedule"
+
+        from database.models import Workflow, WorkflowStep
+        wf = Workflow(
+            id=wf_id,
+            guild_id=guild.id,
+            creator_id=user.id,
+            name="Automated Server Workflow",
+            description=query,
+            status="ACTIVE",
+            trigger_type=trigger_type,
+            trigger_config={"day": "sunday", "query": query},
+        )
+        steps = []
+        step_order = 1
+        if "backup" in q_low:
+            steps.append(WorkflowStep(id=f"st_{uuid.uuid4().hex[:6]}", workflow_id=wf_id, step_order=step_order, action_type="backup.create", risk_level="LOW"))
+            step_order += 1
+        if "health" in q_low:
+            steps.append(WorkflowStep(id=f"st_{uuid.uuid4().hex[:6]}", workflow_id=wf_id, step_order=step_order, action_type="health.check", risk_level="LOW"))
+            step_order += 1
+        if "report" in q_low:
+            steps.append(WorkflowStep(id=f"st_{uuid.uuid4().hex[:6]}", workflow_id=wf_id, step_order=step_order, action_type="report.send", risk_level="LOW"))
+            step_order += 1
+
+        if not steps:
+            steps.append(WorkflowStep(id=f"st_{uuid.uuid4().hex[:6]}", workflow_id=wf_id, step_order=1, action_type="health.check", risk_level="LOW"))
+
+        view = WorkflowPreviewView(bot, guild, user, wf, steps)
+        embed = discord.Embed(
+            title="✦ RAI WORKFLOW PREVIEW ✦",
+            description=f"Generated automated workflow for server **{guild.name}**.\n\n"
+                        f"**Trigger:** `{trigger_type.upper()}`\n"
+                        f"**Planned Steps:** `{len(steps)} actions`",
+            color=Colors.PRIMARY,
+        )
+        for st in steps:
+            embed.add_field(name=f"Step {st.step_order}", value=f"`{st.action_type}`", inline=True)
+
+        return DispatchResult(
+            success=True,
+            title="Workflow Preview",
+            message="Workflow generated from natural language query.",
+            embed=embed,
+            confirmation_payload={"view": view, "workflow": wf, "steps": steps},
+        )
 
     @classmethod
     async def _execute_backup_create(

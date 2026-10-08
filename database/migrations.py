@@ -1222,6 +1222,154 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             ON music_playlists(guild_id, user_id);
             """
         ]
+    ),
+    (
+        42,
+        "Add workflows, bot_shield_audits, server_memory, and conversation_context tables",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS workflows (
+                id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                creator_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                trigger_type TEXT NOT NULL DEFAULT 'manual',
+                trigger_config TEXT NOT NULL DEFAULT '{}',
+                missed_schedule_policy TEXT NOT NULL DEFAULT 'SKIP',
+                version INTEGER NOT NULL DEFAULT 1,
+                last_run_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_workflows_guild ON workflows(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS workflow_steps (
+                id TEXT PRIMARY KEY,
+                workflow_id TEXT NOT NULL,
+                step_order INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                action_config TEXT NOT NULL DEFAULT '{}',
+                condition_config TEXT NOT NULL DEFAULT '{}',
+                risk_level TEXT NOT NULL DEFAULT 'LOW',
+                failure_policy TEXT NOT NULL DEFAULT 'STOP',
+                timeout_seconds INTEGER NOT NULL DEFAULT 60,
+                retry_policy TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_workflow_steps_wf ON workflow_steps(workflow_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS workflow_executions (
+                id TEXT PRIMARY KEY,
+                workflow_id TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
+                trigger_event TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'RUNNING',
+                current_step_order INTEGER NOT NULL DEFAULT 1,
+                step_results TEXT NOT NULL DEFAULT '[]',
+                error TEXT,
+                started_at TEXT NOT NULL,
+                completed_at TEXT,
+                FOREIGN KEY (workflow_id) REFERENCES workflows(id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_workflow_executions_guild ON workflow_executions(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS workflow_step_executions (
+                id TEXT PRIMARY KEY,
+                execution_id TEXT NOT NULL,
+                workflow_id TEXT NOT NULL,
+                step_order INTEGER NOT NULL,
+                action_type TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                result_data TEXT,
+                error TEXT,
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                executed_at TEXT NOT NULL,
+                FOREIGN KEY (execution_id) REFERENCES workflow_executions(id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS workflow_waiting_timers (
+                id TEXT PRIMARY KEY,
+                execution_id TEXT NOT NULL,
+                workflow_id TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
+                resume_at TEXT NOT NULL,
+                next_step_order INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'WAITING',
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_workflow_waiting_timers_due ON workflow_waiting_timers(resume_at, status);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS workflow_events (
+                id TEXT PRIMARY KEY,
+                workflow_id TEXT NOT NULL,
+                execution_id TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                payload TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS bot_shield_audits (
+                audit_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                bot_id INTEGER NOT NULL,
+                bot_name TEXT NOT NULL,
+                risk_level TEXT NOT NULL,
+                dangerous_permissions TEXT NOT NULL,
+                is_isolated INTEGER NOT NULL DEFAULT 0,
+                isolated_at TEXT,
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_bot_shield_audits_guild ON bot_shield_audits(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS server_memory (
+                guild_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'general',
+                created_by INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(guild_id, key)
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_server_memory_guild ON server_memory(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS conversation_context (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                session_id TEXT NOT NULL,
+                key TEXT NOT NULL,
+                val TEXT NOT NULL,
+                expires_at REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY(guild_id, user_id, channel_id, key)
+            );
+            """
+        ]
     )
 ]
 

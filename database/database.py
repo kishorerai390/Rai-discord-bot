@@ -71,6 +71,13 @@ from database.models import (
     ChannelAccessConfig,
     ChannelAccessState,
     VerificationConfig,
+    BotShieldAuditRecord,
+    Workflow,
+    WorkflowStep,
+    WorkflowExecution,
+    WorkflowStepExecution,
+    WorkflowWaitingTimer,
+    WorkflowEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -736,35 +743,55 @@ class Database:
                 return sb
         now_str = utcnow_iso()
         sb = SecurityBaseline(guild_id=guild_id, updated_at=now_str)
-        sb.sample_count = 0
-        sb.avg_joins_per_hour = 0.0
-        sb.avg_messages_per_min = 0.0
+        sb.sample_count = 1
+        sb.avg_joins_per_hour = 2.0
+        sb.avg_messages_per_min = 10.0
         await self._db.execute(
             """
             INSERT INTO security_baselines (
                 guild_id, joins_per_hour, messages_per_min, voice_users,
                 sample_count, avg_joins_per_hour, avg_messages_per_min, updated_at
-            ) VALUES (?, 0.0, 0.0, 0.0, 0, 0.0, 0.0, ?)
+            ) VALUES (?, 2.0, 10.0, 0.0, 1, 2.0, 10.0, ?)
             """,
             (guild_id, now_str)
         )
         await self._db.commit()
         return sb
 
-    async def update_security_baseline(self, guild_id: int, **kwargs: Any) -> None:
+    async def update_security_baseline(self, guild_id: int, **kwargs: Any) -> bool:
         if not kwargs:
-            return
-        fields = []
-        values = []
-        for k, v in kwargs.items():
-            fields.append(f"{k} = ?")
-            values.append(v)
-        fields.append("updated_at = ?")
-        values.append(utcnow_iso())
-        values.append(guild_id)
-        query = f"UPDATE security_baselines SET {', '.join(fields)} WHERE guild_id = ?"
-        await self._db.execute(query, tuple(values))
+            return False
+        sb = await self.get_or_create_security_baseline(guild_id)
+        current_samples = getattr(sb, "sample_count", 1) or 1
+        new_samples = current_samples + 1
+
+        joins = kwargs.get("joins_per_hour")
+        msgs = kwargs.get("messages_per_min")
+        voice = kwargs.get("voice_users")
+
+        cur_avg_joins = getattr(sb, "avg_joins_per_hour", 2.0) or 2.0
+        cur_avg_msgs = getattr(sb, "avg_messages_per_min", 10.0) or 10.0
+
+        new_avg_joins = (cur_avg_joins * current_samples + (joins if joins is not None else cur_avg_joins)) / new_samples
+        new_avg_msgs = (cur_avg_msgs * current_samples + (msgs if msgs is not None else cur_avg_msgs)) / new_samples
+
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            UPDATE security_baselines
+            SET sample_count = ?,
+                avg_joins_per_hour = ?,
+                avg_messages_per_min = ?,
+                joins_per_hour = COALESCE(?, joins_per_hour),
+                messages_per_min = COALESCE(?, messages_per_min),
+                voice_users = COALESCE(?, voice_users),
+                updated_at = ?
+            WHERE guild_id = ?
+            """,
+            (new_samples, new_avg_joins, new_avg_msgs, joins, msgs, voice, now_str, guild_id),
+        )
         await self._db.commit()
+        return True
 
     async def log_autopilot_action(
         self,
@@ -5961,5 +5988,619 @@ class Database:
             (guild_id, user_id, account_age_hours, now),
         )
         await self._db.commit()
+
+    # ==========================================
+    # BOT PRIVILEGE SHIELD
+    # ==========================================
+
+    async def record_bot_shield_audit(self, record: BotShieldAuditRecord) -> None:
+        """Persist third-party bot least-privilege shield isolation event."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO bot_shield_audits (
+                audit_id, guild_id, bot_id, bot_name, risk_level,
+                dangerous_permissions, is_isolated, isolated_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record.audit_id,
+                record.guild_id,
+                record.bot_id,
+                record.bot_name,
+                record.risk_level,
+                record.dangerous_permissions,
+                int(record.is_isolated),
+                record.isolated_at,
+                record.created_at or now,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_bot_shield_audits(self, guild_id: int) -> List[BotShieldAuditRecord]:
+        """Fetch all bot shield audit records for a guild."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM bot_shield_audits WHERE guild_id = ? ORDER BY created_at DESC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                BotShieldAuditRecord(
+                    audit_id=r["audit_id"],
+                    guild_id=r["guild_id"],
+                    bot_id=r["bot_id"],
+                    bot_name=r["bot_name"],
+                    risk_level=r["risk_level"],
+                    dangerous_permissions=r["dangerous_permissions"],
+                    is_isolated=bool(r["is_isolated"]),
+                    isolated_at=r["isolated_at"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    # ==========================================
+    # SERVER MEMORY & CONVERSATION CONTEXT
+    # ==========================================
+
+    async def set_server_memory(
+        self, guild_id: int, key: str, value: str, category: str = "general", created_by: int = 0
+    ) -> None:
+        """Store persistent server memory entry."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO server_memory (
+                guild_id, key, value, category, created_by, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, key.strip().lower(), value.strip(), category.strip().lower(), created_by, now, now),
+        )
+        await self._db.commit()
+
+    async def get_server_memory(self, guild_id: int, key: str) -> Optional[Dict[str, Any]]:
+        """Retrieve persistent server memory entry."""
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM server_memory WHERE guild_id = ? AND key = ?",
+            (guild_id, key.strip().lower()),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "guild_id": row["guild_id"],
+                    "key": row["key"],
+                    "value": row["value"],
+                    "category": row["category"],
+                    "created_by": row["created_by"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+            return None
+
+    async def delete_server_memory(self, guild_id: int, key: str) -> bool:
+        """Delete persistent server memory entry."""
+        if not self._db:
+            return False
+        cursor = await self._db.execute(
+            "DELETE FROM server_memory WHERE guild_id = ? AND key = ?",
+            (guild_id, key.strip().lower()),
+        )
+        await self._db.commit()
+        return (cursor.rowcount or 0) > 0
+
+    async def list_server_memory(
+        self, guild_id: int, category: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """List server memory entries for a guild."""
+        if not self._db:
+            return []
+        if category:
+            query = "SELECT * FROM server_memory WHERE guild_id = ? AND category = ? ORDER BY key ASC"
+            params = (guild_id, category.strip().lower())
+        else:
+            query = "SELECT * FROM server_memory WHERE guild_id = ? ORDER BY key ASC"
+            params = (guild_id,)
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "guild_id": r["guild_id"],
+                    "key": r["key"],
+                    "value": r["value"],
+                    "category": r["category"],
+                    "created_by": r["created_by"],
+                    "created_at": r["created_at"],
+                    "updated_at": r["updated_at"],
+                }
+                for r in rows
+            ]
+
+    async def set_conversation_context(
+        self,
+        guild_id: int,
+        user_id: int,
+        channel_id: int,
+        session_id: str,
+        key: str,
+        val: str,
+        ttl_seconds: float = 1800.0,
+    ) -> None:
+        """Save temporary conversation context with an expiration TTL."""
+        if not self._db:
+            return
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        expires_at = now_ts + ttl_seconds
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO conversation_context (
+                guild_id, user_id, channel_id, session_id, key, val, expires_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, user_id, channel_id, session_id, key.strip().lower(), val.strip(), expires_at, now_str),
+        )
+        await self._db.commit()
+
+    async def get_conversation_context(
+        self, guild_id: int, user_id: int, channel_id: int, key: str
+    ) -> Optional[str]:
+        """Retrieve active conversation context if not expired."""
+        if not self._db:
+            return None
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        async with self._db.execute(
+            """
+            SELECT val FROM conversation_context
+            WHERE guild_id = ? AND user_id = ? AND channel_id = ? AND key = ? AND expires_at > ?
+            """,
+            (guild_id, user_id, channel_id, key.strip().lower(), now_ts),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row["val"] if row else None
+
+    async def sweep_conversation_context(self) -> int:
+        """Remove expired temporary session contexts."""
+        if not self._db:
+            return 0
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        cursor = await self._db.execute(
+            "DELETE FROM conversation_context WHERE expires_at <= ?",
+            (now_ts,),
+        )
+        await self._db.commit()
+        return cursor.rowcount or 0
+
+    # ==========================================
+    # LOCKDOWN STATUS & CONTROLS
+    # ==========================================
+
+    async def is_lockdown_active(self, guild_id: int) -> bool:
+        """Returns True if lockdown mode is actively enabled for the guild."""
+        sec_state = await self.get_security_state(guild_id)
+        return bool(sec_state.lockdown_enabled)
+
+    async def set_lockdown_active(self, guild_id: int, enabled: bool, changed_by: Optional[int] = None) -> None:
+        """Enables or disables lockdown mode for the guild."""
+        now = utcnow_iso()
+        await self.get_or_create_guild_config(guild_id)
+        await self._db.execute(
+            """
+            UPDATE security_state
+            SET lockdown_enabled = ?,
+                lockdown_started_at = CASE WHEN ? = 1 THEN ? ELSE NULL END,
+                changed_by = ?,
+                updated_at = ?
+            WHERE guild_id = ?
+            """,
+            (int(enabled), int(enabled), now, changed_by, now, guild_id),
+        )
+        await self._db.commit()
+
+    # ==========================================
+    # WORKFLOW ENGINE SUBSYSTEM
+    # ==========================================
+
+    async def create_workflow(self, wf: Workflow) -> Workflow:
+        """Persist a new Workflow pipeline."""
+        if not self._db:
+            return wf
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO workflows (
+                id, guild_id, creator_id, name, description, status,
+                trigger_type, trigger_config, missed_schedule_policy,
+                version, last_run_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                wf.id,
+                wf.guild_id,
+                wf.creator_id,
+                wf.name,
+                wf.description,
+                wf.status,
+                wf.trigger_type,
+                json.dumps(wf.trigger_config or {}),
+                wf.missed_schedule_policy,
+                wf.version,
+                wf.last_run_at,
+                wf.created_at or now,
+                wf.updated_at or now,
+            ),
+        )
+        await self._db.commit()
+        return wf
+
+    async def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
+        """Fetch a workflow by its unique ID."""
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM workflows WHERE id = ?", (workflow_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return Workflow(
+                id=row["id"],
+                guild_id=row["guild_id"],
+                creator_id=row["creator_id"],
+                name=row["name"],
+                description=row["description"],
+                status=row["status"],
+                trigger_type=row["trigger_type"],
+                trigger_config=json.loads(row["trigger_config"]) if row["trigger_config"] else {},
+                missed_schedule_policy=row["missed_schedule_policy"],
+                version=row["version"],
+                last_run_at=row["last_run_at"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+
+    async def list_workflows(self, guild_id: int) -> List[Workflow]:
+        """List all workflows configured for a guild."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM workflows WHERE guild_id = ? ORDER BY created_at DESC", (guild_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                Workflow(
+                    id=r["id"],
+                    guild_id=r["guild_id"],
+                    creator_id=r["creator_id"],
+                    name=r["name"],
+                    description=r["description"],
+                    status=r["status"],
+                    trigger_type=r["trigger_type"],
+                    trigger_config=json.loads(r["trigger_config"]) if r["trigger_config"] else {},
+                    missed_schedule_policy=r["missed_schedule_policy"],
+                    version=r["version"],
+                    last_run_at=r["last_run_at"],
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                )
+                for r in rows
+            ]
+
+    async def list_all_active_workflows(self) -> List[Workflow]:
+        """List all active workflows across all guilds."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM workflows WHERE status = 'ACTIVE' ORDER BY created_at ASC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                Workflow(
+                    id=r["id"],
+                    guild_id=r["guild_id"],
+                    creator_id=r["creator_id"],
+                    name=r["name"],
+                    description=r["description"],
+                    status=r["status"],
+                    trigger_type=r["trigger_type"],
+                    trigger_config=json.loads(r["trigger_config"]) if r["trigger_config"] else {},
+                    missed_schedule_policy=r["missed_schedule_policy"],
+                    version=r["version"],
+                    last_run_at=r["last_run_at"],
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                )
+                for r in rows
+            ]
+
+    async def update_workflow_status(self, workflow_id: str, status: str) -> None:
+        """Update workflow execution status (ACTIVE / PAUSED / DISABLED)."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            "UPDATE workflows SET status = ?, updated_at = ? WHERE id = ?",
+            (status, now, workflow_id),
+        )
+        await self._db.commit()
+
+    async def update_workflow_last_run(self, workflow_id: str, last_run_at: str) -> None:
+        """Record the timestamp of a completed workflow execution."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            "UPDATE workflows SET last_run_at = ?, updated_at = ? WHERE id = ?",
+            (last_run_at, now, workflow_id),
+        )
+        await self._db.commit()
+
+    async def delete_workflow(self, workflow_id: str) -> None:
+        """Permanently delete a workflow."""
+        if not self._db:
+            return
+        await self._db.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
+        await self._db.commit()
+
+    async def add_workflow_step(self, step: WorkflowStep) -> WorkflowStep:
+        """Add an execution step to a workflow."""
+        if not self._db:
+            return step
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO workflow_steps (
+                id, workflow_id, step_order, action_type, action_config,
+                condition_config, risk_level, failure_policy, timeout_seconds,
+                retry_policy, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                step.id,
+                step.workflow_id,
+                step.step_order,
+                step.action_type,
+                json.dumps(step.action_config or {}),
+                json.dumps(step.condition_config or {}),
+                step.risk_level,
+                step.failure_policy,
+                step.timeout_seconds,
+                json.dumps(step.retry_policy or {}),
+                step.created_at or now,
+            ),
+        )
+        await self._db.commit()
+        return step
+
+    async def get_workflow_steps(self, workflow_id: str) -> List[WorkflowStep]:
+        """Fetch all steps for a workflow sorted by step_order."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM workflow_steps WHERE workflow_id = ? ORDER BY step_order ASC",
+            (workflow_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                WorkflowStep(
+                    id=r["id"],
+                    workflow_id=r["workflow_id"],
+                    step_order=r["step_order"],
+                    action_type=r["action_type"],
+                    action_config=json.loads(r["action_config"]) if r["action_config"] else {},
+                    condition_config=json.loads(r["condition_config"]) if r["condition_config"] else {},
+                    risk_level=r["risk_level"],
+                    failure_policy=r["failure_policy"],
+                    timeout_seconds=r["timeout_seconds"],
+                    retry_policy=json.loads(r["retry_policy"]) if r["retry_policy"] else {},
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def delete_workflow_steps(self, workflow_id: str) -> None:
+        """Delete all steps belonging to a workflow."""
+        if not self._db:
+            return
+        await self._db.execute("DELETE FROM workflow_steps WHERE workflow_id = ?", (workflow_id,))
+        await self._db.commit()
+
+    async def create_workflow_execution(self, exec_rec: WorkflowExecution) -> WorkflowExecution:
+        """Record the start of a workflow execution run."""
+        if not self._db:
+            return exec_rec
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO workflow_executions (
+                id, workflow_id, guild_id, trigger_event, status,
+                current_step_order, step_results, error, started_at, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                exec_rec.id,
+                exec_rec.workflow_id,
+                exec_rec.guild_id,
+                exec_rec.trigger_event,
+                exec_rec.status,
+                exec_rec.current_step_order,
+                json.dumps(exec_rec.step_results or []),
+                exec_rec.error,
+                exec_rec.started_at or now,
+                exec_rec.completed_at,
+            ),
+        )
+        await self._db.commit()
+        return exec_rec
+
+    async def update_workflow_execution(self, exec_rec: WorkflowExecution) -> None:
+        """Update execution run state and result payload."""
+        if not self._db:
+            return
+        await self._db.execute(
+            """
+            UPDATE workflow_executions
+            SET status = ?, current_step_order = ?, step_results = ?, error = ?, completed_at = ?
+            WHERE id = ?
+            """,
+            (
+                exec_rec.status,
+                exec_rec.current_step_order,
+                json.dumps(exec_rec.step_results or []),
+                exec_rec.error,
+                exec_rec.completed_at,
+                exec_rec.id,
+            ),
+        )
+        await self._db.commit()
+
+    async def list_workflow_executions(self, workflow_id: str, limit: int = 10) -> List[WorkflowExecution]:
+        """Fetch recent execution runs for a workflow."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM workflow_executions WHERE workflow_id = ? ORDER BY started_at DESC LIMIT ?",
+            (workflow_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                WorkflowExecution(
+                    id=r["id"],
+                    workflow_id=r["workflow_id"],
+                    guild_id=r["guild_id"],
+                    trigger_event=r["trigger_event"],
+                    status=r["status"],
+                    current_step_order=r["current_step_order"],
+                    step_results=json.loads(r["step_results"]) if r["step_results"] else [],
+                    error=r["error"],
+                    started_at=r["started_at"],
+                    completed_at=r["completed_at"],
+                )
+                for r in rows
+            ]
+
+    async def create_workflow_step_execution(self, step_exec: WorkflowStepExecution) -> None:
+        """Record the execution outcome of an individual workflow step."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO workflow_step_executions (
+                id, execution_id, workflow_id, step_order, action_type,
+                status, result_data, error, duration_ms, executed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                step_exec.id,
+                step_exec.execution_id,
+                step_exec.workflow_id,
+                step_exec.step_order,
+                step_exec.action_type,
+                step_exec.status,
+                step_exec.result_data,
+                step_exec.error,
+                step_exec.duration_ms,
+                step_exec.executed_at or now,
+            ),
+        )
+        await self._db.commit()
+
+    async def create_waiting_timer(self, timer: WorkflowWaitingTimer) -> None:
+        """Create a persistent delay timer for suspended workflow execution."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO workflow_waiting_timers (
+                id, execution_id, workflow_id, guild_id, resume_at, next_step_order, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                timer.id,
+                timer.execution_id,
+                timer.workflow_id,
+                timer.guild_id,
+                timer.resume_at,
+                timer.next_step_order,
+                timer.status,
+                timer.created_at or now,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_due_waiting_timers(self, now_iso: Optional[str] = None) -> List[WorkflowWaitingTimer]:
+        """Fetch all waiting timers whose resume_at has passed and are in WAITING status."""
+        if not self._db:
+            return []
+        cutoff = now_iso or utcnow_iso()
+        async with self._db.execute(
+            "SELECT * FROM workflow_waiting_timers WHERE status = 'WAITING' AND resume_at <= ?",
+            (cutoff,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                WorkflowWaitingTimer(
+                    id=r["id"],
+                    execution_id=r["execution_id"],
+                    workflow_id=r["workflow_id"],
+                    guild_id=r["guild_id"],
+                    resume_at=r["resume_at"],
+                    next_step_order=r["next_step_order"],
+                    status=r["status"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def update_waiting_timer_status(self, timer_id: str, status: str) -> None:
+        """Update timer state (COMPLETED / CANCELLED)."""
+        if not self._db:
+            return
+        await self._db.execute(
+            "UPDATE workflow_waiting_timers SET status = ? WHERE id = ?",
+            (status, timer_id),
+        )
+        await self._db.commit()
+
+    async def record_workflow_event(
+        self,
+        event_id: str,
+        workflow_id: str,
+        execution_id: str,
+        guild_id: int,
+        event_type: str,
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Record an event log entry for workflow auditing."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO workflow_events (
+                id, workflow_id, execution_id, guild_id, event_type, payload, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                workflow_id,
+                execution_id,
+                guild_id,
+                event_type,
+                json.dumps(payload or {}),
+                now,
+            ),
+        )
+        await self._db.commit()
+
 
 
