@@ -1370,6 +1370,76 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """
         ]
+    ),
+    (
+        43,
+        "Premium Monetization Subsystem (products, entitlements, feature rules, events)",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS premium_products (
+                sku_id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                scope TEXT NOT NULL,
+                sku_type INTEGER DEFAULT 5,
+                price_cents INTEGER DEFAULT 0,
+                is_active INTEGER DEFAULT 1,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS premium_entitlements (
+                entitlement_id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                guild_id INTEGER,
+                sku_id INTEGER NOT NULL,
+                scope TEXT NOT NULL,
+                status TEXT NOT NULL,
+                starts_at TEXT,
+                ends_at TEXT,
+                is_test INTEGER DEFAULT 0,
+                consumed INTEGER DEFAULT 0,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_prem_ent_user ON premium_entitlements(user_id, status);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_prem_ent_guild ON premium_entitlements(guild_id, status);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_prem_ent_expiry ON premium_entitlements(ends_at, status);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS premium_feature_rules (
+                feature_key TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                scope_required TEXT NOT NULL DEFAULT 'any',
+                is_enabled INTEGER DEFAULT 1,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS premium_events (
+                id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                entitlement_id INTEGER,
+                user_id INTEGER,
+                guild_id INTEGER,
+                sku_id INTEGER,
+                details TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_prem_events_user ON premium_events(user_id);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_prem_events_guild ON premium_events(guild_id);
+            """
+        ]
     )
 ]
 

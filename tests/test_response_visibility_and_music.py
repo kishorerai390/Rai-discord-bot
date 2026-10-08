@@ -56,9 +56,9 @@ class TestResponseVisibilityAndMusic(unittest.IsolatedAsyncioTestCase):
             "stop", "music", "backup", "security", "room", "config", "help"
         ]
 
-        for cmd_name in test_commands:
+        for idx, cmd_name in enumerate(test_commands):
             interaction = MagicMock(spec=discord.Interaction)
-            interaction.id = 12345
+            interaction.id = 12345 + idx
             interaction.response = MagicMock()
             interaction.response.is_done.return_value = False
             interaction.response.defer = AsyncMock()

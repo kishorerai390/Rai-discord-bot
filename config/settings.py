@@ -88,6 +88,7 @@ for directory in (DATA_DIR, BACKUPS_DIR, LOGS_DIR, CACHE_DIR, TRANSCRIPTS_DIR, T
 # Discord Embed Color Palette (Hex)
 class Colors:
     PRIMARY = 0x5865F2    # Blurple
+    SECONDARY = 0x2B2D31  # Dark Charcoal
     SUCCESS = 0x57F287    # Green
     WARNING = 0xFEE75C    # Yellow
     ERROR = 0xED4245      # Red

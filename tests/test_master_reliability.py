@@ -245,7 +245,7 @@ class TestMasterReliability(unittest.IsolatedAsyncioTestCase):
         mock_bot.tree.get_commands.return_value = [MagicMock()] * 10
 
         diagnostics = await RaiDoctor.diagnose_all(mock_bot)
-        self.assertEqual(len(diagnostics), 13)
+        self.assertEqual(len(diagnostics), 14)
 
         names = [d.name for d in diagnostics]
         self.assertIn("Core", names)

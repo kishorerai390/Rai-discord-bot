@@ -57,6 +57,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Rai.WorkflowCog")
 
 
+def is_admin_or_owner(user: Any) -> bool:
+    """Check if user has Administrator, Manage Guild, or Founder/Owner status."""
+    if getattr(user, "guild_permissions", None):
+        perms = user.guild_permissions
+        if getattr(perms, "administrator", False) or getattr(perms, "manage_guild", False):
+            return True
+    return is_founder_or_owner(user)
+
+
 # =============================================================================
 # STEP BUILDER MODAL — inline JSON config for step creation
 # =============================================================================

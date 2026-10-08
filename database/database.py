@@ -6266,13 +6266,17 @@ class Database:
                 updated_at=row["updated_at"],
             )
 
-    async def list_workflows(self, guild_id: int) -> List[Workflow]:
-        """List all workflows configured for a guild."""
+    async def list_workflows(self, guild_id: int, status: Optional[str] = None) -> List[Workflow]:
+        """List all workflows configured for a guild, optionally filtered by status."""
         if not self._db:
             return []
-        async with self._db.execute(
-            "SELECT * FROM workflows WHERE guild_id = ? ORDER BY created_at DESC", (guild_id,)
-        ) as cursor:
+        if status:
+            query = "SELECT * FROM workflows WHERE guild_id = ? AND status = ? ORDER BY created_at DESC"
+            params: tuple = (guild_id, status)
+        else:
+            query = "SELECT * FROM workflows WHERE guild_id = ? ORDER BY created_at DESC"
+            params = (guild_id,)
+        async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [
                 Workflow(
@@ -6320,16 +6324,17 @@ class Database:
                 for r in rows
             ]
 
-    async def update_workflow_status(self, workflow_id: str, status: str) -> None:
+    async def update_workflow_status(self, workflow_id: str, status: str) -> bool:
         """Update workflow execution status (ACTIVE / PAUSED / DISABLED)."""
         if not self._db:
-            return
+            return False
         now = utcnow_iso()
-        await self._db.execute(
+        cur = await self._db.execute(
             "UPDATE workflows SET status = ?, updated_at = ? WHERE id = ?",
             (status, now, workflow_id),
         )
         await self._db.commit()
+        return (cur.rowcount or 0) > 0
 
     async def update_workflow_last_run(self, workflow_id: str, last_run_at: Optional[str] = None) -> None:
         """Record the timestamp of a completed workflow execution."""
@@ -6343,12 +6348,13 @@ class Database:
         )
         await self._db.commit()
 
-    async def delete_workflow(self, workflow_id: str) -> None:
+    async def delete_workflow(self, workflow_id: str) -> bool:
         """Permanently delete a workflow."""
         if not self._db:
-            return
-        await self._db.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
+            return False
+        cur = await self._db.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
         await self._db.commit()
+        return (cur.rowcount or 0) > 0
 
     async def add_workflow_step(self, step: WorkflowStep) -> WorkflowStep:
         """Add an execution step to a workflow."""
@@ -6624,6 +6630,53 @@ class Database:
             (status, timer_id),
         )
         await self._db.commit()
+
+    async def cancel_waiting_timers_for_workflow(self, workflow_id: str) -> None:
+        """Cancel all pending waiting timers for a specific workflow."""
+        if not self._db:
+            return
+        await self._db.execute(
+            "UPDATE workflow_waiting_timers SET status = 'CANCELLED' WHERE workflow_id = ? AND status = 'WAITING'",
+            (workflow_id,),
+        )
+        await self._db.commit()
+
+    async def list_step_executions(self, execution_id: str) -> List[WorkflowStepExecution]:
+        """Fetch all step execution records for a workflow execution."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM workflow_step_executions WHERE execution_id = ? ORDER BY step_order ASC",
+            (execution_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            results = []
+            for r in rows:
+                raw_res = r["result_data"]
+                res_json = {}
+                if raw_res:
+                    try:
+                        res_json = json.loads(raw_res)
+                    except Exception:
+                        res_json = {"raw": raw_res}
+                results.append(
+                    WorkflowStepExecution(
+                        id=r["id"],
+                        execution_id=r["execution_id"],
+                        workflow_id=r["workflow_id"],
+                        step_order=r["step_order"],
+                        action_type=r["action_type"],
+                        status=r["status"],
+                        step_id=r["action_type"] or r["id"],
+                        result_data=raw_res,
+                        result_json=res_json,
+                        error=r["error"],
+                        duration_ms=r["duration_ms"],
+                        executed_at=r["executed_at"],
+                        started_at=r["executed_at"],
+                    )
+                )
+            return results
 
     async def record_workflow_event(
         self,
