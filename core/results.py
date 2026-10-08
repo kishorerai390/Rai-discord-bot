@@ -146,6 +146,16 @@ class Result(Generic[T]):
             return bool(getattr(self.data, "detected"))
         return self.success
 
+    @property
+    def value(self) -> Optional[T]:
+        """Backwards compatibility alias for data."""
+        return self.data
+
+    @property
+    def is_success(self) -> bool:
+        """Backwards compatibility alias for success."""
+        return self.success
+
     @classmethod
     def ok(cls, data: Optional[T] = None, incident_id: Optional[str] = None) -> Result[T]:
         """Creates a verified SUCCESS result."""
