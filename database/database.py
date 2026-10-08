@@ -6730,5 +6730,199 @@ class Database:
         )
         await self._db.commit()
 
+    # ==========================================
+    # 44. PREMIUM MONETIZATION SUBSYSTEM
+    # ==========================================
+
+    async def upsert_premium_product(
+        self,
+        sku_id: int,
+        name: str,
+        description: str,
+        scope: str,
+        sku_type: int = 5,
+        price_cents: int = 0,
+        is_active: int = 1,
+    ) -> bool:
+        """Upsert a Discord premium SKU / product definition."""
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO premium_products (sku_id, name, description, scope, sku_type, price_cents, is_active, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(sku_id) DO UPDATE SET
+                name=excluded.name,
+                description=excluded.description,
+                scope=excluded.scope,
+                sku_type=excluded.sku_type,
+                price_cents=excluded.price_cents,
+                is_active=excluded.is_active,
+                updated_at=excluded.updated_at
+            """,
+            (sku_id, name, description, scope, sku_type, price_cents, is_active, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def upsert_premium_entitlement(
+        self,
+        entitlement_id: int,
+        sku_id: int,
+        scope: str,
+        status: str,
+        user_id: Optional[int] = None,
+        guild_id: Optional[int] = None,
+        starts_at: Optional[str] = None,
+        ends_at: Optional[str] = None,
+        is_test: int = 0,
+        consumed: int = 0,
+    ) -> bool:
+        """Record or update a Discord entitlement."""
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO premium_entitlements (
+                entitlement_id, user_id, guild_id, sku_id, scope, status,
+                starts_at, ends_at, is_test, consumed, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(entitlement_id) DO UPDATE SET
+                user_id=excluded.user_id,
+                guild_id=excluded.guild_id,
+                sku_id=excluded.sku_id,
+                scope=excluded.scope,
+                status=excluded.status,
+                starts_at=excluded.starts_at,
+                ends_at=excluded.ends_at,
+                is_test=excluded.is_test,
+                consumed=excluded.consumed,
+                updated_at=excluded.updated_at
+            """,
+            (entitlement_id, user_id, guild_id, sku_id, scope, status, starts_at, ends_at, is_test, consumed, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def record_premium_event(
+        self,
+        event_id: str,
+        event_type: str,
+        entitlement_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+        guild_id: Optional[int] = None,
+        sku_id: Optional[int] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Log an audit event for premium actions."""
+        if not self._db:
+            return
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO premium_events (id, event_type, entitlement_id, user_id, guild_id, sku_id, details, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (event_id, event_type, entitlement_id, user_id, guild_id, sku_id, json.dumps(details or {}), now),
+        )
+        await self._db.commit()
+
+    async def get_expired_entitlements(self, now_iso: str) -> List[Dict[str, Any]]:
+        """Fetch all active entitlements that have passed their ends_at date."""
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM premium_entitlements WHERE status = 'active' AND ends_at IS NOT NULL AND ends_at <= ?",
+            (now_iso,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def update_entitlement_status(self, entitlement_id: int, status: str) -> bool:
+        """Update entitlement status (e.g. expired, revoked)."""
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        cur = await self._db.execute(
+            "UPDATE premium_entitlements SET status = ?, updated_at = ? WHERE entitlement_id = ?",
+            (status, now, entitlement_id),
+        )
+        await self._db.commit()
+        return (cur.rowcount or 0) > 0
+
+    async def get_feature_access_config(self, feature_key: str) -> Optional[Dict[str, Any]]:
+        """Fetch access rule for a specific premium feature."""
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM premium_feature_rules WHERE feature_key = ?", (feature_key,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def set_feature_access_config(
+        self,
+        feature_key: str,
+        name: str,
+        description: str,
+        scope_required: str = "any",
+        is_enabled: int = 1,
+    ) -> bool:
+        """Configure feature gate rules."""
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO premium_feature_rules (feature_key, name, description, scope_required, is_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(feature_key) DO UPDATE SET
+                name=excluded.name,
+                description=excluded.description,
+                scope_required=excluded.scope_required,
+                is_enabled=excluded.is_enabled,
+                updated_at=excluded.updated_at
+            """,
+            (feature_key, name, description, scope_required, is_enabled, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def get_active_guild_entitlements(self, guild_id: int) -> List[Dict[str, Any]]:
+        """Fetch all active entitlements for a guild."""
+        if not self._db:
+            return []
+        now = utcnow_iso()
+        async with self._db.execute(
+            """
+            SELECT * FROM premium_entitlements
+            WHERE guild_id = ? AND status = 'active'
+              AND (ends_at IS NULL OR ends_at > ?)
+            ORDER BY starts_at DESC
+            """,
+            (guild_id, now),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def get_active_user_entitlements(self, user_id: int) -> List[Dict[str, Any]]:
+        """Fetch all active entitlements for a user."""
+        if not self._db:
+            return []
+        now = utcnow_iso()
+        async with self._db.execute(
+            """
+            SELECT * FROM premium_entitlements
+            WHERE user_id = ? AND status = 'active'
+              AND (ends_at IS NULL OR ends_at > ?)
+            ORDER BY starts_at DESC
+            """,
+            (user_id, now),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
 
 

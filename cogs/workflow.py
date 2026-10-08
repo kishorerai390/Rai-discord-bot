@@ -565,22 +565,6 @@ class WorkflowCog(commands.Cog, name="Workflow"):
             )
             return
 
-        # Check free tier limits
-        wfs = await self.bot.db.list_workflows(interaction.guild.id, status="ACTIVE")
-        if len(wfs) >= MAX_ACTIVE_WORKFLOWS_FREE:
-            gate = await PremiumFeatureGate.has_access(
-                self.bot, PremiumFeature.ADVANCED_AUTOMATION, interaction.user.id, interaction.guild.id
-            )
-            if not gate.has_access:
-                embed = create_premium_upgrade_embed(
-                    "automation_advanced",
-                    f"Free limit reached ({MAX_ACTIVE_WORKFLOWS_FREE} active workflows). Upgrade to Premium!",
-                    EntitlementScope.GUILD,
-                )
-                view = PremiumUpgradeView(self.bot, interaction.user.id, "automation_advanced", EntitlementScope.GUILD)
-                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-                return
-
         cfg = tmpl["config"]
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         wf_id = f"wf_{uuid.uuid4().hex[:6]}"

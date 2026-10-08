@@ -74,7 +74,6 @@ class LoggingCog(commands.Cog, name="Logging"):
             "audio deafened", "audio undeafened",
             "camera turned on", "camera turned off",
             "stream ended",
-            "voice room connected",
             "voice room disconnected",
             "voice room switched",
             "voice room created",
@@ -383,7 +382,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 f"{member.mention} connected to **#{after.channel.name}**\n"
                 f"👥 **Occupants:** `{occupants} member(s) in room`"
             )
-            await self._send_log(member.guild, "voice_channel_id", embed, dispatch_dm=False)
+            await self._send_log(member.guild, "voice_channel_id", embed)
 
         elif before.channel is not None and after.channel is None:
             # User Left VC
