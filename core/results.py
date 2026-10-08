@@ -180,6 +180,34 @@ class Result(Generic[T]):
         )
 
     @classmethod
+    def success(cls, data: Optional[T] = None, incident_id: Optional[str] = None) -> Result[T]:
+        """Alias for ok()."""
+        return cls.ok(data=data, incident_id=incident_id)
+
+    @classmethod
+    def failure(
+        cls,
+        error: str = "Operation failed",
+        status: ResultStatus = ResultStatus.FAILED,
+        error_code: str = ErrorCodes.INTERNAL_ERROR,
+        retryable: bool = False,
+        incident_id: Optional[str] = None,
+        data: Optional[T] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> Result[T]:
+        """Creates a verified failure result with keyword-arg flexibility."""
+        return cls.fail(
+            status=status,
+            code=error_code,
+            message=str(error),
+            retryable=retryable,
+            incident_id=incident_id,
+            data=data,
+            details=details,
+        )
+
+
+    @classmethod
     def partial(
         cls,
         code: str,

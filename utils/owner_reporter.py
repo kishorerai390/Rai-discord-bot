@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import inspect
 import logging
 import random
 import string
@@ -730,7 +731,9 @@ class OwnerReporter:
                     )
 
                 if hasattr(bot, "db") and bot.db and hasattr(bot.db, "create_interactive_incident"):
-                    await bot.db.create_interactive_incident(incident)
+                    inc_res = bot.db.create_interactive_incident(incident)
+                    if inspect.isawaitable(inc_res):
+                        await inc_res
 
                 if dm_view is None:
                     dm_view = InteractiveIncidentManager.build_incident_view(incident)
@@ -760,7 +763,11 @@ class OwnerReporter:
                     channel = bot.get_channel(ch_id)
                 if not channel and hasattr(bot, "fetch_channel"):
                     try:
-                        channel = await bot.fetch_channel(ch_id)
+                        fetch_res = bot.fetch_channel(ch_id)
+                        if inspect.isawaitable(fetch_res):
+                            channel = await fetch_res
+                        else:
+                            channel = fetch_res
                     except Exception:
                         channel = None
 
@@ -795,7 +802,11 @@ class OwnerReporter:
             should_auto_repair = bool(getattr(cfg, "auto_repair", True) if cfg else True)
             if (not channel or not isinstance(channel, discord.TextChannel)) and should_auto_repair and guild_obj:
                 try:
-                    channel = await cls.repair_missing_channel(bot, guild_obj, channel_key)
+                    repair_res = cls.repair_missing_channel(bot, guild_obj, channel_key)
+                    if inspect.isawaitable(repair_res):
+                        channel = await repair_res
+                    else:
+                        channel = repair_res
                 except Exception as rep_err:
                     logger.warning(f"Auto-repair attempt failed for {channel_key}: {rep_err}")
 
@@ -1458,7 +1469,11 @@ class OwnerReporter:
         ]
         for key in keys:
             try:
-                ch = await cls.repair_missing_channel(bot, guild, key)
+                rep_res = cls.repair_missing_channel(bot, guild, key)
+                if inspect.isawaitable(rep_res):
+                    ch = await rep_res
+                else:
+                    ch = rep_res
                 if ch:
                     channels.append(ch)
             except Exception as e:
@@ -1499,12 +1514,20 @@ async def get_owner_report_channel(
             ch = guild.get_channel(ch_id) if guild else (bot.get_channel(ch_id) if hasattr(bot, "get_channel") else None)
             if not ch and hasattr(bot, "fetch_channel"):
                 try:
-                    ch = await bot.fetch_channel(ch_id)
+                    fetch_res = bot.fetch_channel(ch_id)
+                    if inspect.isawaitable(fetch_res):
+                        ch = await fetch_res
+                    else:
+                        ch = fetch_res
                 except Exception:
                     ch = None
 
         if not ch and (cfg is None or getattr(cfg, "auto_repair", True)) and guild:
-            ch = await OwnerReporter.repair_missing_channel(bot, guild, field)
+            repair_res = OwnerReporter.repair_missing_channel(bot, guild, field)
+            if inspect.isawaitable(repair_res):
+                ch = await repair_res
+            else:
+                ch = repair_res
         return ch if isinstance(ch, discord.TextChannel) else None
     except Exception as e:
         logger.warning(f"Error fetching owner report channel {category}: {e}")
