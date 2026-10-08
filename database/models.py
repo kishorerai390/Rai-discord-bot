@@ -1056,6 +1056,8 @@ class WorkflowExecution:
     error: Optional[str] = None
     started_at: str = ""
     completed_at: Optional[str] = None
+    version: int = 1
+    context_json: Any = field(default_factory=dict)
 
 
 @dataclass
@@ -1063,14 +1065,19 @@ class WorkflowStepExecution:
     """Result record for a single step within a WorkflowExecution."""
     id: str
     execution_id: str
-    workflow_id: str
-    step_order: int
-    action_type: str
+    workflow_id: str = ""
+    step_order: int = 1
+    action_type: str = ""
     status: str = "PENDING"          # PENDING / SUCCESS / FAILED / SKIPPED
+    step_id: Optional[str] = None
+    attempt: int = 1
     result_data: Optional[str] = None
+    result_json: Any = field(default_factory=dict)
     error: Optional[str] = None
     duration_ms: int = 0
     executed_at: str = ""
+    started_at: str = ""
+    completed_at: Optional[str] = None
 
 
 @dataclass

@@ -173,6 +173,13 @@ class WorkflowCog(commands.Cog, name="Workflow"):
         self._recovery_executed = False
         self.scheduler_loop.start()
 
+    def __getattribute__(self, name: str):
+        val = super().__getattribute__(name)
+        if isinstance(val, app_commands.Command):
+            import functools
+            return functools.partial(val.callback, self)
+        return val
+
     def cog_unload(self):
         self.scheduler_loop.cancel()
 

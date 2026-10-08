@@ -6331,14 +6331,15 @@ class Database:
         )
         await self._db.commit()
 
-    async def update_workflow_last_run(self, workflow_id: str, last_run_at: str) -> None:
+    async def update_workflow_last_run(self, workflow_id: str, last_run_at: Optional[str] = None) -> None:
         """Record the timestamp of a completed workflow execution."""
         if not self._db:
             return
         now = utcnow_iso()
+        run_at = last_run_at or now
         await self._db.execute(
             "UPDATE workflows SET last_run_at = ?, updated_at = ? WHERE id = ?",
-            (last_run_at, now, workflow_id),
+            (run_at, now, workflow_id),
         )
         await self._db.commit()
 
@@ -6440,35 +6441,86 @@ class Database:
         await self._db.commit()
         return exec_rec
 
-    async def update_workflow_execution(self, exec_rec: WorkflowExecution) -> None:
-        """Update execution run state and result payload."""
+    async def update_workflow_execution(
+        self,
+        execution_or_id: Any,
+        status: Optional[str] = None,
+        current_step_order: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Update execution run state and result payload.
+        Accepts:
+          - (exec_rec: WorkflowExecution)
+          - (execution_id: str, status: str, current_step_order: int, ...)
+        """
         if not self._db:
             return
-        await self._db.execute(
-            """
-            UPDATE workflow_executions
-            SET status = ?, current_step_order = ?, step_results = ?, error = ?, completed_at = ?
-            WHERE id = ?
-            """,
-            (
-                exec_rec.status,
-                exec_rec.current_step_order,
-                json.dumps(exec_rec.step_results or []),
-                exec_rec.error,
-                exec_rec.completed_at,
-                exec_rec.id,
-            ),
-        )
+        now = utcnow_iso()
+        if isinstance(execution_or_id, WorkflowExecution):
+            await self._db.execute(
+                """
+                UPDATE workflow_executions
+                SET status = ?, current_step_order = ?, step_results = ?, error = ?, completed_at = ?
+                WHERE id = ?
+                """,
+                (
+                    execution_or_id.status,
+                    execution_or_id.current_step_order,
+                    json.dumps(execution_or_id.step_results or []),
+                    execution_or_id.error,
+                    execution_or_id.completed_at,
+                    execution_or_id.id,
+                ),
+            )
+        else:
+            exec_id = str(execution_or_id)
+            updates = []
+            params = []
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
+            if current_step_order is not None:
+                updates.append("current_step_order = ?")
+                params.append(current_step_order)
+            if "error" in kwargs:
+                updates.append("error = ?")
+                params.append(kwargs["error"])
+            if "completed_at" in kwargs:
+                updates.append("completed_at = ?")
+                params.append(kwargs["completed_at"])
+            if "step_results" in kwargs:
+                updates.append("step_results = ?")
+                params.append(json.dumps(kwargs["step_results"]))
+
+            if updates:
+                params.append(exec_id)
+                await self._db.execute(
+                    f"UPDATE workflow_executions SET {', '.join(updates)} WHERE id = ?",
+                    tuple(params),
+                )
         await self._db.commit()
 
-    async def list_workflow_executions(self, workflow_id: str, limit: int = 10) -> List[WorkflowExecution]:
+    async def list_workflow_executions(
+        self,
+        workflow_id_or_guild_id: Any,
+        workflow_id: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[WorkflowExecution]:
         """Fetch recent execution runs for a workflow."""
         if not self._db:
             return []
-        async with self._db.execute(
-            "SELECT * FROM workflow_executions WHERE workflow_id = ? ORDER BY started_at DESC LIMIT ?",
-            (workflow_id, limit),
-        ) as cursor:
+        if workflow_id:
+            query = "SELECT * FROM workflow_executions WHERE workflow_id = ? ORDER BY started_at DESC LIMIT ?"
+            params = (workflow_id, limit)
+        elif isinstance(workflow_id_or_guild_id, int):
+            query = "SELECT * FROM workflow_executions WHERE guild_id = ? ORDER BY started_at DESC LIMIT ?"
+            params = (workflow_id_or_guild_id, limit)
+        else:
+            query = "SELECT * FROM workflow_executions WHERE workflow_id = ? ORDER BY started_at DESC LIMIT ?"
+            params = (str(workflow_id_or_guild_id), limit)
+
+        async with self._db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return [
                 WorkflowExecution(
@@ -6537,11 +6589,13 @@ class Database:
         )
         await self._db.commit()
 
-    async def get_due_waiting_timers(self, now_iso: Optional[str] = None) -> List[WorkflowWaitingTimer]:
+    async def get_due_waiting_timers(
+        self, now_iso: Optional[str] = None, max_resume_iso: Optional[str] = None
+    ) -> List[WorkflowWaitingTimer]:
         """Fetch all waiting timers whose resume_at has passed and are in WAITING status."""
         if not self._db:
             return []
-        cutoff = now_iso or utcnow_iso()
+        cutoff = max_resume_iso or now_iso or utcnow_iso()
         async with self._db.execute(
             "SELECT * FROM workflow_waiting_timers WHERE status = 'WAITING' AND resume_at <= ?",
             (cutoff,),
@@ -6573,17 +6627,38 @@ class Database:
 
     async def record_workflow_event(
         self,
-        event_id: str,
-        workflow_id: str,
-        execution_id: str,
-        guild_id: int,
-        event_type: str,
-        payload: Optional[Dict[str, Any]] = None,
+        arg1: str,
+        arg2: str,
+        arg3: Any = None,
+        arg4: Any = None,
+        arg5: Any = None,
+        arg6: Any = None,
+        **kwargs: Any,
     ) -> None:
-        """Record an event log entry for workflow auditing."""
+        """
+        Record an event log entry for workflow auditing.
+        Accepts:
+          - (workflow_id, execution_id, event_type, payload=None)
+          - (event_id, workflow_id, execution_id, guild_id, event_type, payload)
+        """
         if not self._db:
             return
         now = utcnow_iso()
+        if arg5 is not None:
+            event_id = arg1
+            workflow_id = arg2
+            execution_id = str(arg3)
+            guild_id = int(arg4 or 0)
+            event_type = str(arg5)
+            payload = arg6 or {}
+        else:
+            event_id = f"EVT-{uuid.uuid4().hex[:8].upper()}"
+            workflow_id = arg1
+            execution_id = arg2
+            guild_id = kwargs.get("guild_id", 0)
+            event_type = str(arg3 or "EVENT")
+            payload = arg4 or kwargs.get("payload", {})
+
         await self._db.execute(
             """
             INSERT INTO workflow_events (

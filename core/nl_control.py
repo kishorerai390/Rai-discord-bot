@@ -627,6 +627,37 @@ class DispatchResult:
     sensitive_details: Optional[Dict[str, Any]] = None
 
 
+class WorkflowPreviewView(ui.View):
+    def __init__(self, bot: SentinelBot, guild: discord.Guild, user: discord.Member, wf: Any, steps: List[Any]):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild = guild
+        self.user = user
+        self.wf = wf
+        self.steps = steps
+
+        self.activate_btn = ui.Button(label="Activate", style=discord.ButtonStyle.success, emoji="▶️")
+        self.activate_btn.callback = self._on_activate
+        self.add_item(self.activate_btn)
+
+    async def _on_activate(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user.id:
+            return
+        await self.bot.db.create_workflow(self.wf)
+        for st in self.steps:
+            await self.bot.db.add_workflow_step(st)
+        if hasattr(interaction, "response") and not interaction.response.is_done():
+            await interaction.response.edit_message(
+                embed=success_embed("Workflow Activated", f"Pipeline **{self.wf.name}** is now ACTIVE."),
+                view=None,
+            )
+        elif hasattr(interaction, "followup"):
+            await interaction.followup.send(
+                embed=success_embed("Workflow Activated", f"Pipeline **{self.wf.name}** is now ACTIVE."),
+                ephemeral=True,
+            )
+
+
 class NLActionDispatcher:
     """Executes existing service commands on behalf of authorized users."""
 
@@ -803,36 +834,6 @@ class NLActionDispatcher:
                     f"• **Diagnostic ID:** `{diag_id}`\n"
                     f"• **Error:** `{e}`"
                 ),
-            )
-
-class WorkflowPreviewView(ui.View):
-    def __init__(self, bot: SentinelBot, guild: discord.Guild, user: discord.Member, wf: Any, steps: List[Any]):
-        super().__init__(timeout=300)
-        self.bot = bot
-        self.guild = guild
-        self.user = user
-        self.wf = wf
-        self.steps = steps
-
-        self.activate_btn = ui.Button(label="Activate", style=discord.ButtonStyle.success, emoji="▶️")
-        self.activate_btn.callback = self._on_activate
-        self.add_item(self.activate_btn)
-
-    async def _on_activate(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user.id:
-            return
-        await self.bot.db.create_workflow(self.wf)
-        for st in self.steps:
-            await self.bot.db.add_workflow_step(st)
-        if hasattr(interaction, "response") and not interaction.response.is_done():
-            await interaction.response.edit_message(
-                embed=success_embed("Workflow Activated", f"Pipeline **{self.wf.name}** is now ACTIVE."),
-                view=None,
-            )
-        elif hasattr(interaction, "followup"):
-            await interaction.followup.send(
-                embed=success_embed("Workflow Activated", f"Pipeline **{self.wf.name}** is now ACTIVE."),
-                ephemeral=True,
             )
 
 
