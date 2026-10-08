@@ -92,10 +92,16 @@ class Colors:
     SUCCESS = 0x57F287    # Green
     WARNING = 0xFEE75C    # Yellow
     ERROR = 0xED4245      # Red
+    ALERT = 0xED4245      # Red / Alert
     SECURITY = 0xEB459E   # Magenta/Red Alert
     INFO = 0x3498DB       # Light Blue
     DARK = 0x2B2D31       # Dark Charcoal
     GOLD = 0xF1C40F       # Gold
+
+
+class Branding:
+    APP_NAME = "RAI"
+    FOOTER_TEXT = "RAI Autonomous Platform"
 
 # Logging setup
 def get_log_level() -> int:

@@ -4785,8 +4785,15 @@ class Database:
             )
 
     async def update_suggestion_status(
-        self, suggestion_id: int, status: str, reviewed_by: int, reason: Optional[str] = None
+        self,
+        suggestion_id: int,
+        status: str,
+        reviewed_by: Optional[int] = None,
+        reason: Optional[str] = None,
+        reviewer_id: Optional[int] = None,
+        **kwargs: Any,
     ) -> bool:
+        reviewer = reviewer_id if reviewer_id is not None else reviewed_by
         now = utcnow_iso()
         cursor = await self._db.execute(
             """
@@ -4794,7 +4801,7 @@ class Database:
             SET status = ?, reviewed_by = ?, reviewed_at = ?, reason = ?, updated_at = ?
             WHERE suggestion_id = ?
             """,
-            (status, reviewed_by, now, reason, now, suggestion_id),
+            (status, reviewer, now, reason, now, suggestion_id),
         )
         await self._db.commit()
         return cursor.rowcount > 0

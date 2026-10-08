@@ -78,6 +78,12 @@ def security_embed(title: str = "Security Alert", description: Optional[str] = N
     )
 
 
+security_alert_embed = security_embed
+DEFAULT_BRAND = "RAI"
+DEFAULT_FOOTER = "Rai Security"
+
+
+
 def info_embed(title: str = "Information", description: Optional[str] = None) -> discord.Embed:
     return create_embed(
         title=f"ℹ️ {title}",

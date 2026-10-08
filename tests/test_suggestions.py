@@ -32,6 +32,7 @@ class TestSuggestionsSystem(unittest.IsolatedAsyncioTestCase):
     async def test_suggestion_crud(self):
         guild_id = 999001
         author_id = 12345
+        await self.db.get_or_create_guild_config(guild_id)
 
         # 1. Create suggestion
         s_id = await self.db.create_suggestion(
@@ -65,6 +66,7 @@ class TestSuggestionsSystem(unittest.IsolatedAsyncioTestCase):
 
     async def test_atomic_voting_lifecycle(self):
         guild_id = 999002
+        await self.db.get_or_create_guild_config(guild_id)
         s_id = await self.db.create_suggestion(
             guild_id=guild_id,
             channel_id=111,

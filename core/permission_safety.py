@@ -153,6 +153,47 @@ class PermissionResult:
         reason_str = self.reason or "Missing required Discord permissions"
         return f"❌ Action `{self.action}` could not be completed: {reason_str}"
 
+    def to_result(self) -> Any:
+        """Convert PermissionResult into a core Result instance."""
+        from core.results import Result, ResultStatus, ErrorCodes
+        if self.success:
+            return Result.ok(data=self.result_data, incident_id=self.incident_id)
+
+        status_map = {
+            PermissionFailureType.ROLE_HIERARCHY_VIOLATION: (
+                ResultStatus.ROLE_HIERARCHY_BLOCKED,
+                ErrorCodes.ROLE_HIERARCHY_BLOCKED,
+            ),
+            PermissionFailureType.CHANNEL_PERMISSION_DENIED: (
+                ResultStatus.CHANNEL_PERMISSION_DENIED,
+                ErrorCodes.CHANNEL_PERMISSION_DENIED,
+            ),
+            PermissionFailureType.MISSING_BOT_PERMISSION: (
+                ResultStatus.BOT_MISSING_PERMISSION,
+                ErrorCodes.BOT_MISSING_PERMISSION,
+            ),
+            PermissionFailureType.CANNOT_MODERATE_TARGET: (
+                ResultStatus.ROLE_HIERARCHY_BLOCKED,
+                ErrorCodes.ROLE_HIERARCHY_BLOCKED,
+            ),
+            PermissionFailureType.DISCORD_FORBIDDEN: (
+                ResultStatus.PERMISSION_DENIED,
+                ErrorCodes.BOT_MISSING_PERMISSION,
+            ),
+        }
+        res_status, code = status_map.get(
+            self.failure_type,
+            (ResultStatus.PERMISSION_DENIED, ErrorCodes.BOT_MISSING_PERMISSION),
+        )
+        return Result.fail(
+            status=res_status,
+            code=code,
+            message=self.reason or "Permission check failed",
+            incident_id=self.incident_id,
+            data=self.result_data,
+        )
+
+
 
 class PermissionFailureTracker:
     """
