@@ -32,9 +32,11 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         self.bot = bot
         self._update_locks: dict[int, float] = {}
         self.stats_sync_loop.start()
+        self.realtime_consoles_sync_loop.start()
 
     def cog_unload(self) -> None:
         self.stats_sync_loop.cancel()
+        self.realtime_consoles_sync_loop.cancel()
 
     stats_group = app_commands.Group(
         name="serverstats",
@@ -42,8 +44,52 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
     )
 
     # ==========================================
-    # BACKGROUND SYNC LOOP
+    # BACKGROUND SYNC LOOPS
     # ==========================================
+
+    @tasks.loop(seconds=60)
+    async def realtime_consoles_sync_loop(self) -> None:
+        """Periodically refreshes active real-time consoles with fresh telemetry and timestamps."""
+        try:
+            from utils.realtime_consoles import (
+                REALTIME_CHANNELS,
+                build_server_dashboard_payload,
+                build_system_health_payload,
+                build_admin_control_payload,
+            )
+            for guild in self.bot.guilds:
+                # Update Server Dashboard
+                dash_ch = guild.get_channel(REALTIME_CHANNELS.get("server_dashboard", 0))
+                if isinstance(dash_ch, discord.TextChannel):
+                    try:
+                        async for msg in dash_ch.history(limit=5):
+                            if msg.author.id == self.bot.user.id and msg.type == discord.MessageType.default:
+                                p = build_server_dashboard_payload(guild, self.bot)
+                                await msg.edit(embed=discord.Embed.from_dict(p["embeds"][0]))
+                                break
+                    except Exception:
+                        pass
+
+                # Update System Health
+                health_ch = guild.get_channel(REALTIME_CHANNELS.get("system_health", 0))
+                if isinstance(health_ch, discord.TextChannel):
+                    try:
+                        async for msg in health_ch.history(limit=5):
+                            if msg.author.id == self.bot.user.id and msg.type == discord.MessageType.default:
+                                p = build_system_health_payload(guild, self.bot)
+                                await msg.edit(embed=discord.Embed.from_dict(p["embeds"][0]))
+                                break
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"realtime_consoles_sync_loop notice: {e}")
+
+    @realtime_consoles_sync_loop.before_loop
+    async def before_realtime_sync(self) -> None:
+        try:
+            await self.bot.wait_until_ready()
+        except Exception:
+            pass
 
     @tasks.loop(minutes=10)
     async def stats_sync_loop(self) -> None:

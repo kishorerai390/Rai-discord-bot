@@ -255,6 +255,19 @@ class SentinelBot(commands.Bot):
                             await interaction.response.send_message("❌ Music console is temporarily recovering. Please try again.", ephemeral=True)
                         except Exception:
                             pass
+            elif cid.startswith("rt_") or cid.startswith("hub_"):
+                try:
+                    from utils.realtime_consoles import RealtimeConsoleDispatcher
+                    handled = await RealtimeConsoleDispatcher.handle_interaction(self, interaction)
+                    if handled:
+                        return
+                except Exception as e:
+                    logger.error(f"Error handling realtime console interaction {cid}: {e}", exc_info=True)
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("❌ Real-time console is temporarily unavailable.", ephemeral=True)
+                        except Exception:
+                            pass
 
     async def _tree_interaction_check(self, interaction: discord.Interaction) -> bool:
         """
