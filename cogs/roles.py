@@ -705,6 +705,18 @@ class RolesCog(commands.Cog, name="Roles"):
                     guild, after, "booster", reason="Nitro boost stopped", trigger="BOOST_DETECTED"
                 )
 
+        # 2. Native Discord Timeout sync
+        if before.timed_out_until != after.timed_out_until:
+            now = datetime.datetime.now(datetime.timezone.utc)
+            if after.timed_out_until is not None and after.timed_out_until > now:
+                await self.bot.role_manager.assign_role(
+                    guild, after, "timeout", reason="Discord native timeout active", trigger="TIMEOUT_SYNC"
+                )
+            else:
+                await self.bot.role_manager.remove_role(
+                    guild, after, "timeout", reason="Discord native timeout expired or removed", trigger="TIMEOUT_SYNC"
+                )
+
     async def _handle_booster_concierge(self, member: discord.Member) -> None:
         """
         VIP Booster Concierge & Autonomous Penthouse Activation:
@@ -762,18 +774,6 @@ class RolesCog(commands.Cog, name="Roles"):
             await member.send(embed=dm_embed)
         except Exception:
             pass  # User DMs closed
-
-        # 2. Native Discord Timeout sync
-        if before.timed_out_until != after.timed_out_until:
-            now = datetime.datetime.now(datetime.timezone.utc)
-            if after.timed_out_until is not None and after.timed_out_until > now:
-                await self.bot.role_manager.assign_role(
-                    guild, after, "timeout", reason="Discord native timeout active", trigger="TIMEOUT_SYNC"
-                )
-            else:
-                await self.bot.role_manager.remove_role(
-                    guild, after, "timeout", reason="Discord native timeout expired or removed", trigger="TIMEOUT_SYNC"
-                )
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role):
