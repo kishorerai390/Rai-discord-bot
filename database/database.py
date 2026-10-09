@@ -7526,6 +7526,7 @@ class Database:
         reason: Optional[str] = None,
     ) -> Dict[str, Any]:
         prof = await self.get_or_create_reputation_profile(guild_id, user_id)
+        old_level = prof.get("level", 1)
         new_points = prof["points"] + points
         new_level = (new_points // 100) + 1
         helpful_inc = 1 if category == "helpful" else 0
@@ -7550,6 +7551,7 @@ class Database:
         await self._db.commit()
         prof["points"] = new_points
         prof["level"] = new_level
+        prof["old_level"] = old_level
         prof["helpful_count"] = new_helpful
         prof["updated_at"] = now
         return prof

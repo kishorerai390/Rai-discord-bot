@@ -212,34 +212,14 @@ class TicketControlView(discord.ui.View):
 
         await interaction.response.defer()
 
-        # Update DB
-        closed = await bot.db.close_ticket(channel.id, interaction.user.id)
-        if not closed:
+        # Check DB
+        ticket = await bot.db.get_ticket_by_channel(channel.id)
+        if not ticket or ticket.status != "open":
             await interaction.followup.send("This channel is not an active registered ticket.", ephemeral=True)
             return
 
-        # Generate Transcript
-        transcript_text = await generate_transcript(channel)
-        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
-        transcript_file_path = TRANSCRIPTS_DIR / f"transcript-{channel.name}-{now_str}.txt"
-
-        with open(transcript_file_path, "w", encoding="utf-8") as f:
-            f.write(transcript_text)
-
-        # Log transcript to ticket log channel
-        cfg = await bot.db.get_ticket_config(interaction.guild.id)
-        if cfg.log_channel_id:
-            log_channel = interaction.guild.get_channel(cfg.log_channel_id)
-            if log_channel and isinstance(log_channel, discord.TextChannel):
-                embed = info_embed(
-                    f"Ticket Closed: #{channel.name}",
-                    f"Closed by {interaction.user.mention}.\nAttached message transcript below.",
-                )
-                file_obj = discord.File(str(transcript_file_path), filename=f"transcript-{channel.name}.txt")
-                try:
-                    await log_channel.send(embed=embed, file=file_obj)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
+        # Process transcript & DM dispatch
+        await process_ticket_closure(bot, channel, interaction.user, interaction.guild)
 
         # Disable buttons and notify in ticket
         for child in self.children:
@@ -250,6 +230,67 @@ class TicketControlView(discord.ui.View):
         await asyncio.sleep(5)
         try:
             await channel.delete(reason=f"Ticket closed by {interaction.user}")
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+
+async def process_ticket_closure(
+    bot: SentinelBot,
+    channel: discord.TextChannel,
+    closer: discord.User | discord.Member,
+    guild: discord.Guild,
+) -> None:
+    """Closes ticket in DB, generates HTML + TXT transcripts, logs to staff channel and DMs opener."""
+    from utils.transcript_html import generate_html_transcript
+
+    ticket_record = await bot.db.get_ticket_by_channel(channel.id)
+    await bot.db.close_ticket(channel.id, closer.id)
+
+    # 1. Plain text transcript
+    transcript_text = await generate_transcript(channel)
+    now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    txt_path = TRANSCRIPTS_DIR / f"transcript-{channel.name}-{now_str}.txt"
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write(transcript_text)
+
+    # 2. Dark-mode HTML transcript
+    html_text = await generate_html_transcript(channel, closer)
+    html_path = TRANSCRIPTS_DIR / f"transcript-{channel.name}-{now_str}.html"
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html_text)
+
+    # 3. Staff channel dispatch
+    cfg = await bot.db.get_ticket_config(guild.id)
+    target_channel_id = cfg.log_channel_id or 1555641079137706014  # Default to #support-desk
+    log_channel = guild.get_channel(target_channel_id)
+    if log_channel and isinstance(log_channel, discord.TextChannel):
+        embed = info_embed(
+            f"Ticket Closed: #{channel.name}",
+            f"Closed by {closer.mention}.\nDark-mode HTML transcript and raw log attached below.",
+        )
+        file_html = discord.File(str(html_path), filename=f"transcript-{channel.name}.html")
+        file_txt = discord.File(str(txt_path), filename=f"transcript-{channel.name}.txt")
+        try:
+            await log_channel.send(embed=embed, files=[file_html, file_txt])
+        except (discord.Forbidden, discord.HTTPException):
+            pass
+
+    # 4. DM ticket opener their copy
+    if ticket_record and ticket_record.user_id:
+        try:
+            opener = guild.get_member(ticket_record.user_id) or await bot.fetch_user(ticket_record.user_id)
+            if opener and not getattr(opener, "bot", False):
+                dm_embed = discord.Embed(
+                    title=f"✦ Support Ticket Closed ╏ #{channel.name} ✦",
+                    description=(
+                        f"Hello {opener.display_name},\n\n"
+                        f"Your support ticket on **{guild.name}** has been completed and closed by {closer.mention}.\n\n"
+                        "We have attached your official dark-mode HTML transcript below so you can retain a copy offline."
+                    ),
+                    color=0x2ECC71,
+                )
+                dm_file = discord.File(str(html_path), filename=f"transcript-{channel.name}.html")
+                await opener.send(embed=dm_embed, file=dm_file)
         except (discord.Forbidden, discord.HTTPException):
             pass
 
@@ -343,29 +384,7 @@ class TicketsCog(commands.Cog, name="Tickets"):
             return
 
         await interaction.response.defer()
-        await self.bot.db.close_ticket(interaction.channel.id, interaction.user.id)
-
-        # Generate Transcript
-        transcript_text = await generate_transcript(interaction.channel)
-        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
-        transcript_file_path = TRANSCRIPTS_DIR / f"transcript-{interaction.channel.name}-{now_str}.txt"
-
-        with open(transcript_file_path, "w", encoding="utf-8") as f:
-            f.write(transcript_text)
-
-        cfg = await self.bot.db.get_ticket_config(interaction.guild.id)
-        if cfg.log_channel_id:
-            log_channel = interaction.guild.get_channel(cfg.log_channel_id)
-            if log_channel and isinstance(log_channel, discord.TextChannel):
-                embed = info_embed(
-                    f"Ticket Closed: #{interaction.channel.name}",
-                    f"Closed by {interaction.user.mention}.",
-                )
-                file_obj = discord.File(str(transcript_file_path), filename=f"transcript-{interaction.channel.name}.txt")
-                try:
-                    await log_channel.send(embed=embed, file=file_obj)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
+        await process_ticket_closure(self.bot, interaction.channel, interaction.user, interaction.guild)
 
         await interaction.followup.send(embed=warning_embed("Ticket Closed", "This channel will be deleted in 5 seconds."))
         await asyncio.sleep(5)

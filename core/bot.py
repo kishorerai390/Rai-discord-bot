@@ -89,6 +89,7 @@ COGS_LIST: List[str] = [
     "cogs.stream_radar",
     "cogs.ai_vision",
     "cogs.growth",
+    "cogs.reputation",
 ]
 
 

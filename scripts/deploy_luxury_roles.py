@@ -6,48 +6,7 @@ from dotenv import load_dotenv
 load_dotenv("F:/Bot/.env")
 TOKEN = os.getenv("DISCORD_TOKEN")
 CH_ROLES = 1545502722739150898
-
-GAME_OPTIONS = [
-    {
-        "label": "Valorant / CS2",
-        "value": "1551184094313062470",
-        "description": "Squad pings & competitive matchmaking",
-        "emoji": {"name": "🎯"},
-    },
-    {
-        "label": "BGMI / PUBG",
-        "value": "1551184098834251786",
-        "description": "Battle royale squads & scrim alerts",
-        "emoji": {"name": "⚡"},
-    },
-    {
-        "label": "Free Fire",
-        "value": "1551184102957523048",
-        "description": "Clash squad & guild war pings",
-        "emoji": {"name": "🔥"},
-    },
-]
-
-NOTIF_OPTIONS = [
-    {
-        "label": "Announcements",
-        "value": "1550199913093144649",
-        "description": "Important server updates & patch notes",
-        "emoji": {"name": "📢"},
-    },
-    {
-        "label": "Giveaways",
-        "value": "1550199917262143560",
-        "description": "Discord Nitro, game passes & VIP perks",
-        "emoji": {"name": "🎁"},
-    },
-    {
-        "label": "Tournaments",
-        "value": "1550199921007792188",
-        "description": "Community esports tournaments & prize events",
-        "emoji": {"name": "🏆"},
-    },
-]
+TARGET_MSG_ID = "1557467800673591389"
 
 async def main():
     headers = {
@@ -55,133 +14,130 @@ async def main():
         "Content-Type": "application/json",
     }
 
+    embed = {
+        "title": "✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ 𝓞ғғɪᴄɪᴀʟ 𝕾ᴇʀᴠᴇʀ 𝕽ᴏʟᴇs ✦",
+        "description": (
+            "Customize your server notifications, gaming squad pings, and vanity colors below.\n\n"
+            "Click any button to **toggle** your roles on or off instantly!\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "🔔 **NOTIFICATION PREFERENCES**\n"
+            "• 📢 **Announcements** — Major community updates and bot announcements\n"
+            "• 🎁 **Giveaways** — Discord Nitro, gift cards, and game pass alerts\n"
+            "• 🏆 **Tournaments** — Competitive esports scrims and custom rooms\n\n"
+            "🎮 **GAMING SQUAD PINGS**\n"
+            "• 🎯 **Valorant / CS2** — Tactical FPS 5-stack and competitive lobbies\n"
+            "• ⚡ **BGMI / PUBG** — Battle royale custom rooms and squad squads\n"
+            "• 🔥 **Free Fire** — Clash squad and custom room pings\n\n"
+            "🎨 **VANITY NAME COLORS** *(Select one)*\n"
+            "• 🌸 **Rose Gold** — Soft luxury warm tone\n"
+            "• 💠 **Cyber Cyan** — Electric neon cyan glow\n"
+            "• 💜 **Neon Violet** — Royal amethyst purple aura\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        ),
+        "color": 3447003,  # 0x3498DB Neon Cyan / Blue
+        "footer": {
+            "text": "✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Interactive Role Management • Instant Toggle ✦"
+        },
+    }
+
+    components = [
+        # Row 0: Notifications
+        {
+            "type": 1,
+            "components": [
+                {
+                    "type": 2,
+                    "style": 1,  # Primary
+                    "label": "Announcements",
+                    "custom_id": "rai_role_opt:announcements",
+                    "emoji": {"name": "📢"},
+                },
+                {
+                    "type": 2,
+                    "style": 3,  # Success
+                    "label": "Giveaways",
+                    "custom_id": "rai_role_opt:giveaways",
+                    "emoji": {"name": "🎁"},
+                },
+                {
+                    "type": 2,
+                    "style": 4,  # Danger
+                    "label": "Tournaments",
+                    "custom_id": "rai_role_opt:tournaments",
+                    "emoji": {"name": "🏆"},
+                },
+            ],
+        },
+        # Row 1: Gaming Squads
+        {
+            "type": 1,
+            "components": [
+                {
+                    "type": 2,
+                    "style": 2,  # Secondary
+                    "label": "Valorant / CS2",
+                    "custom_id": "rai_role_opt:valorant",
+                    "emoji": {"name": "🎯"},
+                },
+                {
+                    "type": 2,
+                    "style": 2,
+                    "label": "BGMI / PUBG",
+                    "custom_id": "rai_role_opt:bgmi",
+                    "emoji": {"name": "⚡"},
+                },
+                {
+                    "type": 2,
+                    "style": 2,
+                    "label": "Free Fire",
+                    "custom_id": "rai_role_opt:freefire",
+                    "emoji": {"name": "🔥"},
+                },
+            ],
+        },
+        # Row 2: Vanity Colors
+        {
+            "type": 1,
+            "components": [
+                {
+                    "type": 2,
+                    "style": 2,
+                    "label": "Rose Gold",
+                    "custom_id": "rai_role_opt:color_rose",
+                    "emoji": {"name": "🌸"},
+                },
+                {
+                    "type": 2,
+                    "style": 2,
+                    "label": "Cyber Cyan",
+                    "custom_id": "rai_role_opt:color_cyan",
+                    "emoji": {"name": "💠"},
+                },
+                {
+                    "type": 2,
+                    "style": 2,
+                    "label": "Neon Violet",
+                    "custom_id": "rai_role_opt:color_violet",
+                    "emoji": {"name": "💜"},
+                },
+            ],
+        },
+    ]
+
+    payload = {
+        "content": "",
+        "embeds": [embed],
+        "components": components,
+    }
+
     async with aiohttp.ClientSession() as s:
-        # 1. Fetch existing messages in channel
-        async with s.get(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages?limit=20", headers=headers) as r:
-            msgs = await r.json()
-
-        game_msg_id = None
-        notif_msg_id = None
-
-        if isinstance(msgs, list):
-            for m in msgs:
-                embeds = m.get("embeds", [])
-                if not embeds:
-                    # Delete stray empty or plain messages
-                    await s.delete(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages/{m['id']}", headers=headers)
-                    continue
-                title = embeds[0].get("title", "")
-                if "GAME" in title.upper() or "𝓖ᴀᴍɪɴɢ" in title:
-                    game_msg_id = m["id"]
-                elif "NOTIF" in title.upper() or "𝓝ᴏᴛɪғɪᴄᴀᴛɪᴏɴ" in title:
-                    notif_msg_id = m["id"]
-                elif "FOUNDER" in title.upper() or "Role: @" in title:
-                    # Clean up test message
-                    print(f"Deleting test message {m['id']}...")
-                    await s.delete(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages/{m['id']}", headers=headers)
-
-        game_embed = {
-            "title": "✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ 𝓖ᴀᴍɪɴɢ 𝕽ᴏʟᴇs ✦",
-            "description": (
-                "Select your favorite gaming titles from the dropdown below to receive squad pings, "
-                "find teammates, and unlock dedicated voice arenas!\n\n"
-                "• Selecting a role **adds** it to your profile.\n"
-                "• Deselecting a role **removes** it automatically."
-            ),
-            "color": 0x3498DB,  # Vibrant Cyan / Blue
-            "fields": [
-                {
-                    "name": "🎮 ╏ Available Squad Roles",
-                    "value": (
-                        "• <@&1551184094313062470>\n"
-                        "• <@&1551184098834251786>\n"
-                        "• <@&1551184102957523048>"
-                    ),
-                    "inline": False,
-                }
-            ],
-            "footer": {"text": "✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Self-Assignable Roles • Instant Sync ✦"},
-        }
-
-        game_payload = {
-            "embeds": [game_embed],
-            "components": [
-                {
-                    "type": 1,
-                    "components": [
-                        {
-                            "type": 3,
-                            "custom_id": "rai_role_select_games",
-                            "placeholder": "🎯 Choose your game titles...",
-                            "min_values": 0,
-                            "max_values": len(GAME_OPTIONS),
-                            "options": GAME_OPTIONS,
-                        }
-                    ],
-                }
-            ],
-        }
-
-        notif_embed = {
-            "title": "✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ 𝓝ᴏᴛɪғɪᴄᴀᴛɪᴏɴ 𝕻ɪɴɢs ✦",
-            "description": (
-                "Never miss out on official server updates, community giveaways, or prize tournaments!\n\n"
-                "• Selecting a role **adds** it to your profile.\n"
-                "• Deselecting a role **removes** it automatically."
-            ),
-            "color": 0xE67E22,  # Vivid Warm Amber
-            "fields": [
-                {
-                    "name": "🔔 ╏ Available Alerts",
-                    "value": (
-                        "• <@&1550199913093144649>\n"
-                        "• <@&1550199917262143560>\n"
-                        "• <@&1550199921007792188>"
-                    ),
-                    "inline": False,
-                }
-            ],
-            "footer": {"text": "✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Community Alerts • Toggle Anytime ✦"},
-        }
-
-        notif_payload = {
-            "embeds": [notif_embed],
-            "components": [
-                {
-                    "type": 1,
-                    "components": [
-                        {
-                            "type": 3,
-                            "custom_id": "rai_role_select_notifs",
-                            "placeholder": "📢 Choose notification alerts...",
-                            "min_values": 0,
-                            "max_values": len(NOTIF_OPTIONS),
-                            "options": NOTIF_OPTIONS,
-                        }
-                    ],
-                }
-            ],
-        }
-
-        if game_msg_id:
-            print(f"Updating Game Roles Panel {game_msg_id}...")
-            async with s.patch(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages/{game_msg_id}", headers=headers, json=game_payload) as r:
-                print("Game panel update status:", r.status)
-        else:
-            print("Posting new Game Roles Panel...")
-            async with s.post(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages", headers=headers, json=game_payload) as r:
-                print("Game panel post status:", r.status)
-
-        await asyncio.sleep(1)
-
-        if notif_msg_id:
-            print(f"Updating Notif Roles Panel {notif_msg_id}...")
-            async with s.patch(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages/{notif_msg_id}", headers=headers, json=notif_payload) as r:
-                print("Notif panel update status:", r.status)
-        else:
-            print("Posting new Notif Roles Panel...")
-            async with s.post(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages", headers=headers, json=notif_payload) as r:
-                print("Notif panel post status:", r.status)
+        print(f"Updating role message {TARGET_MSG_ID} in channel {CH_ROLES}...")
+        async with s.patch(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages/{TARGET_MSG_ID}", headers=headers, json=payload) as pr:
+            print("Update status:", pr.status)
+            if pr.status != 200:
+                print("Patch failed, posting fresh message...")
+                async with s.post(f"https://discord.com/api/v10/channels/{CH_ROLES}/messages", headers=headers, json=payload) as cr:
+                    print("Create status:", cr.status)
 
 if __name__ == "__main__":
     asyncio.run(main())

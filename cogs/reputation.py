@@ -14,12 +14,13 @@ Provides:
 from __future__ import annotations
 
 import logging
+import random
 import time
 from typing import TYPE_CHECKING, Optional
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from config import Colors
 from utils.embeds import create_embed, error_embed, info_embed, success_embed
@@ -32,15 +33,154 @@ logger = logging.getLogger("Rai.ReputationCog")
 
 
 class ReputationCog(commands.Cog, name="Reputation"):
-    """Community Reputation System."""
+    """Community Reputation & Activity Leveling System."""
+
+    LEVEL_UP_CHANNEL_ID = 1557475848892973219
 
     def __init__(self, bot: SentinelBot):
         self.bot = bot
         self._give_cooldowns: dict[tuple[int, int], float] = {}
+        self._chat_cooldowns: dict[tuple[int, int], float] = {}
+        self.voice_xp_loop.start()
+
+    def cog_unload(self):
+        self.voice_xp_loop.cancel()
+
+    async def _dispatch_level_up(self, guild: discord.Guild, member: discord.Member, level: int, points: int):
+        """Announces level-up milestones in #🏆・ʟᴇᴠᴇʟ-ᴜᴘ."""
+        channel = guild.get_channel(self.LEVEL_UP_CHANNEL_ID)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            channel = guild.system_channel
+        if not channel:
+            return
+
+        embed = discord.Embed(
+            title=f"✦ 𝓛ᴇᴠᴇʟ 𝓤ᴘ! ╏ Level {level} Reached! ✦",
+            description=(
+                f"🎉 Massive congratulations, {member.mention}!\n\n"
+                f"Your active participation on **✦ 𝓡ᴀɪ 𝕱ᴀᴍ ✦** has leveled you up!\n\n"
+                f"🏆 **Current Rank:** `Level {level}`\n"
+                f"⭐ **Total Activity XP:** `{points:,} XP`\n"
+                f"📈 **Next Milestone:** `{level * 100:,} XP`\n"
+            ),
+            color=0xF1C40F,  # Gold
+        )
+        if member.display_avatar:
+            embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(
+            text="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Community Activity & Voice Lounges ✦",
+            icon_url=guild.icon.url if guild.icon else None,
+        )
+
+        try:
+            await channel.send(content=f"🎊 {member.mention}", embed=embed)
+        except (discord.Forbidden, discord.HTTPException) as e:
+            logger.debug("Failed to send level-up card: %s", e)
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Awards chat XP with a 60-second cooldown per user."""
+        if not message.guild or message.author.bot or len(message.content) < 3:
+            return
+        if message.content.startswith(("/", "!", ".")):
+            return
+
+        key = (message.guild.id, message.author.id)
+        last_chat = self._chat_cooldowns.get(key, 0.0)
+        now = time.time()
+        if now - last_chat < 60.0:
+            return
+
+        self._chat_cooldowns[key] = now
+        awarded = random.randint(15, 25)
+        bot_user_id = self.bot.user.id if self.bot.user else 0
+        try:
+            res = await self.bot.db.add_reputation_points(
+                guild_id=message.guild.id,
+                user_id=message.author.id,
+                giver_id=bot_user_id,
+                category="chat_activity",
+                points=awarded,
+                reason="Active chat contribution",
+            )
+            if res.get("level", 1) > res.get("old_level", 1):
+                if isinstance(message.author, discord.Member):
+                    await self._dispatch_level_up(message.guild, message.author, res["level"], res["points"])
+        except Exception as e:
+            logger.debug("Chat XP error for %s: %s", message.author.id, e)
+
+    @tasks.loop(minutes=2)
+    async def voice_xp_loop(self):
+        """Awards voice XP every 2 minutes for members chilling in active voice channels."""
+        for guild in self.bot.guilds:
+            for vc in guild.voice_channels:
+                active_members = [
+                    m for m in vc.members
+                    if not m.bot and not getattr(m.voice, "self_deaf", False) and not getattr(m.voice, "deaf", False)
+                ]
+                if len(active_members) >= 2:
+                    bot_user_id = self.bot.user.id if self.bot.user else 0
+                    for member in active_members:
+                        try:
+                            res = await self.bot.db.add_reputation_points(
+                                guild_id=guild.id,
+                                user_id=member.id,
+                                giver_id=bot_user_id,
+                                category="voice_activity",
+                                points=10,
+                                reason="Active voice lounge session",
+                            )
+                            if res.get("level", 1) > res.get("old_level", 1):
+                                await self._dispatch_level_up(guild, member, res["level"], res["points"])
+                        except Exception as e:
+                            logger.debug("Voice XP error for %s: %s", member.id, e)
+
+    @voice_xp_loop.before_loop
+    async def before_voice_xp(self):
+        await self.bot.wait_until_ready()
 
     rep_group = app_commands.Group(name="reputation", description="Community reputation and appreciation system")
     profile_group = app_commands.Group(name="profile", description="Member community profile and identity")
     collab_group = app_commands.Group(name="collab", description="Collaboration matcher and creative networking")
+
+    @app_commands.command(name="level", description="Check your or another member's activity level and XP progress")
+    @app_commands.describe(member="Member to inspect (defaults to yourself)")
+    async def level_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await interaction.response.defer()
+        target = member or interaction.user
+        if not isinstance(target, discord.Member) and interaction.guild:
+            target = interaction.guild.get_member(target.id) or target
+
+        prof = await self.bot.db.get_or_create_reputation_profile(interaction.guild.id, target.id)
+        current_level = prof.get("level", 1)
+        points = prof.get("points", 0)
+
+        level_base_xp = (current_level - 1) * 100
+        progress_xp = points - level_base_xp
+        progress_pct = max(0, min(100, int((progress_xp / 100) * 100)))
+
+        filled = progress_pct // 10
+        bar = "█" * filled + "░" * (10 - filled)
+
+        embed = discord.Embed(
+            title=f"✦ Activity Status ╏ {target.display_name} ✦",
+            description=(
+                f"🏆 **Level:** `Level {current_level}`\n"
+                f"⭐ **Total XP:** `{points:,} XP`\n\n"
+                f"**Level Progress:** `[{bar}] {progress_pct}%`\n"
+                f"*({progress_xp}/100 XP to Level {current_level + 1})*"
+            ),
+            color=0x9B59B6,
+        )
+        if target.display_avatar:
+            embed.set_thumbnail(url=target.display_avatar.url)
+        embed.set_footer(text="Earn XP by chatting in text channels and chilling in voice lounges!")
+        await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="rank", description="Check your activity level and rank")
+    @app_commands.describe(member="Member to inspect (defaults to yourself)")
+    async def rank_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await self.level_cmd(interaction, member)
 
     @rep_group.command(name="profile", description="View a member's community reputation profile and accomplishments")
     @app_commands.describe(user="The server member (defaults to yourself)")
@@ -52,11 +192,11 @@ class ReputationCog(commands.Cog, name="Reputation"):
         embed = create_embed(
             title=f"⭐ Community Reputation — {target.display_name}",
             description=(
-                f"**Level:** `Level {profile['level']}`\n"
-                f"**Reputation Points:** `{profile['points']}`\n\n"
-                f"🤝 **Helpful Contributions:** `{profile['helpful_count']}`\n"
-                f"🎟️ **Events Attended:** `{profile['event_count']}`\n"
-                f"🎙️ **Active Voice Minutes:** `{profile['voice_minutes']} mins`"
+                f"**Level:** `Level {profile.get('level', 1)}`\n"
+                f"**Reputation Points:** `{profile.get('points', 0)}`\n\n"
+                f"🤝 **Helpful Contributions:** `{profile.get('helpful_count', 0)}`\n"
+                f"🎟️ **Events Attended:** `{profile.get('event_count', 0)}`\n"
+                f"🎙️ **Active Voice Minutes:** `{profile.get('voice_minutes', 0)} mins`"
             ),
             color=Colors.GOLD,
         )

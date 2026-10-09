@@ -167,14 +167,34 @@ class RulesConsoleView(ui.View):
     @ui.button(label="I Acknowledge the Guidelines", style=discord.ButtonStyle.success, emoji="✅", custom_id="rai_rules_acknowledge", row=1)
     async def acknowledge_btn(self, interaction: discord.Interaction, button: ui.Button):
         member = interaction.user
+        guild = interaction.guild or interaction.client.get_guild(1457382179981099090)  # type: ignore
+
+        roles_assigned = []
+        if isinstance(member, discord.Member) and guild:
+            verified_role = guild.get_role(1549504522953695269)   # Verified Member
+            community_role = guild.get_role(1545494584203673740)  # Rai Fam
+            to_add = []
+            if verified_role and verified_role not in member.roles:
+                to_add.append(verified_role)
+            if community_role and community_role not in member.roles:
+                to_add.append(community_role)
+            if to_add:
+                try:
+                    await member.add_roles(*to_add, reason="Rules acknowledged via #rules-and-guide")
+                    roles_assigned = [r.name for r in to_add]
+                except Exception:
+                    pass
+
+        status_text = "• Roles Granted: " + ", ".join(f"`{r}`" for r in roles_assigned) if roles_assigned else "• Standing: `Already Verified & In Good Standing`"
+
         ack_embed = discord.Embed(
             title="✦ 𝕲ᴜɪᴅᴇʟɪɴᴇs 𝓐ᴄᴋɴᴏᴡʟᴇᴅɢᴇᴅ ✦",
             description=(
                 f"Thank you, {member.mention}! ✨\n\n"
                 "Your acceptance of the **✦ 𝓡ᴀɪ 𝕱ᴀᴍ ✦** Community Guidelines has been recorded.\n"
-                f"• Verified Role: <@&1549504522953695269>\n"
-                f"• Community Access: Granted\n\n"
-                f"Enjoy your stay and have fun!"
+                f"{status_text}\n"
+                f"• Community Access: **Granted**\n\n"
+                f"Head over to <#{GENERAL_CHAT_ID}> to chat or <#{ROLES_CHANNEL_ID}> to pick your roles!"
             ),
             color=0x2ECC71,
         )
@@ -189,3 +209,4 @@ class RulesConsoleView(ui.View):
                     raise
         else:
             await interaction.followup.send(embed=ack_embed, ephemeral=True)
+

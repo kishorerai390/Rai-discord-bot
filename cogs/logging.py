@@ -266,6 +266,24 @@ class LoggingCog(commands.Cog, name="Logging"):
         await self._send_log(member.guild, "member_channel_id", embed)
 
     @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Auto-publish messages posted in Announcement / News channels."""
+        if not message.guild or message.author.bot:
+            return
+
+        if message.channel.type == discord.ChannelType.news or message.channel.id == 1545502718792175646:
+            try:
+                if not getattr(message.flags, "crossposted", False):
+                    await message.publish()
+                    logger.info("Auto-published announcement message %s in %s", message.id, message.channel.name)
+                    try:
+                        await message.add_reaction("📢")
+                    except Exception:
+                        pass
+            except discord.HTTPException as e:
+                logger.debug("Announcement auto-publish notice: %s", e)
+
+    @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return

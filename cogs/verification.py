@@ -433,15 +433,52 @@ class VerificationCog(commands.Cog, name="Verification"):
         elif custom_id.startswith("rai_role_opt:"):
             role_key = custom_id.split(":", 1)[1]
             role_map = {
+                # Notifications
                 "announcements": (1550199913093144649, "Announcements"),
                 "giveaways": (1550199917262143560, "Giveaways"),
                 "tournaments": (1550199921007792188, "Tournaments"),
-                "valorant": (1551184094313062470, "Valorant / Gaming"),
+                # Gaming Squads
+                "valorant": (1551184094313062470, "Valorant / CS2"),
+                "bgmi": (1551184098834251786, "BGMI / PUBG"),
+                "freefire": (1551184102957523048, "Free Fire"),
+                # Vanity Colors
+                "color_rose": (1557477500886581310, "Rose Gold"),
+                "color_cyan": (1557477498466336830, "Cyber Cyan"),
+                "color_violet": (1557477496524509224, "Neon Violet"),
             }
+            vanity_color_ids = {
+                1557477500886581310,  # Rose Gold
+                1557477498466336830,  # Cyber Cyan
+                1557477496524509224,  # Neon Violet
+            }
+
             if role_key in role_map and interaction.guild and isinstance(interaction.user, discord.Member):
                 r_id, r_name = role_map[role_key]
                 role = interaction.guild.get_role(r_id)
-                if role:
+                if not role:
+                    await interaction.response.send_message(f"❌ Role `{r_name}` could not be found on the server.", ephemeral=True)
+                    return
+
+                # Vanity color logic: mutually exclusive
+                if r_id in vanity_color_ids:
+                    if role in interaction.user.roles:
+                        try:
+                            await interaction.user.remove_roles(role, reason="Self-assigned vanity color unequipped")
+                            await interaction.response.send_message(f"🎨 Unequipped **{role.name}** vanity color.", ephemeral=True)
+                        except Exception as e:
+                            await interaction.response.send_message(f"❌ Could not unequip color: {e}", ephemeral=True)
+                    else:
+                        # Remove any existing vanity color
+                        roles_to_remove = [r for r in interaction.user.roles if r.id in vanity_color_ids]
+                        try:
+                            if roles_to_remove:
+                                await interaction.user.remove_roles(*roles_to_remove, reason="Switching vanity color")
+                            await interaction.user.add_roles(role, reason="Self-assigned vanity color equipped")
+                            await interaction.response.send_message(f"✨ Equipped **{role.name}** as your new vanity name color!", ephemeral=True)
+                        except Exception as e:
+                            await interaction.response.send_message(f"❌ Could not equip color: {e}", ephemeral=True)
+                else:
+                    # Regular toggle for notifications & gaming
                     if role in interaction.user.roles:
                         try:
                             await interaction.user.remove_roles(role, reason="Self-assigned role toggle")
