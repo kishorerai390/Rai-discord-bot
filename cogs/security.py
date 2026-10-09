@@ -481,6 +481,7 @@ class SecurityCog(commands.Cog, name="Security"):
         """Deliver security alert to the private staff/security channel."""
         log_cfg = await self.bot.db.get_logging_config(guild.id)
         candidate_ids = [
+            1555283378612478072,  # 🚨・sᴇᴄᴜʀɪᴛʏ-ᴀʟᴇʀᴛs
             log_cfg.security_channel_id,
             log_cfg.moderation_channel_id,
             log_cfg.general_channel_id,
@@ -653,13 +654,142 @@ class SecurityCog(commands.Cog, name="Security"):
         alert_embed.timestamp = discord.utils.utcnow()
         await self._send_private_security_alert(guild, alert_embed)
 
+    async def _handle_honeypot_trap(self, message: discord.Message) -> bool:
+        """
+        Stealth Honeypot Raider Trap:
+        The honeypot channel is invisible to normal members. Any message sent in it
+        is guaranteed to be an automated scraper, self-bot, or unauthorized infiltrator.
+        Triggers instant autonomous ban and alerts the security operations team.
+        """
+        HONEYPOT_CHANNEL_ID = 1558168338386129004  # #🪤・honeypot-trap
+        if not message.guild or message.channel.id != HONEYPOT_CHANNEL_ID:
+            return False
+
+        if message.author.bot or message.author.id == message.guild.owner_id:
+            return False
+
+        guild = message.guild
+        member = message.author
+
+        # Delete trap-triggering message
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        # Instant sub-millisecond ban
+        ban_success = False
+        ban_error = ""
+        try:
+            if isinstance(member, discord.Member):
+                await member.ban(reason="Honeypot Trap Triggered: Stealth Raider/Scraper Detected", delete_message_days=1)
+                ban_success = True
+        except Exception as e:
+            ban_error = str(e)
+            logger.error(f"Failed to ban honeypot intruder: {e}")
+
+        event_id = generate_event_id()
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        incident = SecurityIncident(
+            event_id=event_id,
+            guild_id=guild.id,
+            timestamp=now_iso,
+            event_type="HONEYPOT_TRIGGERED",
+            executor_id=member.id,
+            executor_name=f"{member.name} ({member.id})",
+            target_id=message.channel.id,
+            target_name=f"#{message.channel.name}",
+            action="honeypot_message",
+            detected_count=1,
+            threshold=1,
+            audit_log_id=None,
+            reason="User posted in stealth honeypot channel (Scraper / Raider detected)",
+            automated_action="Immediate Ban & 24h Purge" if ban_success else f"Ban failed: {ban_error}",
+            result="Banned" if ban_success else "Pending Manual Ban",
+            severity="critical",
+            audit_verified=True,
+        )
+        await self.bot.db.record_security_incident(incident)
+        await self.bot.db.record_violation(guild.id, member.id, "HONEYPOT_TRIGGERED")
+
+        payload = message.content[:500] if message.content else "*[No Content / Embed]*"
+        alert_embed = security_embed(
+            title="🪤 STEALTH HONEYPOT TRAP TRIGGERED — RAIDER BAN ENFORCED",
+            description=(
+                f"**A suspicious entity posted in the hidden `#🪤・honeypot-trap`!**\n\n"
+                f"👤 **Offender:** {member.mention} (`{member.name}` | ID: `{member.id}`)\n"
+                f"📍 **Channel:** {message.channel.mention} (`#{message.channel.name}`)\n"
+                f"💬 **Captured Payload:**\n```{payload}```\n"
+                f"⚡ **Automated Action:** `{'Permanently Banned & Purged' if ban_success else 'Ban Failed - Alerted Staff'}`\n"
+                f"🛡️ **Perimeter Status:** Trap operational. Raider neutralized in < 1ms."
+            ),
+        )
+        alert_embed.set_footer(text=f"Sentinel Security Honeytrap • Incident ID: {event_id}")
+        alert_embed.timestamp = discord.utils.utcnow()
+        await self._send_private_security_alert(guild, alert_embed)
+        return True
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        if await self._handle_honeypot_trap(message):
+            return
         await self._handle_everyone_mention(message)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
         await self._handle_everyone_mention(after)
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message):
+        """
+        Anti-Ghost Ping Protection:
+        Detects when a user pings members or roles and deletes their message.
+        Exposes the ghost ping in-channel and logs the violation to security alerts.
+        """
+        if not message.guild or not message.author or message.author.bot:
+            return
+
+        # Identify mentioned users (excluding bots and self) and mentioned roles
+        targets = [m for m in message.mentions if not m.bot and m.id != message.author.id]
+        role_targets = message.role_mentions
+
+        if not targets and not role_targets:
+            return
+
+        # Check if the message was deleted quickly (within 5 minutes of sending)
+        lifetime = (discord.utils.utcnow() - message.created_at).total_seconds()
+        if lifetime > 300:
+            return
+
+        target_strs = [m.mention for m in targets] + [r.mention for r in role_targets]
+        target_display = ", ".join(target_strs)
+
+        # 1. Log to private security alerts channel
+        ghost_embed = warning_embed(
+            title="👻 GHOST PING INTERCEPTED",
+            description=(
+                f"**A user mentioned members/roles and deleted their message!**\n\n"
+                f"👤 **Author:** {message.author.mention} (`{message.author.name}` | ID: `{message.author.id}`)\n"
+                f"📍 **Channel:** {message.channel.mention} (`#{message.channel.name}`)\n"
+                f"🎯 **Targeted Mentions:** {target_display}\n"
+                f"💬 **Deleted Content:**\n```{message.content[:500] if message.content else '*[No Content / Embed]*'}```\n"
+                f"⏱️ **Message Lifetime:** `{int(lifetime)} seconds`"
+            ),
+        )
+        ghost_embed.set_footer(text="Anti-Ghost Ping Sentinel")
+        ghost_embed.timestamp = discord.utils.utcnow()
+        await self._send_private_security_alert(message.guild, ghost_embed)
+
+        # 2. Expose the ghost ping in the origin channel with auto-delete (15s)
+        try:
+            reveal_embed = discord.Embed(
+                description=f"👻 **Ghost Ping Detected!** {message.author.mention} pinged {target_display} and deleted their message.",
+                color=Colors.WARNING,
+            )
+            reveal_embed.set_footer(text="Anti-Ghost Ping Sentinel • Auto-cleaning in 15s")
+            await message.channel.send(embed=reveal_embed, delete_after=15.0)
+        except Exception:
+            pass
 
     # ==========================================
     # SLASH COMMANDS

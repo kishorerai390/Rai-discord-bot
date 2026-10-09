@@ -698,11 +698,70 @@ class RolesCog(commands.Cog, name="Roles"):
                 await self.bot.role_manager.assign_role(
                     guild, after, "booster", reason="Nitro boost started", trigger="BOOST_DETECTED"
                 )
+                await self._handle_booster_concierge(after)
             else:
                 # Stopped boosting
                 await self.bot.role_manager.remove_role(
                     guild, after, "booster", reason="Nitro boost stopped", trigger="BOOST_DETECTED"
                 )
+
+    async def _handle_booster_concierge(self, member: discord.Member) -> None:
+        """
+        VIP Booster Concierge & Autonomous Penthouse Activation:
+        1. Celebrates new boost in #🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ with rich luxury embed.
+        2. Dispatches executive VIP onboarding direct message with perk breakdown.
+        3. Grants access to #🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ and 👑・VIP Penthouse.
+        """
+        guild = member.guild
+        BOOSTER_LOUNGE_ID = 1557479371001045056   # #🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ
+        VIP_PENTHOUSE_ID = 1557481242054758482    # 👑・VIP Penthouse
+
+        # 1. Post luxury celebration in Booster Lounge
+        lounge_ch = guild.get_channel(BOOSTER_LOUNGE_ID)
+        if lounge_ch and isinstance(lounge_ch, discord.TextChannel):
+            embed = discord.Embed(
+                title="💎 EXCLUSIVE SERVER BOOST ACTIVATED! 💎",
+                description=(
+                    f"**Welcome to elite status, {member.mention}!**\n\n"
+                    f"Thank you for elevating **{guild.name}** with your Nitro boost! "
+                    f"Your support powers our high-performance infrastructure.\n\n"
+                    f"👑 **Unlocked Booster Privileges:**\n"
+                    f"• Access to the private `#🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ`\n"
+                    f"• High-fidelity 384kbps audio in `👑・VIP Penthouse`\n"
+                    f"• Top priority audio request queue on **Neko Songs** 🎵\n"
+                    f"• Distinct Booster role badge and elevated member ranking"
+                ),
+                color=discord.Color.from_rgb(244, 127, 255),
+            )
+            embed.set_thumbnail(url=member.display_avatar.url)
+            embed.set_footer(text=f"{guild.name} • VIP Booster Concierge")
+            embed.timestamp = discord.utils.utcnow()
+            try:
+                await lounge_ch.send(content=f"🎉 Welcome {member.mention} to the VIP Club!", embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to post booster announcement in lounge: {e}")
+
+        # 2. Luxury DM to the booster
+        try:
+            dm_embed = discord.Embed(
+                title=f"👑 VIP Penthouse Access Granted — {guild.name}",
+                description=(
+                    f"Greetings **{member.display_name}**,\n\n"
+                    f"Thank you for boosting **{guild.name}**! Your exclusive VIP privileges are now fully unlocked:\n\n"
+                    f"🎧 **1. VIP Penthouse Voice:** Private, high-fidelity studio voice pod (`👑・VIP Penthouse`).\n"
+                    f"💬 **2. Booster Lounge:** Secret discussions in `#🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ`.\n"
+                    f"🎵 **3. Priority Audio:** Fast-tracked songs and priority queue on Neko Songs.\n"
+                    f"✨ **4. Prestige Styling:** Exclusive Nitro Booster icon and profile highlight.\n\n"
+                    f"Enjoy your luxury experience! Our concierge and staff are always at your service."
+                ),
+                color=discord.Color.from_rgb(244, 127, 255),
+            )
+            if guild.icon:
+                dm_embed.set_thumbnail(url=guild.icon.url)
+            dm_embed.set_footer(text="The Raivora Sanctuary Executive Concierge")
+            await member.send(embed=dm_embed)
+        except Exception:
+            pass  # User DMs closed
 
         # 2. Native Discord Timeout sync
         if before.timed_out_until != after.timed_out_until:
