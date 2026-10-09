@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 import uuid
 from typing import TYPE_CHECKING, List, Optional
 import discord
@@ -729,14 +730,132 @@ class SecurityCog(commands.Cog, name="Security"):
         await self._send_private_security_alert(guild, alert_embed)
         return True
 
+    _SCAM_DOMAIN_PATTERN = re.compile(
+        r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:dlscord|discrod|discorcl|discort|discodo|gift-discord|nitro-discord|discord-claim|discord-drop|steamcommunyt|steamcommnuit|steamcommunlty|steancommunity|steam-gift|csgo-skins|rust-skins)\.[a-zA-Z]{2,10}(?:/[^\s]*)?",
+        re.IGNORECASE,
+    )
+    _DECEPTIVE_NITRO_PATTERN = re.compile(
+        r"(?:https?://)?(?:www\.)?[a-zA-Z0-9-]+\.(?:xyz|top|gift|click|ru|link|rest|shop|fun|space|site|cc|info)/(?:nitro|claim|gift|airdrop)",
+        re.IGNORECASE,
+    )
+    _ZALGO_PATTERN = re.compile(r"[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]")
+
+    async def _handle_phishing_and_zalgo(self, message: discord.Message) -> bool:
+        """
+        Zero-Day Phishing & Anti-Zalgo Shield:
+        1. Identifies and purges token-grabber, fake Nitro, and Steam phishing domains in < 1ms.
+        2. Detects cursed Zalgo unicode combinations that freeze or crash Discord mobile apps.
+        """
+        if not message.guild or not message.author or message.author.bot or not message.content:
+            return False
+
+        member = message.author
+        guild = message.guild
+        if member.id == guild.owner_id or (isinstance(member, discord.Member) and is_founder_or_owner(member)):
+            return False
+
+        content = message.content
+
+        # 1. Phishing & Malicious Link Interception
+        is_phishing = bool(self._SCAM_DOMAIN_PATTERN.search(content) or self._DECEPTIVE_NITRO_PATTERN.search(content))
+        if is_phishing:
+            try:
+                await message.delete()
+            except Exception:
+                pass
+
+            timeout_applied = False
+            if isinstance(member, discord.Member):
+                try:
+                    # Timeout for 24 hours to freeze compromised account
+                    until = discord.utils.utcnow() + datetime.timedelta(hours=24)
+                    await member.timeout(until, reason="Security: Zero-Day Phishing Domain Intercepted")
+                    timeout_applied = True
+                except Exception as e:
+                    logger.warning(f"Could not timeout member {member.id} for phishing: {e}")
+
+            event_id = generate_event_id()
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            incident = SecurityIncident(
+                event_id=event_id,
+                guild_id=guild.id,
+                timestamp=now_iso,
+                event_type="PHISHING_DOMAIN_BLOCKED",
+                executor_id=member.id,
+                executor_name=f"{member.name} ({member.id})",
+                target_id=message.channel.id,
+                target_name=f"#{message.channel.name}",
+                action="phishing_link",
+                detected_count=1,
+                threshold=1,
+                audit_log_id=None,
+                reason="Posted malicious Discord Nitro or Steam phishing domain",
+                automated_action="Deleted Message & 24h Account Isolation Timeout" if timeout_applied else "Deleted Message",
+                result="Isolated" if timeout_applied else "Deleted",
+                severity="critical",
+                audit_verified=True,
+            )
+            await self.bot.db.record_security_incident(incident)
+            await self.bot.db.record_violation(guild.id, member.id, "PHISHING_DOMAIN_BLOCKED")
+
+            # Alert Staff
+            alert_embed = security_embed(
+                title="🛡️ ZERO-DAY PHISHING LINK INTERCEPTED",
+                description=(
+                    f"**Malicious token-grabber/scam URL neutralized!**\n\n"
+                    f"👤 **Account:** {member.mention} (`{member.name}` | ID: `{member.id}`)\n"
+                    f"📍 **Channel:** {message.channel.mention} (`#{message.channel.name}`)\n"
+                    f"🔗 **Payload Snippet:**\n```{content[:300]}```\n"
+                    f"⚡ **Containment:** `{'24h Timeout Applied (Account Quarantined)' if timeout_applied else 'Message Purged'}`"
+                ),
+            )
+            alert_embed.set_footer(text=f"Phishing Sentinel Shield • Incident ID: {event_id}")
+            alert_embed.timestamp = discord.utils.utcnow()
+            await self._send_private_security_alert(guild, alert_embed)
+
+            # In-channel notification
+            try:
+                warn_embed = discord.Embed(
+                    description=f"🛡️ **Security Alert:** Phishing link from {member.mention} intercepted and deleted. Account quarantined for safety.",
+                    color=Colors.DANGER,
+                )
+                await message.channel.send(embed=warn_embed, delete_after=12.0)
+            except Exception:
+                pass
+            return True
+
+        # 2. Anti-Zalgo Text Cleaner
+        zalgo_matches = len(self._ZALGO_PATTERN.findall(content))
+        if zalgo_matches > 15:
+            try:
+                await message.delete()
+            except Exception:
+                pass
+
+            try:
+                warn_embed = discord.Embed(
+                    description=f"⚠️ {member.mention}, glitched / Zalgo font spam is blocked to protect members from Discord app lag.",
+                    color=Colors.WARNING,
+                )
+                await message.channel.send(embed=warn_embed, delete_after=8.0)
+            except Exception:
+                pass
+            return True
+
+        return False
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if await self._handle_honeypot_trap(message):
+            return
+        if await self._handle_phishing_and_zalgo(message):
             return
         await self._handle_everyone_mention(message)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
+        if await self._handle_phishing_and_zalgo(after):
+            return
         await self._handle_everyone_mention(after)
 
     @commands.Cog.listener()

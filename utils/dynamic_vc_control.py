@@ -320,6 +320,15 @@ class DynamicVCControlManager:
                 row=0,
             )
         )
+        view.add_item(
+            ui.Button(
+                style=discord.ButtonStyle.secondary,
+                label="Bitrate",
+                emoji="🎚️",
+                custom_id=f"rai_vc:bitrate:{voice_channel_id}",
+                row=0,
+            )
+        )
 
         # Row 1: User Limit, DJ, Co-Host, Delete Room
         view.add_item(
