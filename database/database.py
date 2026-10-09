@@ -7055,6 +7055,38 @@ class Database:
             row = await cursor.fetchone()
             return dict(row) if row else None
 
+    async def get_recent_premium_events(
+        self,
+        user_id: Optional[int] = None,
+        guild_id: Optional[int] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Fetch recent premium events filtered by user or guild."""
+        if not self._db:
+            return []
+        query = "SELECT * FROM premium_events"
+        conditions = []
+        params = []
+        if user_id is not None:
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        if guild_id is not None:
+            conditions.append("guild_id = ?")
+            params.append(guild_id)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        async with self._db.execute(query, tuple(params)) as cursor:
+            rows = await cursor.fetchall()
+            result = []
+            for r in rows:
+                d = dict(r)
+                d["event_id"] = d.get("id")
+                result.append(d)
+            return result
+
     # ==========================================
     # OPERATIONS CORE & AUTOMATION STATE
     # ==========================================
