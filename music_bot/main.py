@@ -61,9 +61,9 @@ def main():
         sys.exit(2)
 
     # Acquire instance lock for Neko Songs bot
-    from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError
+    from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError, MUSIC_LOCK_PORT
     lock_file = Path(__file__).resolve().parent.parent / ".neko_songs.lock"
-    lock = SingleInstanceLock(lock_file=lock_file)
+    lock = SingleInstanceLock(port=MUSIC_LOCK_PORT, lock_file=lock_file)
     try:
         lock.acquire()
     except InstanceAlreadyRunningError as e:

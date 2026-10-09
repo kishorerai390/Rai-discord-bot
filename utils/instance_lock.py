@@ -16,6 +16,7 @@ from typing import Optional
 logger = logging.getLogger("SentinelBot.InstanceLock")
 
 DEFAULT_LOCK_PORT = 49451
+MUSIC_LOCK_PORT = 49452
 LOCK_FILE_PATH = Path(".bot.lock")
 
 
