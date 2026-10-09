@@ -279,6 +279,55 @@ class CreatorCog(commands.Cog, name="Creator"):
         )
         await interaction.followup.send(embed=embed)
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Intelligent media showcase engine: auto-reacts, threads, and keeps gallery clean."""
+        if message.author.bot or not message.guild:
+            return
+        if message.channel.id != 1551184138932068373:  # #📸・MEDIA-AND-CLIPS
+            return
+
+        has_media = bool(message.attachments)
+        if not has_media:
+            content_lower = message.content.lower()
+            media_domains = (
+                "youtube.com", "youtu.be", "tiktok.com", "medal.tv",
+                "twitch.tv", "twitter.com", "x.com", "streamable.com",
+                "imgur.com", "giphy.com", "tenor.com", ".mp4", ".mov",
+                ".webm", ".png", ".jpg", ".jpeg", ".webp", ".gif"
+            )
+            has_media = any(dom in content_lower for dom in media_domains)
+
+        if has_media:
+            # Auto-react with star for weekly spotlight voting
+            try:
+                await message.add_reaction("⭐")
+            except Exception:
+                pass
+
+            # Auto-create discussion thread to keep main gallery clean
+            try:
+                author_name = message.author.display_name[:20]
+                thread_name = f"💬・Comments on {author_name}'s Clip"
+                await message.create_thread(
+                    name=thread_name,
+                    auto_archive_duration=1440,
+                    reason="Media Showcase Auto-Thread"
+                )
+            except Exception as e:
+                logger.debug(f"Auto-thread creation skipped: {e}")
+        else:
+            # Non-media plain text message in gallery
+            try:
+                await message.delete()
+                await message.channel.send(
+                    f"👋 {message.author.mention}, this channel is a dedicated media & clip showcase! "
+                    f"Please share clips or artwork here, or chat in <#1545502730699808768> (`#💬・ɢᴇɴᴇʀᴀʟ-ᴄʜᴀᴛ`).",
+                    delete_after=7,
+                )
+            except Exception:
+                pass
+
 
 async def setup(bot: SentinelBot):
     await bot.add_cog(CreatorCog(bot))
