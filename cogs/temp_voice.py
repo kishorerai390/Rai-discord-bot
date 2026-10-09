@@ -696,6 +696,35 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         await DynamicVCControlManager.update_room_panel(self.bot, interaction.guild, vc.id)
         await interaction.response.send_message(embed=success_embed("Room Renamed", f"Channel renamed to **{clean_name}**."), ephemeral=True)
 
+    @tempvoice_group.command(name="bitrate", description="Scale temporary voice room audio quality")
+    @app_commands.describe(preset="Audio profile to apply")
+    @app_commands.choices(
+        preset=[
+            app_commands.Choice(name="📻 Lo-Fi Chill (96 kbps)", value=96),
+            app_commands.Choice(name="🎮 Gaming / Esports (128 kbps)", value=128),
+            app_commands.Choice(name="🎧 Studio Hi-Fi (256 kbps)", value=256),
+            app_commands.Choice(name="👑 Nitro Maximum (384 kbps)", value=384),
+        ]
+    )
+    async def tempvoice_bitrate(self, interaction: discord.Interaction, preset: app_commands.Choice[int]):
+        member = interaction.user
+        if not isinstance(member, discord.Member) or not member.voice or not member.voice.channel:
+            await interaction.response.send_message(embed=error_embed("Not in Voice", "You must be in your temporary room."), ephemeral=True)
+            return
+        vc = member.voice.channel
+        room = await self.bot.db.get_dynamic_room(vc.id)
+        if not room or room.owner_id != member.id:
+            await interaction.response.send_message(embed=error_embed("Unauthorized", "You are not the owner of this room."), ephemeral=True)
+            return
+
+        max_bitrate = interaction.guild.bitrate_limit if interaction.guild else 96000
+        bps = max(8000, min(max_bitrate, preset.value * 1000))
+        await vc.edit(bitrate=bps)
+        await interaction.response.send_message(
+            embed=success_embed("Bitrate Scaled", f"Room audio bitrate adjusted to **`{bps // 1000} kbps`** ({preset.name})!"),
+            ephemeral=True,
+        )
+
     @tempvoice_group.command(name="status", description="Inspect TempVoice hub configuration")
     @is_admin_or_owner()
     async def tempvoice_status(self, interaction: discord.Interaction):

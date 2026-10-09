@@ -667,11 +667,11 @@ class DynamicVCControlManager:
         is_cohost = interaction.user.id in (room.co_host_ids or [])
         is_dj = interaction.user.id in (room.dj_ids or [])
 
-        owner_admin_only_actions = {"rename", "privacy", "limit", "customize", "transfer", "delete", "cohost", "dj", "lock_toggle", "manage"}
+        owner_admin_only_actions = {"rename", "privacy", "limit", "customize", "transfer", "delete", "cohost", "dj", "lock_toggle", "manage", "bitrate"}
         cohost_allowed_actions = {"members", "mute", "disconnect", "clear", "invite", "remove", "lock_toggle", "manage"}
         dj_allowed_actions = {"music_play", "music_pause", "music_toggle", "music_skip", "music_queue"}
 
-        if action in owner_admin_only_actions:
+        if action in owner_admin_only_actions or prefix == "rai_vc_bitrate":
             if not (is_owner or is_admin):
                 await interaction.response.send_message(
                     embed=error_embed("Unauthorized", "❌ You are not the owner of this room."),
@@ -703,6 +703,26 @@ class DynamicVCControlManager:
         # DISPATCH ACTIONS
         if prefix == "rai_vc":
             return await cls._dispatch_main_action(bot, interaction, room, vc, action)
+        elif prefix == "rai_vc_bitrate":
+            try:
+                kbps = int(action)
+                max_limit = interaction.guild.bitrate_limit if interaction.guild else 96000
+                target_bps = max(8000, min(max_limit, kbps * 1000))
+                await vc.edit(bitrate=target_bps)
+                await interaction.response.send_message(
+                    embed=success_embed(
+                        "Bitrate Scaled",
+                        f"Room audio bitrate adjusted to **`{target_bps // 1000} kbps`** ({target_bps} bps)!",
+                    ),
+                    ephemeral=True,
+                )
+                return True
+            except Exception as e:
+                await interaction.response.send_message(
+                    embed=error_embed("Failed to Update Bitrate", str(e)),
+                    ephemeral=True,
+                )
+                return True
         elif prefix == "rai_vc_priv":
             return await cls._dispatch_privacy_action(bot, interaction, room, vc, action)
         elif prefix == "rai_vc_confirm":
@@ -738,6 +758,29 @@ class DynamicVCControlManager:
                         f"• 🔇 **Voice Moderation** — Mute or deafen members\n"
                         f"• 🚪 **Disconnect** — Disconnect a member\n"
                         f"• 🧹 **Clear Room** — Disconnect all other members"
+                    ),
+                    color=Colors.PRIMARY,
+                ),
+                view=view,
+                ephemeral=True,
+            )
+            return True
+
+        # 0.05 BITRATE SCALER -> Dynamic Bitrate View
+        elif action == "bitrate":
+            view = DynamicBitrateView(vc.id)
+            current_kbps = (vc.bitrate // 1000) if vc and vc.bitrate else 64
+            max_kbps = (guild.bitrate_limit // 1000) if guild else 96
+            await interaction.response.send_message(
+                embed=create_embed(
+                    title=f"🎚️ Audio Bitrate Scaler — {vc.name}",
+                    description=(
+                        f"Current Room Bitrate: **`{current_kbps} kbps`** (Server Max: **`{max_kbps} kbps`**)\n\n"
+                        f"Select an audio profile to instantly scale the sound fidelity:\n"
+                        f"• 📻 **Lo-Fi Chill (96 kbps)** — Low bandwidth, crisp voice\n"
+                        f"• 🎮 **Gaming / Esports (128 kbps)** — Crystal clear team comms\n"
+                        f"• 🎧 **Studio Hi-Fi (256 kbps)** — High-fidelity stereo audio\n"
+                        f"• 👑 **Nitro Maximum (384 kbps)** — Ultra studio quality"
                     ),
                     color=Colors.PRIMARY,
                 ),
@@ -1734,6 +1777,30 @@ class DynamicCustomizeView(ui.View):
                     label=name,
                     emoji=data["prefix"].replace("・", ""),
                     custom_id=f"rai_vc_tpl:{name}:{voice_channel_id}",
+                )
+            )
+
+
+class DynamicBitrateView(ui.View):
+    """Ephemeral view displaying quick audio bitrate presets."""
+
+    def __init__(self, voice_channel_id: int):
+        super().__init__(timeout=60)
+        self.voice_channel_id = voice_channel_id
+
+        presets = [
+            ("Lo-Fi (96k)", "📻", 96),
+            ("Gaming (128k)", "🎮", 128),
+            ("Studio (256k)", "🎧", 256),
+            ("Nitro Max (384k)", "👑", 384),
+        ]
+        for label, emoji, kbps in presets:
+            self.add_item(
+                ui.Button(
+                    style=discord.ButtonStyle.secondary if kbps <= 128 else discord.ButtonStyle.primary,
+                    label=label,
+                    emoji=emoji,
+                    custom_id=f"rai_vc_bitrate:{kbps}:{voice_channel_id}",
                 )
             )
 
