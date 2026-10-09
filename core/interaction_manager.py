@@ -104,6 +104,7 @@ class InteractionManager:
     _instance: Optional[InteractionManager] = None
     _contexts: Dict[int, ManagedInteractionContext] = {}
     _lock = asyncio.Lock()
+    _last_cleanup: float = 0.0
     metrics = InteractionMetricsSummary()
 
     @classmethod
@@ -127,7 +128,7 @@ class InteractionManager:
     async def register_interaction(
         cls, interaction: discord.Interaction, command_name: Optional[str] = None
     ) -> ManagedInteractionContext:
-        """Register newly received interaction in NOT_ACKNOWLEDGED state."""
+        """Register newly received interaction in NOT_ACKNOWLEDGED state in sub-millisecond time."""
         now = time.perf_counter()
         req_id = cls.generate_request_id()
         cmd = command_name or (interaction.command.name if interaction.command else "component")
@@ -143,14 +144,15 @@ class InteractionManager:
             received_at=now,
         )
 
-        async with cls._lock:
-            # Periodic cleanup of contexts older than 15 minutes
+        # Hot-path: O(1) dict write. Throttled cleanup every 5 minutes or 500 items.
+        if now - cls._last_cleanup > 300.0 or len(cls._contexts) > 500:
+            cls._last_cleanup = now
             cutoff = now - 900.0
             expired_keys = [iid for iid, c in cls._contexts.items() if c.received_at < cutoff]
             for k in expired_keys:
                 cls._contexts.pop(k, None)
 
-            cls._contexts[interaction.id] = ctx
+        cls._contexts[interaction.id] = ctx
 
         return ctx
 

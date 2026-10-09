@@ -109,11 +109,14 @@ class Database:
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
 
-        # Essential safety pragmas
+        # Essential safety and sub-millisecond performance pragmas
         await self._db.execute("PRAGMA foreign_keys = ON;")
         await self._db.execute("PRAGMA journal_mode = WAL;")
         await self._db.execute("PRAGMA synchronous = NORMAL;")
         await self._db.execute("PRAGMA busy_timeout = 5000;")
+        await self._db.execute("PRAGMA cache_size = -64000;")        # 64MB RAM page cache
+        await self._db.execute("PRAGMA temp_store = MEMORY;")         # Ephemeral sorting/indices in memory
+        await self._db.execute("PRAGMA mmap_size = 268435456;")       # 256MB memory-mapped disk I/O
         await self._db.commit()
 
         # Run schema migrations

@@ -44,6 +44,13 @@ from utils.interaction_reliability import (
     safe_response,
 )
 from core.interaction_manager import InteractionManager
+from utils.dynamic_vc_control import DynamicVCControlManager
+from utils.interactive_incidents import InteractiveIncidentManager
+from utils.private_control import PrivateControlManager
+from utils.ai_incident_responder import handle_incident_interaction
+from core.nl_control import NaturalLanguageControlManager
+from utils.luxury_consoles import LuxuryConsolesManager
+from utils.music_consoles import MusicConsolesManager
 
 logger = logging.getLogger("SentinelBot")
 
@@ -153,7 +160,6 @@ class SentinelBot(commands.Bot):
         if interaction.type == discord.InteractionType.component:
             cid = interaction.data.get("custom_id", "")
             if cid.startswith("rai_vc"):
-                from utils.dynamic_vc_control import DynamicVCControlManager
                 try:
                     handled = await DynamicVCControlManager.handle_interaction(self, interaction)
                     if handled:
@@ -166,7 +172,6 @@ class SentinelBot(commands.Bot):
                         except Exception:
                             pass
             elif cid.startswith("rai_inc:"):
-                from utils.interactive_incidents import InteractiveIncidentManager
                 try:
                     handled = await InteractiveIncidentManager.handle_component_interaction(self, interaction)
                     if handled:
@@ -179,7 +184,6 @@ class SentinelBot(commands.Bot):
                         except Exception:
                             pass
             elif cid.startswith("rai_ctrl:"):
-                from utils.private_control import PrivateControlManager
                 try:
                     handled = await PrivateControlManager.handle_interaction(self, interaction)
                     if handled:
@@ -192,7 +196,6 @@ class SentinelBot(commands.Bot):
                         except Exception:
                             pass
             elif cid.startswith("inc_"):
-                from utils.ai_incident_responder import handle_incident_interaction
                 try:
                     handled = await handle_incident_interaction(self, interaction)
                     if handled:
@@ -205,7 +208,6 @@ class SentinelBot(commands.Bot):
                         except Exception:
                             pass
             elif cid.startswith("rai_nl:"):
-                from core.nl_control import NaturalLanguageControlManager
                 try:
                     handled = await NaturalLanguageControlManager.handle_interaction(self, interaction)
                     if handled:
@@ -224,7 +226,6 @@ class SentinelBot(commands.Bot):
                 or cid.startswith("rai_quarantine:")
                 or cid.startswith("rai_soundscape:")
             ):
-                from utils.luxury_consoles import LuxuryConsolesManager
                 try:
                     handled = await LuxuryConsolesManager.handle_interaction(self, interaction)
                     if handled:
@@ -242,7 +243,6 @@ class SentinelBot(commands.Bot):
                 or cid.startswith("m_dj:")
                 or cid.startswith("m_pl:")
             ):
-                from utils.music_consoles import MusicConsolesManager
                 try:
                     handled = await MusicConsolesManager.handle_interaction(self, interaction)
                     if handled:

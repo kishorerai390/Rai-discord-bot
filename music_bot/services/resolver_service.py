@@ -32,7 +32,7 @@ YTDL_OPTIONS = {
 }
 
 FFMPEG_OPTIONS = {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 3 -probesize 32k -analyzeduration 0",
     "options": "-vn",
 }
 
@@ -40,11 +40,17 @@ _ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
 
 
 class AudioResolver:
-    """Handles query searching, URL extraction, and stream link generation."""
+    """Handles query searching, URL extraction, and stream link generation with ultra-low latency."""
+
+    _search_cache: Dict[str, List[Dict[str, Any]]] = {}
 
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search YouTube for tracks matching query and return raw candidates."""
+        """Search YouTube for tracks matching query with in-memory caching."""
+        cache_key = f"{limit}:{query.strip().lower()}"
+        if cache_key in cls._search_cache:
+            return cls._search_cache[cache_key]
+
         loop = asyncio.get_running_loop()
         search_query = f"ytsearch{limit}:{query}" if not query.startswith("http") else query
 
@@ -72,6 +78,7 @@ class AudioResolver:
                 "thumbnail": entry.get("thumbnail"),
                 "id": entry.get("id"),
             })
+        cls._search_cache[cache_key] = results
         return results
 
     @classmethod

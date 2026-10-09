@@ -4,3 +4,4 @@ python-dotenv>=1.0.0
 PyNaCl>=1.5.0
 yt-dlp>=2023.7.6
 static-ffmpeg>=2.5
+orjson>=3.13.0
