@@ -150,7 +150,7 @@ def security_dashboard_embed(guild_name: str, metrics: dict[str, Any]) -> discor
     lines = []
     for key, val in metrics.items():
         em = emoji_map.get(key, "🔹")
-        lines.append(f"{em} {key:<16} {val}")
+        lines.append(f"{em} {key:<16}{val}")
     desc = "\n".join(lines)
     return create_embed(
         title=f"{DEFAULT_BRAND} // SECURITY CENTER",

@@ -4951,6 +4951,7 @@ class Database:
     async def create_raid_incident(
         self, guild_id: int, incident_id: str, risk_level: str, initial_score: int
     ) -> int:
+        await self.get_or_create_guild_config(guild_id)
         now = utcnow_iso()
         cursor = await self._db.execute(
             """
@@ -5013,6 +5014,29 @@ class Database:
             (status, now, now, resolved_by, incident_id),
         )
         await self._db.commit()
+
+    async def get_raid_incidents(self, guild_id: int, limit: int = 50) -> List[RaidIncident]:
+        async with self._db.execute(
+            "SELECT * FROM raid_incidents WHERE guild_id = ? ORDER BY started_at DESC LIMIT ?",
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                RaidIncident(
+                    id=row["id"],
+                    guild_id=row["guild_id"],
+                    incident_id=row["incident_id"],
+                    started_at=row["started_at"],
+                    ended_at=row["ended_at"],
+                    status=row["status"],
+                    risk_level=row["risk_level"],
+                    current_score=row["current_score"],
+                    maximum_score=row["maximum_score"],
+                    resolved_at=row["resolved_at"],
+                    resolved_by=row["resolved_by"],
+                )
+                for row in rows
+            ]
 
     async def record_raid_event(
         self, incident_id: str, guild_id: int, event_type: str, user_id: Optional[int], channel_id: Optional[int], metadata: str = ""
@@ -7008,6 +7032,29 @@ class Database:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
 
+    async def list_premium_products(self, active_only: bool = True) -> List[Dict[str, Any]]:
+        """List premium products."""
+        if not self._db:
+            return []
+        sql = "SELECT * FROM premium_products"
+        if active_only:
+            sql += " WHERE is_active = 1"
+        sql += " ORDER BY price_cents ASC"
+        async with self._db.execute(sql) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def get_premium_entitlement(self, entitlement_id: int) -> Optional[Dict[str, Any]]:
+        """Fetch entitlement by ID."""
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM premium_entitlements WHERE entitlement_id = ?",
+            (entitlement_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
     # ==========================================
     # OPERATIONS CORE & AUTOMATION STATE
     # ==========================================
@@ -7173,6 +7220,174 @@ class Database:
         ) as cursor:
             rows = await cursor.fetchall()
         return [dict(r) for r in rows]
+
+    # ==========================================
+    # PRIVATE CONTROL CENTRE CONFIG
+    # ==========================================
+
+    def _row_to_private_control_config(self, row: Any) -> PrivateControlConfig:
+        def _parse_list(val: Any) -> List[int]:
+            if not val:
+                return []
+            if isinstance(val, list):
+                return val
+            try:
+                res = json.loads(val)
+                return [int(x) for x in res] if isinstance(res, list) else []
+            except Exception:
+                return []
+
+        return PrivateControlConfig(
+            guild_id=row["guild_id"],
+            enabled=bool(row["enabled"]),
+            auto_repair=bool(row["auto_repair"]),
+            control_hub_category_id=row["control_hub_category_id"],
+            reports_category_id=row["reports_category_id"],
+            security_category_id=row["security_category_id"],
+            admin_category_id=row["admin_category_id"],
+            security_alerts_id=row["security_alerts_id"],
+            anti_nuke_id=row["anti_nuke_id"],
+            security_log_id=row["security_log_id"],
+            audit_monitor_id=row["audit_monitor_id"],
+            lockdown_control_id=row["lockdown_control_id"],
+            admin_control_id=row["admin_control_id"],
+            server_dashboard_id=row["server_dashboard_id"],
+            bot_config_id=row["bot_config_id"],
+            automation_control_id=row["automation_control_id"],
+            backup_control_id=row["backup_control_id"],
+            system_health_id=row["system_health_id"],
+            bot_report_channel_id=row["bot_report_channel_id"],
+            security_report_channel_id=row["security_report_channel_id"],
+            system_report_channel_id=row["system_report_channel_id"],
+            rai_security_role_id=row["rai_security_role_id"],
+            rai_admin_role_id=row["rai_admin_role_id"],
+            owner_category_id=row["owner_category_id"],
+            owner_ids=_parse_list(row["owner_ids"]),
+            security_role_ids=_parse_list(row["security_role_ids"]),
+            admin_role_ids=_parse_list(row["admin_role_ids"]),
+            updated_at=row["updated_at"],
+        )
+
+    async def get_or_create_private_control_config(self, guild_id: int) -> PrivateControlConfig:
+        await self.get_or_create_guild_config(guild_id)
+        async with self._db.execute(
+            "SELECT * FROM private_control_config WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return self._row_to_private_control_config(row)
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO private_control_config (guild_id, enabled, auto_repair, updated_at)
+            VALUES (?, 1, 1, ?)
+            """,
+            (guild_id, now),
+        )
+        await self._db.commit()
+        cfg = await self.get_private_control_config(guild_id)
+        return cfg or PrivateControlConfig(guild_id=guild_id, enabled=True, auto_repair=True, updated_at=now)
+
+    async def get_private_control_config(self, guild_id: int) -> Optional[PrivateControlConfig]:
+        async with self._db.execute(
+            "SELECT * FROM private_control_config WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        return self._row_to_private_control_config(row) if row else None
+
+    async def update_private_control_config(self, guild_id: int, **kwargs: Any) -> PrivateControlConfig:
+        await self.get_or_create_private_control_config(guild_id)
+        if not kwargs:
+            cfg = await self.get_private_control_config(guild_id)
+            return cfg or PrivateControlConfig(guild_id=guild_id)
+        now = utcnow_iso()
+        kwargs["updated_at"] = now
+        set_clauses = []
+        vals = []
+        for k, v in kwargs.items():
+            set_clauses.append(f"{k} = ?")
+            if isinstance(v, (list, dict)):
+                vals.append(json.dumps(v))
+            elif isinstance(v, bool):
+                vals.append(1 if v else 0)
+            else:
+                vals.append(v)
+        vals.append(guild_id)
+        sql = f"UPDATE private_control_config SET {', '.join(set_clauses)} WHERE guild_id = ?"
+        await self._db.execute(sql, tuple(vals))
+        await self._db.commit()
+        cfg = await self.get_private_control_config(guild_id)
+        return cfg or PrivateControlConfig(guild_id=guild_id)
+
+    # ==========================================
+    # SIMULATION RUNS & MODULE REGISTRY
+    # ==========================================
+
+    async def record_simulation_run(
+        self,
+        simulation_id: str,
+        guild_id: int,
+        sim_type: str,
+        actor_id: int,
+        details: Any,
+    ) -> bool:
+        await self.get_or_create_guild_config(guild_id)
+        now_str = utcnow_iso()
+        details_str = json.dumps(details) if isinstance(details, (dict, list)) else str(details)
+        await self._db.execute(
+            """
+            INSERT INTO simulation_runs (simulation_id, guild_id, sim_type, actor_id, details, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(simulation_id) DO UPDATE SET
+                guild_id = excluded.guild_id,
+                sim_type = excluded.sim_type,
+                actor_id = excluded.actor_id,
+                details = excluded.details
+            """,
+            (simulation_id, guild_id, sim_type, actor_id, details_str, now_str),
+        )
+        await self._db.commit()
+        return True
+
+    async def register_module(
+        self,
+        module_name: str,
+        version: str = "1.0.0",
+        is_core: bool = False,
+        is_enabled: bool = True,
+        dependencies: Optional[List[str]] = None,
+    ) -> bool:
+        if not self._db:
+            return False
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS system_modules (
+                module_name TEXT PRIMARY KEY,
+                version TEXT NOT NULL,
+                is_core INTEGER NOT NULL DEFAULT 0,
+                is_enabled INTEGER NOT NULL DEFAULT 1,
+                dependencies TEXT NOT NULL DEFAULT '[]',
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        now = utcnow_iso()
+        deps_str = json.dumps(dependencies or [])
+        await self._db.execute(
+            """
+            INSERT INTO system_modules (module_name, version, is_core, is_enabled, dependencies, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(module_name) DO UPDATE SET
+                version = excluded.version,
+                is_core = excluded.is_core,
+                is_enabled = excluded.is_enabled,
+                dependencies = excluded.dependencies,
+                updated_at = excluded.updated_at
+            """,
+            (module_name, version, 1 if is_core else 0, 1 if is_enabled else 0, deps_str, now),
+        )
+        await self._db.commit()
+        return True
 
 
 
