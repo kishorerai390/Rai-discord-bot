@@ -87,6 +87,66 @@ class TestHoneypotAndGhostPing(unittest.IsolatedAsyncioTestCase):
             mock_alert.assert_awaited_once()
             channel.send.assert_awaited_once()
 
+    async def test_phishing_link_interception(self):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 99999
+        guild.owner_id = 11111
+
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 77777
+        channel.name = "general"
+        channel.mention = "<#77777>"
+        channel.send = AsyncMock()
+
+        author = MagicMock(spec=discord.Member)
+        author.id = 55555
+        author.name = "compromised_user"
+        author.mention = "<@55555>"
+        author.bot = False
+        author.timeout = AsyncMock()
+        author.guild_permissions = MagicMock(administrator=False)
+
+        msg = MagicMock(spec=discord.Message)
+        msg.guild = guild
+        msg.channel = channel
+        msg.author = author
+        msg.content = "Claim your free 3 months discord nitro here: https://dlscord-nitro.gift/claim"
+        msg.delete = AsyncMock()
+
+        with patch.object(self.cog, "_send_private_security_alert", new_callable=AsyncMock) as mock_alert:
+            intercepted = await self.cog._handle_phishing_and_zalgo(msg)
+            self.assertTrue(intercepted)
+            msg.delete.assert_awaited_once()
+            author.timeout.assert_awaited_once()
+            mock_alert.assert_awaited_once()
+
+    async def test_zalgo_text_blocked(self):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 99999
+        guild.owner_id = 11111
+
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 77777
+        channel.send = AsyncMock()
+
+        author = MagicMock(spec=discord.Member)
+        author.id = 66666
+        author.bot = False
+        author.guild_permissions = MagicMock(administrator=False)
+
+        # Generate heavily zalgo-spammed string
+        zalgo_payload = "H" + "\u0300\u0301\u0302\u0303\u0304\u0305\u0306\u0307\u0308\u0309\u030a\u030b\u030c\u030d\u030e\u030f\u0310" + "ELP"
+        msg = MagicMock(spec=discord.Message)
+        msg.guild = guild
+        msg.channel = channel
+        msg.author = author
+        msg.content = zalgo_payload
+        msg.delete = AsyncMock()
+
+        intercepted = await self.cog._handle_phishing_and_zalgo(msg)
+        self.assertTrue(intercepted)
+        msg.delete.assert_awaited_once()
+
 
 class TestBoosterConcierge(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
