@@ -326,14 +326,36 @@ class AutopilotEngine:
         if cfg.alert_channel_id:
             alert_channel = guild.get_channel(cfg.alert_channel_id)
         if not alert_channel:
-            # Fallback to general system log channel or guild system channel
-            log_cfg = await self.db.get_logging_config(actual_guild_id)
-            if log_cfg and log_cfg.security_channel_id:
-                alert_channel = guild.get_channel(log_cfg.security_channel_id)
+            # Fallback to private control security alerts channel
+            try:
+                if hasattr(self.db, "get_private_control_config"):
+                    p_cfg = await self.db.get_private_control_config(actual_guild_id)
+                    if p_cfg and getattr(p_cfg, "security_alerts_id", None):
+                        alert_channel = guild.get_channel(p_cfg.security_alerts_id)
+            except Exception:
+                pass
         if not alert_channel:
-            alert_channel = guild.system_channel
+            # Fallback to general system log channel
+            try:
+                log_cfg = await self.db.get_logging_config(actual_guild_id)
+                if log_cfg and log_cfg.security_channel_id:
+                    alert_channel = guild.get_channel(log_cfg.security_channel_id)
+            except Exception:
+                pass
+        if not alert_channel and hasattr(guild, "text_channels"):
+            # Search for dedicated security or admin channels by name
+            for ch in guild.text_channels:
+                ch_name = ch.name.lower()
+                if any(k in ch_name for k in ["security-alerts", "security-log", "admin-alerts", "bot-alerts", "mod-log", "audit-monitor"]):
+                    alert_channel = ch
+                    break
 
         if alert_channel and isinstance(alert_channel, discord.TextChannel):
+            # Guard against public welcome / chat channel leaks
+            ch_name_lower = alert_channel.name.lower()
+            if any(w in ch_name_lower for w in ["welcome", "general", "rules", "lobby", "chat", "announcement"]):
+                logger.debug(f"Autopilot: Suppressed alert dispatch to public/welcome channel #{alert_channel.name}")
+                return
             # Debounce by module and guild (1 alert per 30 seconds for non-critical)
             cache_key = f"{guild.id}:{event.module}:{event.event_type}"
             now = time.time()

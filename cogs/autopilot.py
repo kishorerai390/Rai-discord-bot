@@ -284,12 +284,41 @@ class AutopilotCog(commands.Cog, name="Autopilot"):
         if not cfg.enabled or not getattr(cfg, "anti_nuke", True):
             return
 
+        # 1. Ignore managed temporary / dynamic voice channels
+        try:
+            if hasattr(self.bot.db, "get_dynamic_room") and await self.bot.db.get_dynamic_room(channel.id):
+                return
+            if hasattr(self.bot.db, "get_hidden_voice_room") and await self.bot.db.get_hidden_voice_room(channel.id):
+                return
+        except Exception:
+            pass
+
+        # 2. Ignore dynamic voice signatures and hub channels
+        ch_name_lower = channel.name.lower()
+        if isinstance(channel, discord.VoiceChannel):
+            dynamic_signatures = ["'s room", "sanctuary", "lounge", "private", "create your room", "create private room"]
+            if any(sig in ch_name_lower for sig in dynamic_signatures):
+                return
+
+        # 3. Check audit log: ignore automated bot cleanup or authorized server owners
+        from utils.helpers import find_audit_executor
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.channel_delete, target_id=channel.id, max_retries=2, delay_seconds=0.3
+        )
+        if executor:
+            if executor.id == self.bot.user.id or executor.id == guild.owner_id:
+                return
+            if hasattr(self.bot.db, "is_whitelisted"):
+                role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
+                if await self.bot.db.is_whitelisted(guild.id, executor.id, role_ids):
+                    return
+
         await self.bot.autopilot.dispatch(
             AutopilotEvent(
                 guild_id=guild.id,
                 module="ANTI_NUKE",
                 event_type="CHANNEL_DELETE",
-                reason=f"Channel #{channel.name} deleted",
+                reason=f"Channel #{channel.name} deleted" + (f" by {executor.display_name}" if executor else ""),
                 risk_level="HIGH",
                 target=channel,
                 action="LOG",
@@ -304,12 +333,24 @@ class AutopilotCog(commands.Cog, name="Autopilot"):
         if not cfg.enabled or not getattr(cfg, "anti_nuke", True):
             return
 
+        from utils.helpers import find_audit_executor
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.role_delete, target_id=role.id, max_retries=2, delay_seconds=0.3
+        )
+        if executor:
+            if executor.id == self.bot.user.id or executor.id == guild.owner_id:
+                return
+            if hasattr(self.bot.db, "is_whitelisted"):
+                role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
+                if await self.bot.db.is_whitelisted(guild.id, executor.id, role_ids):
+                    return
+
         await self.bot.autopilot.dispatch(
             AutopilotEvent(
                 guild_id=guild.id,
                 module="ANTI_NUKE",
                 event_type="ROLE_DELETE",
-                reason=f"Role @{role.name} deleted",
+                reason=f"Role @{role.name} deleted" + (f" by {executor.display_name}" if executor else ""),
                 risk_level="HIGH",
                 target=role,
                 action="LOG",

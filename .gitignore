@@ -2,6 +2,9 @@
 .env
 *.env
 !.env.example
+*.lock
+.bot.lock
+.neko_songs.lock
 
 # Python
 __pycache__/
