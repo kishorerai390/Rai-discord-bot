@@ -1519,15 +1519,22 @@ async def get_owner_report_channel(
                         ch = await fetch_res
                     else:
                         ch = fetch_res
+                except TypeError:
+                    ch = fetch_res
                 except Exception:
                     ch = None
 
         if not ch and (cfg is None or getattr(cfg, "auto_repair", True)) and guild:
-            repair_res = OwnerReporter.repair_missing_channel(bot, guild, field)
-            if inspect.isawaitable(repair_res):
-                ch = await repair_res
-            else:
+            try:
+                repair_res = OwnerReporter.repair_missing_channel(bot, guild, field)
+                if inspect.isawaitable(repair_res):
+                    ch = await repair_res
+                else:
+                    ch = repair_res
+            except TypeError:
                 ch = repair_res
+            except Exception:
+                ch = None
         return ch if isinstance(ch, discord.TextChannel) else None
     except Exception as e:
         logger.warning(f"Error fetching owner report channel {category}: {e}")

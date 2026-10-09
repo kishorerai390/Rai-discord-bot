@@ -7421,6 +7421,468 @@ class Database:
         await self._db.commit()
         return True
 
+    # ==========================================
+    # EVENT TEMPLATES
+    # ==========================================
+
+    async def create_event_template(
+        self,
+        guild_id: int,
+        name: str,
+        event_type: str = "community",
+        default_description: str = "",
+        default_duration_mins: int = 60,
+    ) -> int:
+        await self.get_or_create_guild_config(guild_id)
+        now = utcnow_iso()
+        cursor = await self._db.execute(
+            """
+            INSERT INTO event_templates (guild_id, name, event_type, default_description, default_duration_mins, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id, name) DO UPDATE SET
+                event_type = excluded.event_type,
+                default_description = excluded.default_description,
+                default_duration_mins = excluded.default_duration_mins
+            """,
+            (guild_id, name, event_type, default_description, default_duration_mins, now),
+        )
+        await self._db.commit()
+        return cursor.lastrowid or 0
+
+    async def get_event_template(self, guild_id: int, name: str) -> Optional[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM event_templates WHERE guild_id = ? AND name = ?",
+            (guild_id, name),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def list_event_templates(self, guild_id: int) -> List[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM event_templates WHERE guild_id = ? ORDER BY name ASC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    # ==========================================
+    # REPUTATION & PROFILES
+    # ==========================================
+
+    async def get_or_create_reputation_profile(self, guild_id: int, user_id: int) -> Dict[str, Any]:
+        await self.get_or_create_guild_config(guild_id)
+        now = utcnow_iso()
+        async with self._db.execute(
+            "SELECT * FROM reputation_profiles WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        await self._db.execute(
+            """
+            INSERT INTO reputation_profiles (guild_id, user_id, points, level, helpful_count, created_at, updated_at)
+            VALUES (?, ?, 0, 1, 0, ?, ?)
+            """,
+            (guild_id, user_id, now, now),
+        )
+        await self._db.commit()
+        return {
+            "guild_id": guild_id,
+            "user_id": user_id,
+            "points": 0,
+            "level": 1,
+            "helpful_count": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+    async def add_reputation_points(
+        self,
+        guild_id: int,
+        user_id: int,
+        giver_id: int,
+        category: str,
+        points: int,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        prof = await self.get_or_create_reputation_profile(guild_id, user_id)
+        new_points = prof["points"] + points
+        new_level = (new_points // 100) + 1
+        helpful_inc = 1 if category == "helpful" else 0
+        new_helpful = prof["helpful_count"] + helpful_inc
+        now = utcnow_iso()
+
+        await self._db.execute(
+            """
+            UPDATE reputation_profiles
+            SET points = ?, level = ?, helpful_count = ?, updated_at = ?
+            WHERE guild_id = ? AND user_id = ?
+            """,
+            (new_points, new_level, new_helpful, now, guild_id, user_id),
+        )
+        await self._db.execute(
+            """
+            INSERT INTO reputation_logs (guild_id, user_id, giver_id, category, points, reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, user_id, giver_id, category, points, reason, now),
+        )
+        await self._db.commit()
+        prof["points"] = new_points
+        prof["level"] = new_level
+        prof["helpful_count"] = new_helpful
+        prof["updated_at"] = now
+        return prof
+
+    async def get_reputation_leaderboard(self, guild_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM reputation_profiles WHERE guild_id = ? ORDER BY points DESC LIMIT ?",
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    # ==========================================
+    # COLLABORATION & PROJECTS
+    # ==========================================
+
+    async def create_project(
+        self,
+        guild_id: int,
+        name: str,
+        project_type: str = "creator",
+        owner_id: int = 0,
+    ) -> int:
+        await self.get_or_create_guild_config(guild_id)
+        now = utcnow_iso()
+        cursor = await self._db.execute(
+            """
+            INSERT INTO projects (guild_id, name, project_type, owner_id, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, 'active', ?, ?)
+            """,
+            (guild_id, name, project_type, owner_id, now, now),
+        )
+        proj_id = cursor.lastrowid or 0
+        await self._db.execute(
+            """
+            INSERT INTO project_members (project_id, user_id, role, joined_at)
+            VALUES (?, ?, 'owner', ?)
+            """,
+            (proj_id, owner_id, now),
+        )
+        await self._db.commit()
+        return proj_id
+
+    async def get_project(self, project_id: int) -> Optional[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM projects WHERE id = ?", (project_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+    async def add_project_member(self, project_id: int, user_id: int, role: str = "contributor") -> bool:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO project_members (project_id, user_id, role, joined_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role
+            """,
+            (project_id, user_id, role, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def list_project_members(self, project_id: int) -> List[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM project_members WHERE project_id = ? ORDER BY joined_at ASC",
+            (project_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def update_project_status(self, project_id: int, status: str) -> bool:
+        now = utcnow_iso()
+        await self._db.execute(
+            "UPDATE projects SET status = ?, updated_at = ? WHERE id = ?",
+            (status, now, project_id),
+        )
+        await self._db.commit()
+        return True
+
+    # ==========================================
+    # SERVER KNOWLEDGE BASE
+    # ==========================================
+
+    async def add_knowledge_entry(
+        self,
+        guild_id: int,
+        topic: str,
+        content: str,
+        category: str = "general",
+        created_by: int = 0,
+    ) -> int:
+        await self.get_or_create_guild_config(guild_id)
+        now = utcnow_iso()
+        cursor = await self._db.execute(
+            """
+            INSERT INTO server_knowledge (guild_id, topic, content, category, created_by, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, topic, content, category, created_by, now),
+        )
+        await self._db.commit()
+        return cursor.lastrowid or 0
+
+    async def search_knowledge_entries(self, guild_id: int, query: str) -> List[Dict[str, Any]]:
+        pattern = f"%{query}%"
+        async with self._db.execute(
+            """
+            SELECT * FROM server_knowledge
+            WHERE guild_id = ? AND (topic LIKE ? OR content LIKE ?)
+            ORDER BY created_at DESC
+            """,
+            (guild_id, pattern, pattern),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def get_simulation_run(self, simulation_id: str) -> Optional[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM simulation_runs WHERE simulation_id = ?",
+            (simulation_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            res = dict(row)
+            try:
+                res["details"] = json.loads(res.get("details", "{}"))
+            except Exception:
+                pass
+            return res
+
+    # ==========================================
+    # DISASTER RECOVERY SCANS & PLANS
+    # ==========================================
+
+    async def record_recovery_scan(
+        self,
+        scan_id: str,
+        guild_id: int,
+        expected_channels: int,
+        missing_channels: int,
+        expected_roles: int,
+        mismatch_roles: int,
+        differences: List[Dict[str, Any]],
+    ) -> bool:
+        if not self._db:
+            return False
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recovery_scans (
+                scan_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                expected_channels INTEGER NOT NULL,
+                missing_channels INTEGER NOT NULL,
+                expected_roles INTEGER NOT NULL,
+                mismatch_roles INTEGER NOT NULL,
+                differences_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        now = utcnow_iso()
+        diff_str = json.dumps(differences or [])
+        await self._db.execute(
+            """
+            INSERT INTO recovery_scans (scan_id, guild_id, expected_channels, missing_channels, expected_roles, mismatch_roles, differences_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (scan_id, guild_id, expected_channels, missing_channels, expected_roles, mismatch_roles, diff_str, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def get_recovery_scan(self, scan_id: str) -> Optional[Dict[str, Any]]:
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM recovery_scans WHERE scan_id = ?", (scan_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            try:
+                d["differences"] = json.loads(d.get("differences_json", "[]"))
+            except Exception:
+                d["differences"] = []
+            return d
+
+    async def create_recovery_plan(
+        self,
+        plan_id: str,
+        scan_id: str,
+        guild_id: int,
+        planned_actions: List[Dict[str, Any]],
+    ) -> bool:
+        if not self._db:
+            return False
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recovery_plans (
+                plan_id TEXT PRIMARY KEY,
+                scan_id TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                planned_actions_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        now = utcnow_iso()
+        act_str = json.dumps(planned_actions or [])
+        await self._db.execute(
+            """
+            INSERT INTO recovery_plans (plan_id, scan_id, guild_id, status, planned_actions_json, created_at, updated_at)
+            VALUES (?, ?, ?, 'pending', ?, ?, ?)
+            """,
+            (plan_id, scan_id, guild_id, act_str, now, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def get_recovery_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM recovery_plans WHERE plan_id = ?", (plan_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            try:
+                d["planned_actions"] = json.loads(d.get("planned_actions_json", "[]"))
+            except Exception:
+                d["planned_actions"] = []
+            return d
+
+    async def update_recovery_plan_status(self, plan_id: str, status: str) -> bool:
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        await self._db.execute(
+            "UPDATE recovery_plans SET status = ?, updated_at = ? WHERE plan_id = ?",
+            (status, now, plan_id),
+        )
+        await self._db.commit()
+        return True
+
+    # ==========================================
+    # GUILD MODULE TOGGLES
+    # ==========================================
+
+    async def set_guild_module_enabled(self, guild_id: int, module_name: str, enabled: bool) -> bool:
+        await self.get_or_create_guild_config(guild_id)
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO guild_modules (guild_id, module_name, enabled, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id, module_name) DO UPDATE SET
+                enabled = excluded.enabled,
+                updated_at = excluded.updated_at
+            """,
+            (guild_id, module_name.lower().strip(), 1 if enabled else 0, now),
+        )
+        await self._db.commit()
+        return True
+
+    async def is_guild_module_enabled(self, guild_id: int, module_name: str) -> bool:
+        async with self._db.execute(
+            "SELECT enabled FROM guild_modules WHERE guild_id = ? AND module_name = ?",
+            (guild_id, module_name.lower().strip()),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return bool(row["enabled"])
+            return True
+
+    # ==========================================
+    # SERVER PROFILES
+    # ==========================================
+
+    async def get_server_profile(self, guild_id: int) -> Dict[str, Any]:
+        await self.get_or_create_guild_config(guild_id)
+        async with self._db.execute(
+            "SELECT * FROM server_profiles WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            res = dict(row)
+            try:
+                res["modules_enabled"] = json.loads(res.get("modules_enabled", "{}"))
+            except Exception:
+                res["modules_enabled"] = {}
+            return res
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO server_profiles (guild_id, server_type, automation_level, security_level, modules_enabled, updated_at)
+            VALUES (?, 'Community + Gaming + Creator', 'HIGH', 'BALANCED', '{}', ?)
+            """,
+            (guild_id, now),
+        )
+        await self._db.commit()
+        return {
+            "guild_id": guild_id,
+            "server_type": "Community + Gaming + Creator",
+            "automation_level": "HIGH",
+            "security_level": "BALANCED",
+            "modules_enabled": {},
+            "updated_at": now,
+        }
+
+    async def upsert_server_profile(
+        self,
+        guild_id: int,
+        server_type: Optional[str] = None,
+        automation_level: Optional[str] = None,
+        security_level: Optional[str] = None,
+        modules_enabled: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        prof = await self.get_server_profile(guild_id)
+        if server_type is not None:
+            prof["server_type"] = server_type
+        if automation_level is not None:
+            prof["automation_level"] = automation_level
+        if security_level is not None:
+            prof["security_level"] = security_level
+        if modules_enabled is not None:
+            prof["modules_enabled"] = modules_enabled
+        now = utcnow_iso()
+        prof["updated_at"] = now
+        modules_json = json.dumps(prof.get("modules_enabled", {}))
+        await self._db.execute(
+            """
+            INSERT INTO server_profiles (guild_id, server_type, automation_level, security_level, modules_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                server_type = excluded.server_type,
+                automation_level = excluded.automation_level,
+                security_level = excluded.security_level,
+                modules_enabled = excluded.modules_enabled,
+                updated_at = excluded.updated_at
+            """,
+            (guild_id, prof["server_type"], prof["automation_level"], prof["security_level"], modules_json, now),
+        )
+        await self._db.commit()
+        return prof
+
 
 
 

@@ -19,6 +19,7 @@ from discord.ext import commands
 
 from config import Colors
 from utils.embeds import create_embed, error_embed, info_embed
+from utils.font_generator import AVAILABLE_STYLES, transform_text
 
 if TYPE_CHECKING:
     from main import SentinelBot
@@ -162,6 +163,59 @@ class HelpCategorySelect(discord.ui.Select):
         await interaction.response.edit_message(embed=embed)
 
 
+class FontDropdown(discord.ui.Select):
+    def __init__(self, original_text: str, current_style: str = "small_caps"):
+        self.original_text = original_text
+        self.current_style = current_style
+        options = []
+        for key, label, example in AVAILABLE_STYLES[:25]:
+            options.append(
+                discord.SelectOption(
+                    label=label,
+                    value=key,
+                    description=example[:50] if example else None,
+                    default=(key == current_style),
+                )
+            )
+        super().__init__(
+            placeholder="Select a font style...",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        selected = self.values[0] if getattr(self, "values", None) else self.current_style
+        self.current_style = selected
+        for opt in self.options:
+            opt.default = (opt.value == selected)
+        transformed = transform_text(self.original_text, selected)
+        embed = create_embed(
+            title="✨ Font Generator",
+            description=f"```\n{transformed}\n```\n**Preview:**\n{transformed}",
+            color=Colors.PRIMARY,
+        )
+        embed.set_footer(text=f"Style: {selected}")
+        if getattr(self, "view", None):
+            await interaction.response.edit_message(embed=embed, view=self.view)
+        else:
+            await interaction.response.edit_message(embed=embed)
+
+
+class FontSelectView(discord.ui.View):
+    def __init__(self, original_text: str, current_style: str = "small_caps"):
+        super().__init__(timeout=180.0)
+        self.original_text = original_text
+        self.current_style = current_style
+        self.dropdown = FontDropdown(original_text, current_style)
+        self.add_item(self.dropdown)
+
+    @discord.ui.button(label="Copy Text", style=discord.ButtonStyle.secondary, emoji="📋")
+    async def copy_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        styled = transform_text(self.original_text, self.current_style)
+        await interaction.response.send_message(f"```{styled}```", ephemeral=True)
+
+
 class HelpView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=120)
@@ -174,6 +228,19 @@ class UtilityCog(commands.Cog, name="Utility"):
     def __init__(self, bot: SentinelBot):
         self.bot = bot
         self.start_time = time.time()
+
+    @app_commands.command(name="font", description="Convert text into stylized Unicode Discord fonts")
+    @app_commands.describe(text="The text to convert", style="Initial font style")
+    async def font(self, interaction: discord.Interaction, text: str, style: str = "small_caps"):
+        transformed = transform_text(text, style)
+        embed = create_embed(
+            title="✨ Font Generator",
+            description=f"```\n{transformed}\n```\n**Preview:**\n{transformed}",
+            color=Colors.PRIMARY,
+        )
+        embed.set_footer(text=f"Style: {style}")
+        view = FontSelectView(text, style)
+        await interaction.response.send_message(embed=embed, view=view)
 
     @app_commands.command(name="help", description="Browse all bot commands by category")
     async def help_cmd(self, interaction: discord.Interaction):

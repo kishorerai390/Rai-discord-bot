@@ -1553,6 +1553,9 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """,
             """
+            ALTER TABLE projects ADD COLUMN updated_at TEXT;
+            """,
+            """
             CREATE TABLE IF NOT EXISTS project_members (
                 project_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
