@@ -8228,7 +8228,7 @@ class Database:
         verif_count = 0
         try:
             async with self._db.execute(
-                "SELECT COUNT(*) FROM verification_logs WHERE guild_id = ?", (guild_id,)
+                "SELECT COUNT(*) FROM verification_records WHERE guild_id = ?", (guild_id,)
             ) as cursor:
                 row = await cursor.fetchone()
                 if row:
