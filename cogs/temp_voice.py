@@ -233,8 +233,9 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 )
                 is_public_trigger = not is_private_trigger and (
                     (cfg.hub_channel_id and after.channel.id == cfg.hub_channel_id)
-                    or ("create" in norm_name and "room" in norm_name)
-                    or (after.channel.id == 1554891383117193307)
+                    or ("create" in norm_name)
+                    or ("jointocreate" in norm_name)
+                    or (after.channel.id in (1557461916144767046, 1554891383117193307))
                 )
 
                 if is_public_trigger or is_private_trigger:
