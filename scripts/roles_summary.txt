@@ -1,0 +1,159 @@
+=== GUILD: ABIJITH 777 (ID: 1428058914141900860) - Members: 29 ===
+  [19] Sofi Music [Managed/Bot] (ID: 1512684375051997208) | Color: Default | Perms: ADMIN
+  [18] . (ID: 1548708892177862726) | Color: Default | Perms: ADMIN
+  [17] 👑・Founder [Hoisted] (ID: 1550205899069726810) | Color: #f1c40f | Perms: STANDARD
+  [15] Zynrax [Managed/Bot] (ID: 1548709297859338323) | Color: Default | Perms: ADMIN
+  [14] Lara✨ [Managed/Bot] (ID: 1548938326470430874) | Color: Default | Perms: ADMIN
+  [12] ⚡・Head Admin [Hoisted] (ID: 1550205902706049214) | Color: #e67e22 | Perms: STANDARD
+  [11] 🛡️・Moderator [Hoisted] (ID: 1550205905830682795) | Color: #2ecc71 | Perms: STANDARD
+  [10] ✨・Verified (ID: 1550205910218182696) | Color: #3498db | Perms: STANDARD
+  [ 9] 🌱・Member (ID: 1550205915398152364) | Color: #95a5a6 | Perms: STANDARD
+  [ 8] ⚔️・Senior Staff [Hoisted] (ID: 1550205919671881808) | Color: #ff7675 | Perms: STANDARD
+  [ 7] 💠・VIP [Hoisted] (ID: 1550205923337830582) | Color: #00cec9 | Perms: STANDARD
+  [ 6] 🚀・Booster [Hoisted] (ID: 1550205927804895354) | Color: #fd79a8 | Perms: STANDARD
+  [ 5] 🎙️・Active Member (ID: 1550205932179562700) | Color: #0984e3 | Perms: STANDARD
+  [ 3] Rythm [Managed/Bot] (ID: 1550465497760530495) | Color: Default | Perms: ADMIN
+  [ 2] BeatSync [Managed/Bot] (ID: 1550921295225688127) | Color: Default | Perms: ADMIN, MANAGE_CHANNELS
+  [ 1] 🍷・Abijith's Friends [Hoisted] (ID: 1550934628037165056) | Color: #e056fd | Perms: MENTION_EVERYONE
+  [ 1] THE Raivora [Managed/Bot] (ID: 1555669258573193255) | Color: Default | Perms: ADMIN
+  [ 0] @everyone (ID: 1428058914141900860) | Color: Default | Perms: MENTION_EVERYONE
+
+=== GUILD: ✦ ʀᴀɪ ʀᴀᴍ ✦ (ID: 1457382179981099090) - Members: 45 ===
+  [70] Rythm [Managed/Bot] (ID: 1534903565535940648) | Color: Default | Perms: ADMIN
+  [69] 👑 ╏ 𝓕ᴏᴜɴᴅᴇʀ 🍷 [Hoisted] (ID: 1545494610489643038) | Color: #f1c40f | Perms: ADMIN
+  [68] ⚡ ╏ 𝓗ᴇᴀᴅ 𝕬ᴅᴍɪɴ ⚡ [Hoisted] (ID: 1545506927788687470) | Color: #e74c3c | Perms: STANDARD
+  [67] 🤖 ═ ʀᴀɪ sᴇɴᴛɪɴᴇʟ 🍷 [Hoisted] (ID: 1557476518886641694) | Color: #00f0ff | Perms: ADMIN, MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [66] 🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️ [Hoisted] (ID: 1545494600347680918) | Color: #3498db | Perms: BAN, KICK
+  [65] BluesealPrime! [Hoisted] (ID: 1556380668412559361) | Color: #7df9ff | Perms: ADMIN
+  [64] BlueSeal Unbypassable! [Hoisted] (ID: 1556380672841748612) | Color: #7df9ff | Perms: ADMIN
+  [63] 🚀 ╏ 𝓢ᴇʀᴠᴇʀ 𝕭ᴏᴏsᴛᴇʀ [Hoisted] (ID: 1545494591883579434) | Color: #ff1493 | Perms: STANDARD
+  [62] Seal Auth! [Hoisted] (ID: 1556380675588751585) | Color: #7df9ff | Perms: ADMIN
+  [61] 🤖 ╏ 𝓑ᴏᴛs [Hoisted] (ID: 1545494578512134176) | Color: #747d8c | Perms: STANDARD
+  [60] 🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ (ID: 1545834928221069522) | Color: #a55eea | Perms: STANDARD
+  [59] 💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ (ID: 1545494584203673740) | Color: #ffb8c6 | Perms: STANDARD
+  [58] Wick [Managed/Bot] (ID: 1545519948007473222) | Color: Default | Perms: ADMIN
+  [57] BeatSync [Managed/Bot] (ID: 1545616944827342940) | Color: Default | Perms: ADMIN, MANAGE_CHANNELS
+  [56] Invite Tracker [Managed/Bot] (ID: 1546048371565793383) | Color: Default | Perms: ADMIN, MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, TIMEOUT
+  [55] Koya [Managed/Bot] (ID: 1546048477291741248) | Color: Default | Perms: MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [54] Sapphire [Managed/Bot] (ID: 1546049335148544095) | Color: Default | Perms: ADMIN, MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [53] DISBOARD.org [Managed/Bot] (ID: 1546072104397443175) | Color: Default | Perms: MANAGE_CHANNELS
+  [52] Green-Bot [Managed/Bot] (ID: 1547276294398545984) | Color: Default | Perms: ADMIN
+  [51] Zabrina [Managed/Bot] (ID: 1547276530718216203) | Color: Default | Perms: STANDARD
+  [50] Top.gg [Managed/Bot] (ID: 1547283179172528210) | Color: Default | Perms: STANDARD
+  [49] 🎂 ═ Birthday Star [Hoisted] (ID: 1557477515046555779) | Color: #ff7675 | Perms: STANDARD
+  [48] 🎯 ╏ 𝓥ᴀʟᴏʀᴀɴᴛ / 𝕮𝕾𝟐 (ID: 1551184094313062470) | Color: #fa4454 | Perms: STANDARD
+  [47] 💎・Diamond Patron (ID: 1557477505735065600) | Color: #00e5ff | Perms: STANDARD
+  [46] ✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ (ID: 1549504522953695269) | Color: #00ff88 | Perms: STANDARD
+  [45] 👑・VIP Lounge (ID: 1557477503746969782) | Color: #f1c40f | Perms: STANDARD
+  [44] ⚡ ╏ 𝓑𝓖𝓜𝓘 / 𝕻𝖀𝕭𝕲 (ID: 1551184098834251786) | Color: #e67e22 | Perms: STANDARD
+  [43] 🌸・Rose Gold (ID: 1557477500886581310) | Color: #ff69b4 | Perms: STANDARD
+  [42] Blue Seal! [Managed/Bot] (ID: 1550547059009130588) | Color: Default | Perms: ADMIN
+  [41] 💠・Cyber Cyan (ID: 1557477498466336830) | Color: #00f5ff | Perms: STANDARD
+  [40] 🔥 ╏ 𝓕ʀᴇᴇ 𝕱ɪʀᴇ (ID: 1551184102957523048) | Color: #e74c3c | Perms: STANDARD
+  [39] 📢 ╏ 𝓐ɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs (ID: 1550199913093144649) | Color: #a55eea | Perms: STANDARD
+  [38] 🛠️ ╏ 𝓣ʀɪᴀʟ 𝕸ᴏᴅ [Hoisted] (ID: 1551184071101649038) | Color: #34495e | Perms: STANDARD
+  [37] 🎁 ╏ 𝓖ɪᴠᴇᴀᴡᴀʏs (ID: 1550199917262143560) | Color: #2ecc71 | Perms: STANDARD
+  [36] 💎 ╏ 𝓥ɪᴘ 𝕸ᴇᴍʙᴇʀ [Hoisted] (ID: 1551184081067450451) | Color: #00d2d3 | Perms: STANDARD
+  [35] 🏆 ╏ 𝓣ᴏᴜʀɴᴀᴍᴇɴᴛs (ID: 1550199921007792188) | Color: #e74c3c | Perms: STANDARD
+  [34] Xenon [Managed/Bot] (ID: 1554175739140644928) | Color: Default | Perms: ADMIN
+  [33] THE Raivora [Managed/Bot] (ID: 1554734206209232989) | Color: Default | Perms: ADMIN
+  [32] 🟡 │ Under Observation (ID: 1554839328000315462) | Color: #f1c40f | Perms: STANDARD
+  [31] 🟢 . UnBypassable . [Hoisted] (ID: 1558161370615390319) | Color: #2ecc71 | Perms: STANDARD
+  [30] ⏳ │ Muted / Timeout (ID: 1554839510464987156) | Color: #95a5a6 | Perms: STANDARD
+  [29] 🔴 . Secured . [Hoisted] (ID: 1558161368090284133) | Color: #e74c3c | Perms: STANDARD
+  [28] 🛑 │ Raid Protection (ID: 1554839513308860560) | Color: #e74c3c | Perms: STANDARD
+  [27] 🛡️ . Rai Sentinel . [Hoisted] (ID: 1558161373245214861) | Color: #9b59b6 | Perms: STANDARD
+  [26] Our New Official Bot (ID: 1554876448467329185) | Color: Default | Perms: STANDARD
+  [25] Hade [Managed/Bot] (ID: 1555239086543867988) | Color: Default | Perms: ADMIN, MANAGE_CHANNELS
+  [24] Wave Music [Managed/Bot] (ID: 1555244337443508427) | Color: Default | Perms: ADMIN, MANAGE_CHANNELS
+  [23] 🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ [Hoisted] (ID: 1555632650473971734) | Color: #00f0ff | Perms: STANDARD
+  [22] KITT [Managed/Bot] (ID: 1556387123064606834) | Color: Default | Perms: STANDARD
+  [21] Nazha [Managed/Bot] (ID: 1556388585870196897) | Color: Default | Perms: STANDARD
+  [20] NEKO SONGS.....!! [Managed/Bot] (ID: 1556696060301410354) | Color: Default | Perms: ADMIN
+  [19] 💜・Neon Violet (ID: 1557477496524509224) | Color: #9b59b6 | Perms: STANDARD
+  [18] 👑 Server Owner [Hoisted] (ID: 1557491499870978089) | Color: #f1c40f | Perms: STANDARD
+  [17] 🛡️ Head Administrator [Hoisted] (ID: 1557491501444112507) | Color: #e74c3c | Perms: MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK
+  [16] ⚡ Administrator [Hoisted] (ID: 1557491502454673448) | Color: #e67e22 | Perms: MANAGE_CHANNELS, BAN, KICK
+  [15] 🔧 Moderator [Hoisted] (ID: 1557491503415300116) | Color: #3498db | Perms: KICK, TIMEOUT
+  [14] 🔨 Junior Moderator [Hoisted] (ID: 1557491504082321573) | Color: #2ecc71 | Perms: TIMEOUT
+  [13] 🚨 Security Team [Hoisted] (ID: 1557491505734615130) | Color: #9b59b6 | Perms: TIMEOUT
+  [12] 🎫 Support Team [Hoisted] (ID: 1557491506984788058) | Color: #1abc9c | Perms: STANDARD
+  [11] 🕵️ Trial Staff [Hoisted] (ID: 1557491510742876273) | Color: #95a5a6 | Perms: TIMEOUT
+  [10] 🌟 Booster [Hoisted] (ID: 1557491512047181966) | Color: #f47fff | Perms: STANDARD
+  [ 9] 🎨 Creator (ID: 1557491513699606558) | Color: #e91e63 | Perms: STANDARD
+  [ 8] 🎮 Gamer (ID: 1557491518493818881) | Color: #00d166 | Perms: STANDARD
+  [ 7] ✅ Verified (ID: 1557491521039765616) | Color: #2ecc71 | Perms: STANDARD
+  [ 6] 👤 Member (ID: 1557491522025300018) | Color: #95a5a6 | Perms: STANDARD
+  [ 5] 🆕 New Member (ID: 1557491522973204603) | Color: #34495e | Perms: STANDARD
+  [ 4] 🔐 Verification Required (ID: 1557491523421999198) | Color: #e67e22 | Perms: STANDARD
+  [ 3] 🟠 Restricted (ID: 1557491524650934477) | Color: #e67e22 | Perms: STANDARD
+  [ 2] 🔴 Security Threat [Hoisted] (ID: 1557491525443784736) | Color: #992d22 | Perms: STANDARD
+  [ 1] ⛓️ . Quarantined . (ID: 1558161375996416192) | Color: #34495e | Perms: STANDARD
+  [ 0] @everyone (ID: 1457382179981099090) | Color: Default | Perms: STANDARD
+
+=== GUILD: MRL GAMING (ID: 1494692962041467005) - Members: 4 ===
+  [ 1] THE Raivora [Managed/Bot] (ID: 1555669459329491127) | Color: Default | Perms: ADMIN
+  [ 0] @everyone (ID: 1494692962041467005) | Color: Default | Perms: MENTION_EVERYONE
+
+=== GUILD: RJ WHITEYY's server (ID: 1516486851387588640) - Members: 4 ===
+  [ 1] Rythm [Managed/Bot] (ID: 1540649368145895457) | Color: Default | Perms: ADMIN
+  [ 1] Questify [Managed/Bot] (ID: 1541009417481359372) | Color: Default | Perms: ADMIN
+  [ 1] THE Raivora [Managed/Bot] (ID: 1555669368401039522) | Color: Default | Perms: ADMIN
+  [ 0] @everyone (ID: 1516486851387588640) | Color: Default | Perms: MENTION_EVERYONE
+
+=== GUILD: 𝐖ᴇx  𝐂ʀᴏᴘᴏʀᴀᴛɪᴏɴ (ID: 1545715275062575175) - Members: 16 ===
+  [ 1] ＳＴＡＦＦ (ID: 1545769299375956049) | Color: #3498db | Perms: STANDARD
+  [ 1] ＡＤＭＩＮ (ID: 1545770999377829898) | Color: #ff9ebf | Perms: ADMIN, MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [ 1] ＦＵＣＫＲＳ [Hoisted] (ID: 1545771306681770065) | Color: #9b59b6 | Perms: MENTION_EVERYONE
+  [ 1] ＢＵＤＤＹ (ID: 1545774772867305482) | Color: #1abc9c | Perms: STANDARD
+  [ 1] ＧＷＥＮ [Managed/Bot] (ID: 1545777428121784404) | Color: #ff00d1 | Perms: ADMIN, MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [ 1] ＴＥＭＰ (ID: 1545847547640160286) | Color: #f1c40f | Perms: BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [ 1] ＪＯＣＫＩＥ [Managed/Bot] (ID: 1545853263277068340) | Color: #e74c3c | Perms: ADMIN
+  [ 1] ＮＩＣＫ [Managed/Bot] (ID: 1546001293779148823) | Color: #f1c40f | Perms: STANDARD
+  [ 1] ＣＯ-ＡＤＭＩＮ (ID: 1546010936786030592) | Color: #acdeff | Perms: MANAGE_GUILD, MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [ 1] WEX [Managed/Bot] (ID: 1546511247787425896) | Color: Default | Perms: ADMIN
+  [ 1] THE Raivora [Managed/Bot] (ID: 1555671780306190417) | Color: Default | Perms: MANAGE_CHANNELS, BAN, KICK, MENTION_EVERYONE, TIMEOUT
+  [ 0] @everyone (ID: 1545715275062575175) | Color: Default | Perms: STANDARD
+
+=== GUILD: rf.rai_006's server (ID: 1552400206811631687) - Members: 2 ===
+  [38] 👑 ┆ 𝐅𝐎𝐔𝐍𝐃𝐄𝐑 🍷 [Hoisted] (ID: 1552400206966956151) | Color: #f1c40f | Perms: ADMIN
+  [37] ⚡ ┆ 𝐇𝐄𝐀𝐃 𝐀𝐃𝐌𝐈𝐍 ⚡ [Hoisted] (ID: 1552400206966956150) | Color: #e74c3c | Perms: STANDARD
+  [36] 🛡️ ┆ 𝐌𝐎𝐃𝐄𝐑𝐀𝐓𝐎𝐑 🛡️ [Hoisted] (ID: 1552400206966956149) | Color: #3498db | Perms: BAN, KICK
+  [35] 🚀・Booster [Hoisted] (ID: 1552400206966956148) | Color: #ff1493 | Perms: STANDARD
+  [34] 🤖・Bots [Hoisted] (ID: 1552400206966956147) | Color: #747d8c | Perms: STANDARD
+  [33] Zynrax Unbypassable Security™ (ID: 1552400206966956146) | Color: #ffffff | Perms: ADMIN
+  [32] 🎧・DJ (ID: 1552400206966956145) | Color: #a55eea | Perms: STANDARD
+  [31] 💖・RAI FAM (ID: 1552400206966956144) | Color: #ffb8c6 | Perms: STANDARD
+  [30] ✨・Verified (ID: 1552400206966956143) | Color: #00ff88 | Perms: STANDARD
+  [29] ─── MANAGEMENT ─── (ID: 1552400206899839045) | Color: #2f3136 | Perms: STANDARD
+  [28] 🛠️ ┆ 𝐓𝐑𝐈𝐀𝐋 𝐌𝐎𝐃 [Hoisted] (ID: 1552400206899839044) | Color: #34495e | Perms: STANDARD
+  [27] ─── SPECIAL & ELITE ─── (ID: 1552400206899839043) | Color: #2f3136 | Perms: STANDARD
+  [26] 💎・VIP / Elite [Hoisted] (ID: 1552400206899839042) | Color: #00d2d3 | Perms: STANDARD
+  [25] 🎙️・Cinema Host (ID: 1552400206899839041) | Color: #f1c40f | Perms: STANDARD
+  [24] 🏆・Tournament Champion [Hoisted] (ID: 1552400206899839040) | Color: #f1c40f | Perms: STANDARD
+  [23] ─── GAME SELECTOR ─── (ID: 1552400206899839039) | Color: #2f3136 | Perms: STANDARD
+  [22] 🎯・Valorant / CS2 (ID: 1552400206899839038) | Color: #fa4454 | Perms: STANDARD
+  [21] ⚡・BGMI / PUBG (ID: 1552400206899839037) | Color: #e67e22 | Perms: STANDARD
+  [20] 🔥・Free Fire (ID: 1552400206899839036) | Color: #e74c3c | Perms: STANDARD
+  [19] 🏎️・GTA RP (ID: 1552400206824218763) | Color: #3498db | Perms: STANDARD
+  [18] 🚀・Rocket League (ID: 1552400206824218762) | Color: #00cec9 | Perms: STANDARD
+  [17] 📢・Announcements (ID: 1552400206824218761) | Color: #a55eea | Perms: STANDARD
+  [16] ─── NOTIFICATIONS ─── (ID: 1552400206824218760) | Color: #2f3136 | Perms: STANDARD
+  [15] 🎁・Giveaways (ID: 1552400206824218759) | Color: #2ecc71 | Perms: STANDARD
+  [14] 🏆・Tournaments (ID: 1552400206824218758) | Color: #e74c3c | Perms: STANDARD
+  [13] 🍿・Movie Nights (ID: 1552400206824218757) | Color: #ff4757 | Perms: STANDARD
+  [12] 📻・Live DJ & Radio (ID: 1552400206824218756) | Color: #9b59b6 | Perms: STANDARD
+  [11] Royal Gold (ID: 1552400206824218755) | Color: #ffd700 | Perms: STANDARD
+  [10] Cyber Cyan (ID: 1552400206824218754) | Color: #80d8ff | Perms: STANDARD
+  [ 9] Neon Purple (ID: 1552400206811631696) | Color: #b388ff | Perms: STANDARD
+  [ 8] Sakura Pink (ID: 1552400206811631695) | Color: #ff9aa2 | Perms: STANDARD
+  [ 7] ─── PALETTE COLORS ─── (ID: 1552400206811631694) | Color: #2f3136 | Perms: STANDARD
+  [ 6] ✨・Starlight Initiate [Hoisted] (ID: 1552400206811631693) | Color: #70a1ff | Perms: STANDARD
+  [ 5] 🌸・Aurora Voyager [Hoisted] (ID: 1552400206811631692) | Color: #ff758c | Perms: STANDARD
+  [ 4] 💫・Nebula Elite [Hoisted] (ID: 1552400206811631691) | Color: #a55eea | Perms: STANDARD
+  [ 3] 👑・Celestial Sovereign [Hoisted] (ID: 1552400206811631690) | Color: #ffa502 | Perms: STANDARD
+  [ 2] ─── ACTIVITY TIERS ─── (ID: 1552400206811631689) | Color: #2f3136 | Perms: STANDARD
+  [ 1] 🎧 ┊ In Voice [Hoisted] (ID: 1552400206811631688) | Color: #00f0ff | Perms: STANDARD
+  [ 1] THE Raivora [Managed/Bot] (ID: 1555669164004483165) | Color: Default | Perms: ADMIN
+  [ 0] @everyone (ID: 1552400206811631687) | Color: Default | Perms: STANDARD
+
