@@ -451,9 +451,10 @@ class SentinelBot(commands.Bot):
         logger.info("=" * 45)
         await self.change_presence(
             activity=discord.Activity(
-                type=discord.ActivityType.watching,
-                name="over your server | /help",
-            )
+                type=discord.ActivityType.playing,
+                name="🛡️ Nukerz Eliminator | /security",
+            ),
+            status=discord.Status.online,
         )
         try:
             from utils.owner_reporter import OwnerReporter
