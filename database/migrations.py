@@ -1646,6 +1646,175 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """
         ]
+    ),
+    (
+        45,
+        "Add billboard, multi-db sync queue, threat timeline, community showcases, watch events, music analytics, and hidden voice tables",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS server_billboards (
+                guild_id INTEGER PRIMARY KEY,
+                channel_id INTEGER,
+                message_id INTEGER,
+                is_active INTEGER NOT NULL DEFAULT 0,
+                update_interval INTEGER NOT NULL DEFAULT 60,
+                last_updated_at TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS pending_sync_operations (
+                operation_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                target TEXT NOT NULL,
+                operation_type TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                priority TEXT NOT NULL DEFAULT 'SECURITY',
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                attempt_count INTEGER NOT NULL DEFAULT 0,
+                incident_id TEXT,
+                error_code TEXT,
+                next_attempt TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_sync_ops_pending ON pending_sync_operations(target, status, priority);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS mention_spam_incidents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT UNIQUE NOT NULL,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                user_name TEXT,
+                first_channel_id INTEGER,
+                channels_affected TEXT NOT NULL DEFAULT '[]',
+                messages_count INTEGER NOT NULL DEFAULT 1,
+                mentions_count INTEGER NOT NULL DEFAULT 1,
+                unique_targets_count INTEGER NOT NULL DEFAULT 1,
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                severity TEXT NOT NULL,
+                action_taken TEXT,
+                incident_status TEXT NOT NULL DEFAULT 'RESOLVED',
+                created_at TEXT,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS threat_timeline_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                incident_id TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
+                module TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                description TEXT,
+                risk_score INTEGER NOT NULL DEFAULT 0,
+                severity TEXT NOT NULL DEFAULT 'low',
+                created_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_threat_timeline_inc ON threat_timeline_events(incident_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS creator_showcases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                media_url TEXT,
+                software TEXT,
+                description TEXT,
+                upvotes INTEGER NOT NULL DEFAULT 0,
+                message_id INTEGER,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS watch_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                platform TEXT,
+                start_time TEXT NOT NULL,
+                host_id INTEGER NOT NULL,
+                voice_channel_id INTEGER,
+                status TEXT NOT NULL DEFAULT 'scheduled',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS music_analytics (
+                guild_id INTEGER PRIMARY KEY,
+                tracks_played INTEGER NOT NULL DEFAULT 0,
+                total_playtime_seconds INTEGER NOT NULL DEFAULT 0,
+                unique_listeners_json TEXT NOT NULL DEFAULT '[]',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS hidden_voice_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                category_id INTEGER,
+                entry_channel_id INTEGER,
+                max_rooms_per_user INTEGER NOT NULL DEFAULT 1,
+                max_users_per_room INTEGER NOT NULL DEFAULT 99,
+                empty_grace_period INTEGER NOT NULL DEFAULT 60,
+                allow_invited_members INTEGER NOT NULL DEFAULT 1,
+                allow_ownership_transfer INTEGER NOT NULL DEFAULT 1,
+                staff_can_view_hidden_rooms INTEGER NOT NULL DEFAULT 0,
+                automatic_cleanup INTEGER NOT NULL DEFAULT 1,
+                automatic_owner_transfer INTEGER NOT NULL DEFAULT 0,
+                room_name_format TEXT NOT NULL DEFAULT '🔒・{username}-private',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS hidden_voice_rooms (
+                channel_id INTEGER PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                owner_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                user_limit INTEGER NOT NULL DEFAULT 0,
+                is_locked INTEGER NOT NULL DEFAULT 0,
+                is_hidden INTEGER NOT NULL DEFAULT 1,
+                room_status TEXT NOT NULL DEFAULT 'active',
+                invited_members TEXT NOT NULL DEFAULT '[]',
+                grace_period_until TEXT,
+                transferred_from INTEGER,
+                created_at TEXT NOT NULL,
+                last_activity TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS autopilot_configs (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER DEFAULT 1,
+                dry_run INTEGER DEFAULT 0,
+                max_safety_level TEXT DEFAULT 'HIGH',
+                alert_channel_id INTEGER,
+                ticket_management INTEGER DEFAULT 1,
+                auto_safe_mode INTEGER DEFAULT 1,
+                anti_nuke INTEGER DEFAULT 1,
+                raid_protection INTEGER DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            ALTER TABLE autopilot_configs ADD COLUMN raid_protection INTEGER DEFAULT 1;
+            """
+        ]
     )
 ]
 

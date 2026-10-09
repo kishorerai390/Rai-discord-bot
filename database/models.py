@@ -577,6 +577,7 @@ class AutopilotConfig:
     ticket_management: bool = True
     auto_safe_mode: bool = True
     anti_nuke: bool = True
+    raid_protection: bool = True
     updated_at: str = ""
 
 

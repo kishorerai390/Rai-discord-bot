@@ -79,6 +79,8 @@ from database.models import (
     WorkflowWaitingTimer,
     WorkflowEvent,
     PrivateControlConfig,
+    ServerBillboardConfig,
+    PendingSyncOperation,
 )
 
 logger = logging.getLogger(__name__)
@@ -170,10 +172,20 @@ class Database:
                 alert_channel_id INTEGER,
                 ticket_management INTEGER DEFAULT 1,
                 auto_safe_mode INTEGER DEFAULT 1,
+                anti_nuke INTEGER DEFAULT 1,
+                raid_protection INTEGER DEFAULT 1,
                 updated_at TEXT NOT NULL
             );
             """
         )
+        for col_def in [
+            "ALTER TABLE autopilot_configs ADD COLUMN anti_nuke INTEGER DEFAULT 1",
+            "ALTER TABLE autopilot_configs ADD COLUMN raid_protection INTEGER DEFAULT 1",
+        ]:
+            try:
+                await self._db.execute(col_def)
+            except Exception:
+                pass
         await self._db.execute(
             """
             CREATE TABLE IF NOT EXISTS security_baselines (
@@ -679,6 +691,7 @@ class Database:
     # --- AUTOPILOT CRUD ---
 
     async def get_or_create_autopilot_config(self, guild_id: int) -> AutopilotConfig:
+        await self.get_or_create_guild_config(guild_id)
         async with self._db.execute(
             "SELECT * FROM autopilot_configs WHERE guild_id = ?", (guild_id,)
         ) as cursor:
@@ -692,6 +705,8 @@ class Database:
                     alert_channel_id=row["alert_channel_id"],
                     ticket_management=bool(row["ticket_management"]),
                     auto_safe_mode=bool(row["auto_safe_mode"]),
+                    anti_nuke=bool(row["anti_nuke"]) if "anti_nuke" in row.keys() else True,
+                    raid_protection=bool(row["raid_protection"]) if "raid_protection" in row.keys() else True,
                     updated_at=row["updated_at"],
                 )
         now_str = utcnow_iso()
@@ -700,17 +715,17 @@ class Database:
             """
             INSERT INTO autopilot_configs (
                 guild_id, enabled, dry_run, max_safety_level, alert_channel_id,
-                ticket_management, auto_safe_mode, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ticket_management, auto_safe_mode, anti_nuke, raid_protection, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
             """,
             (guild_id, 1, 0, "HIGH", None, 1, 1, now_str)
         )
         await self._db.commit()
         return cfg
 
-    async def update_autopilot_config(self, guild_id: int, **kwargs: Any) -> None:
+    async def update_autopilot_config(self, guild_id: int, **kwargs: Any) -> bool:
         if not kwargs:
-            return
+            return True
         fields = []
         values = []
         for k, v in kwargs.items():
@@ -724,6 +739,7 @@ class Database:
         query = f"UPDATE autopilot_configs SET {', '.join(fields)} WHERE guild_id = ?"
         await self._db.execute(query, tuple(values))
         await self._db.commit()
+        return True
 
     async def get_or_create_security_baseline(self, guild_id: int) -> SecurityBaseline:
         async with self._db.execute(
@@ -7883,6 +7899,345 @@ class Database:
         await self._db.commit()
         return prof
 
+    # ==========================================
+    # SERVER BILLBOARDS
+    # ==========================================
 
+    async def get_billboard_config(self, guild_id: int) -> Optional[ServerBillboardConfig]:
+        if not self._db:
+            return None
+        async with self._db.execute(
+            "SELECT * FROM server_billboards WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return ServerBillboardConfig(
+                guild_id=row["guild_id"],
+                channel_id=row["channel_id"],
+                message_id=row["message_id"],
+                is_active=bool(row["is_active"]),
+                update_interval=row["update_interval"] or 60,
+                last_updated_at=row["last_updated_at"],
+                updated_at=row["updated_at"] or "",
+            )
 
+    async def set_billboard_config(self, config: ServerBillboardConfig) -> bool:
+        if not self._db:
+            return False
+        await self.get_or_create_guild_config(config.guild_id)
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO server_billboards (
+                guild_id, channel_id, message_id, is_active, update_interval, last_updated_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                channel_id = excluded.channel_id,
+                message_id = excluded.message_id,
+                is_active = excluded.is_active,
+                update_interval = excluded.update_interval,
+                last_updated_at = excluded.last_updated_at,
+                updated_at = excluded.updated_at
+            """,
+            (
+                config.guild_id,
+                config.channel_id,
+                config.message_id,
+                1 if config.is_active else 0,
+                config.update_interval,
+                config.last_updated_at,
+                config.updated_at or now,
+            ),
+        )
+        await self._db.commit()
+        return True
 
+    async def delete_billboard_config(self, guild_id: int) -> bool:
+        if not self._db:
+            return False
+        await self._db.execute("DELETE FROM server_billboards WHERE guild_id = ?", (guild_id,))
+        await self._db.commit()
+        return True
+
+    # ==========================================
+    # MULTI-DATABASE SYNC QUEUE
+    # ==========================================
+
+    async def queue_sync_operation(
+        self,
+        operation_id: str,
+        guild_id: int,
+        target: str,
+        operation_type: str,
+        payload: Dict[str, Any],
+        priority: str = "SECURITY",
+        incident_id: Optional[str] = None,
+    ) -> bool:
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        payload_json = json.dumps(payload)
+        await self._db.execute(
+            """
+            INSERT INTO pending_sync_operations (
+                operation_id, guild_id, target, operation_type, payload,
+                priority, status, attempt_count, incident_id, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 0, ?, ?, ?)
+            ON CONFLICT(operation_id) DO UPDATE SET
+                payload = excluded.payload,
+                priority = excluded.priority,
+                incident_id = excluded.incident_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                operation_id,
+                guild_id,
+                target,
+                operation_type,
+                payload_json,
+                priority,
+                incident_id,
+                now,
+                now,
+            ),
+        )
+        await self._db.commit()
+        return True
+
+    async def get_pending_sync_operations(self, target: str, limit: int = 25) -> List[PendingSyncOperation]:
+        if not self._db:
+            return []
+        async with self._db.execute(
+            """
+            SELECT * FROM pending_sync_operations
+            WHERE target = ? AND status IN ('PENDING', 'RETRYING')
+            ORDER BY 
+                CASE priority
+                    WHEN 'CRITICAL_SECURITY' THEN 0
+                    WHEN 'SECURITY' THEN 1
+                    WHEN 'INCIDENT' THEN 2
+                    WHEN 'MODERATION' THEN 3
+                    WHEN 'SYSTEM' THEN 4
+                    WHEN 'MUSIC' THEN 5
+                    WHEN 'ANALYTICS' THEN 6
+                    WHEN 'NON_CRITICAL' THEN 7
+                    ELSE 99
+                END ASC, created_at ASC
+            LIMIT ?
+            """,
+            (target, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            ops = []
+            for r in rows:
+                try:
+                    payload = json.loads(r["payload"])
+                except Exception:
+                    payload = {}
+                ops.append(
+                    PendingSyncOperation(
+                        operation_id=r["operation_id"],
+                        guild_id=r["guild_id"],
+                        target=r["target"],
+                        operation_type=r["operation_type"],
+                        payload=payload,
+                        priority=r["priority"],
+                        status=r["status"],
+                        attempt_count=r["attempt_count"],
+                        incident_id=r["incident_id"],
+                        error_code=r["error_code"],
+                        next_attempt=r["next_attempt"],
+                        created_at=r["created_at"],
+                        updated_at=r["updated_at"],
+                    )
+                )
+            return ops
+
+    async def update_sync_operation_status(
+        self,
+        operation_id: str,
+        status: str,
+        error_code: Optional[str] = None,
+        next_attempt: Optional[str] = None,
+        attempt_count: Optional[int] = None,
+    ) -> bool:
+        if not self._db:
+            return False
+        now = utcnow_iso()
+        fields = ["status = ?", "updated_at = ?"]
+        params = [status, now]
+        if error_code is not None:
+            fields.append("error_code = ?")
+            params.append(error_code)
+        if next_attempt is not None:
+            fields.append("next_attempt = ?")
+            params.append(next_attempt)
+        if attempt_count is not None:
+            fields.append("attempt_count = ?")
+            params.append(attempt_count)
+        params.append(operation_id)
+        sql = f"UPDATE pending_sync_operations SET {', '.join(fields)} WHERE operation_id = ?"
+        await self._db.execute(sql, params)
+        await self._db.commit()
+        return True
+
+    async def get_sync_queue_stats(self) -> Dict[str, int]:
+        if not self._db:
+            return {"total_pending": 0, "total_synced": 0, "total_failed": 0, "total_dead_letter": 0}
+        async with self._db.execute(
+            """
+            SELECT status, COUNT(*) as cnt
+            FROM pending_sync_operations
+            GROUP BY status
+            """
+        ) as cursor:
+            rows = await cursor.fetchall()
+            counts = {r["status"]: r["cnt"] for r in rows}
+            return {
+                "total_pending": counts.get("PENDING", 0) + counts.get("RETRYING", 0),
+                "total_synced": counts.get("SYNCED", 0),
+                "total_failed": counts.get("FAILED", 0),
+                "total_dead_letter": counts.get("DEAD_LETTER", 0),
+            }
+
+    # ==========================================
+    # MENTION SPAM INCIDENTS
+    # ==========================================
+
+    async def create_mention_spam_incident(
+        self,
+        incident_id: str,
+        guild_id: int,
+        user_id: int,
+        user_name: str,
+        first_channel_id: int,
+        channels_affected: List[int],
+        messages_count: int,
+        mentions_count: int,
+        unique_targets_count: int,
+        first_seen: str,
+        last_seen: str,
+        severity: str,
+        action_taken: str,
+        incident_status: str = "RESOLVED",
+    ) -> bool:
+        if not self._db:
+            return False
+        await self.get_or_create_guild_config(guild_id)
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT OR REPLACE INTO mention_spam_incidents (
+                incident_id, guild_id, user_id, user_name, first_channel_id,
+                channels_affected, messages_count, mentions_count, unique_targets_count,
+                first_seen, last_seen, severity, action_taken, incident_status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                incident_id,
+                guild_id,
+                user_id,
+                user_name,
+                first_channel_id,
+                json.dumps(channels_affected),
+                messages_count,
+                mentions_count,
+                unique_targets_count,
+                first_seen,
+                last_seen,
+                severity,
+                action_taken,
+                incident_status,
+                now,
+            ),
+        )
+        await self._db.commit()
+        return True
+
+    # ==========================================
+    # THREAT TIMELINE & ANALYTICS
+    # ==========================================
+
+    async def record_threat_timeline_event(
+        self,
+        incident_id: str,
+        guild_id: int,
+        module: str,
+        event_type: str,
+        description: str,
+        risk_score: int,
+        severity: str,
+    ) -> int:
+        if not self._db:
+            return 0
+        now = utcnow_iso()
+        async with self._db.execute(
+            """
+            INSERT INTO threat_timeline_events (
+                incident_id, guild_id, module, event_type, description, risk_score, severity, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (incident_id, guild_id, module, event_type, description, risk_score, severity, now),
+        ) as cursor:
+            last_id = cursor.lastrowid
+        await self._db.commit()
+        return last_id or 0
+
+    async def get_threat_timeline(self, incident_id: str) -> List[Any]:
+        if not self._db:
+            return []
+        async with self._db.execute(
+            "SELECT * FROM threat_timeline_events WHERE incident_id = ? ORDER BY id ASC",
+            (incident_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            from types import SimpleNamespace
+            return [
+                SimpleNamespace(
+                    id=r["id"],
+                    incident_id=r["incident_id"],
+                    guild_id=r["guild_id"],
+                    module=r["module"],
+                    event_type=r["event_type"],
+                    description=r["description"],
+                    risk_score=r["risk_score"],
+                    severity=r["severity"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def get_analytics(self, guild_id: int, days: int = 7) -> Dict[str, Any]:
+        if not self._db:
+            return {"raid_incidents": 0, "peak_raid_score": 0, "verifications": 0}
+        raid_count = 0
+        peak_score = 0
+        try:
+            async with self._db.execute(
+                "SELECT COUNT(*), COALESCE(MAX(current_score), 0) FROM raid_incidents WHERE guild_id = ?",
+                (guild_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    raid_count = row[0]
+                    peak_score = row[1]
+        except Exception:
+            pass
+
+        verif_count = 0
+        try:
+            async with self._db.execute(
+                "SELECT COUNT(*) FROM verification_logs WHERE guild_id = ?", (guild_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    verif_count = row[0]
+        except Exception:
+            pass
+
+        return {
+            "raid_incidents": raid_count,
+            "peak_raid_score": peak_score,
+            "verifications": verif_count,
+        }
