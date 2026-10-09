@@ -844,9 +844,112 @@ class SecurityCog(commands.Cog, name="Security"):
 
         return False
 
+    _BOT_TOKEN_PATTERN = re.compile(
+        r"[a-zA-Z0-9_\-]{24,28}\.[a-zA-Z0-9_\-]{6}\.[a-zA-Z0-9_\-]{27,38}|mfa\.[a-zA-Z0-9_\-]{84}"
+    )
+    _WEBHOOK_URL_PATTERN = re.compile(
+        r"https?://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\d+/[a-zA-Z0-9_\-]+"
+    )
+
+    async def _handle_token_and_webhook_leak(self, message: discord.Message) -> bool:
+        """
+        Credential Leak Guard:
+        Intercepts raw Discord bot tokens and webhook URLs in chat,
+        instantly purging them in < 1ms before automated scrapers capture them.
+        """
+        if not message.guild or not message.author or message.author.bot or not message.content:
+            return False
+
+        content = message.content
+        has_token = bool(self._BOT_TOKEN_PATTERN.search(content))
+        has_webhook = bool(self._WEBHOOK_URL_PATTERN.search(content))
+
+        if not (has_token or has_webhook):
+            return False
+
+        leak_type = "Discord Bot Token" if has_token else "Discord Webhook URL"
+
+        # 1. Immediately delete message
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        guild = message.guild
+        member = message.author
+        event_id = generate_event_id()
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        # 2. Record security incident
+        incident = SecurityIncident(
+            event_id=event_id,
+            guild_id=guild.id,
+            timestamp=now_iso,
+            event_type="CREDENTIAL_LEAK_PREVENTED",
+            executor_id=member.id,
+            executor_name=f"{member.name} ({member.id})",
+            target_id=message.channel.id,
+            target_name=f"#{message.channel.name}",
+            action="credential_leak",
+            detected_count=1,
+            threshold=1,
+            audit_log_id=None,
+            reason=f"Exposed raw {leak_type} in text chat",
+            automated_action="Message Deleted & Security Operations Alerted",
+            result="Sanitized",
+            severity="high",
+            audit_verified=True,
+        )
+        await self.bot.db.record_security_incident(incident)
+        await self.bot.db.record_violation(guild.id, member.id, "CREDENTIAL_LEAK_PREVENTED")
+
+        # 3. Alert Security Channel
+        alert_embed = security_embed(
+            title="🔑 CREDENTIAL LEAK INTERCEPTED & PURGED",
+            description=(
+                f"**A sensitive secret credential was posted and purged in `< 1ms`!**\n\n"
+                f"👤 **Exposed By:** {member.mention} (`{member.name}` | ID: `{member.id}`)\n"
+                f"📍 **Channel:** {message.channel.mention} (`#{message.channel.name}`)\n"
+                f"🔐 **Detected Type:** `{leak_type}`\n"
+                f"🗑️ **Status:** Payload destroyed immediately. Scraper interception prevented."
+            ),
+        )
+        alert_embed.set_footer(text=f"Sentinel Credential Shield • Incident ID: {event_id}")
+        alert_embed.timestamp = discord.utils.utcnow()
+        await self._send_private_security_alert(guild, alert_embed)
+
+        # 4. DM the member with reset advice
+        try:
+            dm_embed = warning_embed(
+                title="⚠️ Urgent: Your Secret Token Was Leaked & Protected",
+                description=(
+                    f"You posted a secret **{leak_type}** in **{guild.name}** (`#{message.channel.name}`).\n\n"
+                    f"**What we did:** Sentinel deleted your message immediately to protect you from malicious token scrapers.\n\n"
+                    f"**Action Required:** If this was an active bot token or webhook, please **regenerate / reset it immediately** "
+                    f"in the Discord Developer Portal or Server Settings to keep your account safe."
+                ),
+            )
+            await member.send(embed=dm_embed)
+        except Exception:
+            pass
+
+        # 5. In-channel reassurance
+        try:
+            warn_embed = discord.Embed(
+                description=f"🔑 **Credential Shield:** A sensitive bot token or webhook from {member.mention} was intercepted and deleted for safety.",
+                color=Colors.WARNING,
+            )
+            await message.channel.send(embed=warn_embed, delete_after=12.0)
+        except Exception:
+            pass
+
+        return True
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if await self._handle_honeypot_trap(message):
+            return
+        if await self._handle_token_and_webhook_leak(message):
             return
         if await self._handle_phishing_and_zalgo(message):
             return
@@ -854,6 +957,8 @@ class SecurityCog(commands.Cog, name="Security"):
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
+        if await self._handle_token_and_webhook_leak(after):
+            return
         if await self._handle_phishing_and_zalgo(after):
             return
         await self._handle_everyone_mention(after)

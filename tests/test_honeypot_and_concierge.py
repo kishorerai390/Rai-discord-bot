@@ -147,6 +147,72 @@ class TestHoneypotAndGhostPing(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(intercepted)
         msg.delete.assert_awaited_once()
 
+    async def test_bot_token_leak_interception(self):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 99999
+        guild.name = "Test Guild"
+
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 77777
+        channel.name = "dev-chat"
+        channel.mention = "<#77777>"
+        channel.send = AsyncMock()
+
+        author = MagicMock(spec=discord.Member)
+        author.id = 88888
+        author.name = "accidental_dev"
+        author.mention = "<@88888>"
+        author.bot = False
+        author.send = AsyncMock()
+
+        # Dummy fake Discord token pattern
+        dummy_token = "MTI4OTAxMjM0NTY3ODkwMTIzNA.GhIjKl.mNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwX"
+        msg = MagicMock(spec=discord.Message)
+        msg.guild = guild
+        msg.channel = channel
+        msg.author = author
+        msg.content = f"Here is my bot token: {dummy_token}"
+        msg.delete = AsyncMock()
+
+        with patch.object(self.cog, "_send_private_security_alert", new_callable=AsyncMock) as mock_alert:
+            intercepted = await self.cog._handle_token_and_webhook_leak(msg)
+            self.assertTrue(intercepted)
+            msg.delete.assert_awaited_once()
+            author.send.assert_awaited_once()
+            mock_alert.assert_awaited_once()
+
+    async def test_webhook_leak_interception(self):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 99999
+        guild.name = "Test Guild"
+
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 77777
+        channel.name = "dev-chat"
+        channel.mention = "<#77777>"
+        channel.send = AsyncMock()
+
+        author = MagicMock(spec=discord.Member)
+        author.id = 88888
+        author.name = "accidental_dev"
+        author.mention = "<@88888>"
+        author.bot = False
+        author.send = AsyncMock()
+
+        msg = MagicMock(spec=discord.Message)
+        msg.guild = guild
+        msg.channel = channel
+        msg.author = author
+        msg.content = "Webhook url: https://discord.com/api/webhooks/123456789012345678/abcdefghijklmnopqrstuvwxyz0123456789"
+        msg.delete = AsyncMock()
+
+        with patch.object(self.cog, "_send_private_security_alert", new_callable=AsyncMock) as mock_alert:
+            intercepted = await self.cog._handle_token_and_webhook_leak(msg)
+            self.assertTrue(intercepted)
+            msg.delete.assert_awaited_once()
+            author.send.assert_awaited_once()
+            mock_alert.assert_awaited_once()
+
 
 class TestBoosterConcierge(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
