@@ -19,12 +19,10 @@ async def run():
 
     if cfg.min_account_age_hours < 24:
         print("  • Updating min_account_age_hours to 24 hours (1-day anti-alt shield)...")
-        await db.set_verification_config(
+        await db.update_verification_config(
             guild_id=1457382179981099090,
             enabled=True,
-            role_id=cfg.role_id or 1549504522953695269,
             min_account_age_hours=24,
-            log_channel_id=cfg.log_channel_id or 1555283378612478072,
         )
         print("  ✅ Updated: Minimum account age set to 24 hours!")
 
