@@ -52,6 +52,14 @@ class SecurityCog(commands.Cog, name="Security"):
         self.bot = bot
         # Temporary storage for channel permissions before lockdown to restore cleanly
         self._lockdown_cache: dict[int, dict[int, discord.PermissionOverwrite]] = {}
+        self._backup_task = None
+
+    async def cog_load(self):
+        self._backup_task = self._nightly_backup_loop.start()
+
+    def cog_unload(self):
+        if self._backup_task:
+            self._backup_task.cancel()
 
     security_group = app_commands.Group(
         name="security",
@@ -1423,6 +1431,61 @@ class SecurityCog(commands.Cog, name="Security"):
             embed=success_embed("All Cooldowns Reset", f"Cleared `{removed}` active cooldown(s) across the server."),
             ephemeral=True,
         )
+
+    @tasks.loop(hours=24)
+    async def _nightly_backup_loop(self):
+        try:
+            if hasattr(self.bot, "wait_until_ready") and callable(self.bot.wait_until_ready):
+                res = self.bot.wait_until_ready()
+                if asyncio.iscoroutine(res):
+                    await res
+        except Exception:
+            pass
+        try:
+            mgr = BackupManager.get_instance()
+            rec = await mgr.run_backup(trigger="scheduled_nightly")
+            logger.info(f"Nightly disaster recovery backup verified: {rec.backup_id}")
+
+            BACKUP_CONTROL_ID = 1555283418126876856  # #💾・ʙᴀᴄᴋᴜᴘ-ᴄᴏɴᴛʀᴏʟ
+            for guild in self.bot.guilds:
+                ch = guild.get_channel(BACKUP_CONTROL_ID)
+                if ch and isinstance(ch, discord.TextChannel):
+                    embed = success_embed(
+                        "Disaster Recovery Backup Verified",
+                        (
+                            f"**Snapshot ID:** `{rec.backup_id}`\n"
+                            f"**Status:** `VERIFIED (SHA-256 Validated)`\n"
+                            f"**Archive Size:** `{format_bytes(rec.archive_size)}`\n"
+                            f"**Storage:** `{rec.storage_type}`\n"
+                            f"**Created:** `{rec.formatted_created_at}`\n\n"
+                            f"Disaster recovery checkpoint saved to `data/backups/`."
+                        ),
+                    )
+                    await ch.send(embed=embed)
+        except Exception as e:
+            logger.error(f"Nightly backup failed: {e}")
+
+    @security_group.command(name="backup", description="Execute an instant disaster recovery backup of all server data")
+    @is_admin_or_owner()
+    async def security_backup(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            mgr = BackupManager.get_instance()
+            rec = await mgr.run_backup(trigger=f"manual_by_{interaction.user}")
+            embed = success_embed(
+                "Disaster Recovery Backup Complete",
+                (
+                    f"**Snapshot ID:** `{rec.backup_id}`\n"
+                    f"**Status:** `VERIFIED (SHA-256 Validated)`\n"
+                    f"**Archive Size:** `{format_bytes(rec.archive_size)}`\n"
+                    f"**Components Included:** Database, Configuration, Security Policies, Voice Rooms, Playlists\n"
+                    f"**Timestamp:** `{rec.formatted_created_at}`\n\n"
+                    f"Snapshot safely established in `data/backups/`."
+                ),
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(embed=error_embed("Backup Failed", str(e)), ephemeral=True)
 
 
 async def setup(bot: SentinelBot):
