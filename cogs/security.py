@@ -675,7 +675,8 @@ class SecurityCog(commands.Cog, name="Security"):
         if not message.guild or message.channel.id != HONEYPOT_CHANNEL_ID:
             return False
 
-        if message.author.bot or message.author.id == message.guild.owner_id:
+        bot_user_id = getattr(self.bot.user, "id", None)
+        if (bot_user_id and message.author.id == bot_user_id) or message.author.id == message.guild.owner_id:
             return False
 
         guild = message.guild

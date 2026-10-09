@@ -52,6 +52,61 @@ class TestHoneypotAndGhostPing(unittest.IsolatedAsyncioTestCase):
             self.bot.db.record_security_incident.assert_awaited_once()
             mock_alert.assert_awaited_once()
 
+    async def test_honeypot_triggers_ban_for_unauthorized_bot(self):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 99999
+        guild.owner_id = 11111
+        
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 1558168338386129004
+        channel.name = "honeypot-trap"
+        channel.mention = "<#1558168338386129004>"
+        
+        author = MagicMock(spec=discord.Member)
+        author.id = 77777
+        author.name = "rogue_bot"
+        author.mention = "<@77777>"
+        author.bot = True
+        author.ban = AsyncMock()
+
+        msg = MagicMock(spec=discord.Message)
+        msg.guild = guild
+        msg.channel = channel
+        msg.author = author
+        msg.content = "SPAM BOT PAYLOAD"
+        msg.delete = AsyncMock()
+
+        self.bot.user = MagicMock()
+        self.bot.user.id = 1554732669072445532
+
+        with patch.object(self.cog, "_send_private_security_alert", new_callable=AsyncMock) as mock_alert:
+            handled = await self.cog._handle_honeypot_trap(msg)
+            self.assertTrue(handled)
+            author.ban.assert_awaited_once()
+
+    async def test_honeypot_exempts_self_bot(self):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = 99999
+        guild.owner_id = 11111
+        
+        channel = MagicMock(spec=discord.TextChannel)
+        channel.id = 1558168338386129004
+        
+        author = MagicMock(spec=discord.Member)
+        author.id = 1554732669072445532
+        author.bot = True
+
+        msg = MagicMock(spec=discord.Message)
+        msg.guild = guild
+        msg.channel = channel
+        msg.author = author
+
+        self.bot.user = MagicMock()
+        self.bot.user.id = 1554732669072445532
+
+        handled = await self.cog._handle_honeypot_trap(msg)
+        self.assertFalse(handled)
+
     async def test_ghost_ping_detection(self):
         guild = MagicMock(spec=discord.Guild)
         guild.id = 99999
