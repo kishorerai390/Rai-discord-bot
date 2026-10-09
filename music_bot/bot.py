@@ -44,7 +44,8 @@ class NekoSongsBot(commands.Bot):
 
         self.db = MusicDatabase()
         self.session_manager = SessionManager.get_instance()
-        self.started_at = asyncio.get_event_loop().time()
+        import time
+        self.started_at = time.time()
 
     async def setup_hook(self) -> None:
         """Executed during bot startup before connecting to Discord Gateway."""
