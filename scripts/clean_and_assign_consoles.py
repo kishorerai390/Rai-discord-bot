@@ -53,10 +53,10 @@ CONSOLE_CHANNELS = {
     # Main Bot (The Raivora) Consoles
     "welcome": 1545502705643167876,          # #🌸・WELCOME
     "rules": 1545502710101704714,            # #📜・RULES
-    "support": 1558154630876102778,          # #🎫・SUPPORT-DESK
+    "support": 1555641079137706014,          # #🎟・SUPPORT-DESK
     "commands": 1549416359723532480,         # #🤖・BOT-COMMANDS
     "media": 1551184138932068373,            # #📸・MEDIA-AND-CLIPS
-    "pods": 1558154633258602569,             # #💤・SLEEPING-PODS
+    "pods": 1555641081578782840,             # #💤・SLEEPING-PODS
     "admin": 1555283409465778218,            # #👑・ADMIN-CONTROL
     "room_ctrl": 1555459478155960421,        # #🛠️・ROOM-CONTROL
 
@@ -68,15 +68,26 @@ CONSOLE_CHANNELS = {
 }
 
 def view_to_action_rows(view: discord.ui.View):
+    if not view or not getattr(view, "children", None):
+        return []
     rows = []
-    current_row = []
+    current_buttons = []
     for item in view.children:
-        current_row.append(item.to_component_dict())
-        if len(current_row) == 5:
-            rows.append({"type": 1, "components": current_row})
-            current_row = []
-    if current_row:
-        rows.append({"type": 1, "components": current_row})
+        comp_dict = item.to_component_dict()
+        comp_type = comp_dict.get("type", 2)
+        # Select menus (types 3, 5, 6, 7, 8) must occupy their own action row
+        if comp_type in (3, 5, 6, 7, 8):
+            if current_buttons:
+                rows.append({"type": 1, "components": current_buttons})
+                current_buttons = []
+            rows.append({"type": 1, "components": [comp_dict]})
+        else:
+            current_buttons.append(comp_dict)
+            if len(current_buttons) == 5:
+                rows.append({"type": 1, "components": current_buttons})
+                current_buttons = []
+    if current_buttons:
+        rows.append({"type": 1, "components": current_buttons})
     return rows
 
 
@@ -141,10 +152,17 @@ async def purge_channel(session: aiohttp.ClientSession, channel_id: int, headers
     return deleted_count
 
 
-async def post_console(session: aiohttp.ClientSession, channel_id: int, embed: dict, view: discord.ui.View, headers: dict, topic: str = ""):
+async def post_console(session: aiohttp.ClientSession, channel_id: int, embed, view: discord.ui.View, headers: dict, topic: str = ""):
     """Posts and pins a fresh console."""
+    if hasattr(embed, "to_dict"):
+        embed_dict = embed.to_dict()
+    elif isinstance(embed, dict):
+        embed_dict = embed
+    else:
+        embed_dict = {}
+
     payload = {
-        "embeds": [embed],
+        "embeds": [embed_dict],
         "components": view_to_action_rows(view) if view else [],
     }
     msg_id = None
@@ -280,7 +298,7 @@ async def main():
         # 4. Commands Catalog
         await post_console(
             s, CONSOLE_CHANNELS["commands"],
-            build_command_catalog_embed(),
+            build_command_catalog_embed(mock_guild),
             build_command_catalog_view(),
             headers,
             topic="🤖 Interactive Slash Command Catalog & Documentation | Powered by The Raivora"
@@ -290,7 +308,7 @@ async def main():
         # 5. Media Showcase
         await post_console(
             s, CONSOLE_CHANNELS["media"],
-            build_media_showcase_embed(),
+            build_media_showcase_embed(mock_guild),
             build_media_showcase_view(),
             headers,
             topic="📸 Creator Spotlight, Gameplay Clips & Art Showcase | Powered by The Raivora"
@@ -331,7 +349,7 @@ async def main():
         # 8. Room Control
         await post_console(
             s, CONSOLE_CHANNELS["room_ctrl"],
-            build_room_theme_embed(),
+            build_room_theme_embed(mock_guild),
             build_room_theme_view(),
             headers,
             topic="🛠️ Dynamic Voice Room Manager & Custom Mood Styler | Powered by The Raivora"
