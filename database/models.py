@@ -931,9 +931,28 @@ class PrivateControlConfig:
     """Configuration for Rai's owner-only private control centre channels."""
     guild_id: int
     enabled: bool = True
-    owner_category_id: Optional[int] = None
+    auto_repair: bool = True
+    control_hub_category_id: Optional[int] = None
+    reports_category_id: Optional[int] = None
     security_category_id: Optional[int] = None
     admin_category_id: Optional[int] = None
+    security_alerts_id: Optional[int] = None
+    anti_nuke_id: Optional[int] = None
+    security_log_id: Optional[int] = None
+    audit_monitor_id: Optional[int] = None
+    lockdown_control_id: Optional[int] = None
+    admin_control_id: Optional[int] = None
+    server_dashboard_id: Optional[int] = None
+    bot_config_id: Optional[int] = None
+    automation_control_id: Optional[int] = None
+    backup_control_id: Optional[int] = None
+    system_health_id: Optional[int] = None
+    bot_report_channel_id: Optional[int] = None
+    security_report_channel_id: Optional[int] = None
+    system_report_channel_id: Optional[int] = None
+    rai_security_role_id: Optional[int] = None
+    rai_admin_role_id: Optional[int] = None
+    owner_category_id: Optional[int] = None
     owner_ids: List[int] = field(default_factory=list)
     security_role_ids: List[int] = field(default_factory=list)
     admin_role_ids: List[int] = field(default_factory=list)

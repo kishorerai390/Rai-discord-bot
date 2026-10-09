@@ -78,6 +78,7 @@ from database.models import (
     WorkflowStepExecution,
     WorkflowWaitingTimer,
     WorkflowEvent,
+    PrivateControlConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -5071,21 +5072,91 @@ class Database:
         await self._db.execute(sql, params)
         await self._db.commit()
 
-    async def record_voice_incident(
-        self, guild_id: int, user_id: int, channel_id: int, peak: float, avg: float, score: int, severity: str, action: str
+    async def create_voice_incident(
+        self,
+        guild_id: int,
+        user_id: int,
+        channel_id: int,
+        peak_level: float = 0.0,
+        average_level: float = 0.0,
+        risk_score: int = 0,
+        severity: str = "medium",
+        action_taken: str = "none",
+        started_at: Optional[str] = None,
+        ended_at: Optional[str] = None,
+        resolved_at: Optional[str] = None,
+        **kwargs: Any,
     ) -> int:
-        now = utcnow_iso()
+        await self.get_or_create_guild_config(guild_id)
+        now = started_at or utcnow_iso()
         cursor = await self._db.execute(
             """
             INSERT INTO voice_incidents (
-                guild_id, user_id, channel_id, started_at, peak_level, average_level,
-                risk_score, severity, action_taken
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                guild_id, user_id, channel_id, started_at, ended_at, peak_level, average_level,
+                risk_score, severity, action_taken, resolved_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (guild_id, user_id, channel_id, now, peak, avg, score, severity, action),
+            (
+                guild_id,
+                user_id,
+                channel_id,
+                now,
+                ended_at,
+                peak_level,
+                average_level,
+                risk_score,
+                severity,
+                action_taken,
+                resolved_at,
+            ),
         )
         await self._db.commit()
         return cursor.lastrowid or 0
+
+    async def record_voice_incident(
+        self, guild_id: int, user_id: int, channel_id: int, peak: float, avg: float, score: int, severity: str, action: str
+    ) -> int:
+        return await self.create_voice_incident(
+            guild_id=guild_id,
+            user_id=user_id,
+            channel_id=channel_id,
+            peak_level=peak,
+            average_level=avg,
+            risk_score=score,
+            severity=severity,
+            action_taken=action,
+        )
+
+    async def get_voice_incidents(self, guild_id: int, limit: int = 50) -> List[VoiceIncident]:
+        await self.get_or_create_guild_config(guild_id)
+        async with self._db.execute(
+            """
+            SELECT * FROM voice_incidents
+            WHERE guild_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+
+        return [
+            VoiceIncident(
+                id=row["id"],
+                guild_id=row["guild_id"],
+                user_id=row["user_id"],
+                channel_id=row["channel_id"],
+                started_at=row["started_at"],
+                ended_at=row["ended_at"],
+                peak_level=row["peak_level"],
+                average_level=row["average_level"],
+                risk_score=row["risk_score"],
+                severity=row["severity"],
+                action_taken=row["action_taken"],
+                resolved_at=row["resolved_at"],
+            )
+            for row in rows
+        ]
 
     # ==========================================
     # AUTOMATION CONFIG
@@ -6085,6 +6156,7 @@ class Database:
                     "guild_id": row["guild_id"],
                     "key": row["key"],
                     "value": row["value"],
+                    "memory_value": row["value"],
                     "category": row["category"],
                     "created_by": row["created_by"],
                     "created_at": row["created_at"],
@@ -6122,6 +6194,7 @@ class Database:
                     "guild_id": r["guild_id"],
                     "key": r["key"],
                     "value": r["value"],
+                    "memory_value": r["value"],
                     "category": r["category"],
                     "created_by": r["created_by"],
                     "created_at": r["created_at"],
@@ -6184,6 +6257,10 @@ class Database:
         )
         await self._db.commit()
         return cursor.rowcount or 0
+
+    async def clear_expired_conversation_context(self) -> int:
+        """Alias for sweep_conversation_context."""
+        return await self.sweep_conversation_context()
 
     # ==========================================
     # LOCKDOWN STATUS & CONTROLS
@@ -6930,6 +7007,173 @@ class Database:
         ) as cursor:
             rows = await cursor.fetchall()
             return [dict(r) for r in rows]
+
+    # ==========================================
+    # OPERATIONS CORE & AUTOMATION STATE
+    # ==========================================
+
+    async def get_or_create_operations_state(self, guild_id: int) -> Dict[str, Any]:
+        await self.get_or_create_guild_config(guild_id)
+        now_str = utcnow_iso()
+        async with self._db.execute(
+            "SELECT * FROM operations_state WHERE guild_id = ?", (guild_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return dict(row)
+        await self._db.execute(
+            "INSERT INTO operations_state (guild_id, maintenance_mode, maintenance_reason, updated_at) VALUES (?, 0, NULL, ?)",
+            (guild_id, now_str),
+        )
+        await self._db.commit()
+        return {
+            "guild_id": guild_id,
+            "maintenance_mode": 0,
+            "maintenance_reason": None,
+            "updated_at": now_str,
+        }
+
+    async def set_maintenance_mode(self, guild_id: int, enabled: bool, reason: Optional[str] = None) -> bool:
+        await self.get_or_create_guild_config(guild_id)
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO operations_state (guild_id, maintenance_mode, maintenance_reason, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                maintenance_mode = excluded.maintenance_mode,
+                maintenance_reason = excluded.maintenance_reason,
+                updated_at = excluded.updated_at
+            """,
+            (guild_id, 1 if enabled else 0, reason, now_str),
+        )
+        await self._db.commit()
+        return True
+
+    async def save_config_version(self, guild_id: int, user_name: str, summary: str, json_data: str) -> int:
+        await self.get_or_create_guild_config(guild_id)
+        now_str = utcnow_iso()
+        cursor = await self._db.execute(
+            """
+            INSERT INTO config_versions (guild_id, created_by, label, config_data, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (guild_id, str(user_name), summary, json_data, now_str),
+        )
+        await self._db.commit()
+        return cursor.lastrowid or 0
+
+    async def list_config_versions(self, guild_id: int) -> List[Dict[str, Any]]:
+        await self.get_or_create_guild_config(guild_id)
+        async with self._db.execute(
+            "SELECT * FROM config_versions WHERE guild_id = ? ORDER BY id DESC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        result = []
+        for r in rows:
+            try:
+                cfg = json.loads(r["config_data"])
+            except Exception:
+                cfg = {}
+            result.append({
+                "id": r["id"],
+                "guild_id": r["guild_id"],
+                "user_name": r["created_by"],
+                "label": r["label"],
+                "config_data": cfg,
+                "created_at": r["created_at"],
+            })
+        return result
+
+    async def get_config_version(self, guild_id: int, version_num: int) -> Optional[Dict[str, Any]]:
+        await self.get_or_create_guild_config(guild_id)
+        async with self._db.execute(
+            "SELECT * FROM config_versions WHERE guild_id = ? AND id = ?",
+            (guild_id, version_num),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if not row:
+            return None
+        try:
+            cfg = json.loads(row["config_data"])
+        except Exception:
+            cfg = {}
+        return {
+            "id": row["id"],
+            "guild_id": row["guild_id"],
+            "user_name": row["created_by"],
+            "label": row["label"],
+            "config_data": cfg,
+            "created_at": row["created_at"],
+        }
+
+    async def create_scheduled_task(
+        self,
+        task_id: str,
+        guild_id: int,
+        creator_id: int,
+        task_type: str,
+        command_phrase: str,
+        interval_seconds: int,
+        next_run_at: str,
+        **kwargs: Any,
+    ) -> bool:
+        await self.get_or_create_guild_config(guild_id)
+        now_str = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO scheduled_tasks (
+                task_id, guild_id, creator_id, task_type, command_phrase,
+                interval_seconds, next_run_at, is_active, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            ON CONFLICT(task_id) DO UPDATE SET
+                guild_id = excluded.guild_id,
+                creator_id = excluded.creator_id,
+                task_type = excluded.task_type,
+                command_phrase = excluded.command_phrase,
+                interval_seconds = excluded.interval_seconds,
+                next_run_at = excluded.next_run_at,
+                is_active = 1
+            """,
+            (task_id, guild_id, creator_id, task_type, command_phrase, interval_seconds, next_run_at, now_str),
+        )
+        await self._db.commit()
+        return True
+
+    async def get_due_scheduled_tasks(self, now_iso: str) -> List[Dict[str, Any]]:
+        async with self._db.execute(
+            "SELECT * FROM scheduled_tasks WHERE is_active = 1 AND next_run_at <= ? ORDER BY next_run_at ASC",
+            (now_iso,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
+    async def update_scheduled_task_run(self, task_id: str, last_run_at: str, next_run_at: str) -> bool:
+        await self._db.execute(
+            "UPDATE scheduled_tasks SET last_run_at = ?, next_run_at = ? WHERE task_id = ?",
+            (last_run_at, next_run_at, task_id),
+        )
+        await self._db.commit()
+        return True
+
+    async def cancel_scheduled_task(self, task_id: str) -> bool:
+        await self._db.execute(
+            "UPDATE scheduled_tasks SET is_active = 0 WHERE task_id = ?",
+            (task_id,),
+        )
+        await self._db.commit()
+        return True
+
+    async def get_scheduled_tasks(self, guild_id: int) -> List[Dict[str, Any]]:
+        await self.get_or_create_guild_config(guild_id)
+        async with self._db.execute(
+            "SELECT * FROM scheduled_tasks WHERE guild_id = ? AND is_active = 1 ORDER BY next_run_at ASC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+
 
 
 

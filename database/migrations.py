@@ -1044,9 +1044,11 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 room_id INTEGER NOT NULL,
                 event_type TEXT NOT NULL,
-                actor_id INTEGER NOT NULL,
+                actor_id INTEGER NOT NULL DEFAULT 0,
+                user_id INTEGER DEFAULT 0,
+                timestamp REAL DEFAULT 0,
                 metadata TEXT,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL DEFAULT ''
             );
             """,
             """
@@ -1438,6 +1440,207 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             """,
             """
             CREATE INDEX IF NOT EXISTS idx_prem_events_guild ON premium_events(guild_id);
+            """
+        ]
+    ),
+    (
+        44,
+        "Operations Core: Operations state, configuration versions, and scheduled tasks",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS operations_state (
+                guild_id INTEGER PRIMARY KEY,
+                maintenance_mode INTEGER NOT NULL DEFAULT 0,
+                maintenance_reason TEXT,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS config_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                created_by TEXT NOT NULL,
+                label TEXT NOT NULL,
+                config_data TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_config_versions_guild ON config_versions(guild_id);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                task_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                creator_id INTEGER NOT NULL,
+                task_type TEXT NOT NULL,
+                command_phrase TEXT NOT NULL,
+                interval_seconds INTEGER NOT NULL,
+                next_run_at TEXT NOT NULL,
+                last_run_at TEXT,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_guild ON scheduled_tasks(guild_id);
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_next ON scheduled_tasks(next_run_at);
+            """,
+            """
+            ALTER TABLE room_events ADD COLUMN user_id INTEGER DEFAULT 0;
+            """,
+            """
+            ALTER TABLE room_events ADD COLUMN timestamp REAL DEFAULT 0;
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS event_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                event_type TEXT NOT NULL DEFAULT 'community',
+                default_description TEXT NOT NULL DEFAULT '',
+                default_duration_mins INTEGER NOT NULL DEFAULT 60,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE,
+                UNIQUE(guild_id, name)
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS reputation_profiles (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                points INTEGER NOT NULL DEFAULT 0,
+                level INTEGER NOT NULL DEFAULT 1,
+                helpful_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, user_id),
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS reputation_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                giver_id INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                points INTEGER NOT NULL,
+                reason TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_rep_leaderboard ON reputation_profiles(guild_id, points DESC);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                project_type TEXT NOT NULL DEFAULT 'creator',
+                owner_id INTEGER NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS project_members (
+                project_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL DEFAULT 'contributor',
+                joined_at TEXT NOT NULL,
+                PRIMARY KEY (project_id, user_id),
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS server_knowledge (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                topic TEXT NOT NULL,
+                content TEXT NOT NULL,
+                category TEXT NOT NULL DEFAULT 'general',
+                created_by INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_knowledge_search ON server_knowledge(guild_id, topic);
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS simulation_runs (
+                simulation_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                sim_type TEXT NOT NULL,
+                actor_id INTEGER NOT NULL,
+                details TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS private_control_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                auto_repair INTEGER NOT NULL DEFAULT 1,
+                control_hub_category_id INTEGER,
+                reports_category_id INTEGER,
+                security_category_id INTEGER,
+                admin_category_id INTEGER,
+                security_alerts_id INTEGER,
+                anti_nuke_id INTEGER,
+                security_log_id INTEGER,
+                audit_monitor_id INTEGER,
+                lockdown_control_id INTEGER,
+                admin_control_id INTEGER,
+                server_dashboard_id INTEGER,
+                bot_config_id INTEGER,
+                automation_control_id INTEGER,
+                backup_control_id INTEGER,
+                system_health_id INTEGER,
+                bot_report_channel_id INTEGER,
+                security_report_channel_id INTEGER,
+                system_report_channel_id INTEGER,
+                rai_security_role_id INTEGER,
+                rai_admin_role_id INTEGER,
+                owner_category_id INTEGER,
+                owner_ids TEXT NOT NULL DEFAULT '[]',
+                security_role_ids TEXT NOT NULL DEFAULT '[]',
+                admin_role_ids TEXT NOT NULL DEFAULT '[]',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS guild_modules (
+                guild_id INTEGER NOT NULL,
+                module_name TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, module_name),
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS server_profiles (
+                guild_id INTEGER PRIMARY KEY,
+                server_type TEXT NOT NULL DEFAULT 'Community + Gaming + Creator',
+                automation_level TEXT NOT NULL DEFAULT 'HIGH',
+                security_level TEXT NOT NULL DEFAULT 'BALANCED',
+                modules_enabled TEXT NOT NULL DEFAULT '{}',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
             """
         ]
     )
