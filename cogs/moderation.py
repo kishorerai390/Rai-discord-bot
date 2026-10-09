@@ -91,6 +91,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
     # ==========================================
 
     @app_commands.command(name="ban", description="Ban a member from the server")
+    @app_commands.guild_only()
     @app_commands.default_permissions(ban_members=True)
     @is_admin_or_owner()
     @app_commands.describe(
@@ -133,6 +134,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
                 await interaction.followup.send(embed=error_embed("Ban Failed", str(e)), ephemeral=True)
 
     @app_commands.command(name="unban", description="Unban a previously banned user by ID")
+    @app_commands.guild_only()
     @app_commands.default_permissions(ban_members=True)
     @is_admin_or_owner()
     @app_commands.describe(user_id="Discord ID of the banned user", reason="Reason for the unban")
@@ -152,6 +154,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
             await interaction.response.send_message(embed=error_embed("Unban Failed", str(e)), ephemeral=True)
 
     @app_commands.command(name="kick", description="Kick a member from the server")
+    @app_commands.guild_only()
     @app_commands.default_permissions(kick_members=True)
     @is_admin_or_owner()
     @app_commands.describe(member="The member to kick", reason="Reason for the kick")
@@ -181,6 +184,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
                 await interaction.followup.send(embed=error_embed("Kick Failed", str(e)), ephemeral=True)
 
     @app_commands.command(name="timeout", description="Timeout/mute a member for a duration (e.g. 10m, 1h, 1d)")
+    @app_commands.guild_only()
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.describe(
         member="The member to timeout",
@@ -219,6 +223,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
             await interaction.response.send_message(embed=error_embed("Timeout Failed", str(e)), ephemeral=True)
 
     @app_commands.command(name="untimeout", description="Remove timeout from a member")
+    @app_commands.guild_only()
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.describe(member="The member to untimeout", reason="Reason for removing timeout")
     async def untimeout(self, interaction: discord.Interaction, member: discord.Member, reason: Optional[str] = "No reason provided"):
@@ -235,6 +240,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
             await interaction.response.send_message(embed=error_embed("Failed", str(e)), ephemeral=True)
 
     @app_commands.command(name="warn", description="Issue a formal warning to a member")
+    @app_commands.guild_only()
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.describe(member="The member to warn", reason="Reason for the warning")
     async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
@@ -266,6 +272,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
             pass
 
     @app_commands.command(name="warnings", description="View warnings for a member")
+    @app_commands.guild_only()
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.describe(member="The member whose warnings to inspect")
     async def warnings(self, interaction: discord.Interaction, member: discord.Member):
@@ -288,6 +295,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="clear", description="Purge a specified number of messages in the channel")
+    @app_commands.guild_only()
     @app_commands.default_permissions(manage_messages=True)
     @app_commands.describe(amount="Number of messages to delete (1-100)", member="Filter messages from a specific user")
     async def clear(
@@ -298,6 +306,13 @@ class ModerationCog(commands.Cog, name="Moderation"):
     ):
         if not (1 <= amount <= 100):
             await interaction.response.send_message(embed=error_embed("Invalid Amount", "Please specify an amount between 1 and 100."), ephemeral=True)
+            return
+
+        if not hasattr(interaction.channel, "purge"):
+            await interaction.response.send_message(
+                embed=error_embed("Purge Unavailable", "Messages cannot be purged in this channel type (e.g. direct messages)."),
+                ephemeral=True
+            )
             return
 
         await interaction.response.defer(ephemeral=True)
@@ -311,7 +326,9 @@ class ModerationCog(commands.Cog, name="Moderation"):
             if member:
                 msg += f" (Filtered to {member.mention})"
             await interaction.followup.send(embed=success_embed("Purge Complete", msg), ephemeral=True)
-            await self._log_mod_action(interaction.guild, "Purge", interaction.user, interaction.user, f"Cleared {len(deleted)} messages in #{interaction.channel.name}")
+            if interaction.guild:
+                channel_name = getattr(interaction.channel, "name", str(interaction.channel.id))
+                await self._log_mod_action(interaction.guild, "Purge", interaction.user, interaction.user, f"Cleared {len(deleted)} messages in #{channel_name}")
         except Exception as e:
             await interaction.followup.send(embed=error_embed("Purge Failed", str(e)), ephemeral=True)
 
