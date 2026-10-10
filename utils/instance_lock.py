@@ -17,7 +17,9 @@ logger = logging.getLogger("SentinelBot.InstanceLock")
 
 DEFAULT_LOCK_PORT = 49451
 MUSIC_LOCK_PORT = 49452
+ECOSYSTEM_LOCK_PORT = 49450
 LOCK_FILE_PATH = Path(".bot.lock")
+ECOSYSTEM_LOCK_FILE = Path(".ecosystem.lock")
 
 
 class InstanceAlreadyRunningError(Exception):

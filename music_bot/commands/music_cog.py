@@ -253,11 +253,19 @@ class MusicCog(commands.Cog, name="Music"):
     async def _check_permissions(self, interaction: discord.Interaction) -> bool:
         """Verify user is in voice channel and allowed to use music commands."""
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
-            await interaction.followup.send("❌ This command must be used in a server.", ephemeral=True)
+            msg = "❌ This command must be used in a server."
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
             return False
 
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.followup.send("❌ You must join a voice channel first.", ephemeral=True)
+            msg = "❌ You must join a voice channel first."
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
             return False
 
         return True
@@ -270,7 +278,7 @@ class MusicCog(commands.Cog, name="Music"):
         member = interaction.user
         text_channel = interaction.channel
 
-        if not guild or not isinstance(member, discord.Member) or not isinstance(text_channel, discord.TextChannel):
+        if not guild or not isinstance(member, discord.Member) or not isinstance(text_channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)):
             await interaction.followup.send("❌ Cannot determine server or channel context.", ephemeral=True)
             return
 
@@ -362,7 +370,8 @@ class MusicCog(commands.Cog, name="Music"):
     @music_group.command(name="play", description="Play a song or URL from YouTube")
     @app_commands.describe(query="Song title, artist, or URL to play")
     async def music_play(self, interaction: discord.Interaction, query: str) -> None:
-        await interaction.response.defer(ephemeral=False)
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=False)
         if not await self._check_permissions(interaction):
             return
         await self._play_query(interaction, query)

@@ -11,6 +11,7 @@ import socket
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 if sys.platform == "win32":
     try:
@@ -19,20 +20,34 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-def clear_stale_instance(port: int, name: str):
-    """Checks if a stale bot instance holds the lock port and terminates it."""
+from utils.instance_lock import (
+    SingleInstanceLock,
+    InstanceAlreadyRunningError,
+    ECOSYSTEM_LOCK_PORT,
+    ECOSYSTEM_LOCK_FILE,
+    DEFAULT_LOCK_PORT,
+    MUSIC_LOCK_PORT,
+)
+
+
+def clear_stale_instance(port: int, name: str, exclude_pids: set[int] | None = None):
+    """Checks if a stale bot instance holds the lock port and terminates it if not in exclude_pids."""
+    if exclude_pids is None:
+        exclude_pids = set()
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.3)
             if s.connect_ex(("127.0.0.1", port)) == 0:
-                print(f"[RECOVERY] Found stale {name} holding port {port}. Clearing process...")
                 if sys.platform == "win32":
                     try:
                         out = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
                         for line in out.strip().splitlines():
                             parts = line.split()
                             if len(parts) >= 5 and "LISTENING" in parts:
-                                pid = parts[-1]
+                                pid = int(parts[-1])
+                                if pid in exclude_pids:
+                                    continue
+                                print(f"[RECOVERY] Found stale {name} holding port {port} (PID: {pid}). Clearing process...")
                                 subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
                                 print(f"  • Terminated stale process PID {pid}.")
                                 time.sleep(0.5)
@@ -43,18 +58,32 @@ def clear_stale_instance(port: int, name: str):
 
 
 def run():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    lock_path = Path(base_dir) / ECOSYSTEM_LOCK_FILE
+
+    # Enforce single orchestrator instance
+    orchestrator_lock = SingleInstanceLock(port=ECOSYSTEM_LOCK_PORT, lock_file=lock_path)
+    try:
+        orchestrator_lock.acquire()
+    except InstanceAlreadyRunningError as e:
+        print("=" * 65)
+        print("✦ RAI ECOSYSTEM IS ALREADY RUNNING ✦")
+        print(f"A master orchestrator is already active: {e}")
+        print("Both The Raivora and Neko Songs are actively running in the background.")
+        print("=" * 65)
+        sys.exit(0)
+
     print("=" * 65)
     print("        ✦ RAI ECOSYSTEM — UNIFIED PROCESS ORCHESTRATOR ✦        ")
     print("   Starting The Raivora (Main Bot) & Neko Songs (Audio Bot)...  ")
     print("=" * 65)
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
     venv_py = os.path.join(base_dir, ".venv", "Scripts", "python.exe")
     python_executable = venv_py if os.path.exists(venv_py) else sys.executable
 
-    # Pre-flight: Clear any stale orphan processes on dedicated lock ports
-    clear_stale_instance(49451, "The Raivora")
-    clear_stale_instance(49452, "Neko Songs")
+    # Pre-flight: Clear any stale orphan processes on dedicated bot ports
+    clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora")
+    clear_stale_instance(MUSIC_LOCK_PORT, "Neko Songs")
 
     # 1. Spawn Main Bot (The Raivora)
     print("[1/2] 🚀 Spawning The Raivora (Core, Security, Moderation)...")
@@ -73,42 +102,54 @@ def run():
         cwd=base_dir,
     )
 
-    print("\n✅ Both bot processes running concurrently! Press Ctrl+C to stop both.\n")
+    print(f"\n✅ Both bot processes running! (Raivora PID: {proc_main.pid}, Neko Songs PID: {proc_music.pid})")
+    print("Press Ctrl+C to gracefully stop the entire ecosystem.\n")
+
+    main_restarts: list[float] = []
+    music_restarts: list[float] = []
 
     try:
         while True:
-            # Check if any process terminated unexpectedly and auto-recover
+            now = time.time()
             ret_main = proc_main.poll()
             ret_music = proc_music.poll()
 
             if ret_main is not None:
-                print(f"\n⚠️ The Raivora exited with code {ret_main}. Auto-recovering in 3s...")
-                time.sleep(2)
-                clear_stale_instance(49451, "The Raivora")
+                main_restarts = [t for t in main_restarts if now - t < 60]
+                backoff = 15 if len(main_restarts) >= 3 else 3
+                print(f"\n⚠️ The Raivora exited (code {ret_main}). Auto-recovering in {backoff}s...")
+                time.sleep(backoff)
+                clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora", exclude_pids={proc_music.pid})
                 proc_main = subprocess.Popen([python_executable, "main.py"], cwd=base_dir)
-                print("🚀 The Raivora respawned successfully.")
+                main_restarts.append(time.time())
+                print(f"🚀 The Raivora respawned successfully (PID: {proc_main.pid}).")
 
             if ret_music is not None:
-                print(f"\n⚠️ Neko Songs exited with code {ret_music}. Auto-recovering in 3s...")
-                time.sleep(2)
-                clear_stale_instance(49452, "Neko Songs")
+                music_restarts = [t for t in music_restarts if now - t < 60]
+                backoff = 15 if len(music_restarts) >= 3 else 3
+                print(f"\n⚠️ Neko Songs exited (code {ret_music}). Auto-recovering in {backoff}s...")
+                time.sleep(backoff)
+                clear_stale_instance(MUSIC_LOCK_PORT, "Neko Songs", exclude_pids={proc_main.pid})
                 proc_music = subprocess.Popen([python_executable, "music_main.py"], cwd=base_dir)
-                print("🐱 Neko Songs respawned successfully.")
+                music_restarts.append(time.time())
+                print(f"🐱 Neko Songs respawned successfully (PID: {proc_music.pid}).")
 
             time.sleep(2)
 
     except KeyboardInterrupt:
-        print("\n🛑 Shutting down Rai Ecosystem processes...")
+        print("\n🛑 Stopping Rai Ecosystem...")
     finally:
         for name, p in [("Neko Songs", proc_music), ("The Raivora", proc_main)]:
-            if p.poll() is None:
+            if p and p.poll() is None:
                 print(f"Terminating {name} (PID: {p.pid})...")
                 p.terminate()
                 try:
                     p.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     p.kill()
-        print("✦ Rai Ecosystem gracefully stopped.")
+        orchestrator_lock.release()
+        print("✦ Rai Ecosystem stopped cleanly.")
+
 
 if __name__ == "__main__":
     run()
