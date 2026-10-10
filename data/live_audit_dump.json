@@ -1,0 +1,4256 @@
+{
+  "guild": {
+    "id": "1457382179981099090",
+    "name": "✦ ʀᴀɪ ʀᴀᴍ ✦",
+    "owner_id": "1457380609641938981",
+    "member_count": 45,
+    "human_count": 27,
+    "bot_count": 18,
+    "verification_level": 2,
+    "afk_channel_id": "1554891485818921042",
+    "system_channel_id": "1545502705643167876"
+  },
+  "roles": [
+    {
+      "id": "1534903565535940648",
+      "name": "Rythm",
+      "position": 54,
+      "color": "0x0",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1545494610489643038",
+      "name": "👑 ╏ 𝓕ᴏᴜɴᴅᴇʀ 🍷",
+      "position": 53,
+      "color": "0xf1c40f",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1545506927788687470",
+      "name": "⚡ ╏ 𝓗ᴇᴀᴅ 𝕬ᴅᴍɪɴ ⚡",
+      "position": 52,
+      "color": "0xe74c3c",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 5,
+      "managed": false
+    },
+    {
+      "id": "1557476518886641694",
+      "name": "🤖 ═ ʀᴀɪ sᴇɴᴛɪɴᴇʟ 🍷",
+      "position": 51,
+      "color": "0xf0ff",
+      "permissions": "8866461766385663",
+      "is_admin": true,
+      "is_manage_guild": true,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1545494600347680918",
+      "name": "🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️",
+      "position": 50,
+      "color": "0x3498db",
+      "permissions": "163586054",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": true,
+      "member_count": 10,
+      "managed": false
+    },
+    {
+      "id": "1545494591883579434",
+      "name": "🚀 ╏ 𝓢ᴇʀᴠᴇʀ 𝕭ᴏᴏsᴛᴇʀ",
+      "position": 49,
+      "color": "0xff1493",
+      "permissions": "67142144",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 3,
+      "managed": false
+    },
+    {
+      "id": "1545494578512134176",
+      "name": "🤖 ╏ 𝓑ᴏᴛs",
+      "position": 45,
+      "color": "0x747d8c",
+      "permissions": "51200",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 17,
+      "managed": false
+    },
+    {
+      "id": "1545834928221069522",
+      "name": "🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ",
+      "position": 44,
+      "color": "0xa55eea",
+      "permissions": "2222085186637377",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 9,
+      "managed": false
+    },
+    {
+      "id": "1545494584203673740",
+      "name": "💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ",
+      "position": 43,
+      "color": "0xffb8c6",
+      "permissions": "3148288",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 32,
+      "managed": false
+    },
+    {
+      "id": "1545519948007473222",
+      "name": "Wick",
+      "position": 42,
+      "color": "0x0",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1545616944827342940",
+      "name": "BeatSync",
+      "position": 41,
+      "color": "0x0",
+      "permissions": "143935237465",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1546048371565793383",
+      "name": "Invite Tracker",
+      "position": 40,
+      "color": "0x0",
+      "permissions": "2252899594128510",
+      "is_admin": true,
+      "is_manage_guild": true,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1546048477291741248",
+      "name": "Koya",
+      "position": 39,
+      "color": "0x0",
+      "permissions": "7627857622199543",
+      "is_admin": false,
+      "is_manage_guild": true,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1546049335148544095",
+      "name": "Sapphire",
+      "position": 38,
+      "color": "0x0",
+      "permissions": "1101596716286",
+      "is_admin": true,
+      "is_manage_guild": true,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1546072104397443175",
+      "name": "DISBOARD.org",
+      "position": 37,
+      "color": "0x0",
+      "permissions": "19473",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": true,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1547276294398545984",
+      "name": "Green-Bot",
+      "position": 36,
+      "color": "0x0",
+      "permissions": "4331695368",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1547276530718216203",
+      "name": "Zabrina",
+      "position": 35,
+      "color": "0x0",
+      "permissions": "142878297153",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1547283179172528210",
+      "name": "Top.gg",
+      "position": 34,
+      "color": "0x0",
+      "permissions": "1",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1557477515046555779",
+      "name": "🎂 ═ Birthday Star",
+      "position": 33,
+      "color": "0xff7675",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1551184094313062470",
+      "name": "🎯 ╏ 𝓥ᴀʟᴏʀᴀɴᴛ / 𝕮𝕾𝟐",
+      "position": 32,
+      "color": "0xfa4454",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 2,
+      "managed": false
+    },
+    {
+      "id": "1557477505735065600",
+      "name": "💎・Diamond Patron",
+      "position": 31,
+      "color": "0xe5ff",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1549504522953695269",
+      "name": "✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ",
+      "position": 30,
+      "color": "0xff88",
+      "permissions": "512",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 29,
+      "managed": false
+    },
+    {
+      "id": "1557477503746969782",
+      "name": "👑・VIP Lounge",
+      "position": 29,
+      "color": "0xf1c40f",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1551184098834251786",
+      "name": "⚡ ╏ 𝓑𝓖𝓜𝓘 / 𝕻𝖀𝕭𝕲",
+      "position": 28,
+      "color": "0xe67e22",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1557477500886581310",
+      "name": "🌸・Rose Gold",
+      "position": 27,
+      "color": "0xff69b4",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1550547059009130588",
+      "name": "Blue Seal!",
+      "position": 26,
+      "color": "0x0",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1557477498466336830",
+      "name": "💠・Cyber Cyan",
+      "position": 25,
+      "color": "0xf5ff",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1551184102957523048",
+      "name": "🔥 ╏ 𝓕ʀᴇᴇ 𝕱ɪʀᴇ",
+      "position": 24,
+      "color": "0xe74c3c",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1550199913093144649",
+      "name": "📢 ╏ 𝓐ɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs",
+      "position": 23,
+      "color": "0xa55eea",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 3,
+      "managed": false
+    },
+    {
+      "id": "1551184071101649038",
+      "name": "🛠️ ╏ 𝓣ʀɪᴀʟ 𝕸ᴏᴅ",
+      "position": 22,
+      "color": "0x34495e",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1550199917262143560",
+      "name": "🎁 ╏ 𝓖ɪᴠᴇᴀᴡᴀʏs",
+      "position": 21,
+      "color": "0x2ecc71",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1551184081067450451",
+      "name": "💎 ╏ 𝓥ɪᴘ 𝕸ᴇᴍʙᴇʀ",
+      "position": 20,
+      "color": "0xd2d3",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1550199921007792188",
+      "name": "🏆 ╏ 𝓣ᴏᴜʀɴᴀᴍᴇɴᴛs",
+      "position": 19,
+      "color": "0xe74c3c",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1554175739140644928",
+      "name": "Xenon",
+      "position": 18,
+      "color": "0x0",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1554734206209232989",
+      "name": "THE Raivora",
+      "position": 17,
+      "color": "0x0",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1554839328000315462",
+      "name": "🟡 │ Under Observation",
+      "position": 16,
+      "color": "0xf1c40f",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1558161370615390319",
+      "name": "🟢 . UnBypassable .",
+      "position": 15,
+      "color": "0x2ecc71",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 2,
+      "managed": false
+    },
+    {
+      "id": "1554839510464987156",
+      "name": "⏳ │ Muted / Timeout",
+      "position": 14,
+      "color": "0x95a5a6",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1558161368090284133",
+      "name": "🔴 . Secured .",
+      "position": 13,
+      "color": "0xe74c3c",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 2,
+      "managed": false
+    },
+    {
+      "id": "1554839513308860560",
+      "name": "🛑 │ Raid Protection",
+      "position": 12,
+      "color": "0xe74c3c",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1558161373245214861",
+      "name": "🛡️ . Rai Sentinel .",
+      "position": 11,
+      "color": "0x9b59b6",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1554876448467329185",
+      "name": "Our New Official Bot",
+      "position": 10,
+      "color": "0x0",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": false
+    },
+    {
+      "id": "1555239086543867988",
+      "name": "Hade",
+      "position": 9,
+      "color": "0x0",
+      "permissions": "287804091672",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1555244337443508427",
+      "name": "Wave Music",
+      "position": 8,
+      "color": "0x0",
+      "permissions": "4785354631933208",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": true,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1555632650473971734",
+      "name": "🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ",
+      "position": 7,
+      "color": "0xf0ff",
+      "permissions": "2150755456",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": true,
+      "member_count": 3,
+      "managed": false
+    },
+    {
+      "id": "1556387123064606834",
+      "name": "KITT",
+      "position": 6,
+      "color": "0x0",
+      "permissions": "274914609152",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1556388585870196897",
+      "name": "Nazha",
+      "position": 5,
+      "color": "0x0",
+      "permissions": "1166553956872000",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": true,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1556696060301410354",
+      "name": "NEKO SONGS.....!!",
+      "position": 4,
+      "color": "0x0",
+      "permissions": "8",
+      "is_admin": true,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 1,
+      "managed": true
+    },
+    {
+      "id": "1557477496524509224",
+      "name": "💜・Neon Violet",
+      "position": 3,
+      "color": "0x9b59b6",
+      "permissions": "0",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1557491522025300018",
+      "name": "👤 Member",
+      "position": 2,
+      "color": "0x95a5a6",
+      "permissions": "3072",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1558161375996416192",
+      "name": "⛓️ . Quarantined .",
+      "position": 1,
+      "color": "0x34495e",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    },
+    {
+      "id": "1457382179981099090",
+      "name": "@everyone",
+      "position": 0,
+      "color": "0x0",
+      "permissions": "2221947747683904",
+      "is_admin": false,
+      "is_manage_guild": false,
+      "is_manage_channels": false,
+      "is_mod": false,
+      "member_count": 0,
+      "managed": false
+    }
+  ],
+  "bots": [
+    {
+      "id": "235088799074484224",
+      "name": "Rythm",
+      "roles": [
+        "Rythm",
+        "🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ",
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "276060004262477825",
+      "name": "Koya",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Koya",
+        "💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ",
+        "🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️"
+      ],
+      "has_admin": false
+    },
+    {
+      "id": "302050872383242240",
+      "name": "DISBOARD",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️",
+        "DISBOARD.org"
+      ],
+      "has_admin": false
+    },
+    {
+      "id": "416358583220043796",
+      "name": "Xenon",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Xenon"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "422087909634736160",
+      "name": "Top.gg",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Top.gg"
+      ],
+      "has_admin": false
+    },
+    {
+      "id": "530825629793517590",
+      "name": "KITT",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "KITT",
+        "✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ"
+      ],
+      "has_admin": false
+    },
+    {
+      "id": "536991182035746816",
+      "name": "Wick",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ",
+        "Wick"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "678344927997853742",
+      "name": "Sapphire",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ",
+        "Sapphire"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "720351927581278219",
+      "name": "Invite Tracker",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Invite Tracker"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1021732722479202304",
+      "name": "Hade",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Hade"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1124681788070055967",
+      "name": "Nazha",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Nazha",
+        "✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ"
+      ],
+      "has_admin": false
+    },
+    {
+      "id": "1143059048363724851",
+      "name": "Zabrina",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Zabrina",
+        "🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️"
+      ],
+      "has_admin": false
+    },
+    {
+      "id": "1190991820637868042",
+      "name": "Wave Music",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "Wave Music"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1205557263738216559",
+      "name": "BeatSync",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ",
+        "💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ",
+        "BeatSync"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1470151477610938509",
+      "name": "Green-Bot",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ",
+        "Green-Bot"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1477618724533043293",
+      "name": "Blue Seal!",
+      "roles": [
+        "Blue Seal!",
+        "🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️",
+        "🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1554732669072445532",
+      "name": "The Raivora",
+      "roles": [
+        "Our New Official Bot",
+        "✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ",
+        "🔴 . Secured .",
+        "📢 ╏ 𝓐ɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs",
+        "🟢 . UnBypassable .",
+        "🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ",
+        "🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ",
+        "THE Raivora",
+        "🤖 ═ ʀᴀɪ sᴇɴᴛɪɴᴇʟ 🍷"
+      ],
+      "has_admin": true
+    },
+    {
+      "id": "1556676516274905218",
+      "name": "NEKO SONGS.....!!",
+      "roles": [
+        "🤖 ╏ 𝓑ᴏᴛs",
+        "NEKO SONGS.....!!"
+      ],
+      "has_admin": true
+    }
+  ],
+  "channels": [
+    {
+      "id": "1545502700840427702",
+      "type": 0,
+      "last_message_id": "1557493405360197776",
+      "flags": 128,
+      "guild_id": "1457382179981099090",
+      "name": "✨・ᴠᴇʀɪғʏ-ʜᴇʀᴇ",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "ᯓ ⋆ click the button below to verify & unlock all server channels ⋆ ᯓ",
+      "position": 0,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "165888"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545502705643167876",
+      "type": 0,
+      "last_message_id": "1558266463511511084",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:37.093000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🌸・ᴡᴇʟᴄᴏᴍᴇ",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "🌸 Official Community Entrance & Orientation Hub | Powered by The Raivora",
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "68608",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "328704",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545502710101704714",
+      "type": 0,
+      "last_message_id": "1558179473369604107",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:38.700000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "📜・ʀᴜʟᴇs-ᴀɴᴅ-ɪɴғᴏ",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "📜 Community Constitution & Etiquette Rules | Powered by The Raivora",
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545502718792175646",
+      "type": 5,
+      "last_message_id": "1555652839903338639",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-02T18:48:59.649000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "📢・ᴀɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "ᯓ ⋆ official community broadcasts, events & sound engine updates ⋆ ᯓ",
+      "position": 4,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545502722739150898",
+      "type": 0,
+      "last_message_id": "1557467800673591389",
+      "flags": 128,
+      "last_pin_timestamp": "2026-10-02T18:49:00.646000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "📌・sᴇʀᴠᴇʀ-ʀᴏʟᴇs",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "ᯓ ⋆ select your gaming pings & notification roles below ⋆ ᯓ",
+      "position": 5,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545502730699808768",
+      "type": 0,
+      "last_message_id": "1555576205028368487",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "💬・ɢᴇɴᴇʀᴀʟ-ᴄʜᴀᴛ",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 3,
+      "topic": "💬 The heart of RAI FAM💗 • Chat, relax, share gaming talk & vibe.",
+      "position": 8,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "32768"
+        },
+        {
+          "id": "1558161375996416192",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545502845208629328",
+      "type": 0,
+      "last_message_id": "1557717568943292417",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎟・sᴛᴀғғ-ʟᴏᴜɴɢᴇ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Internal Staff Coordination: Staff discussions, ticket escalated reviews, and operational alerts.",
+      "position": 37,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1545803464712650844",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ɪɴғᴏʀᴍᴀᴛɪᴏɴ ✧",
+      "parent_id": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66624",
+          "deny": "2048"
+        }
+      ]
+    },
+    {
+      "id": "1545803478490812578",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴄᴏᴍᴍᴜɴɪᴛʏ ✧",
+      "parent_id": null,
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ]
+    },
+    {
+      "id": "1546059369085534229",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "📊 ═ sᴇʀᴠᴇʀ sᴛᴀᴛs ═ 📊",
+      "parent_id": null,
+      "position": 0,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ]
+    },
+    {
+      "id": "1546059375574130769",
+      "type": 2,
+      "last_message_id": "1551865028393566278",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔒・🤖・𝓑ᴏᴛs: 18",
+      "parent_id": "1546059369085534229",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1048576"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1546099701496029194",
+      "type": 2,
+      "last_message_id": "1551864582774198282",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔒・👥・𝓐ʟʟ・𝓜ᴇᴍʙᴇʀs: 45",
+      "parent_id": "1546059369085534229",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 0,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1048576"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1546099703630798848",
+      "type": 2,
+      "last_message_id": "1551864937591087134",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔒・👤・𝓜ᴇᴍʙᴇʀs: 27",
+      "parent_id": "1546059369085534229",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1048576"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1549416359723532480",
+      "type": 0,
+      "last_message_id": "1558266471870632089",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:42.094000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🤖・ʙᴏᴛ-ᴄᴏᴍᴍᴀɴᴅs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 5,
+      "topic": "🤖 Interactive Slash Command Catalog & Documentation | Powered by The Raivora",
+      "position": 11,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545494578512134176",
+          "type": 0,
+          "allow": "52224",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "2147535872",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1551184138932068373",
+      "type": 0,
+      "last_message_id": "1558157275196162169",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:43.543000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "📸・ᴍᴇᴅɪᴀ-ᴄʟɪᴘs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "📸 Creator Spotlight, Gameplay Clips & Art Showcase | Powered by The Raivora",
+      "position": 10,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3263488",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1554891379174416474",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴘʀɪᴠᴀᴛᴇ ᴠᴏɪᴄᴇ ✧",
+      "parent_id": null,
+      "position": 4,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3212288",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3212288",
+          "deny": "0"
+        }
+      ]
+    },
+    {
+      "id": "1554891470325031013",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴘᴏᴅs & ᴀғᴋ ✧",
+      "parent_id": null,
+      "position": 9,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1554891485818921042",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "💤・AFK Sleep",
+      "parent_id": "1554891470325031013",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1049600"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905776030613535",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴠɪᴘ sᴜɪᴛᴇs ✧",
+      "parent_id": null,
+      "position": 5,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1554905799292231728",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴄʜɪʟʟ & ʜᴀᴠᴇɴ ✧",
+      "parent_id": null,
+      "position": 6,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1545834928221069522",
+          "type": 0,
+          "allow": "3145984",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1554905803666751590",
+      "type": 2,
+      "last_message_id": "1556375751656218666",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎶・24/7 Radio & Beats",
+      "parent_id": "1554905799292231728",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 0,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905807240302652",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "☕・Night Owl Cafe",
+      "parent_id": "1554905799292231728",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905810574774286",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🌊・Vibe Studio",
+      "parent_id": "1554905799292231728",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905813737545770",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎤・Open Mic & Stage",
+      "parent_id": "1554905799292231728",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 3,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905821467648051",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ɢᴀᴍɪɴɢ ᴀʀᴇɴᴀ ✧",
+      "parent_id": null,
+      "position": 7,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1554905825544241302",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔥・Battle Squad",
+      "parent_id": "1554905821467648051",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 0,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905829033902151",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🕹️・Casual Arcade",
+      "parent_id": "1554905821467648051",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 3,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905836768469032",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎯・Ranked Comms I",
+      "parent_id": "1554905821467648051",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 5,
+      "rtc_region": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905842300485642",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎯・Ranked Comms II",
+      "parent_id": "1554905821467648051",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 5,
+      "rtc_region": null,
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905866673856714",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴄɪɴᴇᴍᴀ & sᴛʀᴇᴀᴍs ✧",
+      "parent_id": null,
+      "position": 8,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1554905870817689600",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🍿・Cinema Hall",
+      "parent_id": "1554905866673856714",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 0,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905874437513248",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "📺・Stream Showcase",
+      "parent_id": "1554905866673856714",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905886261121107",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴇxᴇᴄᴜᴛɪᴠᴇ ʜǫ ✧",
+      "parent_id": null,
+      "position": 10,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1554905899414454446",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔮・Creator Studio",
+      "parent_id": "1554905886261121107",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 1,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        },
+        {
+          "id": "1551184081067450451",
+          "type": 0,
+          "allow": "3145728",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1554905903508095066",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🛡️・Staff Operations HQ",
+      "parent_id": "1554905886261121107",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        },
+        {
+          "id": "1551184081067450451",
+          "type": 0,
+          "allow": "3145728",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1555255325706424412",
+      "type": 2,
+      "last_message_id": "1555981578008530975",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⚡・24/7 Radio",
+      "parent_id": "1555255661124784159",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 10,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1555255661124784159",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴍᴜsɪᴄ ʟᴏᴜɴɢᴇ ✧",
+      "parent_id": null,
+      "position": 3,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1555255695933186228",
+      "type": 0,
+      "last_message_id": "1558266454791688222",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:51.480000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🎵・ᴍᴜsɪᴄ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1555255661124784159",
+      "rate_limit_per_user": 0,
+      "topic": "🎵 Dedicated Music Studio | Powered by Neko Songs | Use /music play or click controls below",
+      "position": 20,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283372488658954",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🛡️ ═ ʀᴀɪ sᴇᴄᴜʀɪᴛʏ ═ 🛡️",
+      "parent_id": null,
+      "position": 11,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        }
+      ]
+    },
+    {
+      "id": "1555283377249063083",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⚙️ ═ ʀᴀɪ ᴀᴅᴍɪɴ ═ ⚙️",
+      "parent_id": null,
+      "position": 12,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        }
+      ]
+    },
+    {
+      "id": "1555283378612478072",
+      "type": 0,
+      "last_message_id": "1558181293756256397",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-02T18:49:01.698000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🚨・sᴇᴄᴜʀɪᴛʏ-ᴀʟᴇʀᴛs",
+      "parent_id": "1555283372488658954",
+      "rate_limit_per_user": 0,
+      "topic": "Critical security incidents and immediate alerts.",
+      "position": 28,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283380961026139",
+      "type": 0,
+      "last_message_id": "1555284702464712887",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🧱・ᴀɴᴛɪ-ɴᴜᴋᴇ",
+      "parent_id": "1555283372488658954",
+      "rate_limit_per_user": 0,
+      "topic": "Anti-nuke detections, mass-action protection and prevention.",
+      "position": 30,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283386656886825",
+      "type": 0,
+      "last_message_id": "1555456067113062411",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔒・ʟᴏᴄᴋᴅᴏᴡɴ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1555283372488658954",
+      "rate_limit_per_user": 0,
+      "topic": "Emergency lockdown status and owner controls.",
+      "position": 31,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283387340562574",
+      "type": 0,
+      "last_message_id": "1558181281370472600",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🛡️・sᴇᴄᴜʀɪᴛʏ-ʟᴏɢ",
+      "parent_id": "1555283372488658954",
+      "rate_limit_per_user": 0,
+      "topic": "Security events and verified security actions.",
+      "position": 29,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283390943469685",
+      "type": 0,
+      "last_message_id": "1557478137724407919",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔍・ᴀᴜᴅɪᴛ-ᴍᴏɴɪᴛᴏʀ",
+      "parent_id": "1555283372488658954",
+      "rate_limit_per_user": 0,
+      "topic": "Discord audit-log monitoring and suspicious activity.",
+      "position": 32,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283393242206301",
+      "type": 0,
+      "last_message_id": "1558157314697994361",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:52.953000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "📜・ᴍᴜsɪᴄ-ǫᴜᴇᴜᴇ",
+      "parent_id": "1555255661124784159",
+      "rate_limit_per_user": 0,
+      "topic": "📜 Live Audio Queue & Upcoming Tracks | Powered by Neko Songs",
+      "position": 21,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283394274005092",
+      "type": 0,
+      "last_message_id": "1558157320851300373",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:54.443000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🔊・ᴅᴊ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1555255661124784159",
+      "rate_limit_per_user": 0,
+      "topic": "🔊 DJ Studio, Bass Boost & Volume Equalizer | Powered by Neko Songs",
+      "position": 22,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283395330842714",
+      "type": 0,
+      "last_message_id": "1558157327708983327",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:56.078000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "💿・ᴘʟᴀʏʟɪsᴛs",
+      "parent_id": "1555255661124784159",
+      "rate_limit_per_user": 0,
+      "topic": "💿 Curated Playlists, Favorites & Import Hub | Powered by Neko Songs",
+      "position": 23,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283409465778218",
+      "type": 0,
+      "last_message_id": "1558266353809620998",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T17:13:51.478000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "👑・ᴀᴅᴍɪɴ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "👑 Executive Moderation Command Deck | Restricted to Authorized Staff",
+      "position": 34,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283414205075509",
+      "type": 0,
+      "last_message_id": "1558266362181193789",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-02T18:48:58.575000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "📊・sᴇʀᴠᴇʀ-ᴅᴀsʜʙᴏᴀʀᴅ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Server statistics and system overview.",
+      "position": 35,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1555632650473971734",
+          "type": 0,
+          "allow": "117760",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283416071675954",
+      "type": 0,
+      "last_message_id": "1555285056753373186",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⚙️・ʙᴏᴛ-ᴄᴏɴғɪɢ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Rai configuration and settings.",
+      "position": 36,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1555632650473971734",
+          "type": 0,
+          "allow": "117760",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283417183031516",
+      "type": 0,
+      "last_message_id": "1555285060716994572",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🤖・ᴀᴜᴛᴏᴍᴀᴛɪᴏɴ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Automation status and background tasks.",
+      "position": 38,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1555632650473971734",
+          "type": 0,
+          "allow": "117760",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283418126876856",
+      "type": 0,
+      "last_message_id": "1555285064407842898",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "💾・ʙᴀᴄᴋᴜᴘ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Backup creation, verification and restore controls.",
+      "position": 39,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555283419355676787",
+      "type": 0,
+      "last_message_id": "1555285068312748064",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "❤️・sʏsᴛᴇᴍ-ʜᴇᴀʟᴛʜ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Bot health, workers, database, latency and dependency status.",
+      "position": 40,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555428388280209422",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "📋 ═ ʀᴀɪ ʀᴇᴘᴏʀᴛs ═ 📋",
+      "parent_id": null,
+      "position": 13,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        }
+      ]
+    },
+    {
+      "id": "1555428392181047366",
+      "type": 0,
+      "last_message_id": "1558153622628470868",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🚨・sᴇᴄᴜʀɪᴛʏ-ʀᴇᴘᴏʀᴛ",
+      "parent_id": "1555428388280209422",
+      "rate_limit_per_user": 0,
+      "topic": "Detailed security incident reports and actionable consoles.",
+      "position": 44,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555428399919538297",
+      "type": 0,
+      "last_message_id": "1557571180368625735",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🛡️・ᴍᴏᴅ-ʀᴇᴘᴏʀᴛ",
+      "parent_id": "1555428388280209422",
+      "rate_limit_per_user": 0,
+      "topic": "Moderation sanctions and enforcement logs.",
+      "position": 45,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555428406726893619",
+      "type": 0,
+      "last_message_id": "1555430500514930750",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎶・ᴍᴜsɪᴄ-ʀᴇᴘᴏʀᴛ",
+      "parent_id": "1555428388280209422",
+      "rate_limit_per_user": 0,
+      "topic": "Music subsystem and stream telemetry.",
+      "position": 46,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555428413102235701",
+      "type": 0,
+      "last_message_id": "1557460755316478105",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🔐・ʀᴏᴏᴍ-ʀᴇᴘᴏʀᴛ",
+      "parent_id": "1555428388280209422",
+      "rate_limit_per_user": 0,
+      "topic": "Private voice suite lifecycle reports.",
+      "position": 47,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555428420383416400",
+      "type": 0,
+      "last_message_id": "1555446820736344085",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🤖・ʙᴏᴛ-ʀᴇᴘᴏʀᴛ",
+      "parent_id": "1555428388280209422",
+      "rate_limit_per_user": 0,
+      "topic": "Bot configuration and operational reports.",
+      "position": 48,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555428426607894570",
+      "type": 0,
+      "last_message_id": "1558278955679879279",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⚙️・sʏsᴛᴇᴍ-ʀᴇᴘᴏʀᴛ",
+      "parent_id": "1555428388280209422",
+      "rate_limit_per_user": 0,
+      "topic": "System infrastructure, health, and error reports.",
+      "position": 49,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "68609"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555459478155960421",
+      "type": 0,
+      "last_message_id": "1558266426559565938",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:49.714000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🛠️・ʀᴏᴏᴍ-ᴄᴏɴᴛʀᴏʟ",
+      "parent_id": "1554891379174416474",
+      "rate_limit_per_user": 0,
+      "topic": "🛠️ Dynamic Voice Room Manager & Custom Mood Styler | Powered by The Raivora",
+      "position": 24,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555641079137706014",
+      "type": 0,
+      "last_message_id": "1558266440627519492",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:40.270000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "🎟・sᴜᴘᴘᴏʀᴛ-ᴅᴇsᴋ",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "🎫 Member Concierge & Encrypted Staff Ticket Portal | Powered by The Raivora",
+      "position": 6,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "3212288",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1555641081578782840",
+      "type": 0,
+      "last_message_id": "1558157286961184990",
+      "flags": 0,
+      "last_pin_timestamp": "2026-10-09T16:40:46.364000+00:00",
+      "guild_id": "1457382179981099090",
+      "name": "💤・sʟᴇᴇᴘɪɴɢ-ᴘᴏᴅs",
+      "parent_id": "1554891470325031013",
+      "rate_limit_per_user": 0,
+      "topic": "💤 Ambient AFK Pods & Lo-Fi Lounge | Powered by The Raivora",
+      "position": 27,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "1051648"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1556738642301558846",
+      "type": 0,
+      "last_message_id": "1556738644541444197",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⛓️・ᴘʀɪsᴏɴ-ᴄʜᴀᴛ",
+      "parent_id": "1556740753336565881",
+      "rate_limit_per_user": 0,
+      "topic": null,
+      "position": 50,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1477618724533043293",
+          "type": 1,
+          "allow": "125968",
+          "deny": "0"
+        },
+        {
+          "id": "1558161375996416192",
+          "type": 0,
+          "allow": "68608",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1556738643471630408",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⛓️・Prison VC",
+      "parent_id": "1556740753336565881",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 11,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "3148800"
+        },
+        {
+          "id": "1477618724533043293",
+          "type": 1,
+          "allow": "3271696",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1556740753336565881",
+      "type": 4,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "✧ ᴅᴇᴛᴇɴᴛɪᴏɴ ʀᴏᴏᴍ ✧",
+      "parent_id": null,
+      "position": 19,
+      "permission_overwrites": [
+        {
+          "id": "1554839513308860560",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ]
+    },
+    {
+      "id": "1557461916144767046",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "➕・Join to Create",
+      "parent_id": "1554891379174416474",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 12,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3212288",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1049600"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3212288",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1557469924379852860",
+      "type": 0,
+      "last_message_id": "1557469931266646210",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "💡・sᴜɢɢᴇsᴛɪᴏɴs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 15,
+      "topic": "Share ideas and vote on community improvements! Use /suggest <idea> to post.",
+      "position": 13,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557475848892973219",
+      "type": 0,
+      "last_message_id": "1557475850910433393",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🏆・ʟᴇᴠᴇʟ-ᴜᴘ",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Celebrate community rank-ups, leaderboards, and exclusive milestone role rewards!",
+      "position": 14,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557475853175234660",
+      "type": 0,
+      "last_message_id": "1557475854924128347",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎮・ɢᴀᴍɪɴɢ-ʜᴜʙ",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Find squadmates, host ranked scrims, and queue matchmaking lobbies! Use /matchmaker.",
+      "position": 15,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557477508255842304",
+      "type": 0,
+      "last_message_id": "1557477510252593204",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🛍️・ʀᴀɪ-sʜᴏᴘ",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Redeem your Rai Coins for glowing vanity roles, VIP passes, and exclusive perks! Use /shop.",
+      "position": 16,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557477517282123826",
+      "type": 0,
+      "last_message_id": "1557477519345721356",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎉・ʙɪʀᴛʜᴅᴀʏs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Celebrate community birthdays! Register yours to receive celebratory shoutouts & the Birthday Star role.",
+      "position": 17,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557477521661108315",
+      "type": 0,
+      "last_message_id": "1557477523544084563",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎬・ᴍᴏᴠɪᴇ-ʟᴏᴜɴɢᴇ",
+      "parent_id": "1554905866673856714",
+      "rate_limit_per_user": 0,
+      "topic": "Discuss cinema, vote on weekly watch parties, and share movie reviews! Use /watchparty & /movie.",
+      "position": 26,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557479356899524678",
+      "type": 0,
+      "last_message_id": "1557479360930517116",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "💾・ʙᴀᴄᴋᴜᴘ-ᴠᴀᴜʟᴛ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Autonomous 24h database snapshots & instant server structure disaster recovery portal.",
+      "position": 41,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557479364856123444",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎭・sᴛᴀɢᴇ・ᴘᴏᴅɪᴜᴍ",
+      "parent_id": "1554905799292231728",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 0,
+      "rtc_region": null,
+      "position": 13,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545834928221069522",
+          "type": 0,
+          "allow": "3145984",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1557479367297339432",
+      "type": 0,
+      "last_message_id": "1557479368786448436",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "📋・sᴛᴀғғ-ᴀᴄᴛɪᴠɪᴛʏ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Staff duty clock tracking, moderation metric audits, and ticket SLA reporting.",
+      "position": 42,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557479371001045056",
+      "type": 0,
+      "last_message_id": "1557479375614648452",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ",
+      "parent_id": "1554905776030613535",
+      "rate_limit_per_user": 0,
+      "topic": "Exclusive luxury lounge and private concierge for Server Boosters. Thank you for boosting!",
+      "position": 25,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494591883579434",
+          "type": 0,
+          "allow": "52224",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557479964109181068",
+      "type": 0,
+      "last_message_id": "1557479966873231495",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "📊・sᴇʀᴠᴇʀ-ᴘᴏʟʟs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Official community votes, event surveys, and feature decisions. Have your say!",
+      "position": 19,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "3214336",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494584203673740",
+          "type": 0,
+          "allow": "3148800",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557479971759333499",
+      "type": 0,
+      "last_message_id": "1557479976528248843",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🤝・ᴘᴀʀᴛɴᴇʀsʜɪᴘs",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "Official server affiliates, partnerships, and cross-promotions.",
+      "position": 7,
+      "permission_overwrites": [
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "66560",
+          "deny": "2048"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557479979053228072",
+      "type": 0,
+      "last_message_id": "1557479983717425173",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⚖️・sᴛᴀғғ-ʟᴇᴅɢᴇʀ",
+      "parent_id": "1555283377249063083",
+      "rate_limit_per_user": 0,
+      "topic": "Official staff strike ledger, misconduct logging, and governance accountability.",
+      "position": 43,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "1024",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        },
+        {
+          "id": "1554839510464987156",
+          "type": 0,
+          "allow": "0",
+          "deny": "1051648"
+        },
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3072",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557481215731306526",
+      "type": 0,
+      "last_message_id": "1557481217580998739",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "❓・sᴇʀᴠᴇʀ-ғᴀǫ",
+      "parent_id": "1545803464712650844",
+      "rate_limit_per_user": 0,
+      "topic": "Official Frequently Asked Questions, Navigation Directory & System Reference",
+      "position": 3,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "1088",
+          "deny": "2048"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "1024",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "2112"
+        },
+        {
+          "id": "1557476518886641694",
+          "type": 0,
+          "allow": "19456",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557481220911136868",
+      "type": 0,
+      "last_message_id": "1557481223637565574",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "⭐・ʜᴀʟʟ-ᴏғ-ғᴀᴍᴇ",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Community Starboard: Top voted moments, insane gaming clutches & legendary artwork",
+      "position": 12,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "1088",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1557476518886641694",
+          "type": 0,
+          "allow": "19456",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557481227693330554",
+      "type": 0,
+      "last_message_id": "1557481229861789810",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🎁・ɢɪᴠᴇᴀᴡᴀʏs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Official server drops, Nitro giveaways, Steam codes, and festive community gifts!",
+      "position": 18,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "1088",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1557476518886641694",
+          "type": 0,
+          "allow": "19456",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557481233246584892",
+      "type": 0,
+      "last_message_id": "1557481239147974679",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "👋・ɪɴᴛʀᴏᴅᴜᴄᴛɪᴏɴs",
+      "parent_id": "1545803478490812578",
+      "rate_limit_per_user": 0,
+      "topic": "Introduce yourself to the RAI FAM! Share your hobbies, games, and favorite music.",
+      "position": 9,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "35840",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1557476518886641694",
+          "type": 0,
+          "allow": "19456",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    },
+    {
+      "id": "1557481242054758482",
+      "type": 2,
+      "last_message_id": null,
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "👑・VIP Penthouse",
+      "parent_id": "1554905776030613535",
+      "rate_limit_per_user": 0,
+      "bitrate": 96000,
+      "user_limit": 10,
+      "rtc_region": null,
+      "position": 2,
+      "permission_overwrites": [
+        {
+          "id": "1545506927788687470",
+          "type": 0,
+          "allow": "3145728",
+          "deny": "0"
+        },
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "3145728",
+          "deny": "0"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "1024",
+          "deny": "1048576"
+        },
+        {
+          "id": "1545494591883579434",
+          "type": 0,
+          "allow": "3146240",
+          "deny": "0"
+        },
+        {
+          "id": "1551184081067450451",
+          "type": 0,
+          "allow": "3146240",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false,
+      "application_id": null
+    },
+    {
+      "id": "1558168338386129004",
+      "type": 0,
+      "last_message_id": "1558267964375961643",
+      "flags": 0,
+      "guild_id": "1457382179981099090",
+      "name": "🪤・honeypot-trap",
+      "parent_id": "1555283372488658954",
+      "rate_limit_per_user": 0,
+      "topic": "🔒 Autonomous Honeypot Trap | Guarded by RAI Sentinel. Unauthorized entities messaging here are banned instantly.",
+      "position": 33,
+      "permission_overwrites": [
+        {
+          "id": "1549504522953695269",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1545494600347680918",
+          "type": 0,
+          "allow": "68608",
+          "deny": "2048"
+        },
+        {
+          "id": "1457382179981099090",
+          "type": 0,
+          "allow": "0",
+          "deny": "1024"
+        },
+        {
+          "id": "1554732669072445532",
+          "type": 1,
+          "allow": "268561424",
+          "deny": "0"
+        },
+        {
+          "id": "1457380609641938981",
+          "type": 1,
+          "allow": "2147609600",
+          "deny": "0"
+        }
+      ],
+      "nsfw": false
+    }
+  ],
+  "activity": {
+    "1545502700840427702": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T20:42:44.666000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1545502705643167876": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:36.092000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1545502710101704714": {
+      "count_recent": 3,
+      "last_msg_time": "2026-10-09T18:08:56.026000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1545502718792175646": {
+      "count_recent": 5,
+      "last_msg_time": "2026-10-02T18:48:59.665000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1545502722739150898": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:01:00.033000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1545502730699808768": {
+      "count_recent": 0,
+      "last_msg_time": null,
+      "last_msg_author": null,
+      "pinned_count": 0
+    },
+    "1545502845208629328": {
+      "count_recent": 5,
+      "last_msg_time": "2026-10-08T11:33:29.429000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1549416359723532480": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:38.085000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1551184138932068373": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-09T16:40:43.569000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555255695933186228": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:34.013000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283378612478072": {
+      "count_recent": 5,
+      "last_msg_time": "2026-10-09T18:16:10.040000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283380961026139": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-01T18:26:08.860000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283386656886825": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-02T05:47:05.376000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283387340562574": {
+      "count_recent": 5,
+      "last_msg_time": "2026-10-09T18:16:07.087000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283390943469685": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-01T18:26:14.155000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283393242206301": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-09T16:40:52.987000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283394274005092": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-09T16:40:54.454000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283395330842714": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-09T16:40:56.089000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283409465778218": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:09.937000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283414205075509": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:11.933000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283416071675954": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-01T18:27:33.329000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283417183031516": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-01T18:27:34.274000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283418126876856": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-01T18:27:35.154000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555283419355676787": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-01T18:27:36.085000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555428392181047366": {
+      "count_recent": 5,
+      "last_msg_time": "2026-10-05T04:03:56.668000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555428399919538297": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-02T04:05:28.609000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555428406726893619": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-02T04:05:29.824000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555428413102235701": {
+      "count_recent": 3,
+      "last_msg_time": "2026-10-07T18:33:00.289000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555428420383416400": {
+      "count_recent": 3,
+      "last_msg_time": "2026-10-02T05:10:20.868000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555428426607894570": {
+      "count_recent": 5,
+      "last_msg_time": "2026-10-10T00:44:14.457000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555459478155960421": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:27.282000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555641079137706014": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-09T23:54:30.636000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1555641081578782840": {
+      "count_recent": 2,
+      "last_msg_time": "2026-10-09T16:40:46.374000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1556738642301558846": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-05T18:43:35.664000+00:00",
+      "last_msg_author": "Blue Seal!",
+      "pinned_count": 0
+    },
+    "1557469924379852860": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:09:28.006000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557475848892973219": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:32:59.359000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557475853175234660": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:33:00.316000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557477508255842304": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:39:34.977000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557477517282123826": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:39:37.145000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557477521661108315": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:39:38.146000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557479356899524678": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:46:56.213000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557479367297339432": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:46:58.086000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557479371001045056": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:46:59.714000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557479964109181068": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:49:20.681000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557479971759333499": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:49:22.983000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557479979053228072": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:49:24.697000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557481215731306526": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:54:18.873000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557481220911136868": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:54:20.317000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557481227693330554": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:54:21.801000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1557481233246584892": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-07T19:54:24.015000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    },
+    "1558168338386129004": {
+      "count_recent": 1,
+      "last_msg_time": "2026-10-10T00:00:33.926000+00:00",
+      "last_msg_author": "The Raivora",
+      "pinned_count": 0
+    }
+  }
+}

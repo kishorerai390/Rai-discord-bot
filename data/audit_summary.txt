@@ -1,0 +1,202 @@
+=== GUILD: ✦ ʀᴀɪ ʀᴀᴍ ✦ (1457382179981099090) ===
+Owner ID: 1457380609641938981 | Humans: 27 | Bots: 18
+
+=== ROLES WITH ADMIN ===
+Pos 54 | Rythm (ID: 1534903565535940648) | members: 1 | managed: True
+Pos 53 | 👑 ╏ 𝓕ᴏᴜɴᴅᴇʀ 🍷 (ID: 1545494610489643038) | members: 1 | managed: False
+Pos 51 | 🤖 ═ ʀᴀɪ sᴇɴᴛɪɴᴇʟ 🍷 (ID: 1557476518886641694) | members: 1 | managed: False
+Pos 42 | Wick (ID: 1545519948007473222) | members: 1 | managed: True
+Pos 41 | BeatSync (ID: 1545616944827342940) | members: 1 | managed: True
+Pos 40 | Invite Tracker (ID: 1546048371565793383) | members: 1 | managed: True
+Pos 38 | Sapphire (ID: 1546049335148544095) | members: 1 | managed: True
+Pos 36 | Green-Bot (ID: 1547276294398545984) | members: 1 | managed: True
+Pos 26 | Blue Seal! (ID: 1550547059009130588) | members: 1 | managed: True
+Pos 18 | Xenon (ID: 1554175739140644928) | members: 1 | managed: True
+Pos 17 | THE Raivora (ID: 1554734206209232989) | members: 1 | managed: True
+Pos 09 | Hade (ID: 1555239086543867988) | members: 1 | managed: True
+Pos 08 | Wave Music (ID: 1555244337443508427) | members: 1 | managed: True
+Pos 04 | NEKO SONGS.....!! (ID: 1556696060301410354) | members: 1 | managed: True
+
+=== ROLES WITH MODERATION (KICK/BAN/MANAGE_MESSAGES) ===
+Pos 50 | 🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️ (ID: 1545494600347680918) | members: 10
+Pos 39 | Koya (ID: 1546048477291741248) | members: 1
+Pos 07 | 🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ (ID: 1555632650473971734) | members: 3
+Pos 05 | Nazha (ID: 1556388585870196897) | members: 1
+
+=== ALL ROLES IN HIERARCHY ===
+Pos 54 | Rythm (ID: 1534903565535940648) | members: 1 | admin: True
+Pos 53 | 👑 ╏ 𝓕ᴏᴜɴᴅᴇʀ 🍷 (ID: 1545494610489643038) | members: 1 | admin: True
+Pos 52 | ⚡ ╏ 𝓗ᴇᴀᴅ 𝕬ᴅᴍɪɴ ⚡ (ID: 1545506927788687470) | members: 5 | admin: False
+Pos 51 | 🤖 ═ ʀᴀɪ sᴇɴᴛɪɴᴇʟ 🍷 (ID: 1557476518886641694) | members: 1 | admin: True
+Pos 50 | 🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️ (ID: 1545494600347680918) | members: 10 | admin: False
+Pos 49 | 🚀 ╏ 𝓢ᴇʀᴠᴇʀ 𝕭ᴏᴏsᴛᴇʀ (ID: 1545494591883579434) | members: 3 | admin: False
+Pos 45 | 🤖 ╏ 𝓑ᴏᴛs (ID: 1545494578512134176) | members: 17 | admin: False
+Pos 44 | 🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ (ID: 1545834928221069522) | members: 9 | admin: False
+Pos 43 | 💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ (ID: 1545494584203673740) | members: 32 | admin: False
+Pos 42 | Wick (ID: 1545519948007473222) | members: 1 | admin: True
+Pos 41 | BeatSync (ID: 1545616944827342940) | members: 1 | admin: True
+Pos 40 | Invite Tracker (ID: 1546048371565793383) | members: 1 | admin: True
+Pos 39 | Koya (ID: 1546048477291741248) | members: 1 | admin: False
+Pos 38 | Sapphire (ID: 1546049335148544095) | members: 1 | admin: True
+Pos 37 | DISBOARD.org (ID: 1546072104397443175) | members: 1 | admin: False
+Pos 36 | Green-Bot (ID: 1547276294398545984) | members: 1 | admin: True
+Pos 35 | Zabrina (ID: 1547276530718216203) | members: 1 | admin: False
+Pos 34 | Top.gg (ID: 1547283179172528210) | members: 1 | admin: False
+Pos 33 | 🎂 ═ Birthday Star (ID: 1557477515046555779) | members: 0 | admin: False
+Pos 32 | 🎯 ╏ 𝓥ᴀʟᴏʀᴀɴᴛ / 𝕮𝕾𝟐 (ID: 1551184094313062470) | members: 2 | admin: False
+Pos 31 | 💎・Diamond Patron (ID: 1557477505735065600) | members: 0 | admin: False
+Pos 30 | ✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ (ID: 1549504522953695269) | members: 29 | admin: False
+Pos 29 | 👑・VIP Lounge (ID: 1557477503746969782) | members: 0 | admin: False
+Pos 28 | ⚡ ╏ 𝓑𝓖𝓜𝓘 / 𝕻𝖀𝕭𝕲 (ID: 1551184098834251786) | members: 1 | admin: False
+Pos 27 | 🌸・Rose Gold (ID: 1557477500886581310) | members: 0 | admin: False
+Pos 26 | Blue Seal! (ID: 1550547059009130588) | members: 1 | admin: True
+Pos 25 | 💠・Cyber Cyan (ID: 1557477498466336830) | members: 0 | admin: False
+Pos 24 | 🔥 ╏ 𝓕ʀᴇᴇ 𝕱ɪʀᴇ (ID: 1551184102957523048) | members: 1 | admin: False
+Pos 23 | 📢 ╏ 𝓐ɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs (ID: 1550199913093144649) | members: 3 | admin: False
+Pos 22 | 🛠️ ╏ 𝓣ʀɪᴀʟ 𝕸ᴏᴅ (ID: 1551184071101649038) | members: 1 | admin: False
+Pos 21 | 🎁 ╏ 𝓖ɪᴠᴇᴀᴡᴀʏs (ID: 1550199917262143560) | members: 1 | admin: False
+Pos 20 | 💎 ╏ 𝓥ɪᴘ 𝕸ᴇᴍʙᴇʀ (ID: 1551184081067450451) | members: 1 | admin: False
+Pos 19 | 🏆 ╏ 𝓣ᴏᴜʀɴᴀᴍᴇɴᴛs (ID: 1550199921007792188) | members: 1 | admin: False
+Pos 18 | Xenon (ID: 1554175739140644928) | members: 1 | admin: True
+Pos 17 | THE Raivora (ID: 1554734206209232989) | members: 1 | admin: True
+Pos 16 | 🟡 │ Under Observation (ID: 1554839328000315462) | members: 0 | admin: False
+Pos 15 | 🟢 . UnBypassable . (ID: 1558161370615390319) | members: 2 | admin: False
+Pos 14 | ⏳ │ Muted / Timeout (ID: 1554839510464987156) | members: 0 | admin: False
+Pos 13 | 🔴 . Secured . (ID: 1558161368090284133) | members: 2 | admin: False
+Pos 12 | 🛑 │ Raid Protection (ID: 1554839513308860560) | members: 0 | admin: False
+Pos 11 | 🛡️ . Rai Sentinel . (ID: 1558161373245214861) | members: 0 | admin: False
+Pos 10 | Our New Official Bot (ID: 1554876448467329185) | members: 1 | admin: False
+Pos 09 | Hade (ID: 1555239086543867988) | members: 1 | admin: True
+Pos 08 | Wave Music (ID: 1555244337443508427) | members: 1 | admin: True
+Pos 07 | 🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ (ID: 1555632650473971734) | members: 3 | admin: False
+Pos 06 | KITT (ID: 1556387123064606834) | members: 1 | admin: False
+Pos 05 | Nazha (ID: 1556388585870196897) | members: 1 | admin: False
+Pos 04 | NEKO SONGS.....!! (ID: 1556696060301410354) | members: 1 | admin: True
+Pos 03 | 💜・Neon Violet (ID: 1557477496524509224) | members: 0 | admin: False
+Pos 02 | 👤 Member (ID: 1557491522025300018) | members: 0 | admin: False
+Pos 01 | ⛓️ . Quarantined . (ID: 1558161375996416192) | members: 0 | admin: False
+Pos 00 | @everyone (ID: 1457382179981099090) | members: 0 | admin: False
+
+=== BOTS & ROLES ===
+Bot: Rythm (235088799074484224) | Admin: True | Roles: ['Rythm', '🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ', '🤖 ╏ 𝓑ᴏᴛs', '💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ']
+Bot: Koya (276060004262477825) | Admin: False | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Koya', '💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ', '🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️']
+Bot: DISBOARD (302050872383242240) | Admin: False | Roles: ['🤖 ╏ 𝓑ᴏᴛs', '🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️', 'DISBOARD.org']
+Bot: Xenon (416358583220043796) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Xenon']
+Bot: Top.gg (422087909634736160) | Admin: False | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Top.gg']
+Bot: KITT (530825629793517590) | Admin: False | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'KITT', '✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ']
+Bot: Wick (536991182035746816) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', '💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ', 'Wick']
+Bot: Sapphire (678344927997853742) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', '💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ', 'Sapphire']
+Bot: Invite Tracker (720351927581278219) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Invite Tracker']
+Bot: Hade (1021732722479202304) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Hade']
+Bot: Nazha (1124681788070055967) | Admin: False | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Nazha', '✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ']
+Bot: Zabrina (1143059048363724851) | Admin: False | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Zabrina', '🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️']
+Bot: Wave Music (1190991820637868042) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'Wave Music']
+Bot: BeatSync (1205557263738216559) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', '🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ', '💖 ╏ 𝓡ᴀɪ 𝕱ᴀᴍ', 'BeatSync']
+Bot: Green-Bot (1470151477610938509) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', '🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ', 'Green-Bot']
+Bot: Blue Seal! (1477618724533043293) | Admin: True | Roles: ['Blue Seal!', '🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️', '🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ']
+Bot: The Raivora (1554732669072445532) | Admin: True | Roles: ['Our New Official Bot', '✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ', '🔴 . Secured .', '📢 ╏ 𝓐ɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs', '🟢 . UnBypassable .', '🎵 ╏ 𝓓ᴊ 𝕸ᴀsᴛᴇʀ', '🤖 ╏ 𝓑ᴏᴛ・𝕬ᴅᴍɪɴ', 'THE Raivora', '🤖 ═ ʀᴀɪ sᴇɴᴛɪɴᴇʟ 🍷']
+Bot: NEKO SONGS.....!! (1556676516274905218) | Admin: True | Roles: ['🤖 ╏ 𝓑ᴏᴛs', 'NEKO SONGS.....!!']
+
+=== CHANNELS SUMMARY (Total: 87) ===
+
+[Category: 📊 ═ sᴇʀᴠᴇʀ sᴛᴀᴛs ═ 📊] (ID: 1546059369085534229, pos: 0, channels: 3)
+  VC   | 🔒・👥・𝓐ʟʟ・𝓜ᴇᴍʙᴇʀs: 45 (1546099701496029194) 
+  VC   | 🔒・👤・𝓜ᴇᴍʙᴇʀs: 27 (1546099703630798848) 
+  VC   | 🔒・🤖・𝓑ᴏᴛs: 18 (1546059375574130769) 
+
+[Category: ✧ ɪɴғᴏʀᴍᴀᴛɪᴏɴ ✧] (ID: 1545803464712650844, pos: 1, channels: 8)
+  Text | ✨・ᴠᴇʀɪғʏ-ʜᴇʀᴇ (1545502700840427702) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🌸・ᴡᴇʟᴄᴏᴍᴇ (1545502705643167876) msgs=1 (last: The Raivora @ 2026-10-09)
+  Text | 📜・ʀᴜʟᴇs-ᴀɴᴅ-ɪɴғᴏ (1545502710101704714) msgs=3 (last: The Raivora @ 2026-10-09)
+  Text | ❓・sᴇʀᴠᴇʀ-ғᴀǫ (1557481215731306526) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 📢・ᴀɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs (1545502718792175646) msgs=5 (last: The Raivora @ 2026-10-02)
+  Text | 📌・sᴇʀᴠᴇʀ-ʀᴏʟᴇs (1545502722739150898) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🎟・sᴜᴘᴘᴏʀᴛ-ᴅᴇsᴋ (1555641079137706014) msgs=1 (last: The Raivora @ 2026-10-09)
+  Text | 🤝・ᴘᴀʀᴛɴᴇʀsʜɪᴘs (1557479971759333499) msgs=1 (last: The Raivora @ 2026-10-07)
+
+[Category: ✧ ᴄᴏᴍᴍᴜɴɪᴛʏ ✧] (ID: 1545803478490812578, pos: 2, channels: 12)
+  Text | 💬・ɢᴇɴᴇʀᴀʟ-ᴄʜᴀᴛ (1545502730699808768) msgs=0 (last: None @ none)
+  Text | 👋・ɪɴᴛʀᴏᴅᴜᴄᴛɪᴏɴs (1557481233246584892) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 📸・ᴍᴇᴅɪᴀ-ᴄʟɪᴘs (1551184138932068373) msgs=2 (last: The Raivora @ 2026-10-09)
+  Text | 🤖・ʙᴏᴛ-ᴄᴏᴍᴍᴀɴᴅs (1549416359723532480) msgs=1 (last: The Raivora @ 2026-10-09)
+  Text | ⭐・ʜᴀʟʟ-ᴏғ-ғᴀᴍᴇ (1557481220911136868) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 💡・sᴜɢɢᴇsᴛɪᴏɴs (1557469924379852860) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🏆・ʟᴇᴠᴇʟ-ᴜᴘ (1557475848892973219) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🎮・ɢᴀᴍɪɴɢ-ʜᴜʙ (1557475853175234660) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🛍️・ʀᴀɪ-sʜᴏᴘ (1557477508255842304) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🎉・ʙɪʀᴛʜᴅᴀʏs (1557477517282123826) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 🎁・ɢɪᴠᴇᴀᴡᴀʏs (1557481227693330554) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 📊・sᴇʀᴠᴇʀ-ᴘᴏʟʟs (1557479964109181068) msgs=1 (last: The Raivora @ 2026-10-07)
+
+[Category: ✧ ᴍᴜsɪᴄ ʟᴏᴜɴɢᴇ ✧] (ID: 1555255661124784159, pos: 3, channels: 5)
+  VC   | ⚡・24/7 Radio (1555255325706424412) 
+  Text | 🎵・ᴍᴜsɪᴄ-ᴄᴏɴᴛʀᴏʟ (1555255695933186228) msgs=1 (last: The Raivora @ 2026-10-09)
+  Text | 📜・ᴍᴜsɪᴄ-ǫᴜᴇᴜᴇ (1555283393242206301) msgs=2 (last: The Raivora @ 2026-10-09)
+  Text | 🔊・ᴅᴊ-ᴄᴏɴᴛʀᴏʟ (1555283394274005092) msgs=2 (last: The Raivora @ 2026-10-09)
+  Text | 💿・ᴘʟᴀʏʟɪsᴛs (1555283395330842714) msgs=2 (last: The Raivora @ 2026-10-09)
+
+[Category: ✧ ᴘʀɪᴠᴀᴛᴇ ᴠᴏɪᴄᴇ ✧] (ID: 1554891379174416474, pos: 4, channels: 2)
+  VC   | ➕・Join to Create (1557461916144767046) 
+  Text | 🛠️・ʀᴏᴏᴍ-ᴄᴏɴᴛʀᴏʟ (1555459478155960421) msgs=1 (last: The Raivora @ 2026-10-09)
+
+[Category: ✧ ᴠɪᴘ sᴜɪᴛᴇs ✧] (ID: 1554905776030613535, pos: 5, channels: 2)
+  VC   | 👑・VIP Penthouse (1557481242054758482) 
+  Text | 🚀・ʙᴏᴏsᴛᴇʀ-ʟᴏᴜɴɢᴇ (1557479371001045056) msgs=1 (last: The Raivora @ 2026-10-07)
+
+[Category: ✧ ᴄʜɪʟʟ & ʜᴀᴠᴇɴ ✧] (ID: 1554905799292231728, pos: 6, channels: 5)
+  VC   | 🎶・24/7 Radio & Beats (1554905803666751590) 
+  VC   | ☕・Night Owl Cafe (1554905807240302652) 
+  VC   | 🌊・Vibe Studio (1554905810574774286) 
+  VC   | 🎤・Open Mic & Stage (1554905813737545770) 
+  VC   | 🎭・sᴛᴀɢᴇ・ᴘᴏᴅɪᴜᴍ (1557479364856123444) 
+
+[Category: ✧ ɢᴀᴍɪɴɢ ᴀʀᴇɴᴀ ✧] (ID: 1554905821467648051, pos: 7, channels: 4)
+  VC   | 🔥・Battle Squad (1554905825544241302) 
+  VC   | 🎯・Ranked Comms I (1554905836768469032) 
+  VC   | 🎯・Ranked Comms II (1554905842300485642) 
+  VC   | 🕹️・Casual Arcade (1554905829033902151) 
+
+[Category: ✧ ᴄɪɴᴇᴍᴀ & sᴛʀᴇᴀᴍs ✧] (ID: 1554905866673856714, pos: 8, channels: 3)
+  VC   | 🍿・Cinema Hall (1554905870817689600) 
+  VC   | 📺・Stream Showcase (1554905874437513248) 
+  Text | 🎬・ᴍᴏᴠɪᴇ-ʟᴏᴜɴɢᴇ (1557477521661108315) msgs=1 (last: The Raivora @ 2026-10-07)
+
+[Category: ✧ ᴘᴏᴅs & ᴀғᴋ ✧] (ID: 1554891470325031013, pos: 9, channels: 2)
+  VC   | 💤・AFK Sleep (1554891485818921042) 
+  Text | 💤・sʟᴇᴇᴘɪɴɢ-ᴘᴏᴅs (1555641081578782840) msgs=2 (last: The Raivora @ 2026-10-09)
+
+[Category: ✧ ᴇxᴇᴄᴜᴛɪᴠᴇ ʜǫ ✧] (ID: 1554905886261121107, pos: 10, channels: 2)
+  VC   | 🔮・Creator Studio (1554905899414454446) 
+  VC   | 🛡️・Staff Operations HQ (1554905903508095066) 
+
+[Category: 🛡️ ═ ʀᴀɪ sᴇᴄᴜʀɪᴛʏ ═ 🛡️] (ID: 1555283372488658954, pos: 11, channels: 6)
+  Text | 🚨・sᴇᴄᴜʀɪᴛʏ-ᴀʟᴇʀᴛs (1555283378612478072) msgs=5 (last: The Raivora @ 2026-10-09)
+  Text | 🛡️・sᴇᴄᴜʀɪᴛʏ-ʟᴏɢ (1555283387340562574) msgs=5 (last: The Raivora @ 2026-10-09)
+  Text | 🧱・ᴀɴᴛɪ-ɴᴜᴋᴇ (1555283380961026139) msgs=1 (last: The Raivora @ 2026-10-01)
+  Text | 🔒・ʟᴏᴄᴋᴅᴏᴡɴ-ᴄᴏɴᴛʀᴏʟ (1555283386656886825) msgs=1 (last: The Raivora @ 2026-10-02)
+  Text | 🔍・ᴀᴜᴅɪᴛ-ᴍᴏɴɪᴛᴏʀ (1555283390943469685) msgs=1 (last: The Raivora @ 2026-10-01)
+  Text | 🪤・honeypot-trap (1558168338386129004) msgs=1 (last: The Raivora @ 2026-10-10)
+
+[Category: ⚙️ ═ ʀᴀɪ ᴀᴅᴍɪɴ ═ ⚙️] (ID: 1555283377249063083, pos: 12, channels: 10)
+  Text | 👑・ᴀᴅᴍɪɴ-ᴄᴏɴᴛʀᴏʟ (1555283409465778218) msgs=1 (last: The Raivora @ 2026-10-09)
+  Text | 📊・sᴇʀᴠᴇʀ-ᴅᴀsʜʙᴏᴀʀᴅ (1555283414205075509) msgs=1 (last: The Raivora @ 2026-10-09)
+  Text | ⚙️・ʙᴏᴛ-ᴄᴏɴғɪɢ (1555283416071675954) msgs=1 (last: The Raivora @ 2026-10-01)
+  Text | 🎟・sᴛᴀғғ-ʟᴏᴜɴɢᴇ (1545502845208629328) msgs=5 (last: The Raivora @ 2026-10-08)
+  Text | 🤖・ᴀᴜᴛᴏᴍᴀᴛɪᴏɴ-ᴄᴏɴᴛʀᴏʟ (1555283417183031516) msgs=1 (last: The Raivora @ 2026-10-01)
+  Text | 💾・ʙᴀᴄᴋᴜᴘ-ᴄᴏɴᴛʀᴏʟ (1555283418126876856) msgs=1 (last: The Raivora @ 2026-10-01)
+  Text | ❤️・sʏsᴛᴇᴍ-ʜᴇᴀʟᴛʜ (1555283419355676787) msgs=1 (last: The Raivora @ 2026-10-01)
+  Text | 💾・ʙᴀᴄᴋᴜᴘ-ᴠᴀᴜʟᴛ (1557479356899524678) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | 📋・sᴛᴀғғ-ᴀᴄᴛɪᴠɪᴛʏ (1557479367297339432) msgs=1 (last: The Raivora @ 2026-10-07)
+  Text | ⚖️・sᴛᴀғғ-ʟᴇᴅɢᴇʀ (1557479979053228072) msgs=1 (last: The Raivora @ 2026-10-07)
+
+[Category: 📋 ═ ʀᴀɪ ʀᴇᴘᴏʀᴛs ═ 📋] (ID: 1555428388280209422, pos: 13, channels: 6)
+  Text | 🚨・sᴇᴄᴜʀɪᴛʏ-ʀᴇᴘᴏʀᴛ (1555428392181047366) msgs=5 (last: The Raivora @ 2026-10-05)
+  Text | 🛡️・ᴍᴏᴅ-ʀᴇᴘᴏʀᴛ (1555428399919538297) msgs=2 (last: The Raivora @ 2026-10-02)
+  Text | 🎶・ᴍᴜsɪᴄ-ʀᴇᴘᴏʀᴛ (1555428406726893619) msgs=2 (last: The Raivora @ 2026-10-02)
+  Text | 🔐・ʀᴏᴏᴍ-ʀᴇᴘᴏʀᴛ (1555428413102235701) msgs=3 (last: The Raivora @ 2026-10-07)
+  Text | 🤖・ʙᴏᴛ-ʀᴇᴘᴏʀᴛ (1555428420383416400) msgs=3 (last: The Raivora @ 2026-10-02)
+  Text | ⚙️・sʏsᴛᴇᴍ-ʀᴇᴘᴏʀᴛ (1555428426607894570) msgs=5 (last: The Raivora @ 2026-10-10)
+
+[Category: ✧ ᴅᴇᴛᴇɴᴛɪᴏɴ ʀᴏᴏᴍ ✧] (ID: 1556740753336565881, pos: 19, channels: 2)
+  VC   | ⛓️・Prison VC (1556738643471630408) 
+  Text | ⛓️・ᴘʀɪsᴏɴ-ᴄʜᴀᴛ (1556738642301558846) msgs=1 (last: Blue Seal! @ 2026-10-05)
