@@ -65,6 +65,8 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         """Silently verifies honeypot lock down and report channel confidentiality."""
         await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
+            if guild.id != 1457382179981099090:
+                continue
             try:
                 issues, _ = await self.audit_guild(guild)
                 if issues:
@@ -76,13 +78,9 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
                         OwnerReporter.send_bot_report(
                             self.bot,
                             guild.id,
-                            title="🛡️ Autonomous Self-Healing Executed",
-                            fields=[
-                                ("Subsystem", "Self-Healing Sentry", True),
-                                ("Resolved Anomalies", f"{len(repaired)} items", True),
-                                ("Actions Executed", rep_lines[:1000], False),
-                            ],
-                            color=0x2ECC71,
+                            event="Autonomous Self-Healing Executed",
+                            action_taken=f"Resolved {len(repaired)} anomalies",
+                            details={"Actions Executed": rep_lines[:1000]},
                         )
             except Exception as e:
                 logger.error("[SELF_HEAL_LOOP_ERR] Guild %d audit error: %s", guild.id, e)
@@ -275,13 +273,10 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
             OwnerReporter.send_bot_report(
                 self.bot,
                 guild.id,
-                title="🔧 Manual Self-Healing Repair Triggered",
-                fields=[
-                    ("Operator", interaction.user.mention, True),
-                    ("Repairs Executed", f"{len(repaired)} items", True),
-                    ("Actions Detail", "\n".join(f"• {r}" for r in repaired)[:1000], False),
-                ],
-                color=0x2ECC71,
+                event="Manual Self-Healing Repair Triggered",
+                executor=interaction.user,
+                action_taken=f"Executed {len(repaired)} repairs",
+                details={"Actions Detail": "\n".join(f"• {r}" for r in repaired)[:1000]},
             )
         else:
             embed = discord.Embed(

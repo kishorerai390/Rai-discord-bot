@@ -469,20 +469,25 @@ class InteractiveIncidentManager:
             except Exception:
                 done = False
 
+            send_kwargs = {"ephemeral": True}
+            if content is not None:
+                send_kwargs["content"] = content
+            if embed is not None:
+                send_kwargs["embed"] = embed
+            if view is not None:
+                send_kwargs["view"] = view
+
             if done:
                 try:
-                    return await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=True)
+                    return await interaction.followup.send(**send_kwargs)
                 except Exception:
                     pass
             else:
                 try:
-                    if content is not None:
-                        return await interaction.response.send_message(content, embed=embed, view=view, ephemeral=True)
-                    else:
-                        return await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                    return await interaction.response.send_message(**send_kwargs)
                 except discord.HTTPException as he:
                     if he.code == 40060:
-                        return await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=True)
+                        return await interaction.followup.send(**send_kwargs)
                     raise
 
         if action == "read_done":

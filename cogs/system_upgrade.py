@@ -191,13 +191,14 @@ class SystemUpgradeCog(commands.Cog, name="SystemUpgrade"):
         OwnerReporter.send_system_report(
             self.bot,
             interaction.guild_id,
-            title="⚙️ Manual System Optimization Executed",
-            fields=[
-                ("Operator", interaction.user.mention, True),
-                ("GC Objects Cleaned", f"{collected:,}", True),
-                ("Current RAM", f"{current_mem:.1f} MB", True),
-            ],
-            color=0x2ECC71,
+            event="Manual System Optimization Executed",
+            component="Garbage Collection & Storage Engine",
+            status="HEALTHY",
+            details={
+                "Operator": f"{interaction.user.mention} (`{interaction.user.name}`)",
+                "GC Objects Cleaned": f"{collected:,}",
+                "Current RAM": f"{current_mem:.1f} MB",
+            },
         )
 
         await interaction.followup.send(embed=embed)
