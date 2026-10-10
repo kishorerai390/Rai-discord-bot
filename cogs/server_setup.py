@@ -21,10 +21,19 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import Colors
-from utils.embeds import create_embed, error_embed, info_embed, success_embed
-from utils.permissions import is_admin_or_owner
+from utils.permissions import is_founder_or_owner
 
-if TYPE_CHECKING:
+
+def check_admin(user: Any) -> bool:
+    """Helper to check whether user is guild owner, administrator, or founder."""
+    if not isinstance(user, discord.Member):
+        return False
+    if getattr(user, "guild", None) and user.id == user.guild.owner_id:
+        return True
+    perms = getattr(user, "guild_permissions", None)
+    if perms and getattr(perms, "administrator", False):
+        return True
+    return is_founder_or_owner(user)
     from core.bot import SentinelBot
 
 logger = logging.getLogger("Raivora.ServerSetup")
@@ -162,7 +171,7 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
 
     @setup_group.command(name="preview", description="Dry-run preview comparing current channels with minimal-text layout")
     async def setup_preview(self, interaction: discord.Interaction):
-        if not is_admin_or_owner(interaction.user):
+        if not check_admin(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
             return
 
@@ -457,7 +466,7 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
 
     @app_commands.command(name="server-audit", description="Structural health audit for duplicates, permissions, and redundancy (Report Only)")
     async def server_audit(self, interaction: discord.Interaction):
-        if not is_admin_or_owner(interaction.user):
+        if not check_admin(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
             return
 
@@ -467,6 +476,10 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
             await interaction.followup.send("❌ Guild context required.")
             return
 
+        embed = await self.build_audit_embed(guild)
+        await interaction.followup.send(embed=embed)
+
+    async def build_audit_embed(self, guild: discord.Guild) -> discord.Embed:
         duplicates: List[str] = []
         name_map: Dict[str, List[discord.abc.GuildChannel]] = {}
         for ch in guild.channels:
@@ -546,13 +559,11 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
             embed.add_field(name="✅ Recommended Channels", value="🟢 Essential informational channels present.", inline=False)
 
         embed.set_footer(text="Raivora Health Auditor • Non-Destructive Analysis")
-        await interaction.followup.send(embed=embed)
+        return embed
 
     @app_commands.command(name="server-health", description="Comprehensive server and subsystem health report")
     async def server_health(self, interaction: discord.Interaction):
-        user_perms = getattr(interaction.user, "guild_permissions", None)
-        is_admin = (isinstance(user_perms, discord.Permissions) and user_perms.administrator) or (interaction.guild and interaction.user.id == interaction.guild.owner_id)
-        if not is_admin:
+        if not check_admin(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
             return
 
@@ -562,6 +573,10 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
             await interaction.followup.send("❌ Guild context required.")
             return
 
+        embed = await self.build_health_embed(guild)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    async def build_health_embed(self, guild: discord.Guild) -> discord.Embed:
         # 1. Gateway & Uptime
         latency_ms = round(self.bot.latency * 1000, 1) if getattr(self.bot, "latency", None) else 0.0
         start_ts = getattr(self.bot, "_start_time", datetime.datetime.now(datetime.timezone.utc).timestamp())
@@ -621,7 +636,7 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
             timestamp=datetime.datetime.now(datetime.timezone.utc),
         )
         embed.set_footer(text="Raivora Health Monitor • Subsystem Isolation & Fault Tolerance")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        return embed
 
     # =========================================================================
     # PREVIEW GENERATOR
@@ -692,6 +707,70 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
             "reused": reused,
             "to_create": to_create,
         }
+
+    # =========================================================================
+    # PREFIX COMMANDS (INSTANT RESPONSE WITH ! PREFIX)
+    # =========================================================================
+
+    @commands.command(name="sync")
+    async def sync_prefix(self, ctx: commands.Context):
+        """Owner/Admin prefix command (!sync) to instantly sync slash commands to this guild."""
+        if not check_admin(ctx.author):
+            await ctx.reply("❌ Administrator permissions required.")
+            return
+        msg = await ctx.reply("🔄 Synchronizing all slash commands directly to this server...")
+        try:
+            self.bot.tree.copy_global_to(guild=ctx.guild)
+            synced = await self.bot.tree.sync(guild=ctx.guild)
+            await msg.edit(content=f"✅ Instantly synchronized `{len(synced)}` slash commands to **{ctx.guild.name}**!\nYou can now use them directly via `/`.")
+        except Exception as e:
+            await msg.edit(content=f"❌ Sync failed: `{e}`")
+
+    @commands.command(name="server-audit", aliases=["audit"])
+    async def server_audit_prefix(self, ctx: commands.Context):
+        """Prefix command for server structural audit (!server-audit or !audit)."""
+        if not check_admin(ctx.author):
+            await ctx.reply("❌ Administrator permissions required.")
+            return
+        guild = ctx.guild
+        if not guild:
+            return
+        msg = await ctx.reply("🔍 Running structural server audit...")
+        try:
+            embed = await self.build_audit_embed(guild)
+            await msg.edit(content=None, embed=embed)
+        except Exception as e:
+            await msg.edit(content=f"❌ Audit failed: {e}")
+
+    @commands.command(name="server-health", aliases=["health"])
+    async def server_health_prefix(self, ctx: commands.Context):
+        """Prefix command for server health (!server-health or !health)."""
+        if not check_admin(ctx.author):
+            await ctx.reply("❌ Administrator permissions required.")
+            return
+        guild = ctx.guild
+        if not guild:
+            return
+        msg = await ctx.reply("🏥 Checking server and bot subsystem health...")
+        try:
+            embed = await self.build_health_embed(guild)
+            await msg.edit(content=None, embed=embed)
+        except Exception as e:
+            await msg.edit(content=f"❌ Health check failed: {e}")
+
+    @commands.command(name="server-setup", aliases=["setup-preview"])
+    async def server_setup_prefix(self, ctx: commands.Context, action: str = "preview"):
+        """Prefix command for server setup wizard (!server-setup or !setup-preview)."""
+        if not check_admin(ctx.author):
+            await ctx.reply("❌ Administrator permissions required.")
+            return
+        guild = ctx.guild
+        if not guild:
+            return
+        preview_data = await self.generate_preview(guild)
+        embed = self.format_preview_embed(guild, preview_data)
+        view = SetupConfirmationView(self, guild, ctx.author)
+        await ctx.reply(embed=embed, view=view)
 
 
 async def setup(bot: SentinelBot) -> None:

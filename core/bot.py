@@ -501,6 +501,16 @@ class SentinelBot(commands.Bot):
             ),
             status=discord.Status.online,
         )
+
+        # Directly sync slash commands to all connected guilds for instant visibility (0-second propagation)
+        for guild in self.guilds:
+            try:
+                self.tree.copy_global_to(guild=guild)
+                synced_guild = await self.tree.sync(guild=guild)
+                logger.info(f"Instantly synced {len(synced_guild)} slash commands to guild: {guild.name} ({guild.id})")
+            except Exception as e:
+                logger.warning(f"Direct guild sync note for {guild.id}: {e}")
+
         try:
             from utils.owner_reporter import OwnerReporter
             for guild in self.guilds:

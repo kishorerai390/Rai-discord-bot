@@ -57,13 +57,18 @@ class ReputationCog(commands.Cog, name="Reputation"):
         # Level Milestone Role Rewards
         unlocked_role_msg = ""
         try:
-            if level >= 10:
-                vip_role = guild.get_role(1551184081067450451)  # 💎 ╏ VIP Member
+            if level >= 25:
+                patron_role = guild.get_role(1557477505735065600)  # 💎 ┆ DIAMOND PATRON
+                if patron_role and patron_role not in member.roles:
+                    await member.add_roles(patron_role, reason=f"Level {level} Milestone Reward")
+                    unlocked_role_msg = f"\n💎 **Role Unlocked:** {patron_role.mention} *(Elite Diamond Patron Perks)*"
+            elif level >= 10:
+                vip_role = guild.get_role(1551184081067450451)  # 💎 ┆ VIP MEMBER
                 if vip_role and vip_role not in member.roles:
                     await member.add_roles(vip_role, reason=f"Level {level} Milestone Reward")
-                    unlocked_role_msg = f"\n💎 **Role Unlocked:** {vip_role.mention} *(Exclusive VIP Lounge & Perks)*"
+                    unlocked_role_msg = f"\n💎 **Role Unlocked:** {vip_role.mention} *(Exclusive VIP Penthouse & Lounge Perks)*"
             elif level >= 5:
-                fam_role = guild.get_role(1545494584203673740)  # 💖 ╏ Rai Fam
+                fam_role = guild.get_role(1545494584203673740)  # 💖 ┆ RAI FAM
                 if fam_role and fam_role not in member.roles:
                     await member.add_roles(fam_role, reason=f"Level {level} Milestone Reward")
                     unlocked_role_msg = f"\n💖 **Role Unlocked:** {fam_role.mention} *(Community Insider Badge)*"
@@ -71,7 +76,7 @@ class ReputationCog(commands.Cog, name="Reputation"):
             logger.debug(f"Milestone role assignment note: {e}")
 
         embed = discord.Embed(
-            title=f"✦ 𝓛ᴇᴠᴇʟ 𝓤ᴘ! ╏ Level {level} Reached! ✦",
+            title=f"✦ LEVEL UP ┆ LEVEL {level} REACHED! ✦",
             description=(
                 f"🎉 Massive congratulations, {member.mention}!\n\n"
                 f"Your active participation on **✦ 𝓡ᴀɪ 𝕱ᴀᴍ ✦** has leveled you up!\n\n"

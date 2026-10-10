@@ -1147,11 +1147,24 @@ class RealtimeTicketCreateModal(ui.Modal, title="🎟️ Open VIP Support Ticket
 class RealtimeConsoleDispatcher:
     """Central router for all real-time console button interactions."""
 
+    _cooldowns: Dict[str, float] = {}
+
     @classmethod
     async def handle_interaction(cls, bot: "SentinelBot", interaction: discord.Interaction) -> bool:
         cid = interaction.data.get("custom_id", "")
         if not (cid.startswith("rt_") or cid.startswith("hub_") or cid == "ticket_open_general"):
             return False
+
+        # Anti-spam debounce: prevent rapid repeated clicks from spawning stacked ephemeral messages
+        now = time.time()
+        user_id = interaction.user.id if interaction.user else 0
+        throttle_key = f"{user_id}:{cid}"
+        last_click = cls._cooldowns.get(throttle_key, 0.0)
+        if (now - last_click) < 2.5:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+            return True
+        cls._cooldowns[throttle_key] = now
 
         try:
             # 1. Admin Control
