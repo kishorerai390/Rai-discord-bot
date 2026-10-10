@@ -611,12 +611,12 @@ class OwnerReporter:
     }
 
     CHANNEL_TARGETS = {
-        "system_report_id": ["system-report", "system_report", "system-health", "system-log"],
-        "room_report_id": ["room-report", "room_report", "room-logs", "voice-log", "voice-logs"],
-        "bot_report_id": ["bot-report", "bot_report", "bot-config", "bot-log", "admin-operations"],
-        "music_report_id": ["music-report", "music_report", "music-logs", "music-log"],
-        "mod_report_id": ["mod-report", "mod_report", "mod-log"],
-        "security_report_id": ["security-report", "security_report", "security-alerts", "security-log", "alerts"],
+        "system_report_id": ["system-report", "systemreport"],
+        "room_report_id": ["room-report", "roomreport"],
+        "bot_report_id": ["bot-report", "botreport"],
+        "music_report_id": ["music-report", "musicreport"],
+        "mod_report_id": ["mod-report", "modreport"],
+        "security_report_id": ["security-report", "securityreport"],
     }
 
     @classmethod
@@ -771,11 +771,10 @@ class OwnerReporter:
                     except Exception:
                         channel = None
 
-            # Fallback for existing or styled channels in guild
+            # Fallback for existing or styled channels in guild strictly matching report targets
             if (not channel or not isinstance(channel, discord.TextChannel)) and guild_obj and hasattr(guild_obj, "text_channels") and guild_obj.text_channels:
                 key_targets = cls.CHANNEL_TARGETS.get(channel_key, [])
-                norm_key = channel_key.replace("_id", "").replace("_report", "")
-                target_tokens = [norm_key] + [t.replace("-", "").replace("_", "") for t in key_targets]
+                target_tokens = [t.replace("-", "").replace("_", "") for t in key_targets]
 
                 for ch in guild_obj.text_channels:
                     cname = getattr(ch, "name", "")
@@ -788,14 +787,6 @@ class OwnerReporter:
                             except Exception:
                                 pass
                         break
-
-                # Legacy/general fallback
-                if not channel or not isinstance(channel, discord.TextChannel):
-                    for ch in guild_obj.text_channels:
-                        cname = getattr(ch, "name", "").lower()
-                        if any(target in cname for target in ("security-report", "security-log", "alerts", "mod-report", "mod-log", "bot-report", "bot-log", "room-report", "system-report", "general")):
-                            channel = ch
-                            break
 
             # Auto-repair / ensure channel if missing or deleted
             has_owner_setup = bool(cfg and (getattr(cfg, "category_id", None) or getattr(cfg, "security_report_id", None)))
@@ -877,27 +868,7 @@ class OwnerReporter:
         else:
             logger.debug(f"[OWNER_REPORT_DM_SUPPRESSED] Report delivered to server channel, suppressing DM ({inc_tag})")
 
-        # DESTINATION 3: 🚨 SECURITY ALERTS (for security incidents)
-        if channel_key == "security_report_id" and hasattr(bot, "db") and bot.db:
-            try:
-                p_cfg = None
-                if hasattr(bot.db, "get_private_control_config"):
-                    p_cfg = await bot.db.get_private_control_config(guild_id)
-                alerts_ch_id = getattr(p_cfg, "security_alerts_id", None)
-                if alerts_ch_id and alerts_ch_id != getattr(channel, "id", None):
-                    alerts_ch = guild_obj.get_channel(alerts_ch_id) if guild_obj else None
-                    if not alerts_ch and hasattr(bot, "get_channel"):
-                        alerts_ch = bot.get_channel(alerts_ch_id)
-                    if alerts_ch and hasattr(alerts_ch, "send"):
-                        a_kwargs = {"embed": embed}
-                        if ch_view is not None:
-                            a_kwargs["view"] = ch_view
-                        a_res = alerts_ch.send(**a_kwargs)
-                        if asyncio.iscoroutine(a_res) or hasattr(a_res, "__await__"):
-                            await a_res
-                        logger.info(f"[SECURITY_ALERTS_SUCCESS] Mirrored incident ({inc_tag}) to #security-alerts ({alerts_ch_id})")
-            except Exception as e:
-                logger.debug(f"Note: Could not mirror to security-alerts: {e}")
+        # Reports are posted strictly and exclusively to their designated report channel only.
 
         # Update database with message IDs for synchronization
         if incident and hasattr(bot, "db") and bot.db:
