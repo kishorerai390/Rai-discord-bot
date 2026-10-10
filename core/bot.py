@@ -95,6 +95,7 @@ COGS_LIST: List[str] = [
     "cogs.self_heal",
     "cogs.temp_roles",
     "cogs.system_upgrade",
+    "cogs.server_setup",
 ]
 
 

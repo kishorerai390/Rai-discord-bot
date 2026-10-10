@@ -227,16 +227,43 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             existing_room = await self.bot.db.get_dynamic_room(after.channel.id)
             if not existing_room:
                 norm_name = normalize_channel_name(after.channel.name)
-                is_private_trigger = (
-                    ("private" in norm_name and "room" in norm_name)
+                mode = None
+                is_private_trigger = False
+                is_public_trigger = False
+
+                # 1. Gaming triggers
+                if "gaming" in norm_name and "private" in norm_name:
+                    mode = "gaming_private"
+                    is_private_trigger = True
+                elif "gaming" in norm_name and ("create" in norm_name or "personal" in norm_name or "vc" in norm_name):
+                    mode = "gaming_personal"
+                    is_public_trigger = True
+
+                # 2. Editing triggers
+                elif "editing" in norm_name and "private" in norm_name:
+                    mode = "editing_private"
+                    is_private_trigger = True
+                elif "editing" in norm_name and ("create" in norm_name or "personal" in norm_name or "vc" in norm_name):
+                    mode = "editing_personal"
+                    is_public_trigger = True
+
+                # 3. Generic Private trigger
+                elif (
+                    ("private" in norm_name and ("room" in norm_name or "vc" in norm_name))
                     or (after.channel.id == 1554891386577485927)
-                )
-                is_public_trigger = not is_private_trigger and (
+                ):
+                    mode = "generic_private"
+                    is_private_trigger = True
+
+                # 4. Generic Public trigger
+                elif (
                     (cfg.hub_channel_id and after.channel.id == cfg.hub_channel_id)
                     or ("create" in norm_name)
                     or ("jointocreate" in norm_name)
                     or (after.channel.id in (1557461916144767046, 1554891383117193307))
-                )
+                ):
+                    mode = "generic_public"
+                    is_public_trigger = True
 
                 if is_public_trigger or is_private_trigger:
                     await self._handle_trigger_join(
@@ -244,6 +271,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                         trigger_channel=after.channel,
                         is_private=is_private_trigger,
                         cfg=cfg,
+                        mode=mode,
                     )
                     return
 
@@ -309,6 +337,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         trigger_channel: discord.VoiceChannel,
         is_private: bool,
         cfg: TempVoiceConfig,
+        mode: Optional[str] = None,
     ) -> None:
         """Handles user joining a trigger channel: moves to existing room or provisions new VC & panel."""
         guild = member.guild
@@ -386,13 +415,19 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 pass
             return
 
-        await self.create_room_for_member(member, is_private=is_private, trigger_channel=trigger_channel)
+        await self.create_room_for_member(
+            member,
+            is_private=is_private,
+            trigger_channel=trigger_channel,
+            mode=mode,
+        )
 
     async def create_room_for_member(
         self,
         member: discord.Member,
         is_private: bool = False,
         trigger_channel: Optional[discord.VoiceChannel] = None,
+        mode: Optional[str] = None,
     ) -> Optional[discord.VoiceChannel]:
         """Creates a temporary dynamic voice room for member, sets permissions, and posts control panel."""
         guild = member.guild
@@ -417,15 +452,77 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 except Exception:
                     pass
 
-        # 2. Determine target category
+        # 2. Determine target category (Prefer trigger channel's category to keep in same zone)
         category = None
-        if cfg.category_id:
-            category = guild.get_channel(cfg.category_id)
-        elif trigger_channel and trigger_channel.category:
+        if trigger_channel and trigger_channel.category:
             category = trigger_channel.category
+        elif cfg.category_id:
+            category = guild.get_channel(cfg.category_id)
 
-        # 3. Configure permissions and initial metadata
-        if is_private:
+        # 3. Configure permissions and initial metadata based on mode
+        if mode == "gaming_personal":
+            channel_name = f"🎮・{member.display_name}'s Room"
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
+                member: discord.PermissionOverwrite(
+                    manage_channels=True,
+                    move_members=True,
+                    mute_members=True,
+                ),
+            }
+            room_type = "gaming_personal"
+            privacy_mode = "public"
+            locked = False
+            user_limit = 4  # Default Squad capacity
+        elif mode == "gaming_private":
+            channel_name = f"🔒・{member.display_name}'s Squad"
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+                member: discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    speak=True,
+                    manage_channels=True,
+                    move_members=True,
+                    mute_members=True,
+                ),
+            }
+            room_type = "gaming_private"
+            privacy_mode = "owner_only"
+            locked = True
+            user_limit = 2  # Default Duo capacity
+        elif mode == "editing_personal":
+            channel_name = f"🎨・{member.display_name}'s Studio"
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
+                member: discord.PermissionOverwrite(
+                    manage_channels=True,
+                    move_members=True,
+                    mute_members=True,
+                ),
+            }
+            room_type = "editing_personal"
+            privacy_mode = "public"
+            locked = False
+            user_limit = 5
+        elif mode == "editing_private":
+            channel_name = f"🔐・{member.display_name}'s Suite"
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
+                member: discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    speak=True,
+                    manage_channels=True,
+                    move_members=True,
+                    mute_members=True,
+                ),
+            }
+            room_type = "editing_private"
+            privacy_mode = "owner_only"
+            locked = True
+            user_limit = 2
+        elif is_private:
             channel_name = f"🔐・{member.display_name}'s Room"
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
@@ -533,7 +630,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         except Exception:
             pass
 
-        # 10. Native Voice Channel Text Chat Welcome
+        # 10. Native Voice Channel Text Chat Welcome & Interactive Controls
         try:
             vc_chat_welcome = create_embed(
                 title=f"🎙️ Welcome to {temp_vc.name}!",
@@ -541,13 +638,14 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                     f"👑 **Owner:** {member.mention}\n"
                     f"👥 **Members:** `1 / {user_limit or 'Unlimited'}`\n"
                     f"🔓 **Visibility:** {privacy_mode.replace('_', ' ').title()}\n\n"
-                    f"Central controls available in <#{dyn_room.control_channel_id}>."
+                    f"Use the interactive controls below to manage your room directly from this voice chat."
                 ),
                 color=Colors.SUCCESS,
             )
-            await temp_vc.send(embed=vc_chat_welcome)
-        except Exception:
-            pass
+            native_panel_view = DynamicVCControlManager.build_panel_view(dyn_room.voice_channel_id, has_music=False, locked=dyn_room.locked)
+            await temp_vc.send(embed=vc_chat_welcome, view=native_panel_view)
+        except Exception as e:
+            logger.debug(f"Could not send native VC controls: {e}")
 
         return temp_vc
 
@@ -1213,6 +1311,67 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
     @room_group.command(name="status", description="Display room status and control panel")
     async def room_status(self, interaction: discord.Interaction):
         await self.tempvoice_status(interaction)
+
+    @room_group.command(name="info", description="View detailed information, capacity, and permissions of your room")
+    async def room_info(self, interaction: discord.Interaction):
+        await self.room_members(interaction)
+
+    @room_group.command(name="setup", description="Deploy or access the interactive control buttons for your room")
+    async def room_setup(self, interaction: discord.Interaction):
+        member = interaction.user
+        if not isinstance(member, discord.Member) or not member.voice or not member.voice.channel:
+            await interaction.response.send_message(
+                embed=error_embed("Not in Voice", "You must be inside your temporary voice room."),
+                ephemeral=True,
+            )
+            return
+        vc = member.voice.channel
+        room = await self.bot.db.get_dynamic_room(vc.id)
+        if not room or room.owner_id != member.id:
+            await interaction.response.send_message(
+                embed=error_embed("Unauthorized", "You are not the owner of this room."),
+                ephemeral=True,
+            )
+            return
+
+        embed = DynamicVCControlManager.build_panel_embed(room, vc, self.bot)
+        view = DynamicVCControlManager.build_panel_view(vc.id, has_music=False, locked=room.locked)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @room_group.command(name="preset", description="Apply a quick capacity or room preset (Solo, Duo, Trio, Squad, Editing)")
+    @app_commands.describe(preset="Select a room preset")
+    @app_commands.choices(
+        preset=[
+            app_commands.Choice(name="🎮 Solo (1 Slot)", value="Solo"),
+            app_commands.Choice(name="🎮 Duo (2 Slots)", value="Duo"),
+            app_commands.Choice(name="🎮 Trio (3 Slots)", value="Trio"),
+            app_commands.Choice(name="🎮 Squad (4 Slots)", value="Squad"),
+            app_commands.Choice(name="💻 PC Editing (5 Slots)", value="PC Editing"),
+            app_commands.Choice(name="📱 Mobile Editing (5 Slots)", value="Mobile Editing"),
+            app_commands.Choice(name="🎨 General Creative (10 Slots)", value="General Creative"),
+            app_commands.Choice(name="🤝 Editing Collab (2 Slots)", value="Editing Collab"),
+            app_commands.Choice(name="🔐 Private Editing (2 Slots)", value="Private Editing"),
+        ]
+    )
+    async def room_preset(self, interaction: discord.Interaction, preset: app_commands.Choice[str]):
+        member = interaction.user
+        if not isinstance(member, discord.Member) or not member.voice or not member.voice.channel:
+            await interaction.response.send_message(
+                embed=error_embed("Not in Voice", "You must be inside your temporary voice room."),
+                ephemeral=True,
+            )
+            return
+
+        vc = member.voice.channel
+        room = await self.bot.db.get_dynamic_room(vc.id)
+        if not room or room.owner_id != member.id:
+            await interaction.response.send_message(
+                embed=error_embed("Unauthorized", "You are not the owner of this room."),
+                ephemeral=True,
+            )
+            return
+
+        await DynamicVCControlManager._dispatch_template_action(self.bot, interaction, room, vc, preset.value)
 
 
 async def setup(bot: SentinelBot):

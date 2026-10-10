@@ -1863,6 +1863,23 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """
         ]
+    ),
+    (
+        47,
+        "Add server_setup_state table for safe idempotent setup wizard and audit tracking",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS server_setup_state (
+                guild_id INTEGER PRIMARY KEY,
+                status TEXT NOT NULL DEFAULT 'idle',
+                preview_json TEXT,
+                last_audit_json TEXT,
+                applied_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """
+        ]
     )
 ]
 

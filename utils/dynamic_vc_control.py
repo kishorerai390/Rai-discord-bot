@@ -40,9 +40,19 @@ def normalize_channel_name(text: str) -> str:
 # Built-in room templates
 BUILTIN_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "Gaming": {"prefix": "🎮・", "user_limit": 5, "privacy": "public", "label": "Gaming (5 Slots)"},
+    "Solo": {"prefix": "🎮・", "user_limit": 1, "privacy": "public", "label": "Solo (1 Slot)"},
+    "Duo": {"prefix": "🎮・", "user_limit": 2, "privacy": "public", "label": "Duo (2 Slots)"},
+    "Trio": {"prefix": "🎮・", "user_limit": 3, "privacy": "public", "label": "Trio (3 Slots)"},
+    "Squad": {"prefix": "🎮・", "user_limit": 4, "privacy": "public", "label": "Squad (4 Slots)"},
     "Chill": {"prefix": "🌙・", "user_limit": 0, "privacy": "public", "label": "Chill (Unlimited)"},
     "Music": {"prefix": "🎵・", "user_limit": 0, "privacy": "public", "label": "Music Lounge"},
     "Creator": {"prefix": "🎨・", "user_limit": 10, "privacy": "invite_only", "label": "Creator Studio (10 Slots)"},
+    "PC Editing": {"prefix": "💻・", "user_limit": 5, "privacy": "public", "label": "PC Editing (5 Slots)"},
+    "Mobile Editing": {"prefix": "📱・", "user_limit": 5, "privacy": "public", "label": "Mobile Editing (5 Slots)"},
+    "General Creative": {"prefix": "🎨・", "user_limit": 10, "privacy": "public", "label": "General Creative (10 Slots)"},
+    "Editing Collab": {"prefix": "🤝・", "user_limit": 2, "privacy": "invite_only", "label": "Editing Collab (2 Slots)"},
+    "Private Editing": {"prefix": "🔐・", "user_limit": 2, "privacy": "owner_only", "label": "Private Editing (2 Slots)"},
+    "Client Work": {"prefix": "🔒・", "user_limit": 2, "privacy": "owner_only", "label": "Client Work (2 Slots)"},
     "Private": {"prefix": "🔐・", "user_limit": 2, "privacy": "owner_only", "label": "Private Sanctum (2 Slots)"},
     "Watch Party": {"prefix": "🎬・", "user_limit": 15, "privacy": "public", "label": "Watch Party (15 Slots)"},
 }
