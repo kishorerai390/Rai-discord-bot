@@ -1,5 +1,5 @@
 ==================================================
-FINAL AUDIT & LAYOUT: RAI FAM (85 total)
+FINAL AUDIT & LAYOUT: RAI FAM (84 total)
 ==================================================
 
 📁 CATEGORY: 📊 ═ sᴇʀᴠᴇʀ sᴛᴀᴛs ═ 📊 (3 channels)
@@ -17,14 +17,13 @@ FINAL AUDIT & LAYOUT: RAI FAM (85 total)
    [Text] #🎫・support-desk (ID: 1555641079137706014)
    [Text] #🤝・partnerships (ID: 1557479971759333499)
 
-📁 CATEGORY: ✦ ᴄᴏᴍᴍᴜɴɪᴛʏ ✦ (10 channels)
+📁 CATEGORY: ✦ ᴄᴏᴍᴍᴜɴɪᴛʏ ✦ (9 channels)
    [Text] #𖦹・general-chat (ID: 1545502730699808768)
    [Text] #🪽・introductions (ID: 1557481233246584892)
    [Text] #📸・media-clips (ID: 1551184138932068373)
    [Text] #🤖・bot-commands (ID: 1549416359723532480)
    [Text] #♛・hall-of-fame (ID: 1557481220911136868)
    [Text] #୨୧・suggestions (ID: 1557469924379852860)
-   [Text] #⌖・gaming-hub (ID: 1557475853175234660)
    [Text] #🎉・birthdays (ID: 1557477517282123826)
    [Text] #🎁・giveaways (ID: 1557481227693330554)
    [Text] #📊・server-polls (ID: 1557479964109181068)
@@ -53,7 +52,8 @@ FINAL AUDIT & LAYOUT: RAI FAM (85 total)
    [VC  ] #🎭・sᴛᴀɢᴇ・ᴘᴏᴅɪᴜᴍ (ID: 1557479364856123444)
    [VC  ] #🎶・24/7 Radio & Beats (ID: 1558483052550692884)
 
-📁 CATEGORY: ✦ ɢᴀᴍɪɴɢ ᴀʀᴇɴᴀ ✦ (8 channels)
+📁 CATEGORY: ✦ ɢᴀᴍɪɴɢ ᴀʀᴇɴᴀ ✦ (9 channels)
+   [Text] #⌖・gaming-hub (ID: 1557475853175234660)
    [Text] #🎯・ranked-comms (ID: 1555428406726893619)
    [Text] #♛・casual-arcade (ID: 1555428413102235701)
    [Text] #𖣘・gameplay-highlights (ID: 1555428420383416400)
@@ -92,14 +92,13 @@ FINAL AUDIT & LAYOUT: RAI FAM (85 total)
    [Text] #⛓️・ᴘʀɪsᴏɴ-ᴄʜᴀᴛ (ID: 1556738642301558846)
    [VC  ] #⛓️・Prison VC (ID: 1556738643471630408)
 
-📁 CATEGORY: ✦ ᴄʀᴇᴀᴛᴏʀ sᴛᴜᴅɪᴏ ✦ (8 channels)
+📁 CATEGORY: ✦ ᴄʀᴇᴀᴛᴏʀ sᴛᴜᴅɪᴏ ✦ (7 channels)
    [Text] #✂️・editing-chat (ID: 1558482941817004143)
    [Text] #⟁・gaming-montages (ID: 1558482965175078994)
    [Text] #✧・pfp-and-banners (ID: 1558483065578197002)
    [Text] #𖦹・editing-tips (ID: 1558483087283720352)
    [Text] #♧・collab-requests (ID: 1558483098553819228)
    [Text] #🏅・edit-of-the-week (ID: 1558483178862288987)
-   [VC  ] #🍿・Cinema Hall (ID: 1554905870817689600)
    [VC  ] #📺・Stream Showcase (ID: 1554905874437513248)
 
 Total Public Community Text Channels: 45
