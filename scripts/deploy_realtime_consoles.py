@@ -32,6 +32,7 @@ from utils.realtime_consoles import (
     build_music_control_payload,
     build_welcome_payload,
     build_bot_commands_payload,
+    build_gaming_hub_payload,
 )
 
 load_dotenv("F:/Bot/.env")
@@ -109,6 +110,7 @@ async def main():
         ("music_control", REALTIME_CHANNELS["music_control"], build_music_control_payload()),
         ("welcome", REALTIME_CHANNELS["welcome"], build_welcome_payload()),
         ("bot_commands", REALTIME_CHANNELS["bot_commands"], build_bot_commands_payload()),
+        ("gaming_hub", REALTIME_CHANNELS["gaming_hub"], build_gaming_hub_payload()),
     ]
 
     async with aiohttp.ClientSession() as session:

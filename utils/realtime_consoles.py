@@ -47,6 +47,7 @@ REALTIME_CHANNELS = {
     "music_control": 1555255695933186228,       # 🎵・ᴍᴜsɪᴄ-ᴄᴏɴᴛʀᴏʟ
     "welcome": 1545502705643167876,             # 🌸・ᴡᴇʟᴄᴏᴍᴇ
     "bot_commands": 1549416359723532480,        # 🤖・ʙᴏᴛ-ᴄᴏᴍᴍᴀɴᴅs
+    "gaming_hub": 1557475853175234660,          # 🎮・ɢᴀᴍɪɴɢ-ʜᴜʙ
 }
 
 def get_system_vitals(bot: Optional[Any] = None) -> Dict[str, Any]:
@@ -731,8 +732,140 @@ def build_bot_commands_payload(guild: Optional[Any] = None, bot: Optional[Any] =
 
 
 # =========================================================================
+# 16. 🎮 GAMING & CASINO ARCADE (#🎮・ɢᴀᴍɪɴɢ-ʜᴜʙ)
+# =========================================================================
+
+def build_gaming_hub_payload(guild: Optional[Any] = None, bot: Optional[Any] = None) -> Dict[str, Any]:
+    v = get_system_vitals(bot)
+    embed = {
+        "title": "🎮 『RΛI』 • MIDNIGHT ARCADE & GAMING HUB",
+        "description": (
+            "Welcome to the community gaming & casino lounge!\n\n"
+            "• **Cyberpunk Slots:** Up to 50x Royal Crown Jackpot multipliers (`/slots`)\n"
+            "• **Coinflip Arena:** Double-or-nothing provably fair toss (`/coinflip`)\n"
+            "• **High-Roller Dice:** Roll against the house or guess exact 1-6 (`/dice`)\n"
+            "• **Daily Fortune Wheel:** Free spin every 20h for up to 5,000 coins (`/wheel`)\n"
+            "• **Community Predictions:** Wager on tournament & match outcomes (`/prediction`)\n\n"
+            f"• **Arcade Radar Active:** <t:{v['now_ts']}:R>"
+        ),
+        "color": 0x9B59B6,  # Royal Purple
+        "fields": [
+            {
+                "name": "💰 Economy Quickplay",
+                "value": "Click the interactive buttons below to spin, flip, or view live predictions instantly!",
+                "inline": False,
+            }
+        ],
+        "footer": {"text": "RAI Gaming & Casino Engine • Provably Fair Multipliers"},
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    components = [
+        {
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 3, "label": "Spin Slots", "emoji": {"name": "🎰"}, "custom_id": "rt_casino:slots_modal"},
+                {"type": 2, "style": 1, "label": "Daily Wheel", "emoji": {"name": "🎡"}, "custom_id": "rt_casino:wheel"},
+                {"type": 2, "style": 2, "label": "Coinflip", "emoji": {"name": "🪙"}, "custom_id": "rt_casino:flip_modal"},
+                {"type": 2, "style": 2, "label": "Active Predictions", "emoji": {"name": "📊"}, "custom_id": "rt_pred:active"},
+            ]
+        }
+    ]
+    return {"embeds": [embed], "components": components}
+
+
+# =========================================================================
 # NATIVE INTERACTIVE MODALS (FORM WINDOWS)
 # =========================================================================
+
+class RealtimeSlotModal(ui.Modal, title="🎰 Cyberpunk Slots Wager"):
+    bet_amount = ui.TextInput(
+        label="Wager Amount (Rai Coins)",
+        placeholder="10 to 100000",
+        min_length=1,
+        max_length=6,
+        required=True
+    )
+
+    def __init__(self, bot: Any):
+        super().__init__()
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            bet = int(self.bet_amount.value.strip())
+        except ValueError:
+            await interaction.response.send_message("❌ Bet must be a valid number.", ephemeral=True)
+            return
+
+        casino_cog = self.bot.cogs.get("Casino")
+        if casino_cog:
+            await casino_cog.execute_slots(interaction, bet)
+        else:
+            await interaction.response.send_message("❌ Casino subsystem not loaded.", ephemeral=True)
+
+
+class RealtimeCoinflipModal(ui.Modal, title="🪙 Double-or-Nothing Coinflip"):
+    choice = ui.TextInput(
+        label="Call (Heads or Tails)",
+        placeholder="heads or tails",
+        min_length=4,
+        max_length=5,
+        required=True
+    )
+    bet_amount = ui.TextInput(
+        label="Wager Amount (Rai Coins)",
+        placeholder="10 to 50000",
+        min_length=1,
+        max_length=6,
+        required=True
+    )
+
+    def __init__(self, bot: Any):
+        super().__init__()
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        call = self.choice.value.strip().lower()
+        if call not in ("heads", "tails"):
+            await interaction.response.send_message("❌ Choice must be either `heads` or `tails`.", ephemeral=True)
+            return
+        try:
+            bet = int(self.bet_amount.value.strip())
+        except ValueError:
+            await interaction.response.send_message("❌ Bet must be a valid number.", ephemeral=True)
+            return
+
+        casino_cog = self.bot.cogs.get("Casino")
+        if casino_cog:
+            import random
+            await interaction.response.defer()
+            guild = interaction.guild
+            user = interaction.user
+            profile = await self.bot.db.get_or_create_user_economy(guild.id, user.id)
+            if profile.coins < bet:
+                await interaction.followup.send(f"❌ Insufficient coins. You have {profile.coins:,} Rai Coins.", ephemeral=True)
+                return
+            await self.bot.db.add_user_coins(guild.id, user.id, -bet)
+            outcome = random.choice(["heads", "tails"])
+            won = (outcome == call)
+            if won:
+                winnings = bet * 2
+                await self.bot.db.add_user_coins(guild.id, user.id, winnings)
+                res_txt = f"🎉 **YOU WON!** Landed on **{outcome.capitalize()}** (+{winnings:,} Coins)!"
+                col = 0x2ECC71
+            else:
+                res_txt = f"💀 **LOST!** Landed on **{outcome.capitalize()}** (-{bet:,} Coins)."
+                col = 0xED4245
+            p_new = await self.bot.db.get_or_create_user_economy(guild.id, user.id)
+            emb = discord.Embed(
+                title="🪙 『RΛI』 • COINFLIP RESULT",
+                description=f"**Player:** {user.mention}\n**Call:** `{call.capitalize()}` | **Wager:** `{bet:,}` Coins\n\n{res_txt}\n\n💰 **New Balance:** `{p_new.coins:,}` Rai Coins",
+                color=col
+            )
+            await interaction.followup.send(embed=emb)
+        else:
+            await interaction.response.send_message("❌ Casino subsystem not loaded.", ephemeral=True)
+
 
 class RealtimeSuggestionModal(ui.Modal, title="💡 Submit Server Suggestion"):
     sugg_title = ui.TextInput(
@@ -1184,6 +1317,37 @@ class RealtimeConsoleDispatcher:
                 }
                 await interaction.response.send_message(cmd_help.get(action, "Type `/` to view all commands."), ephemeral=True)
                 return True
+
+            # 13. Casino & Arcades
+            elif cid.startswith("rt_casino:"):
+                action = cid.split(":", 1)[1]
+                if action == "slots_modal":
+                    await interaction.response.send_modal(RealtimeSlotModal(bot))
+                    return True
+                elif action == "flip_modal":
+                    await interaction.response.send_modal(RealtimeCoinflipModal(bot))
+                    return True
+                elif action == "wheel":
+                    casino_cog = bot.cogs.get("Casino")
+                    if casino_cog:
+                        await casino_cog.wheel_command.callback(casino_cog, interaction)
+                    else:
+                        await interaction.response.send_message("❌ Casino subsystem not loaded.", ephemeral=True)
+                    return True
+                elif action == "dice":
+                    await interaction.response.send_message("🎲 Use `/dice <bet> [guess]` to challenge the house or guess exact 1-6 for 5x!", ephemeral=True)
+                    return True
+
+            # 14. Community Predictions
+            elif cid.startswith("rt_pred:"):
+                action = cid.split(":", 1)[1]
+                if action == "active":
+                    pred_cog = bot.cogs.get("Predictions")
+                    if pred_cog:
+                        await pred_cog.prediction_list.callback(pred_cog, interaction)
+                    else:
+                        await interaction.response.send_message("❌ Predictions cog not loaded.", ephemeral=True)
+                    return True
 
         except Exception as e:
             logger.error(f"Error handling realtime interaction {cid}: {e}", exc_info=True)

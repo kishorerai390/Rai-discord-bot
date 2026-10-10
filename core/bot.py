@@ -90,6 +90,11 @@ COGS_LIST: List[str] = [
     "cogs.ai_vision",
     "cogs.growth",
     "cogs.reputation",
+    "cogs.casino",
+    "cogs.predictions",
+    "cogs.self_heal",
+    "cogs.temp_roles",
+    "cogs.system_upgrade",
 ]
 
 

@@ -1815,6 +1815,54 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             ALTER TABLE autopilot_configs ADD COLUMN raid_protection INTEGER DEFAULT 1;
             """
         ]
+    ),
+    (
+        46,
+        "Community Predictions Arena and Expiring Temporary Roles",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS predictions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                creator_id INTEGER NOT NULL,
+                question TEXT NOT NULL,
+                option_a TEXT NOT NULL,
+                option_b TEXT NOT NULL,
+                total_pool_a INTEGER NOT NULL DEFAULT 0,
+                total_pool_b INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'active',
+                channel_id INTEGER,
+                message_id INTEGER,
+                ends_at TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS prediction_wagers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                prediction_id INTEGER NOT NULL,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                option TEXT NOT NULL,
+                amount INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (prediction_id) REFERENCES predictions(id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS temporary_roles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                assigned_by INTEGER NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """
+        ]
     )
 ]
 

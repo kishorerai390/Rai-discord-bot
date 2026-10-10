@@ -56,6 +56,7 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                 build_server_dashboard_payload,
                 build_system_health_payload,
                 build_admin_control_payload,
+                build_gaming_hub_payload,
             )
             for guild in self.bot.guilds:
                 # Update Server Dashboard
@@ -77,6 +78,18 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                         async for msg in health_ch.history(limit=5):
                             if msg.author.id == self.bot.user.id and msg.type == discord.MessageType.default:
                                 p = build_system_health_payload(guild, self.bot)
+                                await msg.edit(embed=discord.Embed.from_dict(p["embeds"][0]))
+                                break
+                    except Exception:
+                        pass
+
+                # Update Gaming Hub
+                game_ch = guild.get_channel(REALTIME_CHANNELS.get("gaming_hub", 0))
+                if isinstance(game_ch, discord.TextChannel):
+                    try:
+                        async for msg in game_ch.history(limit=5):
+                            if msg.author.id == self.bot.user.id and msg.type == discord.MessageType.default:
+                                p = build_gaming_hub_payload(guild, self.bot)
                                 await msg.edit(embed=discord.Embed.from_dict(p["embeds"][0]))
                                 break
                     except Exception:
