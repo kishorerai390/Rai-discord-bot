@@ -266,6 +266,9 @@ class SentinelBot(commands.Bot):
                     handled = await RealtimeConsoleDispatcher.handle_interaction(self, interaction)
                     if handled:
                         return
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("✅ Console action acknowledged.", ephemeral=True)
+                        return
                 except Exception as e:
                     logger.error(f"Error handling realtime console interaction {cid}: {e}", exc_info=True)
                     if not interaction.response.is_done():
