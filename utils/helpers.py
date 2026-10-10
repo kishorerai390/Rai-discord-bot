@@ -100,7 +100,7 @@ async def find_audit_executor(
     Applies bounded retries to handle Discord's asynchronous audit-log propagation.
     Ensures fail-safe behavior: returns None if uncertain.
     """
-    if not guild.me.guild_permissions.view_audit_log:
+    if not guild or not getattr(guild, "me", None) or not getattr(guild.me, "guild_permissions", None) or not guild.me.guild_permissions.view_audit_log:
         return None, None
 
     now = datetime.datetime.now(datetime.timezone.utc)
