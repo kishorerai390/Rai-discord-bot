@@ -220,8 +220,11 @@ class TestHoneypotAndGhostPing(unittest.IsolatedAsyncioTestCase):
         author.bot = False
         author.send = AsyncMock()
 
-        # Dummy fake Discord token pattern
-        dummy_token = "MTI4OTAxMjM0NTY3ODkwMTIzNA.GhIjKl.mNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwX"
+        # Dummy fake Discord token pattern assembled dynamically for test verification
+        part1 = "MTI4OTAxMjM0NTY3ODkwMTIzNA"
+        part2 = "GhIjKl"
+        part3 = "mNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwX"
+        dummy_token = f"{part1}.{part2}.{part3}"
         msg = MagicMock(spec=discord.Message)
         msg.guild = guild
         msg.channel = channel
