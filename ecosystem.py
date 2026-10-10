@@ -12,6 +12,13 @@ import subprocess
 import sys
 import time
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 def clear_stale_instance(port: int, name: str):
     """Checks if a stale bot instance holds the lock port and terminates it."""
     try:
@@ -70,18 +77,25 @@ def run():
 
     try:
         while True:
-            # Check if any process terminated unexpectedly
+            # Check if any process terminated unexpectedly and auto-recover
             ret_main = proc_main.poll()
             ret_music = proc_music.poll()
 
             if ret_main is not None:
-                print(f"\n⚠️ The Raivora exited with code {ret_main}.")
-                break
-            if ret_music is not None:
-                print(f"\n⚠️ Neko Songs exited with code {ret_music}.")
-                break
+                print(f"\n⚠️ The Raivora exited with code {ret_main}. Auto-recovering in 3s...")
+                time.sleep(2)
+                clear_stale_instance(49451, "The Raivora")
+                proc_main = subprocess.Popen([python_executable, "main.py"], cwd=base_dir)
+                print("🚀 The Raivora respawned successfully.")
 
-            time.sleep(1)
+            if ret_music is not None:
+                print(f"\n⚠️ Neko Songs exited with code {ret_music}. Auto-recovering in 3s...")
+                time.sleep(2)
+                clear_stale_instance(49452, "Neko Songs")
+                proc_music = subprocess.Popen([python_executable, "music_main.py"], cwd=base_dir)
+                print("🐱 Neko Songs respawned successfully.")
+
+            time.sleep(2)
 
     except KeyboardInterrupt:
         print("\n🛑 Shutting down Rai Ecosystem processes...")

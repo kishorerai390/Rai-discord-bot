@@ -1126,6 +1126,10 @@ class MusicCog(commands.Cog, name="Music"):
     async def alias_loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]) -> None:
         await self.music_loop.callback(self, interaction, mode)
 
+    @app_commands.command(name="clear", description="Clear upcoming songs from queue (Shortcut for /music clear)")
+    async def alias_clear(self, interaction: discord.Interaction) -> None:
+        await self.music_clear.callback(self, interaction)
+
 
     # =========================================================================
     # NATURAL MUSIC REQUEST LISTENER (SECTION 12)

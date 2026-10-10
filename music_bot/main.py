@@ -17,6 +17,11 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+# Ensure root directory is in sys.path
+root_dir = str(Path(__file__).resolve().parent.parent)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 # Initialize static FFmpeg binaries if available
 try:
     import static_ffmpeg
