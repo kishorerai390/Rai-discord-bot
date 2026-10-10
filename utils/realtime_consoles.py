@@ -731,6 +731,161 @@ def build_bot_commands_payload(guild: Optional[Any] = None, bot: Optional[Any] =
 
 
 # =========================================================================
+# NATIVE INTERACTIVE MODALS (FORM WINDOWS)
+# =========================================================================
+
+class RealtimeSuggestionModal(ui.Modal, title="💡 Submit Server Suggestion"):
+    sugg_title = ui.TextInput(
+        label="Suggestion Title",
+        placeholder="e.g. Host a Weekly Valorant Tournament",
+        max_length=100,
+        required=True
+    )
+    sugg_category = ui.TextInput(
+        label="Category",
+        placeholder="e.g. Gaming / Events / Roles / Bot",
+        max_length=50,
+        required=False,
+        default="Community"
+    )
+    sugg_details = ui.TextInput(
+        label="Details & Impact",
+        style=discord.TextStyle.paragraph,
+        placeholder="Describe your idea and why it would benefit the community...",
+        max_length=1500,
+        required=True
+    )
+
+    def __init__(self, bot: Any):
+        super().__init__()
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("❌ Guild context required.", ephemeral=True)
+            return
+
+        target_ch = guild.get_channel(REALTIME_CHANNELS["suggestions"])
+        if not target_ch or not isinstance(target_ch, discord.TextChannel):
+            await interaction.response.send_message("❌ Suggestions channel not found.", ephemeral=True)
+            return
+
+        s_id = int(time.time()) % 100000
+        try:
+            if hasattr(self.bot, "db") and hasattr(self.bot.db, "create_suggestion"):
+                s_obj = await self.bot.db.create_suggestion(
+                    guild_id=guild.id,
+                    user_id=interaction.user.id,
+                    content=f"**[{self.sugg_title.value}]**\n{self.sugg_details.value}",
+                    category=self.sugg_category.value or "Community"
+                )
+                if s_obj and hasattr(s_obj, "id"):
+                    s_id = s_obj.id
+        except Exception:
+            pass
+
+        embed = discord.Embed(
+            title=f"💡 Suggestion #{s_id} • {self.sugg_title.value}",
+            description=f"**Category:** `{self.sugg_category.value or 'Community'}`\n\n{self.sugg_details.value}",
+            color=0xF39C12,
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        )
+        embed.set_author(name=f"Submitted by {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
+        embed.add_field(name="📌 Status", value="🟡 Pending Review", inline=True)
+        embed.add_field(name="📊 Votes", value="👍 **0**  |  👎 **0**", inline=True)
+        embed.set_footer(text=f"Suggestion ID: {s_id} • Rai Suggestions")
+
+        from cogs.suggestions import SuggestionView
+        view = SuggestionView(s_id)
+        msg = await target_ch.send(embed=embed, view=view)
+        try:
+            thread = await msg.create_thread(name=f"Suggestion #{s_id} Discussion")
+            await thread.send(f"💬 Welcome to the discussion thread for **{self.sugg_title.value}** submitted by {interaction.user.mention}!")
+        except Exception:
+            pass
+
+        await interaction.response.send_message(f"✅ Suggestion **#{s_id}** submitted! Check {msg.jump_url} to discuss.", ephemeral=True)
+
+
+class RealtimeCSATModal(ui.Modal, title="⭐ Rate Your Support Experience"):
+    rating = ui.TextInput(
+        label="Rating (1 to 5 Stars)",
+        placeholder="5",
+        max_length=1,
+        required=True
+    )
+    feedback = ui.TextInput(
+        label="Feedback / Staff Comments",
+        style=discord.TextStyle.paragraph,
+        placeholder="How quick and helpful was the staff team?",
+        max_length=500,
+        required=False
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        stars_str = self.rating.value.strip()
+        num_stars = int(stars_str) if stars_str.isdigit() and 1 <= int(stars_str) <= 5 else 5
+        stars_display = "⭐" * num_stars
+        await interaction.response.send_message(
+            f"🌟 **Thank You For Your Feedback!**\n"
+            f"• Rating: {stars_display} (`{num_stars}/5`)\n"
+            f"• Comments: *{self.feedback.value or 'No comments provided'}*\n\n"
+            f"Your feedback has been logged to the staff quality assurance records.",
+            ephemeral=True
+        )
+
+
+class RealtimeTicketCreateModal(ui.Modal, title="🎟️ Open VIP Support Ticket"):
+    subject = ui.TextInput(
+        label="Inquiry Subject",
+        placeholder="e.g. Claim Booster Role / Partnership / General Help",
+        max_length=80,
+        required=True
+    )
+    details = ui.TextInput(
+        label="Details",
+        style=discord.TextStyle.paragraph,
+        placeholder="Describe how the staff can assist you today...",
+        max_length=800,
+        required=True
+    )
+
+    def __init__(self, bot: Any):
+        super().__init__()
+        self.bot = bot
+
+    async def on_submit(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("❌ Guild context required.", ephemeral=True)
+            return
+
+        user = interaction.user
+        channel_name = f"ticket-{user.name.lower()[:15]}"
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
+        }
+        council_role = guild.get_role(1545494600347680918)
+        if council_role:
+            overwrites[council_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+
+        cat = interaction.channel.category if interaction.channel else None
+        new_ch = await guild.create_text_channel(name=channel_name, category=cat, overwrites=overwrites)
+        t_embed = discord.Embed(
+            title=f"🎟️ Ticket: {self.subject.value}",
+            description=f"Welcome {user.mention}! A staff member will be with you shortly.\n\n**Details:**\n> {self.details.value}",
+            color=0x3498DB
+        )
+        t_embed.set_footer(text="When finished, click Close Ticket below or type /ticket close.")
+        from cogs.tickets import TicketControlView
+        await new_ch.send(content=f"{user.mention}", embed=t_embed, view=TicketControlView())
+        await interaction.response.send_message(f"✅ Your private ticket channel is ready: {new_ch.mention}!", ephemeral=True)
+
+
+# =========================================================================
 # MASTER DISPATCHER FOR ALL REAL-TIME BUTTON INTERACTIONS
 # =========================================================================
 
@@ -740,7 +895,7 @@ class RealtimeConsoleDispatcher:
     @classmethod
     async def handle_interaction(cls, bot: "SentinelBot", interaction: discord.Interaction) -> bool:
         cid = interaction.data.get("custom_id", "")
-        if not (cid.startswith("rt_") or cid.startswith("hub_")):
+        if not (cid.startswith("rt_") or cid.startswith("hub_") or cid == "ticket_open_general"):
             return False
 
         try:
@@ -951,7 +1106,7 @@ class RealtimeConsoleDispatcher:
             elif cid.startswith("rt_sugg:"):
                 action = cid.split(":", 1)[1]
                 if action == "submit":
-                    await interaction.response.send_message("💡 **To submit a suggestion:** Type `/suggest <your idea>` in chat! An automatic voting thread will be created.", ephemeral=True)
+                    await interaction.response.send_modal(RealtimeSuggestionModal(bot))
                     return True
                 elif action == "rules":
                     await interaction.response.send_message("📜 **Suggestion Rules:** Keep ideas constructive, gaming or community related, and respectful.", ephemeral=True)
@@ -974,10 +1129,14 @@ class RealtimeConsoleDispatcher:
                     return True
 
             # 9. Support Desk & CSAT
+            elif cid == "ticket_open_general":
+                await interaction.response.send_modal(RealtimeTicketCreateModal(bot))
+                return True
+
             elif cid.startswith("rt_tkt:"):
                 action = cid.split(":", 1)[1]
                 if action == "csat":
-                    await interaction.response.send_message("⭐ **Customer Satisfaction (CSAT):** Ticket satisfaction surveys are automatically prompted when your ticket closes!", ephemeral=True)
+                    await interaction.response.send_modal(RealtimeCSATModal())
                     return True
                 elif action == "faq":
                     await interaction.response.send_message("❓ **Support FAQ:** We handle partnership requests, role verifications, and report investigations.", ephemeral=True)

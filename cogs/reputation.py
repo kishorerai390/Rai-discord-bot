@@ -54,6 +54,22 @@ class ReputationCog(commands.Cog, name="Reputation"):
         if not channel:
             return
 
+        # Level Milestone Role Rewards
+        unlocked_role_msg = ""
+        try:
+            if level >= 10:
+                vip_role = guild.get_role(1551184081067450451)  # 💎 ╏ VIP Member
+                if vip_role and vip_role not in member.roles:
+                    await member.add_roles(vip_role, reason=f"Level {level} Milestone Reward")
+                    unlocked_role_msg = f"\n💎 **Role Unlocked:** {vip_role.mention} *(Exclusive VIP Lounge & Perks)*"
+            elif level >= 5:
+                fam_role = guild.get_role(1545494584203673740)  # 💖 ╏ Rai Fam
+                if fam_role and fam_role not in member.roles:
+                    await member.add_roles(fam_role, reason=f"Level {level} Milestone Reward")
+                    unlocked_role_msg = f"\n💖 **Role Unlocked:** {fam_role.mention} *(Community Insider Badge)*"
+        except Exception as e:
+            logger.debug(f"Milestone role assignment note: {e}")
+
         embed = discord.Embed(
             title=f"✦ 𝓛ᴇᴠᴇʟ 𝓤ᴘ! ╏ Level {level} Reached! ✦",
             description=(
@@ -61,7 +77,7 @@ class ReputationCog(commands.Cog, name="Reputation"):
                 f"Your active participation on **✦ 𝓡ᴀɪ 𝕱ᴀᴍ ✦** has leveled you up!\n\n"
                 f"🏆 **Current Rank:** `Level {level}`\n"
                 f"⭐ **Total Activity XP:** `{points:,} XP`\n"
-                f"📈 **Next Milestone:** `{level * 100:,} XP`\n"
+                f"📈 **Next Milestone:** `{level * 100:,} XP`{unlocked_role_msg}\n"
             ),
             color=0xF1C40F,  # Gold
         )
@@ -433,7 +449,7 @@ class ReputationCog(commands.Cog, name="Reputation"):
     ):
         await self.profile_edit(interaction, skills, interests, bio, visible)
 
-    @app_commands.command(name="profile", description="Quickly view your or another member's community profile")
+    @app_commands.command(name="member_profile", description="Quickly view your or another member's community profile")
     @app_commands.describe(member="Member to view (defaults to you)")
     async def profile_top_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         await self.profile_view(interaction, member)
@@ -561,6 +577,61 @@ class ReputationCog(commands.Cog, name="Reputation"):
             await interaction.followup.send(f"Declined collaboration request #{request_id}.", ephemeral=True)
         else:
             await interaction.followup.send("❌ Collaboration request not found.", ephemeral=True)
+
+    async def post_weekly_billboard(self, guild: discord.Guild) -> bool:
+        """Posts the weekly champions billboard embed to #🏆・ʟᴇᴠᴇʟ-ᴜᴘ."""
+        channel = guild.get_channel(self.LEVEL_UP_CHANNEL_ID)
+        if not channel or not isinstance(channel, discord.TextChannel):
+            return False
+
+        top_profiles = []
+        try:
+            import sqlite3
+            conn = sqlite3.connect(r"f:\Bot\data\bot.db")
+            c = conn.cursor()
+            c.execute("SELECT user_id, points, level FROM reputation_profiles WHERE guild_id = ? ORDER BY points DESC LIMIT 3", (guild.id,))
+            top_profiles = c.fetchall()
+            conn.close()
+        except Exception:
+            pass
+
+        leaderboard_lines = []
+        medals = ["🥇", "🥈", "🥉"]
+        for idx, (uid, pts, lvl) in enumerate(top_profiles):
+            m = guild.get_member(uid)
+            name = m.mention if m else f"`User {uid}`"
+            leaderboard_lines.append(f"{medals[idx]} {name} — **Level {lvl}** (`{pts:,} XP`)")
+
+        if not leaderboard_lines:
+            leaderboard_lines = ["*No active leaderboard records logged this week yet.*"]
+
+        embed = discord.Embed(
+            title="🏆 ✦ 𝓦ᴇᴇᴋʟʏ 𝓒ʜᴀᴍᴘɪᴏɴs 𝕭ɪʟʟʙᴏᴀʀᴅ ✦ 🏆",
+            description=(
+                "**Weekly Server Hall of Fame & Activity Champions!**\n\n"
+                "Here are the top participants powering our community and voice lounges this week:\n\n"
+                + "\n".join(leaderboard_lines)
+                + "\n\n"
+                "✨ *Earn chat & voice XP all week to climb next Sunday's Billboard!*"
+            ),
+            color=0xF1C40F,
+            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        )
+        embed.set_footer(text="✦ RAI Weekly Billboard • Hall of Champions ✦", icon_url=guild.icon.url if guild.icon else None)
+        await channel.send(embed=embed)
+        return True
+
+    @app_commands.command(name="billboard_weekly", description="Broadcast the Weekly Champions Billboard to #🏆・ʟᴇᴠᴇʟ-ᴜᴘ")
+    async def billboard_weekly_cmd(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            await interaction.followup.send("❌ Guild context required.", ephemeral=True)
+            return
+        success = await self.post_weekly_billboard(interaction.guild)
+        if success:
+            await interaction.followup.send("✅ Weekly Champions Billboard posted successfully!", ephemeral=True)
+        else:
+            await interaction.followup.send("❌ Could not locate the level up channel.", ephemeral=True)
 
 
 async def setup(bot: SentinelBot):
