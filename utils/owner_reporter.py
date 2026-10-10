@@ -616,7 +616,7 @@ class OwnerReporter:
         "bot_report_id": ["bot-report", "botreport"],
         "music_report_id": ["music-report", "musicreport"],
         "mod_report_id": ["member-reports", "memberreports", "mod-reports", "modreport", "mod-report"],
-        "security_report_id": ["security-alerts", "securityalerts", "security-report", "securityreport"],
+        "security_report_id": ["security-alerts", "securityalerts", "security-report", "securityreport", "security-log", "securitylog"],
     }
 
     @classmethod
