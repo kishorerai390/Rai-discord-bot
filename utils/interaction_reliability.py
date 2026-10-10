@@ -104,7 +104,26 @@ class InteractionResponseManager:
                         logger.debug(f"edit_original_response fallback failed: {e}")
                         return None
 
-            return await cls._orig_send_message(self, *args, **kwargs)
+            try:
+                return await cls._orig_send_message(self, *args, **kwargs)
+            except (discord.InteractionResponded, discord.HTTPException) as e:
+                if isinstance(e, discord.HTTPException) and getattr(e, "code", None) != 40060 and "already been acknowledged" not in str(e):
+                    raise
+                # Already acknowledged, fallback to edit_original_response or followup
+                interaction: discord.Interaction = self._parent
+                edit_kwargs = {
+                    k: v
+                    for k, v in kwargs.items()
+                    if k not in ("ephemeral", "silent", "delete_after")
+                }
+                try:
+                    return await interaction.edit_original_response(*args, **edit_kwargs)
+                except Exception:
+                    try:
+                        return await interaction.followup.send(*args, **kwargs)
+                    except Exception as fe:
+                        logger.debug(f"Followup after 40060 failed for {interaction.id}: {fe}")
+                        return None
 
         async def _patched_defer(self, *args, **kwargs):
             if self.is_done():
@@ -113,6 +132,10 @@ class InteractionResponseManager:
                 return await cls._orig_defer(self, *args, **kwargs)
             except (discord.NotFound, discord.InteractionResponded):
                 return
+            except discord.HTTPException as e:
+                if getattr(e, "code", None) == 40060 or "already been acknowledged" in str(e):
+                    return
+                raise
 
         async def _patched_webhook_send(self, *args, **kwargs):
             # For application command interaction followup webhooks, default to ephemeral
@@ -279,11 +302,14 @@ async def safe_response(
             f"Command: {interaction.command.name if interaction.command else 'unknown'}"
         )
         return None
-    except discord.InteractionResponded:
+    except (discord.InteractionResponded, discord.HTTPException) as e:
+        if isinstance(e, discord.HTTPException) and getattr(e, "code", None) != 40060 and "already been acknowledged" not in str(e):
+            logger.warning(f"HTTPException in safe_response: {e}")
+            return None
         try:
             return await interaction.followup.send(ephemeral=ephemeral, **kwargs)
-        except Exception as e:
-            logger.error(f"Failed fallback followup after InteractionResponded: {e}")
+        except Exception as e2:
+            logger.error(f"Failed fallback followup after acknowledged: {e2}")
             return None
     except discord.Forbidden as e:
         logger.warning(f"Forbidden error sending interaction response: {e}")

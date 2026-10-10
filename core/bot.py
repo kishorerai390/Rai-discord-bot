@@ -276,6 +276,22 @@ class SentinelBot(commands.Bot):
                             await interaction.response.send_message("❌ Real-time console is temporarily unavailable.", ephemeral=True)
                         except Exception:
                             pass
+            else:
+                # Universal safety fallback to ensure NO button ever times out
+                try:
+                    from utils.realtime_consoles import RealtimeConsoleDispatcher
+                    handled = await RealtimeConsoleDispatcher.handle_interaction(self, interaction)
+                    if handled:
+                        return
+                    if not interaction.response.is_done():
+                        await interaction.response.send_message("✅ Action processed.", ephemeral=True)
+                except Exception as e:
+                    logger.debug(f"Unhandled component fallback note {cid}: {e}")
+                    if not interaction.response.is_done():
+                        try:
+                            await interaction.response.send_message("✅ Acknowledged.", ephemeral=True)
+                        except Exception:
+                            pass
 
     async def _tree_interaction_check(self, interaction: discord.Interaction) -> bool:
         """

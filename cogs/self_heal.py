@@ -32,12 +32,7 @@ REPORT_CATEGORY_ID = 1555428388280209422
 BOT_REPORT_CHANNEL_ID = 1555428420383416400
 
 EXPECTED_REPORT_CHANNELS = {
-    "security_report": ("🚨・sᴇᴄᴜʀɪᴛʏ-ʀᴇᴘᴏʀᴛ", 1555428392181047366),
-    "mod_report": ("🛡️・ᴍᴏᴅ-ʀᴇᴘᴏʀᴛ", 1555428399919538297),
-    "music_report": ("🎵・ᴍᴜsɪᴄ-ʀᴇᴘᴏʀᴛ", 1555428406726893619),
-    "room_report": ("🔐・ʀᴏᴏᴍ-ʀᴇᴘᴏʀᴛ", 1555428413102235701),
-    "bot_report": ("🤖・ʙᴏᴛ-ʀᴇᴘᴏʀᴛ", 1555428420383416400),
-    "system_report": ("⚙️・sʏsᴛᴇᴍ-ʀᴇᴘᴏʀᴛ", 1555428426607894570),
+    "member_reports": ("⛨・member-reports", 1555428392181047366),
 }
 
 MILESTONE_ROLES = [
