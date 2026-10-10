@@ -1,0 +1,260 @@
+[
+  {
+    "id": "235088799074484224",
+    "name": "Rythm",
+    "roles": [
+      "Rythm",
+      "\ud83c\udfb5 \u254f \ud835\udcd3\u1d0a \ud835\udd78\u1d00s\u1d1b\u1d07\u0280",
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "\ud83d\udc96 \u254f \ud835\udce1\u1d00\u026a \ud835\udd71\u1d00\u1d0d"
+    ],
+    "role_ids": [
+      "1534903565535940648",
+      "1545834928221069522",
+      "1545494578512134176",
+      "1545494584203673740"
+    ]
+  },
+  {
+    "id": "276060004262477825",
+    "name": "Koya",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Koya",
+      "\ud83d\udc96 \u254f \ud835\udce1\u1d00\u026a \ud835\udd71\u1d00\u1d0d",
+      "\ud83d\udee1\ufe0f \u254f \ud835\udcdc\u1d0f\u1d05\u1d07\u0280\u1d00\u1d1b\u1d0f\u0280 \ud83d\udee1\ufe0f"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1546048477291741248",
+      "1545494584203673740",
+      "1545494600347680918"
+    ]
+  },
+  {
+    "id": "302050872383242240",
+    "name": "DISBOARD",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "\ud83d\udee1\ufe0f \u254f \ud835\udcdc\u1d0f\u1d05\u1d07\u0280\u1d00\u1d1b\u1d0f\u0280 \ud83d\udee1\ufe0f",
+      "DISBOARD.org"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1545494600347680918",
+      "1546072104397443175"
+    ]
+  },
+  {
+    "id": "416358583220043796",
+    "name": "Xenon",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Xenon"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1554175739140644928"
+    ]
+  },
+  {
+    "id": "422087909634736160",
+    "name": "Top.gg",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Top.gg"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1547283179172528210"
+    ]
+  },
+  {
+    "id": "530825629793517590",
+    "name": "KITT",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "KITT",
+      "\u2728 \u254f \ud835\udce5\u1d07\u0280\u026a\u0493\u026a\u1d07\u1d05 \ud835\udd78\u1d07\u1d0d\u0299\u1d07\u0280"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1556387123064606834",
+      "1549504522953695269"
+    ]
+  },
+  {
+    "id": "536991182035746816",
+    "name": "Wick",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "\ud83d\udc96 \u254f \ud835\udce1\u1d00\u026a \ud835\udd71\u1d00\u1d0d",
+      "Wick"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1545494584203673740",
+      "1545519948007473222"
+    ]
+  },
+  {
+    "id": "678344927997853742",
+    "name": "Sapphire",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "\ud83d\udc96 \u254f \ud835\udce1\u1d00\u026a \ud835\udd71\u1d00\u1d0d",
+      "Sapphire"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1545494584203673740",
+      "1546049335148544095"
+    ]
+  },
+  {
+    "id": "720351927581278219",
+    "name": "Invite Tracker",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Invite Tracker"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1546048371565793383"
+    ]
+  },
+  {
+    "id": "1021732722479202304",
+    "name": "Hade",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Hade"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1555239086543867988"
+    ]
+  },
+  {
+    "id": "1124681788070055967",
+    "name": "Nazha",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Nazha",
+      "\u2728 \u254f \ud835\udce5\u1d07\u0280\u026a\u0493\u026a\u1d07\u1d05 \ud835\udd78\u1d07\u1d0d\u0299\u1d07\u0280"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1556388585870196897",
+      "1549504522953695269"
+    ]
+  },
+  {
+    "id": "1143059048363724851",
+    "name": "Zabrina",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Zabrina",
+      "\ud83d\udee1\ufe0f \u254f \ud835\udcdc\u1d0f\u1d05\u1d07\u0280\u1d00\u1d1b\u1d0f\u0280 \ud83d\udee1\ufe0f"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1547276530718216203",
+      "1545494600347680918"
+    ]
+  },
+  {
+    "id": "1190991820637868042",
+    "name": "Wave Music",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "Wave Music"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1555244337443508427"
+    ]
+  },
+  {
+    "id": "1205557263738216559",
+    "name": "BeatSync",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "\ud83c\udfb5 \u254f \ud835\udcd3\u1d0a \ud835\udd78\u1d00s\u1d1b\u1d07\u0280",
+      "\ud83d\udc96 \u254f \ud835\udce1\u1d00\u026a \ud835\udd71\u1d00\u1d0d",
+      "BeatSync"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1545834928221069522",
+      "1545494584203673740",
+      "1545616944827342940"
+    ]
+  },
+  {
+    "id": "1470151477610938509",
+    "name": "Green-Bot",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "\ud83c\udfb5 \u254f \ud835\udcd3\u1d0a \ud835\udd78\u1d00s\u1d1b\u1d07\u0280",
+      "Green-Bot"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1545834928221069522",
+      "1547276294398545984"
+    ]
+  },
+  {
+    "id": "1477618724533043293",
+    "name": "Blue Seal!",
+    "roles": [
+      "Blue Seal!",
+      "\ud83d\udee1\ufe0f \u254f \ud835\udcdc\u1d0f\u1d05\u1d07\u0280\u1d00\u1d1b\u1d0f\u0280 \ud83d\udee1\ufe0f",
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1b\u30fb\ud835\udd6c\u1d05\u1d0d\u026a\u0274"
+    ],
+    "role_ids": [
+      "1550547059009130588",
+      "1545494600347680918",
+      "1555632650473971734"
+    ]
+  },
+  {
+    "id": "1554732669072445532",
+    "name": "The Raivora",
+    "roles": [
+      "Our New Official Bot",
+      "\u2728 \u254f \ud835\udce5\u1d07\u0280\u026a\u0493\u026a\u1d07\u1d05 \ud835\udd78\u1d07\u1d0d\u0299\u1d07\u0280",
+      "\ud83d\udd34 . Secured .",
+      "\ud83d\udce2 \u254f \ud835\udcd0\u0274\u0274\u1d0f\u1d1c\u0274\u1d04\u1d07\u1d0d\u1d07\u0274\u1d1bs",
+      "\ud83d\udfe2 . UnBypassable .",
+      "\ud83c\udfb5 \u254f \ud835\udcd3\u1d0a \ud835\udd78\u1d00s\u1d1b\u1d07\u0280",
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1b\u30fb\ud835\udd6c\u1d05\u1d0d\u026a\u0274",
+      "THE Raivora",
+      "\ud83e\udd16 \u2550 \u0280\u1d00\u026a s\u1d07\u0274\u1d1b\u026a\u0274\u1d07\u029f \ud83c\udf77"
+    ],
+    "role_ids": [
+      "1554876448467329185",
+      "1549504522953695269",
+      "1558161368090284133",
+      "1550199913093144649",
+      "1558161370615390319",
+      "1545834928221069522",
+      "1555632650473971734",
+      "1554734206209232989",
+      "1557476518886641694"
+    ]
+  },
+  {
+    "id": "1556676516274905218",
+    "name": "NEKO SONGS.....!!",
+    "roles": [
+      "\ud83e\udd16 \u254f \ud835\udcd1\u1d0f\u1d1bs",
+      "NEKO SONGS.....!!"
+    ],
+    "role_ids": [
+      "1545494578512134176",
+      "1556696060301410354"
+    ]
+  }
+]
