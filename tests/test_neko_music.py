@@ -388,6 +388,10 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         """Main Rai queries Neko Songs status via heartbeat without importing music services."""
         self.assertIsInstance(MusicGateway.get_provider(), (RaiMusicBotProvider, NekoSongsBotProvider))
 
+        # Point provider to isolated test DB (initially empty with no heartbeat)
+        provider = NekoSongsBotProvider(db_path=self.test_db_path, bot_id=1556676516274905218)
+        MusicGateway.set_provider(provider)
+
         # 1. Without heartbeat -> OFFLINE
         status_offline = await MusicGateway.get_status()
         self.assertEqual(status_offline.status, MusicBotStatus.OFFLINE)
@@ -400,10 +404,6 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
             active_sessions=3,
             playing_count=2,
         )
-
-        # Point provider to test DB
-        provider = NekoSongsBotProvider(db_path=self.test_db_path, bot_id=1556676516274905218)
-        MusicGateway.set_provider(provider)
 
         status_online = await MusicGateway.get_status()
         self.assertEqual(status_online.status, MusicBotStatus.CONNECTED)

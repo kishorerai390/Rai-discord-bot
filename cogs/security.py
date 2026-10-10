@@ -1279,6 +1279,82 @@ class SecurityCog(commands.Cog, name="Security"):
         status_text = "🚨 **ACTIVE** — Destructive automated actions are disabled." if sec_state.emergency_stop else "✅ **INACTIVE** — Full security automation is armed."
         await interaction.response.send_message(embed=info_embed("Emergency Status", status_text), ephemeral=True)
 
+    @security_group.command(name="safemode", description="Engage or manage Emergency Safe Mode protections")
+    @is_admin_or_owner()
+    @app_commands.describe(action="Enable or disable safe mode")
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="Enable Safe Mode", value="enable"),
+            app_commands.Choice(name="Disable Safe Mode", value="disable"),
+            app_commands.Choice(name="Status", value="status"),
+        ]
+    )
+    async def security_safemode(self, interaction: discord.Interaction, action: Optional[app_commands.Choice[str]] = None):
+        act_val = action.value if action else "enable"
+        guild = interaction.guild
+
+        if act_val == "status":
+            sec_state = await self.bot.db.get_security_state(guild.id)
+            status_text = "🛡️ **SAFE MODE ACTIVE** — Risky automated modifications suppressed." if sec_state.emergency_stop else "🟢 **NORMAL MODE** — Standard security armed."
+            await interaction.response.send_message(embed=info_embed("Emergency Safe Mode Status", status_text), ephemeral=True)
+            return
+
+        if act_val == "enable":
+            await self.bot.db.set_emergency_stop(guild.id, True, interaction.user.id)
+            embed = security_embed(
+                "🛡️ EMERGENCY SAFE MODE ACTIVATED",
+                f"**Authorized Administrator:** {interaction.user.mention} (`{interaction.user.id}`)\n\n"
+                f"• High-risk automated actions are temporarily restricted.\n"
+                f"• Security logging and evidence capture remain active.\n"
+                f"• Legitimate administrator recovery commands remain accessible.\n\n"
+                f"Run `/security safemode action:Disable Safe Mode` to restore normal operations.",
+            )
+            await self._send_private_security_alert(guild, embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await self.bot.db.set_emergency_stop(guild.id, False, interaction.user.id)
+            embed = success_embed(
+                "Safe Mode Disengaged",
+                f"Emergency Safe Mode deactivated by {interaction.user.mention}. Standard automation restored.",
+            )
+            await self._send_private_security_alert(guild, embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @security_group.command(name="incident", description="Inspect complete evidence timeline for a specific security incident")
+    @is_admin_or_owner()
+    @app_commands.describe(incident_id="Unique event ID of the incident")
+    async def security_incident_cmd(self, interaction: discord.Interaction, incident_id: str):
+        await interaction.response.defer(ephemeral=True)
+        inc = await self.bot.db.get_security_incident(incident_id.strip())
+        if not inc:
+            await interaction.followup.send(embed=error_embed("Incident Not Found", f"No record found for ID `{incident_id}`."), ephemeral=True)
+            return
+
+        timeline = (
+            f"**Event Type:** `{inc.event_type}`\n"
+            f"**Timestamp:** `{inc.timestamp}`\n"
+            f"**Actor / Executor:** `{inc.executor_name or 'UNKNOWN'}` (ID: `{inc.executor_id or 'N/A'}`)\n"
+            f"**Target:** `{inc.target_name or 'N/A'}` (ID: `{inc.target_id or 'N/A'}`)\n"
+            f"**Signals / Detection:** Observed `{inc.detected_count}` events (Threshold: `{inc.threshold}`)\n"
+            f"**Audit Log Verified:** {'✅ Yes' if inc.audit_verified else '❌ Incomplete / Unavailable'}\n"
+            f"**Automated Containment:** `{inc.automated_action}`\n"
+            f"**Result Status:** `{inc.result}`\n"
+            f"**Severity:** `{inc.severity.upper()}`\n"
+            f"**Audit Reason:** {inc.reason or 'None specified'}"
+        )
+
+        embed = security_embed(
+            f"🔍 Incident Evidence Timeline — [{inc.event_id}]",
+            timeline,
+        )
+        embed.set_footer(text="Raivora Security Intelligence • Evidence Timeline")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @security_group.command(name="history", description="Review unified security incident audit trail")
+    @is_admin_or_owner()
+    async def security_history_cmd(self, interaction: discord.Interaction):
+        await self.security_incidents(interaction)
+
     @app_commands.command(name="panic", description="Emergency panic mode: instantly locks down all channels and alerts staff")
     @is_admin_or_owner()
     async def panic_cmd(self, interaction: discord.Interaction):

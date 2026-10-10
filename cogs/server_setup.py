@@ -548,6 +548,81 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
         embed.set_footer(text="Raivora Health Auditor • Non-Destructive Analysis")
         await interaction.followup.send(embed=embed)
 
+    @app_commands.command(name="server-health", description="Comprehensive server and subsystem health report")
+    async def server_health(self, interaction: discord.Interaction):
+        user_perms = getattr(interaction.user, "guild_permissions", None)
+        is_admin = (isinstance(user_perms, discord.Permissions) and user_perms.administrator) or (interaction.guild and interaction.user.id == interaction.guild.owner_id)
+        if not is_admin:
+            await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("❌ Guild context required.")
+            return
+
+        # 1. Gateway & Uptime
+        latency_ms = round(self.bot.latency * 1000, 1) if getattr(self.bot, "latency", None) else 0.0
+        start_ts = getattr(self.bot, "_start_time", datetime.datetime.now(datetime.timezone.utc).timestamp())
+        uptime_sec = max(0, int(datetime.datetime.now(datetime.timezone.utc).timestamp() - start_ts))
+        uptime_str = f"{uptime_sec // 3600}h {(uptime_sec % 3600) // 60}m {uptime_sec % 60}s"
+
+        # 2. Database Integrity
+        db_ok, db_errors = await self.bot.db.check_integrity()
+        db_status = "🟢 Connected & Validated" if db_ok else f"⚠️ Issues: {', '.join(db_errors[:2])}"
+
+        # 3. Dynamic Voice Rooms
+        rooms = await self.bot.db.get_all_dynamic_rooms(guild.id)
+        active_rooms = [r for r in rooms if r.status == "active"]
+        dyn_status = f"🟢 `{len(active_rooms)}` active temporary rooms"
+
+        # 4. Music Service
+        try:
+            from services.music_gateway import MusicGateway, MusicBotStatus
+            music_status_obj = await MusicGateway.get_status()
+            if music_status_obj.status == MusicBotStatus.CONNECTED:
+                music_str = f"🟢 Connected (`{music_status_obj.active_sessions}` sessions active)"
+            else:
+                music_str = f"⚪ Offline / Standby ({music_status_obj.status.value})"
+        except Exception:
+            music_str = "⚪ Standby"
+
+        # 5. Security Incidents
+        recent_incidents = await self.bot.db.get_security_incidents(guild.id, limit=5)
+        sec_str = f"🟢 `{len(recent_incidents)}` recent incidents" if recent_incidents else "🟢 0 incidents recorded"
+
+        # 6. Bot Permissions Check
+        me = guild.me
+        perms = me.guild_permissions if me else discord.Permissions.none()
+        perm_checks = [
+            ("Manage Channels", perms.manage_channels),
+            ("Manage Roles", perms.manage_roles),
+            ("View Audit Log", perms.view_audit_log),
+            ("Move Members", perms.move_members),
+        ]
+        missing_perms = [name for name, ok in perm_checks if not ok]
+        perm_status = "🟢 All Essential Perms Granted" if not missing_perms else f"⚠️ Missing: {', '.join(missing_perms)}"
+
+        embed = discord.Embed(
+            title="🏥 『RΛI』 • SERVER HEALTH & DIAGNOSTICS DASHBOARD",
+            description=(
+                f"**Guild:** `{guild.name}` (`{guild.id}`)\n"
+                f"**Report Type:** `LIVE SYSTEM HEALTH AUDIT`\n\n"
+                f"• **Gateway Latency:** `{latency_ms} ms`\n"
+                f"• **Bot Core Uptime:** `{uptime_str}`\n"
+                f"• **Database Health:** {db_status}\n"
+                f"• **Dynamic Voice Subsystem:** {dyn_status}\n"
+                f"• **Music Audio Stream:** {music_str}\n"
+                f"• **Security Subsystem:** {sec_str}\n"
+                f"• **Bot Discord Permissions:** {perm_status}"
+            ),
+            color=0x2ECC71 if (db_ok and not missing_perms) else 0xF1C40F,
+            timestamp=datetime.datetime.now(datetime.timezone.utc),
+        )
+        embed.set_footer(text="Raivora Health Monitor • Subsystem Isolation & Fault Tolerance")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
     # =========================================================================
     # PREVIEW GENERATOR
     # =========================================================================

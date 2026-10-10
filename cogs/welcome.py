@@ -84,7 +84,8 @@ class WelcomeCog(commands.Cog, name="Welcome"):
                     if guild.icon:
                         embed.set_author(name=guild.name, icon_url=guild.icon.url)
                     try:
-                        await channel.send(content=member.mention, embed=embed)
+                        from utils.role_manager import OnboardingRoleView
+                        await channel.send(content=member.mention, embed=embed, view=OnboardingRoleView())
                     except (discord.Forbidden, discord.HTTPException):
                         pass
                 else:

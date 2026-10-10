@@ -372,6 +372,12 @@ class SentinelBot(commands.Bot):
                 except Exception:
                     pass
 
+        try:
+            from utils.role_manager import OnboardingRoleView
+            self.add_view(OnboardingRoleView())
+        except Exception as e:
+            logger.debug(f"Failed to register persistent OnboardingRoleView: {e}")
+
         self.autopilot.start()
         self.tree.interaction_check = self._tree_interaction_check
         self.tree.on_error = self.on_app_command_error

@@ -182,7 +182,30 @@ ROLE_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "mentionable": False,
         "permissions": discord.Permissions.none(),
         "can_auto_assign": False,
+        "is_self_assignable": True,
         "match_keywords": ["gamer", "gaming", "player"],
+    },
+    "music_lover": {
+        "name": "🎵 Music Lover",
+        "type": "COMMUNITY",
+        "color": 0x1DB954,
+        "hoist": False,
+        "mentionable": False,
+        "permissions": discord.Permissions.none(),
+        "can_auto_assign": False,
+        "is_self_assignable": True,
+        "match_keywords": ["music lover", "music", "audiophile", "listener"],
+    },
+    "editor": {
+        "name": "🎬 Editor",
+        "type": "COMMUNITY",
+        "color": 0x9B59B6,
+        "hoist": False,
+        "mentionable": False,
+        "permissions": discord.Permissions.none(),
+        "can_auto_assign": False,
+        "is_self_assignable": True,
+        "match_keywords": ["editor", "video editor", "vfx", "montage", "creator"],
     },
     "verified": {
         "name": "✅ Verified",
@@ -1002,3 +1025,82 @@ class RoleManager:
                         report["boosters_synced"] += 1
 
         return report
+
+
+class OnboardingRoleView(discord.ui.View):
+    """Button-based interest role selector for onboarding without separate text channels."""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Gamer", style=discord.ButtonStyle.secondary, emoji="🎮", custom_id="rai_role:toggle:gamer")
+    async def gamer_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle_role(interaction, "gamer")
+
+    @discord.ui.button(label="Music Lover", style=discord.ButtonStyle.secondary, emoji="🎵", custom_id="rai_role:toggle:music_lover")
+    async def music_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle_role(interaction, "music_lover")
+
+    @discord.ui.button(label="Editor", style=discord.ButtonStyle.secondary, emoji="🎬", custom_id="rai_role:toggle:editor")
+    async def editor_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._toggle_role(interaction, "editor")
+
+    async def _toggle_role(self, interaction: discord.Interaction, role_key: str):
+        guild = interaction.guild
+        member = interaction.user
+        if not guild or not isinstance(member, discord.Member):
+            await interaction.response.send_message("❌ This interaction must be used in a server.", ephemeral=True)
+            return
+
+        role_info = ROLE_DEFINITIONS.get(role_key)
+        if not role_info or not role_info.get("is_self_assignable"):
+            await interaction.response.send_message("❌ This role cannot be self-assigned.", ephemeral=True)
+            return
+
+        # Locate role in guild by name or keyword
+        target_role = None
+        role_name_clean = role_info["name"].replace("🎮 ", "").replace("🎵 ", "").replace("🎬 ", "").lower()
+        for r in guild.roles:
+            if role_name_clean in r.name.lower() or any(k in r.name.lower() for k in role_info.get("match_keywords", [])):
+                target_role = r
+                break
+
+        if not target_role:
+            # Create the role safely if bot has permissions
+            if guild.me.guild_permissions.manage_roles:
+                try:
+                    target_role = await guild.create_role(
+                        name=role_info["name"],
+                        color=discord.Color(role_info["color"]),
+                        reason="Raivora Onboarding: Interest Role provisioned",
+                    )
+                except Exception as e:
+                    await interaction.response.send_message(f"❌ Could not create role: {e}", ephemeral=True)
+                    return
+            else:
+                await interaction.response.send_message("❌ The bot is missing `Manage Roles` permission.", ephemeral=True)
+                return
+
+        # Check hierarchy
+        if target_role >= guild.me.top_role:
+            await interaction.response.send_message("❌ This role is higher than the bot's highest role.", ephemeral=True)
+            return
+
+        # Toggle role
+        if target_role in member.roles:
+            try:
+                await member.remove_roles(target_role, reason="Raivora Onboarding: Self-removed interest role")
+                await interaction.response.send_message(
+                    f"⚪ Removed **{target_role.name}** from your profile.", ephemeral=True
+                )
+            except Exception as e:
+                await interaction.response.send_message(f"❌ Failed to remove role: {e}", ephemeral=True)
+        else:
+            try:
+                await member.add_roles(target_role, reason="Raivora Onboarding: Self-assigned interest role")
+                await interaction.response.send_message(
+                    f"✅ Added **{target_role.name}** to your profile!", ephemeral=True
+                )
+            except Exception as e:
+                await interaction.response.send_message(f"❌ Failed to add role: {e}", ephemeral=True)
+

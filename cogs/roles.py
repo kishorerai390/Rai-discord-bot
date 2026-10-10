@@ -899,6 +899,29 @@ class RolesCog(commands.Cog, name="Roles"):
 
             await safe_response(interaction, embed=embed, ephemeral=True)
 
+    @roles_group.command(name="onboarding", description="Display interactive interest role selector (Gamer, Music, Editor)")
+    async def roles_onboarding(self, interaction: discord.Interaction):
+        """Displays interactive button-based role onboarding for members."""
+        guild = interaction.guild
+        if not guild:
+            await safe_error_response(interaction, "This command can only be used in a server.")
+            return
+
+        from utils.role_manager import OnboardingRoleView
+
+        embed = create_embed(
+            title="✨ Choose Your Community Interest Roles",
+            description=(
+                f"Welcome to **{guild.name}**!\n\n"
+                f"Personalize your experience by clicking the buttons below to toggle your interest roles:\n\n"
+                f"• 🎮 **Gamer** — Access gaming squad alerts & matchmaking\n"
+                f"• 🎵 **Music Lover** — Access music lounge perks & DJ events\n"
+                f"• 🎬 **Editor** — Access creative editing suites & collaboration\n\n"
+                f"*Click a button to add or remove the role at any time.*"
+            ),
+            color=Colors.PRIMARY,
+        )
+        await interaction.response.send_message(embed=embed, view=OnboardingRoleView())
 
 
 async def setup(bot: SentinelBot):
