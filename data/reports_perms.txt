@@ -1,0 +1,44 @@
+Report Category: 📋 ═ ʀᴀɪ ʀᴇᴘᴏʀᴛs ═ 📋 (1555428388280209422)
+  Target: ✨ ╏ 𝓥ᴇʀɪғɪᴇᴅ 𝕸ᴇᴍʙᴇʀ (type=0) | View Allow: False | View Deny: True
+  Target: 🛡️ ╏ 𝓜ᴏᴅᴇʀᴀᴛᴏʀ 🛡️ (type=0) | View Allow: True | View Deny: False
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: ⚡ ╏ 𝓗ᴇᴀᴅ 𝕬ᴅᴍɪɴ ⚡ (type=0) | View Allow: True | View Deny: False
+
+Channel: 🚨・sᴇᴄᴜʀɪᴛʏ-ʀᴇᴘᴏʀᴛ (1555428392181047366)
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
+
+Channel: 🛡️・ᴍᴏᴅ-ʀᴇᴘᴏʀᴛ (1555428399919538297)
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
+
+Channel: 🎶・ᴍᴜsɪᴄ-ʀᴇᴘᴏʀᴛ (1555428406726893619)
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
+
+Channel: 🔐・ʀᴏᴏᴍ-ʀᴇᴘᴏʀᴛ (1555428413102235701)
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
+
+Channel: 🤖・ʙᴏᴛ-ʀᴇᴘᴏʀᴛ (1555428420383416400)
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
+
+Channel: ⚙️・sʏsᴛᴇᴍ-ʀᴇᴘᴏʀᴛ (1555428426607894570)
+  Target: ⏳ │ Muted / Timeout (type=0) | View Allow: False | View Deny: True
+  Target: @everyone (type=0) | View Allow: False | View Deny: True
+  Target: User/Role 1554732669072445532 (type=1) | View Allow: True | View Deny: False
+  Target: User/Role 1457380609641938981 (type=1) | View Allow: True | View Deny: False
