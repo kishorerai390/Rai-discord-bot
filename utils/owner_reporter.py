@@ -615,8 +615,8 @@ class OwnerReporter:
         "room_report_id": ["room-report", "roomreport"],
         "bot_report_id": ["bot-report", "botreport"],
         "music_report_id": ["music-report", "musicreport"],
-        "mod_report_id": ["mod-report", "modreport"],
-        "security_report_id": ["security-report", "securityreport"],
+        "mod_report_id": ["member-reports", "memberreports", "mod-reports", "modreport", "mod-report"],
+        "security_report_id": ["security-alerts", "securityalerts", "security-report", "securityreport"],
     }
 
     @classmethod
