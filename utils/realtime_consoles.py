@@ -774,6 +774,128 @@ def build_gaming_hub_payload(guild: Optional[Any] = None, bot: Optional[Any] = N
 
 
 # =========================================================================
+# 17. ☕ CHILL & HAVEN LOUNGE VC CONSOLE
+# =========================================================================
+
+def build_chill_lounge_vc_payload(guild: Optional[Any] = None, bot: Optional[Any] = None) -> Dict[str, Any]:
+    v = get_system_vitals(bot)
+    embed = {
+        "title": "☕ 『RΛI』 • CHILL & HAVEN LOUNGE CONSOLE",
+        "description": (
+            "**Welcome to the Night Owl Haven & Ambient Audio Lounge.**\n\n"
+            "Relax, chat, and stream uninterrupted high-fidelity audio (384 kbps).\n"
+            "Use the controls below to trigger coffee orders, lofi beats, or ambient soundscapes.\n\n"
+            f"• **Studio Quality:** `Ultra High Fidelity 384 kbps` 🎧\n"
+            f"• **Gateway Latency:** `{v['latency_ms']}ms` ⚡\n"
+            f"• **Sync:** <t:{v['now_ts']}:R>"
+        ),
+        "color": 0x9B59B6,
+        "fields": [
+            {
+                "name": "✨ Atmosphere Features",
+                "value": "• 24/7 Lofi & Beats stream in `<#1558483052550692884>`\n• Midnight conversation overlay\n• Background noise reduction active",
+                "inline": False,
+            }
+        ],
+        "footer": {"text": "RAI Chill Haven • Ambient Soundscape Center"},
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    components = [
+        {
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 2, "label": "Order Coffee", "emoji": {"name": "☕"}, "custom_id": "rt_chill:order"},
+                {"type": 2, "style": 1, "label": "Lofi Beats", "emoji": {"name": "🎧"}, "custom_id": "rt_chill:lofi"},
+                {"type": 2, "style": 2, "label": "Rain Ambience", "emoji": {"name": "🌧️"}, "custom_id": "rt_chill:ambient"},
+                {"type": 2, "style": 2, "label": "Night Thoughts", "emoji": {"name": "🌙"}, "custom_id": "rt_chill:quote"},
+            ]
+        }
+    ]
+    return {"embeds": [embed], "components": components}
+
+
+# =========================================================================
+# 18. 🎮 GAMING SQUAD & COMMS VC CONSOLE
+# =========================================================================
+
+def build_gaming_squad_vc_payload(guild: Optional[Any] = None, bot: Optional[Any] = None) -> Dict[str, Any]:
+    v = get_system_vitals(bot)
+    embed = {
+        "title": "🎮 『RΛI』 • SQUAD COMMS & ARENA RADAR",
+        "description": (
+            "**Tactical Voice Comms & Matchmaking Operations.**\n\n"
+            "Low-latency voice routing optimized for competitive gaming.\n"
+            "Use the quick-action controls below for comms checks, squad LFG, or match results.\n\n"
+            f"• **Voice Audio Stream:** `Low Latency • 384 kbps` ⚡\n"
+            f"• **Competitive Radar:** `Armed & Online 🟢`\n"
+            f"• **Sync:** <t:{v['now_ts']}:R>"
+        ),
+        "color": 0x5865F2,
+        "fields": [
+            {
+                "name": "🎯 Quick Comms Rules",
+                "value": "• Keep callouts concise and clear during active rounds\n• Toggle mute when afk to preserve comms clarity\n• Share clips in `<#1558482965175078994>`",
+                "inline": False,
+            }
+        ],
+        "footer": {"text": "RAI Gaming Arena • Tactical Squad Operations"},
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    components = [
+        {
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 3, "label": "Find Squad", "emoji": {"name": "🎮"}, "custom_id": "rt_game:squad"},
+                {"type": 2, "style": 1, "label": "GG / Win Streak", "emoji": {"name": "🔥"}, "custom_id": "rt_game:gg"},
+                {"type": 2, "style": 2, "label": "Comms Check", "emoji": {"name": "🎯"}, "custom_id": "rt_game:comms"},
+                {"type": 2, "style": 2, "label": "Custom Room", "emoji": {"name": "⚔️"}, "custom_id": "rt_game:custom"},
+            ]
+        }
+    ]
+    return {"embeds": [embed], "components": components}
+
+
+# =========================================================================
+# 19. 🎬 CREATOR STUDIO & STREAM SUITE VC CONSOLE
+# =========================================================================
+
+def build_creator_studio_vc_payload(guild: Optional[Any] = None, bot: Optional[Any] = None) -> Dict[str, Any]:
+    v = get_system_vitals(bot)
+    embed = {
+        "title": "🎬 『RΛI』 • CREATOR STUDIO & STREAM SUITE",
+        "description": (
+            "**Live Showcase, Recording Lounge & Content Creator Hub.**\n\n"
+            "Designed for video editors, montage creators, and live streamers.\n"
+            "Collaborate on edits, showcase streams, and review clips.\n\n"
+            f"• **Audio Fidelity:** `Broadcast Quality 384 kbps` 🎙️\n"
+            f"• **Screen Sharing:** `1080p 60FPS Enabled` 📺\n"
+            f"• **Sync:** <t:{v['now_ts']}:R>"
+        ),
+        "color": 0xE91E63,
+        "fields": [
+            {
+                "name": "✨ Creator Channels",
+                "value": "• Editing Chat: `<#1558482941817004143>`\n• Gaming Montages: `<#1558482965175078994>`\n• Editing Tips: `<#1558483087283720352>`",
+                "inline": False,
+            }
+        ],
+        "footer": {"text": "RAI Creator Studio • Multimedia Production Hub"},
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    }
+    components = [
+        {
+            "type": 1,
+            "components": [
+                {"type": 2, "style": 1, "label": "Live Stream Alert", "emoji": {"name": "🎬"}, "custom_id": "rt_creator:stream"},
+                {"type": 2, "style": 2, "label": "Montage Feedback", "emoji": {"name": "✂️"}, "custom_id": "rt_creator:feedback"},
+                {"type": 2, "style": 2, "label": "Editing Tips", "emoji": {"name": "💡"}, "custom_id": "rt_creator:tips"},
+            ]
+        }
+    ]
+    return {"embeds": [embed], "components": components}
+
+
+# =========================================================================
 # NATIVE INTERACTIVE MODALS (FORM WINDOWS)
 # =========================================================================
 
@@ -1482,6 +1604,51 @@ class RealtimeConsoleDispatcher:
                         await pred_cog.prediction_list.callback(pred_cog, interaction)
                     else:
                         await interaction.response.send_message("❌ Predictions cog not loaded.", ephemeral=True)
+                    return True
+
+            # 15. Chill Lounge Voice Controls
+            elif cid.startswith("rt_chill:"):
+                action = cid.split(":", 1)[1]
+                if action == "order":
+                    await interaction.response.send_message("☕ **Fresh Espresso Ordered:** Prepared by the RAI Café barista! Sit back, relax, and enjoy the cozy vibes.", ephemeral=True)
+                    return True
+                elif action == "lofi":
+                    await interaction.response.send_message("🎧 **Lofi Beats:** Tune into `<#1558483052550692884>` (24/7 Radio & Beats) or use `/play lofi` to stream right into this voice lounge!", ephemeral=True)
+                    return True
+                elif action == "ambient":
+                    await interaction.response.send_message("🌧️ **Rain & Cozy Ambience:** Acoustic soundscape engaged. Enjoy the gentle background calm.", ephemeral=True)
+                    return True
+                elif action == "quote":
+                    await interaction.response.send_message("🌙 **Late Night Thought:** *'The stars only shine because of the dark around them.'* Relax and stay awhile.", ephemeral=True)
+                    return True
+
+            # 16. Gaming Squad & Comms Voice Controls
+            elif cid.startswith("rt_game:"):
+                action = cid.split(":", 1)[1]
+                if action == "squad":
+                    await interaction.response.send_message("🎮 **Squad LFG:** Looking for squad members! Check `<#1557475853175234660>` (Gaming Hub) or `<#1555428426607894570>` (Free Fire) to team up!", ephemeral=True)
+                    return True
+                elif action == "gg":
+                    await interaction.response.send_message("🔥 **GG WP!** High five to the squad on that clean round and victory streak!", ephemeral=True)
+                    return True
+                elif action == "comms":
+                    await interaction.response.send_message("🎯 **Comms Check:** Audio ping nominal (`384 kbps Ultra HQ`). Callouts clear, locked and loaded.", ephemeral=True)
+                    return True
+                elif action == "custom":
+                    await interaction.response.send_message("⚔️ **Custom Room:** Check `<#1555428426607894570>` or `<#1557475853175234660>` for custom room codes and squad pairing.", ephemeral=True)
+                    return True
+
+            # 17. Creator Studio Voice Controls
+            elif cid.startswith("rt_creator:"):
+                action = cid.split(":", 1)[1]
+                if action == "stream":
+                    await interaction.response.send_message("🎬 **Stream Showcase:** Drop your stream link in `<#1551184138932068373>` (Media Clips) to get featured on the server radar!", ephemeral=True)
+                    return True
+                elif action == "feedback":
+                    await interaction.response.send_message("✂️ **Montage Feedback:** Post your edit in `<#1558482941817004143>` (Editing Chat) or `<#1558482965175078994>` (Gaming Montages) for peer review!", ephemeral=True)
+                    return True
+                elif action == "tips":
+                    await interaction.response.send_message("💡 **Editing Tips:** Visit `<#1558483087283720352>` for recommended bitrate, keyframing, and velocity sync guides!", ephemeral=True)
                     return True
 
             # Universal fallback for any console buttons to guarantee NO timeout

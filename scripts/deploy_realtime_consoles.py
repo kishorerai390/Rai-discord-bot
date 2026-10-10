@@ -33,6 +33,9 @@ from utils.realtime_consoles import (
     build_welcome_payload,
     build_bot_commands_payload,
     build_gaming_hub_payload,
+    build_chill_lounge_vc_payload,
+    build_gaming_squad_vc_payload,
+    build_creator_studio_vc_payload,
 )
 
 load_dotenv("F:/Bot/.env")
@@ -111,6 +114,13 @@ async def main():
         ("welcome", REALTIME_CHANNELS["welcome"], build_welcome_payload()),
         ("bot_commands", REALTIME_CHANNELS["bot_commands"], build_bot_commands_payload()),
         ("gaming_hub", REALTIME_CHANNELS["gaming_hub"], build_gaming_hub_payload()),
+        # --- Voice Channel Text Overlays ---
+        ("vc_join_to_create", 1557461916144767046, build_room_control_payload()),
+        ("vc_radio_24_7", 1555255325706424412, build_music_control_payload()),
+        ("vc_night_owl_cafe", 1554905807240302652, build_chill_lounge_vc_payload()),
+        ("vc_gaming_squad", 1554905825544241302, build_gaming_squad_vc_payload()),
+        ("vc_ranked_comms", 1554905836768469032, build_gaming_squad_vc_payload()),
+        ("vc_stream_showcase", 1554905874437513248, build_creator_studio_vc_payload()),
     ]
 
     async with aiohttp.ClientSession() as session:
