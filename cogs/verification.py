@@ -38,7 +38,7 @@ VERIFY_CHANNEL_ID = 1545502700840427702         # #✨・𝓥ᴇʀɪғʏ-𝕳ᴇ
 WELCOME_CHANNEL_ID = 1545502705643167876        # #🌸・𝓦ᴇʟᴄᴏᴍᴇ
 RULES_CHANNEL_ID = 1545502710101704714          # #📜・𝓡ᴜʟᴇs-ᴀɴᴅ-𝕲ᴜɪᴅᴇ
 ROLES_CHANNEL_ID = 1545502722739150898          # #📌・𝓢ᴇʀᴠᴇʀ-𝕽ᴏʟᴇs
-GENERAL_CHAT_ID = 1545502735749480679           # #💬・𝓖ᴇɴᴇʀᴀʟ-𝓒ʜᴀᴛ
+GENERAL_CHAT_ID = 1545502730699808768           # #💬・general-chat
 
 
 def build_luxury_verification_embed(guild: discord.Guild, min_age_hours: int = 0) -> discord.Embed:
