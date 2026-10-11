@@ -89,10 +89,13 @@ def get_rules_tab_embed(tab_key: str, guild: discord.Guild) -> discord.Embed:
                 "**2. Dynamic Voice Rooms**\n"
                 "Joining `➕・𝓒ʀᴇᴀᴛᴇ・𝕽ᴏᴏᴍ` generates your own temporary channel. As the owner, "
                 "you can lock, rename, and set limits using the room control panel.\n\n"
-                "**3. The Knock System**\n"
+                "**3. Screen Share & Stream Optimization**\n"
+                "When you share your screen, the room automatically scales audio bitrate and renames to highlight your stream. "
+                "Empty rooms auto-clean after a 60-second grace countdown.\n\n"
+                "**4. The Knock System**\n"
                 "If a dynamic room is locked, click **[🔔 Knock to Join]** on the control panel to request permission. "
                 "Do not spam the owner's direct messages.\n\n"
-                "**4. Music Lounges**\n"
+                "**5. Music Lounges**\n"
                 "In dedicated music channels, respect the song queue. Do not spam skip other members' tracks."
             ),
             color=0x2ECC71,
@@ -101,15 +104,17 @@ def get_rules_tab_embed(tab_key: str, guild: discord.Guild) -> discord.Embed:
         embed = discord.Embed(
             title="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ 𝓢ᴇᴄᴜʀɪᴛʏ & 𝓐ɴᴛɪ-𝕽ᴀɪᴅ 𝕻ᴏʟɪᴄʏ ✦",
             description=(
-                "**1. Autonomous Security Engine**\n"
-                "Rai operates a real-time autonomous security watchdog protecting the server against "
-                "malicious bot raids, token grabbers, and mass mentions.\n\n"
+                "**1. Autonomous Security Engine & Self-Healing**\n"
+                "Rai operates a 24/7 autonomous security watchdog protecting against "
+                "malicious raids, token grabbers, dangerous role elevations, and mass mentions with zero chat spam.\n\n"
                 "**2. Zero Unsolicited DM Advertising**\n"
                 "Sending unsolicited direct messages to members promoting servers, services, or sales is strictly forbidden. "
                 "Members caught doing so will be banned.\n\n"
-                "**3. Link Verification**\n"
+                "**3. Link Verification & Phishing Shield**\n"
                 "Do not post suspicious links, fake Discord Nitro gifts, or untrusted file downloads. "
-                "Rai will automatically quarantine malicious links and take punitive action."
+                "Rai will automatically quarantine malicious links and take punitive action.\n\n"
+                "**4. Ghost Ping & Flood Mitigation**\n"
+                "Ghost mentions and sudden message bursts are silently detected and mitigated to preserve clean conversation."
             ),
             color=0xE74C3C,
         )

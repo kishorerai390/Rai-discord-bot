@@ -96,6 +96,7 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         self.birthday_check_loop.start()
         self.db_maintenance_loop.start()
         self.invite_health_monitor_loop.start()
+        self.stale_threads_prune_loop.start()
 
     def cog_unload(self) -> None:
         self.stats_sync_loop.cancel()
@@ -105,6 +106,7 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         self.birthday_check_loop.cancel()
         self.db_maintenance_loop.cancel()
         self.invite_health_monitor_loop.cancel()
+        self.stale_threads_prune_loop.cancel()
 
     stats_group = app_commands.Group(
         name="serverstats",
@@ -115,7 +117,7 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
     # BACKGROUND SYNC LOOPS
     # ==========================================
 
-    @tasks.loop(seconds=60)
+    @tasks.loop(minutes=2)
     async def realtime_consoles_sync_loop(self) -> None:
         """Periodically refreshes active real-time consoles with fresh telemetry and timestamps."""
         try:
@@ -322,7 +324,18 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         if gaming_ch_id:
             ch_game = guild.get_channel(gaming_ch_id)
             if ch_game and isinstance(ch_game, discord.VoiceChannel):
-                expected_game = f"🎮 {gaming_count} playing 📺 {streaming_count} streaming"
+                game_names = [
+                    a.name for m in guild.members
+                    for a in getattr(m, "activities", [])
+                    if getattr(a, "type", None) == discord.ActivityType.playing and getattr(a, "name", None)
+                ]
+                if game_names:
+                    from collections import Counter
+                    top_name, top_c = Counter(game_names).most_common(1)[0]
+                    clean_title = top_name[:12].strip()
+                    expected_game = f"🎮 {clean_title} ({top_c}) 📺 {streaming_count} live"
+                else:
+                    expected_game = f"🎮 {gaming_count} playing 📺 {streaming_count} streaming"
                 if ch_game.name != expected_game:
                     try:
                         await ch_game.edit(name=expected_game, reason="Rai ServerStats: Gaming count sync")
@@ -823,6 +836,37 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
             await interaction.response.send_message(f"🎂 **{target.display_name}**'s birthday is **{m:02d}/{d:02d}**.", ephemeral=True)
         else:
             await interaction.response.send_message(f"❌ No birthday registered for **{target.display_name}**. Use `/birthday set` to register!", ephemeral=True)
+
+    @tasks.loop(hours=12)
+    async def stale_threads_prune_loop(self) -> None:
+        """Autonomously archives and locks inactive threads older than 14 days to prevent channel sidebar clutter."""
+        for guild in self.bot.guilds:
+            if not guild.me.guild_permissions.manage_threads:
+                continue
+            try:
+                now = datetime.now(timezone.utc)
+                cutoff = now - timedelta(days=14)
+                for thread in guild.threads:
+                    if thread.locked:
+                        continue
+                    archive_ts = getattr(thread, "archive_timestamp", None)
+                    if archive_ts and archive_ts < cutoff:
+                        try:
+                            await thread.edit(archived=True, locked=True, reason="Auto Clean: Thread inactive for 14+ days")
+                            logger.info(f"Auto Clean: Locked inactive thread #{thread.name} in {guild.name}")
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.debug(f"stale_threads_prune_loop error in {guild.id}: {e}")
+
+    @stale_threads_prune_loop.before_loop
+    async def before_threads_loop(self) -> None:
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
 
 
 async def setup(bot: SentinelBot) -> None:
