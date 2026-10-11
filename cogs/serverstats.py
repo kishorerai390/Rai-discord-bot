@@ -201,17 +201,20 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                     except discord.HTTPException as e:
                         logger.warning(f"Rate limited or failed updating VC Status on {guild.name}: {e}")
 
-        # 3. Update Bots Channel (if still configured)
+        # 3. Update Bots / Boosts Channel (if still configured)
         if cfg.bots_channel_id:
             ch_bot = guild.get_channel(cfg.bots_channel_id)
             if ch_bot and isinstance(ch_bot, discord.VoiceChannel):
-                expected_name = f"🔒・🤖・𝓑ᴏᴛs: {bots}"
+                if getattr(guild, "premium_subscription_count", 0) > 0:
+                    expected_name = f"🔒・💎・𝓑ᴏᴏsᴛs: {guild.premium_subscription_count} (Tier {guild.premium_tier})"
+                else:
+                    expected_name = f"🔒・🤖・𝓑ᴏᴛs: {bots}"
                 if ch_bot.name != expected_name:
                     try:
                         await ch_bot.edit(name=expected_name, reason="Rai ServerStats: Auto count sync")
                         updated_any = True
                     except discord.HTTPException as e:
-                        logger.warning(f"Rate limited or failed updating Bots on {guild.name}: {e}")
+                        logger.warning(f"Rate limited or failed updating Bots/Boosts on {guild.name}: {e}")
 
         return updated_any
 
@@ -322,7 +325,10 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                 if "bots" in vc.name.lower() or "bot" in vc.name.lower():
                     ch_bot = vc
                     break
-        name_bot = f"🔒・🤖・𝓑ᴏᴛs: {bots}"
+        if getattr(guild, "premium_subscription_count", 0) > 0:
+            name_bot = f"🔒・💎・𝓑ᴏᴏsᴛs: {guild.premium_subscription_count} (Tier {guild.premium_tier})"
+        else:
+            name_bot = f"🔒・🤖・𝓑ᴏᴛs: {bots}"
         if not ch_bot:
             ch_bot = await guild.create_voice_channel(
                 name=name_bot,

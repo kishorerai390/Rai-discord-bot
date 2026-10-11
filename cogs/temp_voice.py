@@ -642,15 +642,18 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             locked = False
             user_limit = cfg.default_user_limit or 0
 
-        # 4. Create Voice Channel (Boosted to 96kbps maximum fidelity)
+        # 4. Create Voice Channel (VIP Booster up to 384kbps, standard high-fidelity 96kbps)
+        is_booster = getattr(member, "premium_since", None) is not None or any("booster" in r.name.lower() for r in member.roles)
+        guild_max_bitrate = getattr(guild, "bitrate_limit", 96000) or 96000
+        target_bitrate = min(guild_max_bitrate, 384000) if is_booster else min(guild_max_bitrate, 96000)
         try:
             temp_vc = await guild.create_voice_channel(
                 name=channel_name,
                 category=category,
                 user_limit=user_limit,
-                bitrate=96000,
+                bitrate=target_bitrate,
                 overwrites=overwrites,
-                reason=f"Rai Dynamic VC: Provisioned {room_type} room for {member.display_name}",
+                reason=f"Rai Dynamic VC: Provisioned {room_type} room ({'VIP Booster Bitrate ' if is_booster else ''}{target_bitrate//1000}kbps) for {member.display_name}",
             )
             # Record creation timestamp for per-user cooldown
             self._creation_cooldowns[member.id] = now_ts

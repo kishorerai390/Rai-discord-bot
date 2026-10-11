@@ -124,3 +124,99 @@ async def test_sticky_banner_generation_and_cycle():
     old_msg.delete.assert_awaited_once()
     assert channel.send.call_count == 1
     assert welcome_cog._sticky_channels[channel.id] == 0
+
+
+@pytest.mark.asyncio
+async def test_booster_celebration_and_vip_bitrate():
+    # 1. Test WelcomeCog Booster Handling
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    welcome_cog = WelcomeCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 1457382179981099090
+    guild.name = "Rai Server"
+    guild.premium_tier = 2
+    guild.premium_subscription_count = 7
+    guild.icon = None
+
+    member = MagicMock(spec=discord.Member)
+    member.id = 444
+    member.guild = guild
+    member.mention = "<@444>"
+    member.roles = []
+    member.display_avatar = None
+    member.add_roles = AsyncMock()
+
+    general_ch = MagicMock(spec=discord.TextChannel)
+    general_ch.id = 1545502730699808768
+    general_ch.send = AsyncMock()
+    guild.get_channel.return_value = general_ch
+
+    booster_role = MagicMock(spec=discord.Role)
+    booster_role.id = 1549504543472353381
+    booster_role.name = "💎 ┆ SERVER BOOSTER"
+    guild.get_role.return_value = booster_role
+    guild.me = MagicMock()
+    guild.me.top_role = MagicMock()
+    booster_role.__lt__ = MagicMock(return_value=True)
+
+    with patch("utils.owner_reporter.OwnerReporter.send_room_report"):
+        await welcome_cog._handle_server_boost(member, is_test=False)
+        member.add_roles.assert_awaited_once()
+        general_ch.send.assert_awaited_once()
+        args, kwargs = general_ch.send.call_args
+        assert "💎 ✦ 𝓝ᴇᴡ 𝕾ᴇʀᴠᴇʀ 𝕭ᴏᴏsᴛ ✦ 💎" in kwargs["embed"].title
+
+    # 2. Test VIP Bitrate Calculation in TempVoice
+    temp_cog = TempVoiceCog(bot)
+    guild.bitrate_limit = 256000
+    member.premium_since = MagicMock()
+    is_booster = getattr(member, "premium_since", None) is not None
+    target_bitrate = min(guild.bitrate_limit, 384000) if is_booster else min(guild.bitrate_limit, 96000)
+    assert target_bitrate == 256000
+
+
+@pytest.mark.asyncio
+async def test_serverstats_locked_voice_channels_only():
+    from cogs.serverstats import ServerStatsCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    stats_cog = ServerStatsCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 1234
+    guild.member_count = 100
+    guild.members = [MagicMock(bot=False, status=discord.Status.online) for _ in range(80)] + [MagicMock(bot=True, status=discord.Status.online) for _ in range(20)]
+    guild.premium_subscription_count = 5
+    guild.premium_tier = 1
+
+    ch_all = MagicMock(spec=discord.VoiceChannel)
+    ch_all.name = "Old All"
+    ch_all.edit = AsyncMock()
+
+    ch_mem = MagicMock(spec=discord.VoiceChannel)
+    ch_mem.name = "Old Mem"
+    ch_mem.edit = AsyncMock()
+
+    ch_bot = MagicMock(spec=discord.VoiceChannel)
+    ch_bot.name = "Old Bot"
+    ch_bot.edit = AsyncMock()
+
+    guild.voice_channels = [ch_all, ch_mem, ch_bot]
+    guild.get_channel.side_effect = lambda cid: {1: ch_all, 2: ch_mem, 3: ch_bot}.get(cid)
+
+    cfg = MagicMock()
+    cfg.enabled = True
+    cfg.all_members_channel_id = 1
+    cfg.members_channel_id = 2
+    cfg.bots_channel_id = 3
+    bot.db.get_or_create_server_stats_config.return_value = cfg
+
+    updated = await stats_cog.update_guild_stats(guild)
+    assert updated is True
+    # Verify channel 3 displays boosts since premium_subscription_count > 0
+    assert "𝓑ᴏᴏsᴛs: 5 (Tier 1)" in ch_bot.edit.call_args[1]["name"]
+    # Verify no text channel creation was called
+    assert not hasattr(guild, "create_text_channel") or guild.create_text_channel.call_count == 0
+

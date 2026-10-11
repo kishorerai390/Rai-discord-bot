@@ -236,6 +236,81 @@ class WelcomeCog(commands.Cog, name="Welcome"):
             except Exception:
                 pass
 
+        # 4. Server Boost Detection & Real-time Celebration
+        if getattr(before, "premium_since", None) is None and getattr(after, "premium_since", None) is not None:
+            await self._handle_server_boost(after)
+
+    async def _handle_server_boost(self, member: discord.Member, is_test: bool = False) -> None:
+        """Handles real-time server boost celebration, role award, and VIP announcement."""
+        guild = member.guild
+        logger.info(f"Member {member} ({member.id}) boosted server {guild.name} (test={is_test})")
+
+        # 1. Assign booster role
+        booster_role = guild.get_role(1549504543472353381)  # 💎 ┆ SERVER BOOSTER
+        if not booster_role:
+            for r in guild.roles:
+                if "booster" in r.name.lower() and r < guild.me.top_role:
+                    booster_role = r
+                    break
+
+        if booster_role and booster_role not in member.roles and booster_role < guild.me.top_role and not is_test:
+            try:
+                await member.add_roles(booster_role, reason="Server Boost Unlocked")
+            except Exception as e:
+                logger.warning(f"Failed to award booster role to {member}: {e}")
+
+        # 2. Celebration Embed
+        embed = discord.Embed(
+            title="💎 ✦ 𝓝ᴇᴡ 𝕾ᴇʀᴠᴇʀ 𝕭ᴏᴏsᴛ ✦ 💎",
+            description=(
+                f"Huge appreciation to {member.mention} for boosting **{guild.name}**!\n\n"
+                f"✨ **Server Tier:** Level {guild.premium_tier} • **Total Boosts:** {guild.premium_subscription_count}\n\n"
+                "**VIP Booster Perks Unlocked:**\n"
+                "• 💎 `💎 ┆ SERVER BOOSTER` prestige profile role\n"
+                "• 🎙️ Ultra-HD 384kbps Priority Bitrate in Dynamic Voice Suites\n"
+                "• 👑 Priority Suite customization & VIP badge\n"
+                "• ⭐ Instant Private Lounge creation privileges"
+            ),
+            color=0xF47FFF,  # Nitro Rose Pink
+        )
+        if member.display_avatar:
+            embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(
+            text="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Community Booster Celebration ✦",
+            icon_url=guild.icon.url if guild.icon else None,
+        )
+
+        general_ch = guild.get_channel(1545502730699808768)  # #general-chat
+        if not general_ch or not isinstance(general_ch, discord.TextChannel):
+            general_ch = guild.system_channel
+
+        if general_ch and isinstance(general_ch, discord.TextChannel):
+            try:
+                await general_ch.send(
+                    content=f"🎉 **SERVER BOOST!** Thank you {member.mention} for boosting the server!" if not is_test else f"**[PREVIEW]** {member.mention}",
+                    embed=embed,
+                )
+            except Exception as e:
+                logger.debug(f"Could not post booster announcement: {e}")
+
+        # 3. Telemetry Report
+        if not is_test:
+            try:
+                from utils.owner_reporter import OwnerReporter
+                OwnerReporter.send_room_report(
+                    self.bot,
+                    guild.id,
+                    event="Server Boost Detected",
+                    user=member,
+                    action_taken="Awarded booster role & enabled 384kbps VIP audio bitrate",
+                    details={
+                        "Tier": f"Level {guild.premium_tier}",
+                        "Total Boosts": str(guild.premium_subscription_count),
+                    },
+                )
+            except Exception:
+                pass
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Monitors chat volume in stickied channels and cleanly cycles the navigation banner."""
@@ -409,6 +484,16 @@ class WelcomeCog(commands.Cog, name="Welcome"):
         embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
 
         await interaction.response.send_message(content=f"**[Preview]** Mention: {member.mention}", embed=embed, ephemeral=True)
+
+    @welcome_group.command(name="testboost", description="Preview the luxury server booster celebration announcement")
+    @is_admin_or_owner()
+    async def welcome_testboost(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        if isinstance(interaction.user, discord.Member):
+            await self._handle_server_boost(interaction.user, is_test=True)
+            await interaction.followup.send("✅ Test boost celebration dispatched to #general-chat.", ephemeral=True)
+        else:
+            await interaction.followup.send("Must be executed inside a server.", ephemeral=True)
 
     @welcome_group.command(name="disable", description="Disable welcome and goodbye messages")
     @is_admin_or_owner()
