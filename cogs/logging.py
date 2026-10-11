@@ -241,6 +241,7 @@ class LoggingCog(commands.Cog, name="Logging"):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
+        guild = member.guild
         embed = create_embed(
             title="📥 Member Joined",
             description=f"{member.mention} (`{member.id}`)",
@@ -250,6 +251,27 @@ class LoggingCog(commands.Cog, name="Logging"):
         embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
         embed.add_field(name="Server Member Count", value=str(member.guild.member_count), inline=True)
         await self._send_log(member.guild, "member_channel_id", embed)
+
+        # Suspicious Alt Account Detection (Accounts under 7 days old)
+        account_age_days = (discord.utils.utcnow() - member.created_at).days
+        if account_age_days < 7 and not member.bot:
+            try:
+                from utils.owner_reporter import OwnerReporter
+                OwnerReporter.send_security_alert(
+                    self.bot,
+                    guild.id,
+                    event="Suspicious New Account / Potential Alt",
+                    user=member,
+                    severity="HIGH",
+                    details={
+                        "Account Age": f"`{account_age_days} day(s) old`",
+                        "Created At": discord.utils.format_dt(member.created_at, "F"),
+                        "Join Target": guild.name,
+                        "Risk Assessment": "Account created < 7 days ago — High risk of alt or raid bypass",
+                    },
+                )
+            except Exception:
+                pass
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
@@ -287,6 +309,48 @@ class LoggingCog(commands.Cog, name="Logging"):
     async def on_message_delete(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return
+
+        # Check for Ghost Ping (deleted message containing user/role/@everyone mentions)
+        has_user_mentions = bool(message.mentions)
+        has_role_mentions = bool(message.role_mentions)
+        has_everyone = bool(message.mention_everyone)
+        if has_user_mentions or has_role_mentions or has_everyone:
+            targets = []
+            if has_everyone:
+                targets.append("@everyone / @here")
+            for u in message.mentions:
+                targets.append(f"{u.mention} (`{u.name}`)")
+            for r in message.role_mentions:
+                targets.append(f"{r.mention} (`{r.name}`)")
+
+            ghost_embed = create_embed(
+                title="👻 Ghost Ping Detected",
+                description=(
+                    f"**Author:** {message.author.mention} (`{message.author.id}`)\n"
+                    f"**Channel:** {message.channel.mention}\n"
+                    f"**Pinged Target(s):** {', '.join(targets[:8])}\n\n"
+                    f"**Deleted Message Content:**\n```{message.content[:900] if message.content else '[No Text Content]'}```"
+                ),
+                color=Colors.ERROR,
+            )
+            # Route to moderation logs channel
+            await self._send_log(message.guild, "moderation_channel_id", ghost_embed)
+
+            # Send confidential mod report
+            try:
+                from utils.owner_reporter import OwnerReporter
+                OwnerReporter.send_mod_report(
+                    self.bot,
+                    message.guild.id,
+                    event="Ghost Ping Detected",
+                    user=message.author,
+                    reason=f"Message with {len(targets)} mention(s) deleted in #{message.channel.name}",
+                    action_taken="Logged to moderation audit logs",
+                    severity="MEDIUM",
+                    details={"Channel": message.channel.mention, "Target(s)": ", ".join(targets[:5])},
+                )
+            except Exception:
+                pass
 
         embed = create_embed(
             title="🗑️ Message Deleted",

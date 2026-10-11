@@ -282,6 +282,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         if before.channel and before.channel != after.channel:
             room = await self.bot.db.get_dynamic_room(before.channel.id)
             if room:
+                remaining_members = [m for m in before.channel.members if not m.bot]
                 if len(before.channel.members) == 0:
                     # Started empty countdown
                     await self.bot.db.update_dynamic_room(
@@ -289,6 +290,46 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                         status="empty_countdown",
                         last_empty_at=utcnow_iso(),
                     )
+                elif member.id == room.owner_id and remaining_members:
+                    # Host departed while others remain -> Automatically transfer host ownership
+                    new_owner = remaining_members[0]
+                    try:
+                        await self.bot.db.update_dynamic_room(
+                            room.voice_channel_id,
+                            owner_id=new_owner.id,
+                        )
+                        room.owner_id = new_owner.id
+                        # Grant manage channel overrides to new host
+                        await before.channel.set_permissions(
+                            new_owner,
+                            manage_channels=True,
+                            move_members=True,
+                            mute_members=True,
+                            connect=True,
+                            speak=True,
+                            reason="Rai Dynamic VC: Automatic ownership transfer on former host departure",
+                        )
+                        # Clear former host channel override
+                        await before.channel.set_permissions(
+                            member,
+                            overwrite=None,
+                            reason="Rai Dynamic VC: Relinquished host privileges on departure",
+                        )
+                        # Post transition notice into VC chat
+                        trans_embed = create_embed(
+                            title="👑 Room Host Transferred",
+                            description=(
+                                f"{member.mention} departed the room.\n"
+                                f"👑 **New Host:** {new_owner.mention}\n\n"
+                                f"Use the interactive controls in <#{room.control_channel_id}> to configure your room."
+                            ),
+                            color=Colors.PRIMARY,
+                        )
+                        await before.channel.send(embed=trans_embed)
+                        logger.info(f"Transferred room #{before.channel.name} ownership from {member} to {new_owner}")
+                    except Exception as trans_err:
+                        logger.warning(f"Failed to auto-transfer dynamic room ownership: {trans_err}")
+
                 await DynamicVCControlManager.update_room_panel(self.bot, guild, room.voice_channel_id)
 
         # Member entered a channel

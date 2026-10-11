@@ -250,23 +250,28 @@ class ModerationCog(commands.Cog, name="Moderation"):
             await interaction.response.send_message(embed=error_embed("Action Disallowed", err), ephemeral=True)
             return
 
-        warning_id = await self.bot.db.add_warning(interaction.guild.id, member.id, interaction.user.id, reason)
+        expires_at = (discord.utils.utcnow() + datetime.timedelta(days=30)).isoformat()
+        warning_id = await self.bot.db.add_warning(interaction.guild.id, member.id, interaction.user.id, reason, expires_at=expires_at)
         warnings = await self.bot.db.get_warnings(interaction.guild.id, member.id)
+
+        now_iso = discord.utils.utcnow().isoformat()
+        active_count = sum(1 for w in warnings if not w.expires_at or w.expires_at > now_iso)
 
         embed = success_embed(
             "Warning Issued",
             f"Warned {member.mention} (`Warning #{warning_id}`).\n"
             f"**Reason:** {reason}\n"
-            f"**Total Warnings:** {len(warnings)}"
+            f"**Active Strikes:** {active_count} (Expires in 30 days)\n"
+            f"**Total Historical Warnings:** {len(warnings)}"
         )
         await interaction.response.send_message(embed=embed)
-        await self._log_mod_action(interaction.guild, f"Warn (#{warning_id})", member, interaction.user, reason)
+        await self._log_mod_action(interaction.guild, f"Warn (#{warning_id})", member, interaction.user, reason, extra="Strike expires in 30 days")
 
         # Notify warned user in DM
         try:
             dm_embed = warning_embed(
                 f"Warning in {interaction.guild.name}",
-                f"You received a warning from staff.\n**Reason:** {reason}\n**Total Warnings:** {len(warnings)}",
+                f"You received a warning from staff.\n**Reason:** {reason}\n**Active Strikes:** {active_count} (Expires in 30 days)",
             )
             await member.send(embed=dm_embed)
         except (discord.Forbidden, discord.HTTPException):
@@ -282,17 +287,27 @@ class ModerationCog(commands.Cog, name="Moderation"):
             await interaction.response.send_message(embed=info_embed("No Warnings", f"{member.mention} has a clean record with 0 warnings."), ephemeral=True)
             return
 
-        lines = [
-            f"`#{w.id}` — **{w.reason}** (by <@{w.moderator_id}> on {w.created_at[:10]})"
-            for w in warns
-        ]
+        now_iso = discord.utils.utcnow().isoformat()
+        active_lines = []
+        expired_lines = []
+
+        for w in warns:
+            line = f"`#{w.id}` — **{w.reason}** (by <@{w.moderator_id}> on {w.created_at[:10]})"
+            if w.expires_at and w.expires_at <= now_iso:
+                expired_lines.append(f"{line} *(Expired)*")
+            else:
+                active_lines.append(line)
 
         embed = create_embed(
-            title=f"⚠️ Warnings for {member.name} ({len(warns)})",
-            description="\n".join(lines),
-            color=Colors.WARNING,
+            title=f"⚠️ Warnings for {member.name} ({len(active_lines)} Active / {len(warns)} Total)",
+            color=Colors.WARNING if active_lines else Colors.SUCCESS,
             thumbnail_url=member.display_avatar.url,
         )
+        if active_lines:
+            embed.add_field(name=f"🔴 Active Strikes ({len(active_lines)})", value="\n".join(active_lines[:8]), inline=False)
+        if expired_lines:
+            embed.add_field(name=f"⚪ Expired Strikes ({len(expired_lines)})", value="\n".join(expired_lines[:5]), inline=False)
+
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(name="clear", description="Purge a specified number of messages in the channel")
