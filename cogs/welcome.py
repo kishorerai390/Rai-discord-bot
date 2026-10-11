@@ -136,6 +136,68 @@ class WelcomeCog(commands.Cog, name="Welcome"):
                     except (discord.Forbidden, discord.HTTPException):
                         pass
 
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """Detect when member passes Discord Membership Screening (Agrees to Rules) and unlock verified roles."""
+        if getattr(before, "pending", False) and not getattr(after, "pending", False):
+            guild = after.guild
+            logger.info(f"Member {after} ({after.id}) agreed to server rules / passed membership screening in {guild.name}")
+            
+            roles_to_add = []
+            
+            # 1. Check guild welcome autorole config
+            w_cfg = await self.bot.db.get_welcome_config(guild.id)
+            if w_cfg and w_cfg.autorole_id:
+                auto_role = guild.get_role(w_cfg.autorole_id)
+                if auto_role and auto_role not in after.roles and auto_role < guild.me.top_role:
+                    roles_to_add.append(auto_role)
+
+            # 2. Known community and verified roles for main server (or by name match)
+            verified_role = guild.get_role(1549504522953695269)   # ✨ ┆ VERIFIED MEMBER
+            community_role = guild.get_role(1545494584203673740)  # 💖 ┆ RAI FAM
+            
+            if not verified_role:
+                for r in guild.roles:
+                    rname = r.name.lower()
+                    if "verified" in rname and "member" in rname and r < guild.me.top_role:
+                        verified_role = r
+                        break
+            if not community_role:
+                for r in guild.roles:
+                    rname = r.name.lower()
+                    if ("rai" in rname and "fam" in rname) and r < guild.me.top_role:
+                        community_role = r
+                        break
+
+            if verified_role and verified_role not in after.roles and verified_role < guild.me.top_role:
+                roles_to_add.append(verified_role)
+            if community_role and community_role not in after.roles and community_role < guild.me.top_role:
+                roles_to_add.append(community_role)
+
+            if roles_to_add:
+                try:
+                    await after.add_roles(*roles_to_add, reason="Automated Gateway: Agreed to Discord Rules & Passed Screening")
+                    logger.info(f"Granted {[r.name for r in roles_to_add]} to {after} after passing screening")
+                except Exception as err:
+                    logger.warning(f"Failed to grant screening roles to {after}: {err}")
+
+            # 3. Log to Security / Mod Report channel
+            try:
+                from utils.owner_reporter import OwnerReporter
+                OwnerReporter.send_mod_report(
+                    self.bot,
+                    guild.id,
+                    event="Membership Screening Completed",
+                    user=after,
+                    action_taken=f"Granted verified roles: {', '.join(f'`{r.name}`' for r in roles_to_add)}" if roles_to_add else "Verified standing confirmed",
+                    details={
+                        "Account Age": discord.utils.format_dt(after.created_at, "R"),
+                        "Gate": "Discord Native Rule Agreement",
+                    },
+                )
+            except Exception:
+                pass
+
     # ==========================================
     # SLASH COMMANDS
     # ==========================================
