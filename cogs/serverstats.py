@@ -13,7 +13,7 @@ import asyncio
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Literal
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -26,6 +26,55 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+THEMES: dict[str, dict[str, str]] = {
+    "butterfly": {
+        "emoji": "🦋",
+        "cat_server": "Server Status! ⌵",
+        "cat_vc": "Vc Status! ⌵",
+        "label": "🦋 Butterfly (Screenshot 1 Theme)",
+    },
+    "swan": {
+        "emoji": "🦢",
+        "cat_server": "🔒 𝐒𝐞𝐫𝐯𝐞𝐫 𝐒𝐭𝐚𝐭𝐮𝐬!",
+        "cat_vc": "🔒 𝐕𝐜 𝐒𝐭𝐚𝐭𝐮𝐬!",
+        "label": "🦢 Swan & Serif (Screenshot 2 Theme)",
+    },
+    "stars": {
+        "emoji": "✦",
+        "cat_server": "✦ 𝐒𝐞𝐫𝐯𝐞𝐫 𝐒𝐭𝐚𝐭𝐮𝐬 ✦",
+        "cat_vc": "✦ 𝐕𝐜 𝐒𝐭𝐚𝐭𝐮𝐬 ✦",
+        "label": "✦ Cyberpunk Stars",
+    },
+    "moon": {
+        "emoji": "🌙",
+        "cat_server": "🌙 𝐒𝐞𝐫𝐯𝐞𝐫 𝐒𝐭𝐚𝐭𝐮𝐬 🌙",
+        "cat_vc": "🌙 𝐕𝐜 𝐒𝐭𝐚𝐭𝐮𝐬 🌙",
+        "label": "🌙 Midnight Lounge",
+    },
+    "blossom": {
+        "emoji": "🌸",
+        "cat_server": "🌸 𝐒𝐞𝐫𝐯𝐞𝐫 𝐒𝐭𝐚𝐭𝐮𝐬 🌸",
+        "cat_vc": "🌸 𝐕𝐜 𝐒𝐭𝐚𝐭𝐮𝐬 🌸",
+        "label": "🌸 Cherry Blossom",
+    },
+    "fire": {
+        "emoji": "🔥",
+        "cat_server": "🔥 𝐒𝐞𝐫𝐯𝐞𝐫 𝐒𝐭𝐚𝐭𝐮𝐬 🔥",
+        "cat_vc": "🔥 𝐕𝐜 𝐒𝐭𝐚𝐭𝐮𝐬 🔥",
+        "label": "🔥 Fire Energy",
+    },
+}
+
+
+def make_goal_progress_bar(current: int) -> tuple[str, int]:
+    """Generates an aesthetic 10-block progress bar towards next member goal."""
+    milestones = [50, 100, 250, 500, 1000, 1500, 2000, 2500, 5000, 10000]
+    next_goal = next((m for m in milestones if m > current), current + 100)
+    ratio = min(1.0, max(0.0, current / next_goal)) if next_goal > 0 else 1.0
+    filled = int(round(ratio * 10))
+    bar = "■" * filled + "□" * (10 - filled)
+    return bar, next_goal
+
 
 class ServerStatsCog(commands.Cog, name="ServerStats"):
     """Autonomous Server Stats Voice Counter Channels & Self-Driving Background Loops."""
@@ -35,6 +84,11 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         self._update_locks: dict[int, float] = {}
         self._daily_activity_tracker: dict[tuple[int, int], int] = defaultdict(int)
         self._member_birthdays: dict[tuple[int, int], tuple[int, int]] = {}
+        self._guild_theme: dict[int, str] = {}
+        self._guild_branding: dict[int, str] = {}
+        self._guild_vc_cat_id: dict[int, int] = {}
+        self._guild_gaming_channel_id: dict[int, int] = {}
+        self._guild_show_goal: dict[int, bool] = {}
         self.stats_sync_loop.start()
         self.realtime_consoles_sync_loop.start()
         self.chatter_of_the_day_loop.start()
@@ -182,20 +236,44 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         humans = total_members - bots
         online_members = sum(1 for m in guild.members if m.status != discord.Status.offline)
 
+        theme_name = self._guild_theme.get(guild.id, "butterfly")
+        theme = THEMES.get(theme_name, THEMES["butterfly"])
+        emoji = theme["emoji"]
+
         # Active VC metrics
         active_vcs = [
             vc for vc in guild.voice_channels
             if len(vc.members) > 0 and vc.id not in (cfg.all_members_channel_id, cfg.members_channel_id, cfg.bots_channel_id)
         ]
         vc_users = sum(len(vc.members) for vc in active_vcs)
+        gaming_count = sum(1 for m in guild.members if any(a.type == discord.ActivityType.playing for a in m.activities))
+        streaming_count = sum(1 for m in guild.members if m.voice and m.voice.self_stream)
 
         updated_any = False
 
-        # 1. Update Server Status Channel (Dual-metric matching reference: 🦋 {online} online 🦋 {total} members)
+        # Update categories if theme changed
+        if cfg.category_id:
+            cat_s = guild.get_channel(cfg.category_id)
+            if cat_s and isinstance(cat_s, discord.CategoryChannel) and cat_s.name != theme["cat_server"]:
+                try:
+                    await cat_s.edit(name=theme["cat_server"])
+                except Exception:
+                    pass
+
+        vc_cat_id = self._guild_vc_cat_id.get(guild.id)
+        if vc_cat_id:
+            cat_v = guild.get_channel(vc_cat_id)
+            if cat_v and isinstance(cat_v, discord.CategoryChannel) and cat_v.name != theme["cat_vc"]:
+                try:
+                    await cat_v.edit(name=theme["cat_vc"])
+                except Exception:
+                    pass
+
+        # 1. Update Server Status Channel (Dual-metric: {emoji} {online} online {emoji} {total} members)
         if cfg.all_members_channel_id:
             ch_all = guild.get_channel(cfg.all_members_channel_id)
             if ch_all and isinstance(ch_all, discord.VoiceChannel):
-                expected_name = f"🦋 {online_members} online 🦋 {total_members} members"
+                expected_name = f"{emoji} {online_members} online {emoji} {total_members} members"
                 if ch_all.name != expected_name:
                     try:
                         await ch_all.edit(name=expected_name, reason="Rai ServerStats: Aesthetic count sync")
@@ -203,11 +281,11 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                     except discord.HTTPException as e:
                         logger.warning(f"Rate limited or failed updating Server Status on {guild.name}: {e}")
 
-        # 2. Update VC Status Channel (Dual-metric matching reference: 🦋 {vc_users} vc user 🦋 {len(active_vcs)} Active vc)
+        # 2. Update VC Status Channel (Dual-metric: {emoji} {vc_users} vc user {emoji} {len(active_vcs)} Active vc)
         if cfg.members_channel_id:
             ch_mem = guild.get_channel(cfg.members_channel_id)
             if ch_mem and isinstance(ch_mem, discord.VoiceChannel):
-                expected_name = f"🦋 {vc_users} vc user 🦋 {len(active_vcs)} Active vc"
+                expected_name = f"{emoji} {vc_users} vc user {emoji} {len(active_vcs)} Active vc"
                 if ch_mem.name != expected_name:
                     try:
                         await ch_mem.edit(name=expected_name, reason="Rai ServerStats: Aesthetic count sync")
@@ -215,20 +293,41 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                     except discord.HTTPException as e:
                         logger.warning(f"Rate limited or failed updating VC Status on {guild.name}: {e}")
 
-        # 3. Update Bots / Boosts Channel (if still configured)
+        # 3. Update Branding / Goal / Boosts Channel
         if cfg.bots_channel_id:
             ch_bot = guild.get_channel(cfg.bots_channel_id)
             if ch_bot and isinstance(ch_bot, discord.VoiceChannel):
-                if getattr(guild, "premium_subscription_count", 0) > 0:
-                    expected_name = f"🔒・💎・𝓑ᴏᴏsᴛs: {guild.premium_subscription_count} (Tier {guild.premium_tier})"
+                show_goal = self._guild_show_goal.get(guild.id, False)
+                branding = self._guild_branding.get(guild.id)
+                if show_goal:
+                    bar, goal = make_goal_progress_bar(total_members)
+                    expected_name = f"🎯 Goal: [{bar}] {total_members}/{goal}"
+                elif branding:
+                    expected_name = branding
+                elif getattr(guild, "premium_subscription_count", 0) > 0:
+                    expected_name = f"💎 {guild.premium_subscription_count} Boosts ╏ Level {guild.premium_tier}"
                 else:
-                    expected_name = f"🔒・🤖・𝓑ᴏᴛs: {bots}"
+                    expected_name = f"✦ {guild.name} ✦"
+
                 if ch_bot.name != expected_name:
                     try:
-                        await ch_bot.edit(name=expected_name, reason="Rai ServerStats: Auto count sync")
+                        await ch_bot.edit(name=expected_name, reason="Rai ServerStats: Aesthetic branding/goal sync")
                         updated_any = True
                     except discord.HTTPException as e:
-                        logger.warning(f"Rate limited or failed updating Bots/Boosts on {guild.name}: {e}")
+                        logger.warning(f"Rate limited or failed updating Branding/Goal on {guild.name}: {e}")
+
+        # 4. Update Gaming Channel (if configured)
+        gaming_ch_id = self._guild_gaming_channel_id.get(guild.id)
+        if gaming_ch_id:
+            ch_game = guild.get_channel(gaming_ch_id)
+            if ch_game and isinstance(ch_game, discord.VoiceChannel):
+                expected_game = f"🎮 {gaming_count} playing 📺 {streaming_count} streaming"
+                if ch_game.name != expected_game:
+                    try:
+                        await ch_game.edit(name=expected_game, reason="Rai ServerStats: Gaming count sync")
+                        updated_any = True
+                    except discord.HTTPException as e:
+                        logger.warning(f"Rate limited or failed updating Gaming counter on {guild.name}: {e}")
 
         return updated_any
 
@@ -264,113 +363,123 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
             guild.me: discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True),
         }
 
-        # Find or create category
-        category = None
+        theme_name = self._guild_theme.get(guild.id, "butterfly")
+        theme = THEMES.get(theme_name, THEMES["butterfly"])
+        emoji = theme["emoji"]
+        branding = self._guild_branding.get(guild.id, f"✦ {guild.name} ✦")
+
+        # 1. Server Status Category
+        cat_server = None
         if cfg.category_id:
-            category = guild.get_channel(cfg.category_id)
-        if not category or not isinstance(category, discord.CategoryChannel):
-            # Check if one already exists named 'SERVER STATS'
+            cat_server = guild.get_channel(cfg.category_id)
+        if not cat_server or not isinstance(cat_server, discord.CategoryChannel):
             for cat in guild.categories:
-                if "server" in cat.name.lower() and "stat" in cat.name.lower():
-                    category = cat
+                if "server" in cat.name.lower() and "status" in cat.name.lower():
+                    cat_server = cat
                     break
 
-        cat_title = "╭━━━ 📊 ╏ 𝓢ᴇʀᴠᴇʀ・𝕾ᴛᴀᴛs ━━━╮"
-        if not category:
-            category = await guild.create_category(
-                name=cat_title,
+        if not cat_server:
+            cat_server = await guild.create_category(
+                name=theme["cat_server"],
                 position=0,
-                reason="Rai ServerStats: Created stats category",
+                reason="Rai ServerStats: Created Server Status category",
             )
         else:
-            if category.name != cat_title:
-                await category.edit(name=cat_title)
+            if cat_server.name != theme["cat_server"]:
+                await cat_server.edit(name=theme["cat_server"])
+
+        # 2. Vc Status Category
+        cat_vc = None
+        vc_cat_id = self._guild_vc_cat_id.get(guild.id)
+        if vc_cat_id:
+            cat_vc = guild.get_channel(vc_cat_id)
+        if not cat_vc or not isinstance(cat_vc, discord.CategoryChannel):
+            for cat in guild.categories:
+                if "vc" in cat.name.lower() and "status" in cat.name.lower():
+                    cat_vc = cat
+                    break
+
+        if not cat_vc:
+            cat_vc = await guild.create_category(
+                name=theme["cat_vc"],
+                position=1,
+                reason="Rai ServerStats: Created Vc Status category",
+            )
+            self._guild_vc_cat_id[guild.id] = cat_vc.id
+        else:
+            if cat_vc.name != theme["cat_vc"]:
+                await cat_vc.edit(name=theme["cat_vc"])
+            self._guild_vc_cat_id[guild.id] = cat_vc.id
 
         total_members = guild.member_count or len(guild.members)
-        bots = sum(1 for m in guild.members if m.bot)
-        humans = total_members - bots
+        online_members = sum(1 for m in guild.members if m.status != discord.Status.offline)
 
-        # 1. All Members channel
+        # 1. Online & Total Members Channel (inside Server Status)
         ch_all = None
         if cfg.all_members_channel_id:
             ch_all = guild.get_channel(cfg.all_members_channel_id)
+        name_all = f"{emoji} {online_members} online {emoji} {total_members} members"
         if not ch_all or not isinstance(ch_all, discord.VoiceChannel):
-            for vc in category.voice_channels:
-                if "all" in vc.name.lower():
-                    ch_all = vc
-                    break
-        name_all = f"🔒・👥・𝓐ʟʟ・𝓜ᴇᴍʙᴇʀs: {total_members}"
-        if not ch_all:
             ch_all = await guild.create_voice_channel(
                 name=name_all,
-                category=category,
+                category=cat_server,
                 overwrites=overwrites,
-                reason="Rai ServerStats: Created All Members counter",
+                reason="Rai ServerStats: Created Online & Total Members counter",
             )
         else:
             await ch_all.edit(name=name_all, overwrites=overwrites)
 
-        # 2. Members channel
+        # 2. Branding Channel (inside Server Status)
+        ch_branding = None
+        if cfg.bots_channel_id:
+            ch_branding = guild.get_channel(cfg.bots_channel_id)
+        name_branding = branding
+        if not ch_branding or not isinstance(ch_branding, discord.VoiceChannel):
+            ch_branding = await guild.create_voice_channel(
+                name=name_branding,
+                category=cat_server,
+                overwrites=overwrites,
+                reason="Rai ServerStats: Created Server Branding banner",
+            )
+        else:
+            await ch_branding.edit(name=name_branding, overwrites=overwrites)
+
+        # 3. VC Users & Active VCs Channel (inside Vc Status)
         ch_mem = None
         if cfg.members_channel_id:
             ch_mem = guild.get_channel(cfg.members_channel_id)
+        active_vcs = [vc for vc in guild.voice_channels if len(vc.members) > 0 and vc.id not in (ch_all.id, ch_branding.id)]
+        vc_users = sum(len(vc.members) for vc in active_vcs)
+        name_vc = f"{emoji} {vc_users} vc user {emoji} {len(active_vcs)} Active vc"
         if not ch_mem or not isinstance(ch_mem, discord.VoiceChannel):
-            for vc in category.voice_channels:
-                if "members" in vc.name.lower() and "all" not in vc.name.lower():
-                    ch_mem = vc
-                    break
-        name_mem = f"🔒・👤・𝓜ᴇᴍʙᴇʀs: {humans}"
-        if not ch_mem:
             ch_mem = await guild.create_voice_channel(
-                name=name_mem,
-                category=category,
+                name=name_vc,
+                category=cat_vc,
                 overwrites=overwrites,
-                reason="Rai ServerStats: Created Members counter",
+                reason="Rai ServerStats: Created VC Status counter",
             )
         else:
-            await ch_mem.edit(name=name_mem, overwrites=overwrites)
-
-        # 3. Bots channel
-        ch_bot = None
-        if cfg.bots_channel_id:
-            ch_bot = guild.get_channel(cfg.bots_channel_id)
-        if not ch_bot or not isinstance(ch_bot, discord.VoiceChannel):
-            for vc in category.voice_channels:
-                if "bots" in vc.name.lower() or "bot" in vc.name.lower():
-                    ch_bot = vc
-                    break
-        if getattr(guild, "premium_subscription_count", 0) > 0:
-            name_bot = f"🔒・💎・𝓑ᴏᴏsᴛs: {guild.premium_subscription_count} (Tier {guild.premium_tier})"
-        else:
-            name_bot = f"🔒・🤖・𝓑ᴏᴛs: {bots}"
-        if not ch_bot:
-            ch_bot = await guild.create_voice_channel(
-                name=name_bot,
-                category=category,
-                overwrites=overwrites,
-                reason="Rai ServerStats: Created Bots counter",
-            )
-        else:
-            await ch_bot.edit(name=name_bot, overwrites=overwrites)
+            await ch_mem.edit(name=name_vc, overwrites=overwrites)
 
         # Save IDs to DB
         await self.bot.db.update_server_stats_config(
             guild.id,
             enabled=1,
-            category_id=category.id,
+            category_id=cat_server.id,
             all_members_channel_id=ch_all.id,
             members_channel_id=ch_mem.id,
-            bots_channel_id=ch_bot.id,
+            bots_channel_id=ch_branding.id,
         )
 
         embed = success_embed(
-            "📊 Server Stats Configured",
-            f"Successfully setup locked server statistics counters:\n\n"
-            f"• **Category**: `{category.name}`\n"
-            f"• 🔒 **All Members**: `{ch_all.name}`\n"
-            f"• 🔒 **Members**: `{ch_mem.name}`\n"
-            f"• 🔒 **Bots**: `{ch_bot.name}`\n\n"
-            f"*Counters automatically synchronize when members join/leave and on a 10-minute heartbeat.*",
+            "📊 Server & VC Status Configured",
+            f"Successfully deployed dual aesthetic status counters:\n\n"
+            f"**{cat_server.name}**\n"
+            f"• 🔒 `{ch_all.name}`\n"
+            f"• 🔒 `{ch_branding.name}`\n\n"
+            f"**{cat_vc.name}**\n"
+            f"• 🔒 `{ch_mem.name}`\n\n"
+            f"*Counters synchronize continuously in the background!*",
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
@@ -398,6 +507,68 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
             embed=info_embed("Disabled", "Server statistics counters have been disabled."),
             ephemeral=True,
         )
+
+    @stats_group.command(name="style", description="Switch the aesthetic theme for Server & VC Status counters")
+    @app_commands.describe(theme="Choose the aesthetic layout theme")
+    @app_commands.default_permissions(administrator=True)
+    async def stats_style(
+        self,
+        interaction: discord.Interaction,
+        theme: Literal["butterfly", "swan", "stars", "moon", "blossom", "fire"],
+    ) -> None:
+        """Switches the aesthetic emoji theme for categories and counters."""
+        if not interaction.guild:
+            return
+        await interaction.response.defer(ephemeral=True)
+        self._guild_theme[interaction.guild.id] = theme
+        await self.update_guild_stats(interaction.guild)
+        theme_info = THEMES.get(theme, THEMES["butterfly"])
+        await interaction.followup.send(
+            embed=success_embed(
+                "🎨 Counter Aesthetic Updated",
+                f"Active theme changed to **{theme_info['label']}**!\n"
+                f"Categories & counter voice channels have been updated instantly.",
+            ),
+            ephemeral=True,
+        )
+
+    @stats_group.command(name="branding", description="Set custom text for the branding banner channel")
+    @app_commands.describe(text="The banner text (e.g. 'OZALERX !' or '✦ ʀᴀɪ ʀᴀᴍ ✦')")
+    @app_commands.default_permissions(administrator=True)
+    async def stats_branding(self, interaction: discord.Interaction, text: str) -> None:
+        """Sets custom branding text for the branding voice channel."""
+        if not interaction.guild:
+            return
+        await interaction.response.defer(ephemeral=True)
+        self._guild_branding[interaction.guild.id] = text
+        await self.update_guild_stats(interaction.guild)
+        await interaction.followup.send(
+            embed=success_embed(
+                "🏷️ Branding Banner Updated",
+                f"Branding channel text set to:\n**`{text}`**",
+            ),
+            ephemeral=True,
+        )
+
+    @stats_group.command(name="goal", description="Toggle the dynamic member milestone goal progress bar channel")
+    @app_commands.describe(enabled="Whether to show the dynamic goal progress bar")
+    @app_commands.default_permissions(administrator=True)
+    async def stats_goal(self, interaction: discord.Interaction, enabled: bool) -> None:
+        """Toggles the dynamic member progress bar counter."""
+        if not interaction.guild:
+            return
+        await interaction.response.defer(ephemeral=True)
+        self._guild_show_goal[interaction.guild.id] = enabled
+        await self.update_guild_stats(interaction.guild)
+        status = "enabled" if enabled else "disabled"
+        await interaction.followup.send(
+            embed=success_embed(
+                "🎯 Goal Progress Bar",
+                f"Dynamic milestone goal counter has been **{status}**.",
+            ),
+            ephemeral=True,
+        )
+
 
     # ==========================================
     # AUTONOMOUS BACKGROUND ENGINES (ZERO CLUTTER)

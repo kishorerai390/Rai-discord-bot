@@ -216,7 +216,7 @@ async def test_serverstats_locked_voice_channels_only():
     updated = await stats_cog.update_guild_stats(guild)
     assert updated is True
     # Verify channel 3 displays boosts since premium_subscription_count > 0
-    assert "𝓑ᴏᴏsᴛs: 5 (Tier 1)" in ch_bot.edit.call_args[1]["name"]
+    assert "5 Boosts" in ch_bot.edit.call_args[1]["name"]
     # Verify no text channel creation was called
     assert not hasattr(guild, "create_text_channel") or guild.create_text_channel.call_count == 0
 
@@ -873,6 +873,159 @@ async def test_expired_invites_and_db_maintenance():
     assert bot.db._db.execute.call_count >= 2
 
     cog.cog_unload()
+
+
+@pytest.mark.asyncio
+async def test_dual_category_stats_and_themes():
+    from cogs.serverstats import ServerStatsCog, make_goal_progress_bar
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    bot.wait_until_ready = AsyncMock()
+    
+    # Progress bar unit test
+    bar, goal = make_goal_progress_bar(45)
+    assert len(bar) == 10
+    assert goal == 50
+    assert "■" in bar and "□" in bar
+
+    cog = ServerStatsCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 88888
+    guild.name = "Rai Community"
+    guild.member_count = 100
+    guild.members = []
+    guild.categories = []
+    guild.voice_channels = []
+    guild.premium_subscription_count = 2
+    guild.premium_tier = 1
+
+    # Populate 100 members, 30 online, 5 bots
+    members = []
+    for i in range(100):
+        m = MagicMock(spec=discord.Member)
+        m.id = i
+        m.bot = (i < 5)
+        m.status = discord.Status.online if i < 30 else discord.Status.offline
+        m.voice = None
+        m.activities = []
+        members.append(m)
+    guild.members = members
+
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_channels = True
+    guild.default_role = MagicMock()
+
+    # Categories mock
+    cat_server = MagicMock(spec=discord.CategoryChannel)
+    cat_server.id = 101
+    cat_server.name = "Server Status! ⌵"
+    cat_server.edit = AsyncMock()
+
+    cat_vc = MagicMock(spec=discord.CategoryChannel)
+    cat_vc.id = 102
+    cat_vc.name = "Vc Status! ⌵"
+    cat_vc.edit = AsyncMock()
+
+    guild.create_category = AsyncMock(side_effect=[cat_server, cat_vc])
+
+    # Channels mock
+    ch_all = MagicMock(spec=discord.VoiceChannel)
+    ch_all.id = 201
+    ch_all.name = "old"
+    ch_all.edit = AsyncMock()
+
+    ch_branding = MagicMock(spec=discord.VoiceChannel)
+    ch_branding.id = 202
+    ch_branding.name = "old"
+    ch_branding.edit = AsyncMock()
+
+    ch_mem = MagicMock(spec=discord.VoiceChannel)
+    ch_mem.id = 203
+    ch_mem.name = "old"
+    ch_mem.edit = AsyncMock()
+
+    guild.create_voice_channel = AsyncMock(side_effect=[ch_all, ch_branding, ch_mem])
+
+    cfg = MagicMock()
+    cfg.enabled = 1
+    cfg.category_id = None
+    cfg.all_members_channel_id = None
+    cfg.members_channel_id = None
+    cfg.bots_channel_id = None
+    bot.db.get_or_create_server_stats_config.return_value = cfg
+    bot.db.update_server_stats_config = AsyncMock()
+
+    # 1. Test stats_setup
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild = guild
+    interaction.response = MagicMock()
+    interaction.response.defer = AsyncMock()
+    interaction.followup = MagicMock()
+    interaction.followup.send = AsyncMock()
+
+    await cog.stats_setup.callback(cog, interaction)
+
+    guild.create_category.assert_any_await(
+        name="Server Status! ⌵",
+        position=0,
+        reason="Rai ServerStats: Created Server Status category",
+    )
+    guild.create_category.assert_any_await(
+        name="Vc Status! ⌵",
+        position=1,
+        reason="Rai ServerStats: Created Vc Status category",
+    )
+    bot.db.update_server_stats_config.assert_awaited_once_with(
+        guild.id,
+        enabled=1,
+        category_id=cat_server.id,
+        all_members_channel_id=ch_all.id,
+        members_channel_id=ch_mem.id,
+        bots_channel_id=ch_branding.id,
+    )
+    interaction.followup.send.assert_awaited_once()
+
+    # 2. Test style switcher (Switch to Swan / Screenshot 2)
+    cfg.category_id = cat_server.id
+    cfg.all_members_channel_id = ch_all.id
+    cfg.members_channel_id = ch_mem.id
+    cfg.bots_channel_id = ch_branding.id
+    guild.get_channel = MagicMock(side_effect=lambda cid: {
+        101: cat_server,
+        102: cat_vc,
+        201: ch_all,
+        202: ch_branding,
+        203: ch_mem,
+    }.get(cid))
+
+    interaction.followup.send.reset_mock()
+    await cog.stats_style.callback(cog, interaction, theme="swan")
+    assert cog._guild_theme[guild.id] == "swan"
+    cat_server.edit.assert_awaited_with(name="🔒 𝐒𝐞𝐫𝐯𝐞𝐫 𝐒𝐭𝐚𝐭𝐮𝐬!")
+    cat_vc.edit.assert_awaited_with(name="🔒 𝐕𝐜 𝐒𝐭𝐚𝐭𝐮𝐬!")
+    assert ch_all.edit.call_count >= 1
+    call_args_all = ch_all.edit.call_args[1]
+    assert "🦢 30 online 🦢 100 members" == call_args_all["name"]
+
+    # 3. Test custom branding (Screenshot 2 OZALERX !)
+    interaction.followup.send.reset_mock()
+    ch_branding.edit.reset_mock()
+    await cog.stats_branding.callback(cog, interaction, text="OZALERX !")
+    assert cog._guild_branding[guild.id] == "OZALERX !"
+    ch_branding.edit.assert_awaited_with(name="OZALERX !", reason="Rai ServerStats: Aesthetic branding/goal sync")
+
+    # 4. Test dynamic goal toggle
+    interaction.followup.send.reset_mock()
+    ch_branding.edit.reset_mock()
+    await cog.stats_goal.callback(cog, interaction, enabled=True)
+    assert cog._guild_show_goal[guild.id] is True
+    assert ch_branding.edit.call_count >= 1
+    call_args_branding = ch_branding.edit.call_args[1]
+    assert "🎯 Goal:" in call_args_branding["name"]
+
+    cog.cog_unload()
+
 
 
 
