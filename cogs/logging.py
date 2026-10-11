@@ -397,6 +397,26 @@ class LoggingCog(commands.Cog, name="Logging"):
                 pass
         return False
 
+    async def _get_voice_moderator(
+        self, member: discord.Member, check_attribute: str, expected_val: bool
+    ) -> Optional[discord.Member]:
+        """Queries guild audit logs to find the moderator responsible for a voice mute or deafen action."""
+        guild = member.guild
+        if not guild.me.guild_permissions.view_audit_log:
+            return None
+        try:
+            await asyncio.sleep(0.4)
+            async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.member_update):
+                if entry.target and entry.target.id == member.id:
+                    now_utc = datetime.datetime.now(datetime.timezone.utc)
+                    entry_created = getattr(entry, "created_at", now_utc)
+                    if (now_utc - entry_created).total_seconds() <= 12.0:
+                        if getattr(entry.after, check_attribute, None) == expected_val:
+                            return entry.user
+        except Exception as e:
+            logger.debug(f"Audit log check for voice moderation failed: {e}")
+        return None
+
     @commands.Cog.listener()
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         # Do not expose hidden voice rooms in public logs
@@ -442,13 +462,37 @@ class LoggingCog(commands.Cog, name="Logging"):
                 embed.set_author(name=member.name, icon_url=member.display_avatar.url)
                 embed.description = f"{member.mention} undeafened their audio in **#{after.channel.name}**."
             elif not before.mute and after.mute and after.channel:
+                mod = await self._get_voice_moderator(member, "mute", True)
                 embed = create_embed(title="⚠️ Member Server-Muted", color=Colors.WARNING)
                 embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-                embed.description = f"{member.mention} was **server-muted** by staff in **#{after.channel.name}**."
+                if mod:
+                    embed.description = f"{member.mention} was **server-muted** by {mod.mention} (`{mod.display_name}`) in **#{after.channel.name}**."
+                else:
+                    embed.description = f"{member.mention} was **server-muted** by staff in **#{after.channel.name}**."
+            elif before.mute and not after.mute and after.channel:
+                mod = await self._get_voice_moderator(member, "mute", False)
+                embed = create_embed(title="🎙️ Member Server-Unmuted", color=Colors.SUCCESS)
+                embed.set_author(name=member.name, icon_url=member.display_avatar.url)
+                if mod:
+                    embed.description = f"{member.mention} was **server-unmuted** by {mod.mention} (`{mod.display_name}`) in **#{after.channel.name}**."
+                else:
+                    embed.description = f"{member.mention} was **server-unmuted** in **#{after.channel.name}**."
             elif not before.deaf and after.deaf and after.channel:
+                mod = await self._get_voice_moderator(member, "deaf", True)
                 embed = create_embed(title="⚠️ Member Server-Deafened", color=Colors.WARNING)
                 embed.set_author(name=member.name, icon_url=member.display_avatar.url)
-                embed.description = f"{member.mention} was **server-deafened** by staff in **#{after.channel.name}**."
+                if mod:
+                    embed.description = f"{member.mention} was **server-deafened** by {mod.mention} (`{mod.display_name}`) in **#{after.channel.name}**."
+                else:
+                    embed.description = f"{member.mention} was **server-deafened** by staff in **#{after.channel.name}**."
+            elif before.deaf and not after.deaf and after.channel:
+                mod = await self._get_voice_moderator(member, "deaf", False)
+                embed = create_embed(title="👂 Member Server-Undeafened", color=Colors.SUCCESS)
+                embed.set_author(name=member.name, icon_url=member.display_avatar.url)
+                if mod:
+                    embed.description = f"{member.mention} was **server-undeafened** by {mod.mention} (`{mod.display_name}`) in **#{after.channel.name}**."
+                else:
+                    embed.description = f"{member.mention} was **server-undeafened** in **#{after.channel.name}**."
 
             if embed:
                 await self._send_log(member.guild, "voice_channel_id", embed, dispatch_dm=False)
