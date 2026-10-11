@@ -1566,11 +1566,12 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         await DynamicVCControlManager._dispatch_template_action(self.bot, interaction, room, vc, preset.value)
 
     @app_commands.command(name="stream", description="Voice stream tools and audio bitrate optimizer")
-    @app_commands.describe(action="Optimize audio for screen sharing stability, or restore normal bitrate")
+    @app_commands.describe(action="Optimize audio for screen sharing stability, restore normal bitrate, or engage Cinema Mode")
     @app_commands.choices(
         action=[
             app_commands.Choice(name="⚡ Optimize for Screen Sharing (96kbps)", value="optimize"),
             app_commands.Choice(name="🔄 Restore High-Fidelity Audio", value="restore"),
+            app_commands.Choice(name="🎬 Cinema / Watch Party Mode", value="cinema"),
         ]
     )
     async def stream_command(self, interaction: discord.Interaction, action: str):
@@ -1602,6 +1603,23 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 color=0x5865F2,
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
+        elif action == "cinema":
+            if vc.id not in self._original_stream_bitrates:
+                self._original_stream_bitrates[vc.id] = vc.bitrate
+            clean_name = vc.name.replace("🎬・", "").replace("🎮・", "").replace("🌙・", "")[:18]
+            target_name = f"🎬・{clean_name}"
+            await vc.edit(bitrate=96000, user_limit=15, name=target_name, reason=f"Cinema Mode toggled by {member.display_name}")
+            embed = discord.Embed(
+                title="🎬 Cinema / Watch Party Mode Engaged",
+                description=(
+                    f"**#{target_name}** is now configured for optimal group streaming!\n\n"
+                    f"• Bitrate optimized to **`96 kbps`** (prevents Discord Error 2012 / frame drops)\n"
+                    f"• Room capacity set to **15 slots**\n"
+                    f"• Room styled with Cinema badge"
+                ),
+                color=0xE74C3C,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             orig = self._original_stream_bitrates.pop(vc.id, None)
             guild_limit = getattr(guild, "bitrate_limit", 96000)
@@ -1614,6 +1632,231 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 color=Colors.SUCCESS,
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="stream_stats", description="View voice screen sharing statistics and rank badges")
+    @app_commands.describe(member="Member to view stream statistics for (defaults to yourself)")
+    async def stream_stats_command(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        target = member or interaction.user
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        total_secs = self._stream_seconds_tracker.get((guild.id, target.id), 0.0)
+        start_t = self._stream_start_times.get((guild.id, target.id))
+        if start_t:
+            total_secs += max(0.0, time.time() - start_t)
+
+        hours = int(total_secs // 3600)
+        mins = int((total_secs % 3600) // 60)
+
+        if hours >= 20:
+            badge = "👑 Cinema Master"
+            desc = "Legendary broadcaster and room host."
+        elif hours >= 5:
+            badge = "🌟 Pro Broadcaster"
+            desc = "Regular streamer sharing great content."
+        elif hours >= 1:
+            badge = "🎮 Streamer"
+            desc = "Active screen sharer in community rooms."
+        else:
+            badge = "🎬 Novice Caster"
+            desc = "Just getting started with screen sharing."
+
+        embed = discord.Embed(
+            title=f"📺 Stream Statistics ╏ {target.display_name}",
+            description=f"**Rank:** `{badge}`\n*{desc}*",
+            color=0x5865F2,
+        )
+        embed.add_field(name="Total Stream Time", value=f"**{hours}h {mins}m**", inline=True)
+        is_live = (guild.id, target.id) in self._stream_start_times
+        embed.add_field(name="Current Status", value="🔴 **LIVE NOW**" if is_live else "⚪ Offline", inline=True)
+        if target.display_avatar:
+            embed.set_thumbnail(url=target.display_avatar.url)
+        embed.set_footer(text="✦ ʀᴀɪ ʀᴀᴍ Stream Hours Tracker • Zero Clutter ✦")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="stream_top", description="Top screen streamers leaderboard in the server")
+    async def stream_top_command(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        leaderboard_data = []
+        for (g_id, m_id), secs in self._stream_seconds_tracker.items():
+            if g_id == guild.id:
+                mem = guild.get_member(m_id)
+                if mem:
+                    leaderboard_data.append((mem, secs))
+
+        leaderboard_data.sort(key=lambda x: x[1], reverse=True)
+        top10 = leaderboard_data[:10]
+
+        embed = discord.Embed(
+            title="🏆 ✦ 𝕾ᴛʀᴇᴀᴍᴇʀ 𝕷ᴇᴀᴅᴇʀʙᴏᴀʀᴅ ✦ 🏆",
+            description="Top community members by screen-share broadcast time:\n\n",
+            color=0xF1C40F,
+        )
+
+        if not top10:
+            embed.description += "*No stream sessions recorded yet. Start streaming in any voice channel!*"
+        else:
+            medals = ["🥇", "🥈", "🥉"]
+            for idx, (mem, secs) in enumerate(top10, start=1):
+                icon = medals[idx - 1] if idx <= 3 else f"`#{idx}`"
+                hrs = int(secs // 3600)
+                mins = int((secs % 3600) // 60)
+                embed.description += f"{icon} **{mem.display_name}** — `{hrs}h {mins}m`\n"
+
+        embed.set_footer(text="✦ ʀᴀɪ ʀᴀᴍ Screen Sharing Champions ✦")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="vc_sleep", description="Set an automatic voice disconnect sleep timer")
+    @app_commands.describe(minutes="Minutes after which to automatically disconnect you (1-360)")
+    async def vc_sleep_command(self, interaction: discord.Interaction, minutes: int = 30):
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        member = interaction.user
+        if not member.voice or not member.voice.channel:
+            await interaction.response.send_message("❌ You must be connected to a voice channel to set a sleep timer.", ephemeral=True)
+            return
+
+        if minutes < 1 or minutes > 360:
+            await interaction.response.send_message("❌ Sleep timer duration must be between 1 and 360 minutes.", ephemeral=True)
+            return
+
+        key = (interaction.guild.id, member.id)
+        existing = self._sleep_timers.pop(key, None)
+        if existing and not existing.done():
+            existing.cancel()
+
+        async def _sleep_worker():
+            try:
+                await asyncio.sleep(minutes * 60)
+                guild = self.bot.get_guild(interaction.guild.id)
+                if not guild:
+                    return
+                current_mem = guild.get_member(member.id)
+                if current_mem and current_mem.voice and current_mem.voice.channel:
+                    await current_mem.move_to(None, reason=f"Voice Sleep Timer ({minutes}m) expired")
+                    try:
+                        embed = discord.Embed(
+                            title="🌙 Voice Sleep Timer Expired",
+                            description=f"You have been safely disconnected from voice after **{minutes} minutes**.",
+                            color=0x5865F2,
+                        )
+                        await current_mem.send(embed=embed)
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._sleep_timers.pop(key, None)
+
+        task = asyncio.create_task(_sleep_worker())
+        self._sleep_timers[key] = task
+
+        embed = discord.Embed(
+            title="🌙 Voice Sleep Timer Armed",
+            description=f"Your sleep timer is set for **{minutes} minutes**.\nWhen time expires, you will be automatically disconnected.",
+            color=0x5865F2,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="vc_sleep_cancel", description="Cancel your active voice sleep timer")
+    async def vc_sleep_cancel_command(self, interaction: discord.Interaction):
+        key = (interaction.guild.id, interaction.user.id)
+        existing = self._sleep_timers.pop(key, None)
+        if existing and not existing.done():
+            existing.cancel()
+            await interaction.response.send_message("✅ Active voice sleep timer cancelled.", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ You don't have an active voice sleep timer.", ephemeral=True)
+
+    def record_soundboard_effect(self, channel: discord.VoiceChannel, member: discord.Member) -> bool:
+        """Anti-Soundboard Spammer Protection: detects >5 soundboard triggers in 10s and limits permissions for 60s."""
+        if member.bot or member.id == member.guild.owner_id:
+            return False
+        now = time.monotonic()
+        key = (member.guild.id, member.id)
+        timestamps = self._soundboard_spams.setdefault(key, [])
+        cutoff = now - 10.0
+        timestamps = [t for t in timestamps if t > cutoff]
+        timestamps.append(now)
+        self._soundboard_spams[key] = timestamps
+
+        if len(timestamps) >= 5:
+            self._soundboard_spams[key].clear()
+            asyncio.create_task(self._suppress_soundboard_spam(channel, member))
+            return True
+        return False
+
+    async def _suppress_soundboard_spam(self, channel: discord.VoiceChannel, member: discord.Member) -> None:
+        """Temporarily mutes/revokes soundboard permissions for a member for 60 seconds."""
+        try:
+            await channel.set_permissions(member, use_soundboard=False, reason="Anti-Soundboard Spammer: Triggered >5 effects in 10s")
+            embed = discord.Embed(
+                description=f"🔇 **{member.display_name}**, soundboard usage in **#{channel.name}** was paused for 60s due to spam.",
+                color=0xE67E22,
+            )
+            try:
+                await member.send(embed=embed)
+            except Exception:
+                pass
+            await asyncio.sleep(60.0)
+            await channel.set_permissions(member, overwrite=None, reason="Anti-Soundboard: 60s cooldown ended")
+        except Exception as e:
+            logger.debug(f"Could not suppress soundboard for {member.id}: {e}")
+
+    @commands.Cog.listener()
+    async def on_voice_channel_effect(self, effect: Any) -> None:
+        """Detects voice soundboard effects."""
+        try:
+            ch = getattr(effect, "channel", None)
+            user = getattr(effect, "user", None)
+            if isinstance(ch, discord.VoiceChannel) and isinstance(user, discord.Member):
+                self.record_soundboard_effect(ch, user)
+        except Exception:
+            pass
+
+    @commands.Cog.listener()
+    async def on_presence_update(self, before: discord.Member, after: discord.Member) -> None:
+        """Auto Game-Activity Dynamic VC Renamer: updates dynamic room name when owner starts a game."""
+        if not after.guild or after.bot:
+            return
+        if not after.voice or not after.voice.channel or not isinstance(after.voice.channel, discord.VoiceChannel):
+            return
+
+        vc = after.voice.channel
+        room = await self.bot.db.get_dynamic_room(vc.id)
+        if not room or room.owner_id != after.id:
+            return
+
+        activity = next(
+            (a for a in after.activities if a.type in (discord.ActivityType.playing, discord.ActivityType.streaming) and a.name),
+            None,
+        )
+        if not activity:
+            return
+
+        now = time.time()
+        if (now - self._room_rename_cooldowns.get(vc.id, 0)) < 300.0:
+            return
+
+        clean_game = activity.name.strip()[:18]
+        target_name = f"🎮・{clean_game}"
+        if vc.name == target_name:
+            return
+
+        try:
+            self._room_rename_cooldowns[vc.id] = now
+            await vc.edit(name=target_name, reason=f"Auto Game-Activity: {after.display_name} started playing {clean_game}")
+            logger.info(f"Auto Game-Activity: Renamed #{vc.name} to {target_name}")
+        except Exception as err:
+            logger.debug(f"Failed to auto-rename dynamic room {vc.id}: {err}")
 
 
 async def setup(bot: SentinelBot):

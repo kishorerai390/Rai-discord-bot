@@ -436,4 +436,260 @@ async def test_stream_notification_and_bitrate_optimizer():
     vc.edit.assert_awaited_with(bitrate=256000, reason="Stream Optimizer: Restored original audio bitrate")
 
 
+@pytest.mark.asyncio
+async def test_ghost_mention_catcher():
+    from cogs.automod import AutoModCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = AutoModCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 999
+    member = MagicMock(spec=discord.Member)
+    member.id = 111
+    member.bot = False
+    member.name = "GhostPinger"
+    target = MagicMock(spec=discord.Member)
+    target.id = 222
+
+    channel = MagicMock(spec=discord.TextChannel)
+    channel.id = 333
+    channel.name = "general"
+    channel.mention = "<#333>"
+    guild.get_channel.return_value = channel
+
+    message = MagicMock(spec=discord.Message)
+    message.id = 55555
+    message.guild = guild
+    message.author = member
+    message.mentions = [target]
+    message.role_mentions = []
+    message.channel = channel
+    message.clean_content = "Hey @Someone wake up"
+
+    # 1. Message sent with mention
+    await cog.on_message(message)
+    assert message.id in cog._recent_mentions
+
+    # 2. Message deleted shortly after
+    with patch("utils.owner_reporter.OwnerReporter.send_mod_report") as mock_report:
+        await cog.on_message_delete(message)
+        assert mock_report.call_count == 1
+        call_kwargs = mock_report.call_args[1]
+        assert call_kwargs["event"] == "Ghost Mention Detected"
+        assert call_kwargs["user"] == member
+        assert message.id not in cog._recent_mentions
+
+
+def test_zero_day_phishing_regex():
+    from cogs.automod import SUSPICIOUS_REGEX
+    # Malicious links should match
+    assert SUSPICIOUS_REGEX.search("https://discorcl-gift.com/nitro") is not None
+    assert SUSPICIOUS_REGEX.search("https://dlscord.app/free-nitro") is not None
+    assert SUSPICIOUS_REGEX.search("https://discordapp.click/claim") is not None
+    assert SUSPICIOUS_REGEX.search("https://nitro-airdrop.ru/get") is not None
+    assert SUSPICIOUS_REGEX.search("https://steamcomm-trade.com/offer") is not None
+
+    # Legitimate links should not match
+    assert SUSPICIOUS_REGEX.search("https://discord.com/channels/123/456") is None
+    assert SUSPICIOUS_REGEX.search("https://discord.gg/invitecode") is None
+    assert SUSPICIOUS_REGEX.search("https://google.com") is None
+
+
+@pytest.mark.asyncio
+async def test_antiraid_join_burst():
+    from cogs.automod import AutoModCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = AutoModCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 777
+
+    with patch("utils.owner_reporter.OwnerReporter.send_security_report") as mock_sec_report:
+        for i in range(9):
+            m = MagicMock(spec=discord.Member)
+            m.id = 1000 + i
+            m.bot = False
+            m.guild = guild
+            await cog.on_member_join(m)
+        assert mock_sec_report.call_count == 0
+
+        # 10th join within 15s triggers security report
+        m10 = MagicMock(spec=discord.Member)
+        m10.id = 1010
+        m10.bot = False
+        m10.guild = guild
+        await cog.on_member_join(m10)
+        assert mock_sec_report.call_count == 1
+        assert mock_sec_report.call_args[1]["event"] == "Mass Join Velocity Spike"
+
+
+@pytest.mark.asyncio
+async def test_stream_stats_and_cinema_mode():
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = TempVoiceCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 444
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_channels = True
+
+    member = MagicMock(spec=discord.Member)
+    member.id = 555
+    member.display_name = "ProGamer"
+    member.guild = guild
+    member.display_avatar = None
+
+    vc = MagicMock(spec=discord.VoiceChannel)
+    vc.id = 666
+    vc.name = "Squad Voice"
+    vc.bitrate = 128000
+    vc.edit = AsyncMock()
+    member.voice = MagicMock()
+    member.voice.channel = vc
+
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild = guild
+    interaction.user = member
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+
+    # Cinema mode toggle
+    await cog.stream_command.callback(cog, interaction, action="cinema")
+    vc.edit.assert_awaited_with(bitrate=96000, user_limit=15, name="🎬・Squad Voice", reason="Cinema Mode toggled by ProGamer")
+    interaction.response.send_message.assert_awaited_once()
+
+    # Accumulate stream time and check stream_stats
+    cog._stream_seconds_tracker[(guild.id, member.id)] = 7500  # ~2 hours 5 mins -> Streamer rank
+    interaction.response.send_message.reset_mock()
+
+    await cog.stream_stats_command.callback(cog, interaction, member=member)
+    interaction.response.send_message.assert_awaited_once()
+    args, kwargs = interaction.response.send_message.call_args
+    embed = kwargs["embed"]
+    assert "2h 5m" in embed.fields[0].value
+    assert "Streamer" in embed.description
+
+    # Stream top leaderboard
+    guild.get_member.return_value = member
+    interaction.response.send_message.reset_mock()
+    await cog.stream_top_command.callback(cog, interaction)
+    interaction.response.send_message.assert_awaited_once()
+    args, kwargs = interaction.response.send_message.call_args
+    assert "ProGamer" in kwargs["embed"].description
+
+
+@pytest.mark.asyncio
+async def test_vc_sleep_timer():
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = TempVoiceCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 111
+    member = MagicMock(spec=discord.Member)
+    member.id = 222
+    member.guild = guild
+    member.voice = MagicMock()
+    member.voice.channel = MagicMock(spec=discord.VoiceChannel)
+
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild = guild
+    interaction.user = member
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+
+    await cog.vc_sleep_command.callback(cog, interaction, minutes=45)
+    interaction.response.send_message.assert_awaited_once()
+    assert (guild.id, member.id) in cog._sleep_timers
+
+    # Cancel sleep timer
+    interaction.response.send_message.reset_mock()
+    await cog.vc_sleep_cancel_command.callback(cog, interaction)
+    interaction.response.send_message.assert_awaited_once()
+    assert (guild.id, member.id) not in cog._sleep_timers
+
+
+@pytest.mark.asyncio
+async def test_soundboard_spam_limiter():
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = TempVoiceCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 777
+    guild.owner_id = 999
+    member = MagicMock(spec=discord.Member)
+    member.id = 888
+    member.bot = False
+    member.guild = guild
+
+    vc = MagicMock(spec=discord.VoiceChannel)
+    vc.id = 333
+    vc.set_permissions = AsyncMock()
+
+    for _ in range(4):
+        triggered = cog.record_soundboard_effect(vc, member)
+        assert not triggered
+
+    # 5th soundboard trigger within 10s -> Limiter activates
+    triggered = cog.record_soundboard_effect(vc, member)
+    assert triggered
+
+
+@pytest.mark.asyncio
+async def test_nickstyle_and_pulse():
+    from cogs.utility import UtilityCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    bot.guilds = []
+    bot.latency = 0.025
+    bot.wait_until_ready = AsyncMock()
+    cog = UtilityCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 999
+    guild.name = "✦ Rai Server ✦"
+    guild.icon = None
+    guild.owner_id = 1000
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_nicknames = True
+    guild.me.top_role = MagicMock()
+    guild.me.top_role.position = 10
+
+    member = MagicMock(spec=discord.Member)
+    member.id = 2000
+    member.display_name = "kishore"
+    member.guild = guild
+    member.top_role = MagicMock()
+    member.top_role.position = 5
+    member.edit = AsyncMock()
+
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild = guild
+    interaction.user = member
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+
+    # 1. Nickstyle command (small_caps)
+    await cog.nickstyle_command.callback(cog, interaction, style="small_caps", text="kishore")
+    member.edit.assert_awaited_once()
+    call_kwargs = member.edit.call_args[1]
+    assert call_kwargs["nick"] == "ᴋɪsʜᴏʀᴇ"
+    interaction.response.send_message.assert_awaited_once()
+
+    # 2. Pulse command
+    guild.members = [member]
+    guild.member_count = 1
+    interaction.response.send_message.reset_mock()
+    await cog.pulse_command.callback(cog, interaction)
+    interaction.response.send_message.assert_awaited_once()
+    pulse_embed = interaction.response.send_message.call_args[1]["embed"]
+    assert "✦ 𝕾ᴇʀᴠᴇʀ 𝕻ᴜʟsᴇ" in pulse_embed.title
+    cog.cog_unload()
+
+
+
 

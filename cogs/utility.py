@@ -11,17 +11,20 @@ import datetime
 import os
 import platform
 import sys
+import logging
 import time
 from typing import TYPE_CHECKING, Optional
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from config import Colors
 from config.permissions import can_moderate, is_admin_or_owner
-from utils.embeds import create_embed, error_embed, info_embed
+from utils.embeds import create_embed, error_embed, info_embed, warning_embed
 from utils.font_generator import AVAILABLE_STYLES, transform_text
 from utils.mod_inspector import ModInspectorView, build_mod_view_embed
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from main import SentinelBot
@@ -231,6 +234,38 @@ class UtilityCog(commands.Cog, name="Utility"):
         self.bot = bot
         self.start_time = time.time()
         self._afk_users: dict[tuple[int, int], tuple[str, float]] = {}
+        self._status_index: int = 0
+        self._presence_loop = self._rotate_presence.start()
+
+    def cog_unload(self):
+        self._presence_loop.cancel()
+
+    @tasks.loop(minutes=3)
+    async def _rotate_presence(self):
+        """Auto-Rotating Bot Rich Presence."""
+        await self.bot.wait_until_ready()
+        total_members = sum(g.member_count or len(g.members) for g in self.bot.guilds)
+        statuses = [
+            discord.Activity(type=discord.ActivityType.watching, name="✦ ʀᴀɪ ʀᴀᴍ ✦"),
+            discord.Activity(type=discord.ActivityType.listening, name="/stream in #general-chat"),
+            discord.Activity(type=discord.ActivityType.watching, name=f"{total_members:,} Members"),
+            discord.Activity(type=discord.ActivityType.competing, name="Voice Rooms • /help"),
+        ]
+        status = statuses[self._status_index % len(statuses)]
+        self._status_index += 1
+        try:
+            await self.bot.change_presence(activity=status, status=discord.Status.online)
+        except Exception as e:
+            logger.debug(f"Could not rotate bot presence: {e}")
+
+    @_rotate_presence.before_loop
+    async def _before_rotate_presence(self):
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
 
     @app_commands.command(name="afk", description="Set an AFK status message to inform members when you are mentioned")
     @app_commands.describe(status="Reason you are away (e.g., Studying, Sleeping, Grinding ranked)")
@@ -483,6 +518,144 @@ class UtilityCog(commands.Cog, name="Utility"):
         embed.add_field(name="Operating System", value=f"`{platform.system()} {platform.release()}`", inline=True)
         embed.add_field(name="Guilds Cached", value=str(len(self.bot.guilds)), inline=True)
 
+        await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="nickstyle", description="Style your server nickname with aesthetic fonts and symbols")
+    @app_commands.describe(
+        style="Select font style",
+        text="Custom nickname text to style (defaults to your current name)",
+    )
+    @app_commands.choices(
+        style=[
+            app_commands.Choice(name="ᴀᴇsᴛʜᴇᴛɪᴄ ╏ Small Caps", value="small_caps"),
+            app_commands.Choice(name="𝖇𝖔𝖑𝖉 𝖌𝖔𝖙𝖍𝖎𝖈 ╏ Bold Fraktur", value="bold_gothic"),
+            app_commands.Choice(name="𝓫𝓸𝓵𝓭 𝓼𝓬𝓻𝓲𝓹𝓽 ╏ Bold Cursive", value="bold_script"),
+            app_commands.Choice(name="𝕕𝕠𝕦𝕓𝕝𝕖 ╏ Blackboard Double-Struck", value="double_struck"),
+            app_commands.Choice(name="✦ ɴᴀᴍᴇ ✦ ╏ Cyberpunk Stars", value="cyberpunk"),
+            app_commands.Choice(name="w i d e ╏ Aesthetic Spaced", value="wide"),
+        ]
+    )
+    async def nickstyle_command(self, interaction: discord.Interaction, style: str, text: Optional[str] = None):
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        member = interaction.user
+        guild = interaction.guild
+        base_text = text.strip() if text else member.display_name
+
+        if style == "cyberpunk":
+            transformed = f"✦ {transform_text(base_text, 'small_caps')} ✦"
+        elif style == "wide":
+            transformed = " ".join(base_text)
+        else:
+            transformed = transform_text(base_text, style)
+
+        target_nick = transformed[:32]
+
+        if not guild.me.guild_permissions.manage_nicknames:
+            await interaction.response.send_message("❌ Bot lacks `Manage Nicknames` permission.", ephemeral=True)
+            return
+
+        if member.id == guild.owner_id:
+            await interaction.response.send_message(
+                embed=info_embed(
+                    "Server Owner Preview",
+                    f"Discord prevents bots from changing the Server Owner's nickname.\n\n**Styled Nickname Preview:**\n`{target_nick}`\n\nYou can copy and paste it into your server profile!",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        mem_pos = getattr(member.top_role, "position", 0)
+        bot_pos = getattr(guild.me.top_role, "position", 0)
+        if isinstance(mem_pos, int) and isinstance(bot_pos, int) and mem_pos >= bot_pos:
+            await interaction.response.send_message(
+                embed=warning_embed(
+                    "Role Hierarchy Notice",
+                    f"Your highest role is higher than or equal to the bot's role.\n\n**Styled Nickname Preview:**\n`{target_nick}`\n\nYou can manually paste it into your profile!",
+                ),
+                ephemeral=True,
+            )
+            return
+
+        try:
+            old_nick = member.display_name
+            await member.edit(nick=target_nick, reason=f"Aesthetic Nickname Styler ({style})")
+            embed = discord.Embed(
+                title="✨ Nickname Styled Successfully",
+                description=(
+                    f"**Previous:** `{old_nick}`\n"
+                    f"**New Nickname:** `{target_nick}`\n\n"
+                    f"Applied style: **`{style}`**"
+                ),
+                color=Colors.PRIMARY,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Failed to update nickname: {e}", ephemeral=True)
+
+    @app_commands.command(name="pulse", description="Real-time heartbeat, voice room activity, and server diagnostics")
+    async def pulse_command(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        voice_members = [m for m in guild.members if m.voice and m.voice.channel]
+        voice_count = len(voice_members)
+        streamers_count = sum(1 for m in voice_members if m.voice and m.voice.self_stream)
+        voice_channels_active = len({m.voice.channel.id for m in voice_members if m.voice and m.voice.channel})
+
+        total_members = guild.member_count or len(guild.members)
+        online_members = sum(1 for m in guild.members if m.status != discord.Status.offline)
+        bot_count = sum(1 for m in guild.members if m.bot)
+        human_count = max(0, total_members - bot_count)
+
+        latency_ms = round(self.bot.latency * 1000, 1)
+        uptime_sec = int(time.time() - self.start_time)
+        hrs, rem = divmod(uptime_sec, 3600)
+        mins, _ = divmod(rem, 60)
+
+        embed = discord.Embed(
+            title=f"📊 ✦ 𝕾ᴇʀᴠᴇʀ 𝕻ᴜʟsᴇ ╏ {guild.name} ✦",
+            description="Real-time vitality heartbeat and community activity metrics:\n",
+            color=0x5865F2,
+        )
+        if guild.icon:
+            embed.set_thumbnail(url=guild.icon.url)
+
+        embed.add_field(
+            name="👥 Population",
+            value=(
+                f"• Total Members: **{total_members:,}**\n"
+                f"• Humans: **{human_count:,}** ╏ Bots: **{bot_count}**\n"
+                f"• Online Now: **{online_members:,}**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="🎙️ Voice Activity",
+            value=(
+                f"• In Voice: **{voice_count} members**\n"
+                f"• Active Channels: **{voice_channels_active}**\n"
+                f"• Live Streamers: **{streamers_count} 📺**"
+            ),
+            inline=True,
+        )
+
+        embed.add_field(
+            name="⚡ System Diagnostics",
+            value=(
+                f"• Bot Latency: **`{latency_ms} ms`**\n"
+                f"• Bot Uptime: **`{hrs}h {mins}m`**\n"
+                f"• Security Shield: **ARMED 🛡️**"
+            ),
+            inline=False,
+        )
+
+        embed.set_footer(text="✦ ʀᴀɪ Autonomous Ecosystem • Real-Time Pulse ✦")
         await interaction.response.send_message(embed=embed)
 
 

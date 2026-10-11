@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 INVITE_REGEX = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/[a-zA-Z0-9]+", re.IGNORECASE)
 # Suspicious links regex (free nitro, steam scams, zero-day spoofing)
 SUSPICIOUS_REGEX = re.compile(
-    r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:steamcomm[a-z0-9-]*\.[a-z]+|discor[a-z0-9-]*\.[a-z]+|dlscord[a-z0-9-]*\.[a-z]+|discord-nitro[a-z0-9-]*\.[a-z]+|gift-nitro[a-z0-9-]*\.[a-z]+|free-nitro[a-z0-9-]*\.[a-z]+|nitro-airdrop[a-z0-9-]*\.[a-z]+|boost-discord[a-z0-9-]*\.[a-z]+|discordapp\.[a-z0-9-]*\.[a-z]+)",
+    r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:steamcomm[a-z0-9-]*\.[a-z]+|discor(?:cd|cl|d-gift)[a-z0-9-]*\.[a-z]+|dlscord[a-z0-9-]*\.[a-z]+|discord-nitro[a-z0-9-]*\.[a-z]+|gift-nitro[a-z0-9-]*\.[a-z]+|free-nitro[a-z0-9-]*\.[a-z]+|nitro-airdrop[a-z0-9-]*\.[a-z]+|boost-discord[a-z0-9-]*\.[a-z]+|discordapp\.(?:click|gift|org|info|ru|vip|top|club|fun))",
     re.IGNORECASE,
 )
 # Custom emoji regex (<:name:id> or <a:name:id>)
