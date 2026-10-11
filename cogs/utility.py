@@ -230,6 +230,78 @@ class UtilityCog(commands.Cog, name="Utility"):
     def __init__(self, bot: SentinelBot):
         self.bot = bot
         self.start_time = time.time()
+        self._afk_users: dict[tuple[int, int], tuple[str, float]] = {}
+
+    @app_commands.command(name="afk", description="Set an AFK status message to inform members when you are mentioned")
+    @app_commands.describe(status="Reason you are away (e.g., Studying, Sleeping, Grinding ranked)")
+    async def afk(self, interaction: discord.Interaction, status: str = "AFK"):
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        self._afk_users[(guild.id, interaction.user.id)] = (status, time.time())
+        embed = discord.Embed(
+            description=f"💤 {interaction.user.mention} is now **AFK**: *{status}*",
+            color=Colors.PRIMARY,
+        )
+        embed.set_footer(text="I will notify anyone who mentions you and clear your AFK when you talk.")
+        await interaction.response.send_message(embed=embed)
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Manages AFK status clearance on speaking and notifications on mention."""
+        if message.author.bot or not message.guild or not isinstance(message.author, discord.Member):
+            return
+
+        guild = message.guild
+        now = time.time()
+
+        # 1. Author was AFK -> Welcome them back and clear AFK status
+        afk_key = (guild.id, message.author.id)
+        if afk_key in self._afk_users:
+            status, afk_ts = self._afk_users[afk_key]
+            # Ignore messages sent within 3 seconds of setting AFK
+            if now - afk_ts > 3.0:
+                self._afk_users.pop(afk_key, None)
+                elapsed_secs = int(now - afk_ts)
+                if elapsed_secs < 60:
+                    dur_str = f"{elapsed_secs}s"
+                elif elapsed_secs < 3600:
+                    dur_str = f"{elapsed_secs // 60}m"
+                else:
+                    dur_str = f"{elapsed_secs // 3600}h {(elapsed_secs % 3600) // 60}m"
+                try:
+                    await message.channel.send(
+                        f"👋 Welcome back {message.author.mention}! I've cleared your AFK status. *(Away for {dur_str})*",
+                        delete_after=8.0,
+                    )
+                except Exception:
+                    pass
+
+        # 2. Check if any mentioned users are currently AFK
+        if message.mentions:
+            for mentioned in message.mentions:
+                if mentioned.id == message.author.id or mentioned.bot:
+                    continue
+                m_key = (guild.id, mentioned.id)
+                if m_key in self._afk_users:
+                    status, afk_ts = self._afk_users[m_key]
+                    elapsed_secs = int(now - afk_ts)
+                    if elapsed_secs < 60:
+                        dur_str = f"{elapsed_secs}s ago"
+                    elif elapsed_secs < 3600:
+                        dur_str = f"{elapsed_secs // 60}m ago"
+                    else:
+                        dur_str = f"{elapsed_secs // 3600}h {(elapsed_secs % 3600) // 60}m ago"
+                    try:
+                        await message.channel.send(
+                            f"💤 **{mentioned.display_name}** is currently AFK: *{status}* ({dur_str})",
+                            delete_after=10.0,
+                        )
+                    except Exception:
+                        pass
+                    break
 
     @app_commands.command(name="font", description="Convert text into stylized Unicode Discord fonts")
     @app_commands.describe(text="The text to convert", style="Initial font style")

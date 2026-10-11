@@ -644,8 +644,11 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
 
         # 4. Create Voice Channel (VIP Booster up to 384kbps, standard high-fidelity 96kbps)
         is_booster = getattr(member, "premium_since", None) is not None or any("booster" in r.name.lower() for r in member.roles)
-        guild_max_bitrate = getattr(guild, "bitrate_limit", 96000) or 96000
-        target_bitrate = min(guild_max_bitrate, 384000) if is_booster else min(guild_max_bitrate, 96000)
+        guild_max = getattr(guild, "bitrate_limit", None)
+        if isinstance(guild_max, (int, float)):
+            target_bitrate = min(int(guild_max), 384000 if is_booster else 96000)
+        else:
+            target_bitrate = 384000 if is_booster else 96000
         try:
             temp_vc = await guild.create_voice_channel(
                 name=channel_name,

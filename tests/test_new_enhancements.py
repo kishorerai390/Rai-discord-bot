@@ -220,3 +220,135 @@ async def test_serverstats_locked_voice_channels_only():
     # Verify no text channel creation was called
     assert not hasattr(guild, "create_text_channel") or guild.create_text_channel.call_count == 0
 
+
+@pytest.mark.asyncio
+async def test_dynamic_vc_share_link():
+    from utils.dynamic_vc_control import DynamicVCControlManager
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild_id = 1457382179981099090
+    interaction.user = MagicMock()
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+
+    vc = MagicMock(spec=discord.VoiceChannel)
+    vc.id = 998877
+    vc.name = "✦ Rai Squad"
+    invite = MagicMock()
+    invite.url = "https://discord.gg/dynamic-test"
+    vc.create_invite = AsyncMock(return_value=invite)
+
+    res = await DynamicVCControlManager._handle_share_link(interaction, vc)
+    assert res is True
+    interaction.response.send_message.assert_awaited_once()
+    args, kwargs = interaction.response.send_message.call_args
+    assert "🔗 Room Invite Link" in kwargs["embed"].title
+    assert "https://discord.com/channels/1457382179981099090/998877" in kwargs["embed"].description
+
+
+@pytest.mark.asyncio
+async def test_automod_spoiler_grid_filter():
+    bot = MagicMock()
+    bot.user = MagicMock()
+    bot.user.id = 9999
+    bot.db = AsyncMock()
+    cog = AutoModCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.owner_id = 8888
+    member = MagicMock(spec=discord.Member)
+    member.id = 111
+    member.bot = False
+    member.roles = []
+    member.guild_permissions.administrator = False
+
+    message = MagicMock(spec=discord.Message)
+    message.guild = guild
+    message.author = member
+    message.channel = MagicMock(spec=discord.TextChannel)
+    message.channel.id = 100
+    message.channel.name = "general"
+    # Create text with 12 spoiler tags (||word|| repeated 12 times)
+    message.content = "||secret|| " * 12
+
+    bot.db.is_whitelisted.return_value = False
+    bot.db.get_or_create_guild_config.return_value = MagicMock(automod_enabled=True)
+    auto_cfg = MagicMock(
+        spam_detection=False,
+        mention_limit=10,
+        invite_links_block=False,
+        suspicious_links_block=False,
+        banned_words_enabled=False,
+        excessive_emojis_block=False,
+        excessive_caps_block=False,
+        action="delete",
+    )
+    bot.db.get_automod_config.return_value = auto_cfg
+
+    with patch.object(cog, "_enforce_automod", AsyncMock()) as mock_enforce:
+        await cog.on_message(message)
+        mock_enforce.assert_awaited_once()
+        assert "Excessive Spoiler Grid Spam" in mock_enforce.call_args[0][1]
+
+
+@pytest.mark.asyncio
+async def test_afk_system_set_and_clear():
+    from cogs.utility import UtilityCog
+    bot = MagicMock()
+    cog = UtilityCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 12345
+
+    member1 = MagicMock(spec=discord.Member)
+    member1.id = 101
+    member1.mention = "<@101>"
+    member1.display_name = "Kishore"
+    member1.bot = False
+    member1.guild = guild
+
+    member2 = MagicMock(spec=discord.Member)
+    member2.id = 102
+    member2.mention = "<@102>"
+    member2.display_name = "Alex"
+    member2.bot = False
+    member2.guild = guild
+
+    # 1. Member1 sets AFK
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild = guild
+    interaction.user = member1
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+
+    await cog.afk.callback(cog, interaction, status="Studying Python")
+    assert (guild.id, member1.id) in cog._afk_users
+    assert cog._afk_users[(guild.id, member1.id)][0] == "Studying Python"
+
+    # 2. Member2 mentions Member1 in a channel
+    msg = MagicMock(spec=discord.Message)
+    msg.guild = guild
+    msg.author = member2
+    msg.mentions = [member1]
+    msg.channel = MagicMock(spec=discord.TextChannel)
+    msg.channel.send = AsyncMock()
+
+    await cog.on_message(msg)
+    msg.channel.send.assert_awaited_once()
+    assert "Kishore" in msg.channel.send.call_args[0][0]
+    assert "Studying Python" in msg.channel.send.call_args[0][0]
+
+    # 3. Member1 sends a message after 5 seconds -> AFK cleared
+    cog._afk_users[(guild.id, member1.id)] = ("Studying Python", time.time() - 5.0)
+    msg2 = MagicMock(spec=discord.Message)
+    msg2.guild = guild
+    msg2.author = member1
+    msg2.mentions = []
+    msg2.channel = MagicMock(spec=discord.TextChannel)
+    msg2.channel.send = AsyncMock()
+
+    await cog.on_message(msg2)
+    assert (guild.id, member1.id) not in cog._afk_users
+    msg2.channel.send.assert_awaited_once()
+    assert "Welcome back <@101>" in msg2.channel.send.call_args[0][0]
+
+

@@ -167,6 +167,13 @@ class AutoModCog(commands.Cog, name="AutoMod"):
                     await self._enforce_automod(message, f"Excessive Caps ({int(caps_ratio * 100)}%)", auto_cfg.action)
                     return
 
+        # 9. Anti-Spoiler Grid Spam / Client Lag Protection
+        if "||" in message.content:
+            spoiler_count = message.content.count("||") // 2
+            if spoiler_count >= 10:
+                await self._enforce_automod(message, f"Excessive Spoiler Grid Spam ({spoiler_count} blocks)", "delete")
+                return
+
     async def _enforce_automod(self, message: discord.Message, reason: str, action: str) -> None:
         """Applies configured enforcement action and sends notification."""
         guild = message.guild
