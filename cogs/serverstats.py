@@ -297,7 +297,7 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
         if cfg.bots_channel_id:
             ch_bot = guild.get_channel(cfg.bots_channel_id)
             if ch_bot and isinstance(ch_bot, discord.VoiceChannel):
-                show_goal = self._guild_show_goal.get(guild.id, False)
+                show_goal = self._guild_show_goal.get(guild.id, True)
                 branding = self._guild_branding.get(guild.id)
                 if show_goal:
                     bar, goal = make_goal_progress_bar(total_members)
