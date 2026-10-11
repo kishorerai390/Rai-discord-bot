@@ -230,6 +230,8 @@ class HelpView(discord.ui.View):
 class UtilityCog(commands.Cog, name="Utility"):
     """Server information, diagnostics, and utilities."""
 
+    info_group = app_commands.Group(name="info", description="Server, user, role, and channel information")
+
     def __init__(self, bot: SentinelBot):
         self.bot = bot
         self.start_time = time.time()

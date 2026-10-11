@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 class GameStatsCog(commands.Cog, name="Game Stats"):
     """Esports & Gaming Statistics Hub."""
 
+    gamestats_group = app_commands.Group(name="gamestats", description="Esports and gaming statistics hub")
+
     def __init__(self, bot: SentinelBot):
         self.bot = bot
 
@@ -35,7 +37,7 @@ class GameStatsCog(commands.Cog, name="Game Stats"):
     # VALORANT STATS
     # ==========================================
 
-    @app_commands.command(name="valstats", description="Inspect Valorant rank, MMR, and combat stats")
+    @gamestats_group.command(name="valorant", description="Inspect Valorant rank, MMR, and combat stats")
     @app_commands.describe(player="Riot ID in format Name#Tag (e.g. TenZ#SEN)")
     async def valstats(self, interaction: discord.Interaction, player: str):
         """Fetch Valorant statistics."""
@@ -99,7 +101,7 @@ class GameStatsCog(commands.Cog, name="Game Stats"):
     # BGMI / PUBG STATS
     # ==========================================
 
-    @app_commands.command(name="bgmistats", description="Inspect BGMI / PUBG Mobile combat profile & K/D")
+    @gamestats_group.command(name="bgmi", description="Inspect BGMI / PUBG Mobile combat profile & K/D")
     @app_commands.describe(player_id="In-game BGMI Character ID (e.g. 5123456789)")
     async def bgmistats(self, interaction: discord.Interaction, player_id: str):
         """Fetch BGMI statistics."""
@@ -123,7 +125,7 @@ class GameStatsCog(commands.Cog, name="Game Stats"):
     # 100% FREE GAMES RADAR
     # ==========================================
 
-    @app_commands.command(name="freebies", description="Discover all 100% free games claimable on Epic Games & Steam right now")
+    @gamestats_group.command(name="freebies", description="Discover all 100% free games claimable on Epic Games & Steam right now")
     async def freebies(self, interaction: discord.Interaction):
         """Scrape active freebies from Epic Games Store."""
         await interaction.response.defer()
