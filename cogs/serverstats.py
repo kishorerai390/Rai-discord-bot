@@ -177,32 +177,26 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
 
         updated_any = False
 
-        # 1. Update Server Status Channel (Dual-metric: 🦋 {online} online 🦋 {total} members)
+        # 1. Update Server Status Channel (Dual-metric matching reference: 🦋 {online} online 🦋 {total} members)
         if cfg.all_members_channel_id:
             ch_all = guild.get_channel(cfg.all_members_channel_id)
             if ch_all and isinstance(ch_all, discord.VoiceChannel):
-                if "online" in ch_all.name.lower() or "🦋" in ch_all.name:
-                    expected_name = f"🦋 {online_members} online 🦋 {total_members} members"
-                else:
-                    expected_name = f"🔒・👥・𝓐ʟʟ・𝓜ᴇᴍʙᴇʀs: {total_members}"
+                expected_name = f"🦋 {online_members} online 🦋 {total_members} members"
                 if ch_all.name != expected_name:
                     try:
-                        await ch_all.edit(name=expected_name, reason="Rai ServerStats: Auto count sync")
+                        await ch_all.edit(name=expected_name, reason="Rai ServerStats: Aesthetic count sync")
                         updated_any = True
                     except discord.HTTPException as e:
                         logger.warning(f"Rate limited or failed updating Server Status on {guild.name}: {e}")
 
-        # 2. Update VC Status Channel (Dual-metric: 🦋 {vc_users} vc user 🦋 {len(active_vcs)} Active vc)
+        # 2. Update VC Status Channel (Dual-metric matching reference: 🦋 {vc_users} vc user 🦋 {len(active_vcs)} Active vc)
         if cfg.members_channel_id:
             ch_mem = guild.get_channel(cfg.members_channel_id)
             if ch_mem and isinstance(ch_mem, discord.VoiceChannel):
-                if "active vc" in ch_mem.name.lower() or "vc user" in ch_mem.name.lower() or "🦋" in ch_mem.name:
-                    expected_name = f"🦋 {vc_users} vc user 🦋 {len(active_vcs)} Active vc"
-                else:
-                    expected_name = f"🔒・👤・𝓜ᴇᴍʙᴇʀs: {humans}"
+                expected_name = f"🦋 {vc_users} vc user 🦋 {len(active_vcs)} Active vc"
                 if ch_mem.name != expected_name:
                     try:
-                        await ch_mem.edit(name=expected_name, reason="Rai ServerStats: Auto count sync")
+                        await ch_mem.edit(name=expected_name, reason="Rai ServerStats: Aesthetic count sync")
                         updated_any = True
                     except discord.HTTPException as e:
                         logger.warning(f"Rate limited or failed updating VC Status on {guild.name}: {e}")
