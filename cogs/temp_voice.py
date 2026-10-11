@@ -11,6 +11,7 @@ import asyncio
 import datetime
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import discord
 from discord import app_commands
@@ -58,6 +59,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         self._creation_cooldowns: Dict[int, float] = {}
         self._recent_creations: Dict[int, List[float]] = {}
         self._blocked_users: Dict[int, float] = {}
+        self._deaf_inactivity_tracker: Dict[tuple[int, int], float] = {}
 
     def cog_unload(self):
         self._supervisor_task.cancel()
@@ -187,6 +189,51 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                                 last_empty_at=None,
                             )
                             await DynamicVCControlManager.update_room_panel(self.bot, guild, room.voice_channel_id)
+
+                        # Smart AFK Inactivity Check for dynamic voice rooms (deafened > 20m)
+                        now_mono = time.monotonic()
+                        for m in list(vc.members):
+                            if m.bot or m.id == guild.owner_id:
+                                continue
+                            if m.voice and (m.voice.self_deaf or m.voice.deaf):
+                                key = (vc.id, m.id)
+                                if key not in self._deaf_inactivity_tracker:
+                                    self._deaf_inactivity_tracker[key] = now_mono
+                                else:
+                                    deaf_duration = now_mono - self._deaf_inactivity_tracker[key]
+                                    if deaf_duration >= 1200.0:  # 20 minutes (1200s)
+                                        afk_target = guild.afk_channel
+                                        try:
+                                            if afk_target and afk_target.id != vc.id:
+                                                await m.move_to(afk_target, reason="Smart AFK: Deafened/inactive in dynamic room for 20+ minutes")
+                                                action_desc = f"moved to AFK channel **#{afk_target.name}**"
+                                            else:
+                                                await m.move_to(None, reason="Smart AFK: Deafened/inactive in dynamic room for 20+ minutes")
+                                                action_desc = "disconnected from voice channel"
+
+                                            self._deaf_inactivity_tracker.pop(key, None)
+                                            OwnerReporter.send_room_report(
+                                                self.bot,
+                                                guild.id,
+                                                event="Smart AFK Voice Room Inactivity",
+                                                user=m,
+                                                action_taken=f"User was {action_desc} after 20 minutes deafened in dynamic VC",
+                                                details={
+                                                    "Voice Channel": f"`#{vc.name}` (`{vc.id}`)",
+                                                    "State": "Deafened / Inactive",
+                                                    "Duration": "20+ minutes",
+                                                },
+                                            )
+                                        except Exception as move_err:
+                                            logger.warning(f"Failed to move deafened member {m.id} from dynamic room {vc.id}: {move_err}")
+                            else:
+                                self._deaf_inactivity_tracker.pop((vc.id, m.id), None)
+
+                        # Prune disconnected members from inactivity tracker
+                        active_member_ids = {mem.id for mem in vc.members}
+                        stale_vc_keys = [k for k in self._deaf_inactivity_tracker if k[0] == vc.id and k[1] not in active_member_ids]
+                        for stale_k in stale_vc_keys:
+                            self._deaf_inactivity_tracker.pop(stale_k, None)
 
                 # 3. Orphaned Voice Channels Sweep (channels created during past DB errors/crashes)
                 tracked_ids = {r.voice_channel_id for r in rooms}

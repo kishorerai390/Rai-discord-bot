@@ -5,8 +5,9 @@ Supports templates, member count formatting, avatar embeds, autorole, DMs, and t
 
 from __future__ import annotations
 
+import asyncio
 import logging
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -31,15 +32,52 @@ def format_template(text: str, member: discord.Member) -> str:
     )
 
 
+def build_sticky_banner(guild: discord.Guild) -> tuple[discord.Embed, discord.ui.View]:
+    """Generates an aesthetic quick-navigation bulletin and link buttons for #general-chat."""
+    embed = discord.Embed(
+        title="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ 𝓦ᴇʟᴄᴏᴍᴇ & 𝓠ᴜɪᴄᴋ 𝓝ᴀᴠɪɢᴀᴛɪᴏɴ ✦",
+        description=(
+            "Welcome to **#general-chat**! Keep conversations respectful, vibrant, and fun.\n\n"
+            "📌 **Quick Hubs & Navigation:**\n"
+            "• 📜 <#1545502710101704714> — Server rules, conduct, and safety policy\n"
+            "• 🎭 <#1545502722739150898> — Self roles, gaming squads, and theme colors\n"
+            "• 🎙️ `➕・𝓒ʀᴇᴀᴛᴇ・𝕽ᴏᴏᴍ` — Instant private & gaming voice lounges\n"
+            "• 🛠️ <#1554891396119531602> — Control panel to lock, rename, and manage your VC"
+        ),
+        color=0x9B59B6,
+    )
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+    embed.set_footer(
+        text="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Autonomous Guide • Stickied Bulletin ✦",
+        icon_url=guild.icon.url if guild.icon else None,
+    )
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(label="📜 Rules & Guide", style=discord.ButtonStyle.link, url=f"https://discord.com/channels/{guild.id}/1545502710101704714"))
+    view.add_item(discord.ui.Button(label="🎭 Pick Roles", style=discord.ButtonStyle.link, url=f"https://discord.com/channels/{guild.id}/1545502722739150898"))
+    view.add_item(discord.ui.Button(label="🛠️ Room Control", style=discord.ButtonStyle.link, url=f"https://discord.com/channels/{guild.id}/1554891396119531602"))
+    return embed, view
+
+
 class WelcomeCog(commands.Cog, name="Welcome"):
-    """Welcome and goodbye message manager."""
+    """Welcome, onboarding, and stickied server guidance manager."""
 
     def __init__(self, bot: SentinelBot):
         self.bot = bot
+        # Track message activity in sticky-enabled channels: channel_id -> message count
+        self._sticky_channels: Dict[int, int] = {1545502730699808768: 0}  # #general-chat default
+        self._sticky_messages: Dict[int, Optional[int]] = {}  # channel_id -> message_id
+        self._sticky_lock = asyncio.Lock()
 
     welcome_group = app_commands.Group(
         name="welcome",
         description="Configure welcome and goodbye system",
+        default_permissions=discord.Permissions(administrator=True),
+    )
+
+    sticky_group = app_commands.Group(
+        name="sticky",
+        description="Manage stickied informational banners",
         default_permissions=discord.Permissions(administrator=True),
     )
 
@@ -198,6 +236,39 @@ class WelcomeCog(commands.Cog, name="Welcome"):
             except Exception:
                 pass
 
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """Monitors chat volume in stickied channels and cleanly cycles the navigation banner."""
+        if message.author.bot or not message.guild or not isinstance(message.channel, discord.TextChannel):
+            return
+
+        if message.channel.id not in self._sticky_channels:
+            return
+
+        self._sticky_channels[message.channel.id] += 1
+        # Re-post every 7 messages to keep it visible at the bottom of active chat
+        if self._sticky_channels[message.channel.id] >= 7:
+            await self._refresh_sticky_message(message.channel)
+
+    async def _refresh_sticky_message(self, channel: discord.TextChannel) -> None:
+        """Atomically deletes the previous sticky message and re-posts it at the bottom."""
+        async with self._sticky_lock:
+            self._sticky_channels[channel.id] = 0
+            old_msg_id = self._sticky_messages.get(channel.id)
+            if old_msg_id:
+                try:
+                    old_msg = await channel.fetch_message(old_msg_id)
+                    await old_msg.delete()
+                except Exception:
+                    pass
+
+            embed, view = build_sticky_banner(channel.guild)
+            try:
+                new_msg = await channel.send(embed=embed, view=view)
+                self._sticky_messages[channel.id] = new_msg.id
+            except Exception as e:
+                logger.debug(f"Failed to post sticky banner in #{channel.name}: {e}")
+
     # ==========================================
     # SLASH COMMANDS
     # ==========================================
@@ -347,6 +418,41 @@ class WelcomeCog(commands.Cog, name="Welcome"):
             embed=info_embed("Welcome System Disabled", "Join and leave announcements are now disabled."),
             ephemeral=True,
         )
+
+    # ==========================================
+    # STICKY BANNER COMMANDS
+    # ==========================================
+
+    @sticky_group.command(name="refresh", description="Immediately refresh the stickied navigation banner in this channel")
+    @is_admin_or_owner()
+    async def sticky_refresh(self, interaction: discord.Interaction):
+        if not isinstance(interaction.channel, discord.TextChannel):
+            await interaction.response.send_message("Must be executed in a text channel.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        self._sticky_channels[interaction.channel.id] = 0
+        await self._refresh_sticky_message(interaction.channel)
+        await interaction.followup.send("✅ Stickied bulletin refreshed at the bottom of this channel.", ephemeral=True)
+
+    @sticky_group.command(name="toggle", description="Toggle stickied navigation banner on or off for this channel")
+    @is_admin_or_owner()
+    async def sticky_toggle(self, interaction: discord.Interaction):
+        ch_id = interaction.channel_id
+        if ch_id in self._sticky_channels:
+            self._sticky_channels.pop(ch_id, None)
+            old_id = self._sticky_messages.pop(ch_id, None)
+            if old_id and isinstance(interaction.channel, discord.TextChannel):
+                try:
+                    m = await interaction.channel.fetch_message(old_id)
+                    await m.delete()
+                except Exception:
+                    pass
+            await interaction.response.send_message("❌ Stickied bulletin disabled for this channel.", ephemeral=True)
+        else:
+            self._sticky_channels[ch_id] = 0
+            if isinstance(interaction.channel, discord.TextChannel):
+                await self._refresh_sticky_message(interaction.channel)
+            await interaction.response.send_message("✅ Stickied bulletin enabled for this channel.", ephemeral=True)
 
 
 async def setup(bot: SentinelBot):

@@ -243,6 +243,81 @@ class AutoModCog(commands.Cog, name="AutoMod"):
         except Exception:
             pass
 
+    async def _check_channel_burst(self, channel: discord.TextChannel) -> None:
+        """Detect sudden chat bursts (>10 msgs in 4s) across any channel and engage auto-slowmode."""
+        now = time.monotonic()
+        timestamps = self._channel_burst_tracker[channel.id]
+        cutoff = now - 4.0
+        self._channel_burst_tracker[channel.id] = [t for t in timestamps if t > cutoff]
+        self._channel_burst_tracker[channel.id].append(now)
+
+        if len(self._channel_burst_tracker[channel.id]) >= 10:
+            if channel.id in self._channel_slowmode_active:
+                return  # Already engaged
+
+            guild = channel.guild
+            if not channel.permissions_for(guild.me).manage_channels:
+                return
+
+            original_delay = channel.slowmode_delay
+            if original_delay >= 5:
+                # Channel already has 5s or higher slowmode
+                return
+
+            self._channel_slowmode_active[channel.id] = now + 120.0
+            self._channel_burst_tracker[channel.id].clear()
+
+            try:
+                await channel.edit(slowmode_delay=5, reason="Anti-Raid: Sudden message velocity burst (>10 msgs in 4s)")
+                embed = discord.Embed(
+                    title="⚠️ Auto-Slowmode Engaged",
+                    description=(
+                        "High message velocity detected. A temporary **5-second slowmode** "
+                        "has been automatically engaged for **2 minutes** to maintain chat stability."
+                    ),
+                    color=0xE67E22,
+                )
+                embed.set_footer(text="Anti-Raid Autonomous Protection • Slowmode will reset automatically")
+                await channel.send(embed=embed, delete_after=120)
+
+                from utils.owner_reporter import OwnerReporter
+                OwnerReporter.send_security_report(
+                    self.bot,
+                    guild.id,
+                    event="Sudden Channel Message Flood / Burst",
+                    action_taken=f"Engaged 5s auto-slowmode on #{channel.name} for 120 seconds",
+                    user=None,
+                    severity="HIGH",
+                    details={
+                        "Channel": f"`#{channel.name}` (`{channel.id}`)",
+                        "Velocity": ">10 messages in 4.0s",
+                        "Original Slowmode": f"{original_delay}s",
+                        "Auto Slowmode": "5s (2 min duration)",
+                    },
+                )
+            except Exception as e:
+                logger.error(f"Failed to engage auto-slowmode on channel {channel.id}: {e}")
+                return
+
+            # Background task to revert slowmode
+            asyncio.create_task(self._revert_slowmode(channel.id, original_delay))
+
+    async def _revert_slowmode(self, channel_id: int, original_delay: int) -> None:
+        """Reverts channel slowmode after cool-off duration."""
+        await asyncio.sleep(120.0)
+        self._channel_slowmode_active.pop(channel_id, None)
+        channel = self.bot.get_channel(channel_id)
+        if isinstance(channel, discord.TextChannel) and channel.slowmode_delay == 5:
+            try:
+                await channel.edit(slowmode_delay=original_delay, reason="Anti-Raid: Burst slowmode duration ended (2 mins)")
+                embed = discord.Embed(
+                    description="✅ **Auto-slowmode lifted.** Channel velocity has normalized.",
+                    color=Colors.SUCCESS,
+                )
+                await channel.send(embed=embed, delete_after=10)
+            except Exception as e:
+                logger.debug(f"Could not revert slowmode on channel {channel_id}: {e}")
+
     # ==========================================
     # SLASH COMMANDS
     # ==========================================
