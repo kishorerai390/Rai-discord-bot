@@ -18,8 +18,10 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import Colors
+from config.permissions import can_moderate, is_admin_or_owner
 from utils.embeds import create_embed, error_embed, info_embed
 from utils.font_generator import AVAILABLE_STYLES, transform_text
+from utils.mod_inspector import ModInspectorView, build_mod_view_embed
 
 if TYPE_CHECKING:
     from main import SentinelBot
@@ -290,12 +292,20 @@ class UtilityCog(commands.Cog, name="Utility"):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="userinfo", description="Display details about a user")
+    @app_commands.command(name="userinfo", description="Display details and verification standing about a user")
     @app_commands.describe(user="The member to inspect (defaults to yourself)")
     async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         member = user or interaction.user
-        if not isinstance(member, discord.Member):
+        if not isinstance(member, discord.Member) and interaction.guild:
             member = interaction.guild.get_member(member.id) or member
+
+        # If requester is staff inspecting in a guild, offer the interactive Mod View
+        is_staff = can_moderate(interaction.user) or is_admin_or_owner(interaction.user)
+        if is_staff and isinstance(member, discord.Member):
+            embed = await build_mod_view_embed(self.bot, member, interaction.user)
+            view = ModInspectorView(member, self.bot)
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            return
 
         embed = create_embed(
             title=f"👤 {member.name}",
@@ -304,16 +314,18 @@ class UtilityCog(commands.Cog, name="Utility"):
         )
         embed.add_field(name="Display Name", value=member.display_name, inline=True)
         embed.add_field(name="User ID", value=f"`{member.id}`", inline=True)
-        embed.add_field(name="Bot?", value="Yes" if member.bot else "No", inline=True)
+        embed.add_field(name="Bot Account", value="Yes" if member.bot else "No", inline=True)
         embed.add_field(name="Registered", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
 
         if isinstance(member, discord.Member):
             if member.joined_at:
                 embed.add_field(name="Joined Server", value=discord.utils.format_dt(member.joined_at, "R"), inline=True)
+            is_pending = getattr(member, "pending", False)
+            embed.add_field(name="Rules Agreed", value="⏳ Pending" if is_pending else "✅ Verified", inline=True)
             embed.add_field(name="Highest Role", value=member.top_role.mention, inline=True)
-            roles = [r.mention for r in member.roles if not r.is_default()]
+            roles = [r.mention for r in member.roles if not r.is_default() and "───" not in r.name]
             if roles:
-                embed.add_field(name=f"Roles ({len(roles)})", value=" ".join(roles[:12]), inline=False)
+                embed.add_field(name=f"Roles ({len(roles)})", value=" ".join(roles[:16]), inline=False)
 
         await interaction.response.send_message(embed=embed)
 

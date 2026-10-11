@@ -23,6 +23,7 @@ from config import Colors
 from utils.embeds import create_embed, error_embed, info_embed, success_embed, warning_embed
 from utils.helpers import ConfirmView, PaginationView, parse_duration
 from utils.permissions import can_moderate, is_admin_or_owner
+from utils.mod_inspector import ModInspectorView, build_mod_view_embed
 
 if TYPE_CHECKING:
     from main import SentinelBot
@@ -365,6 +366,21 @@ class ModerationCog(commands.Cog, name="Moderation"):
         overwrite.send_messages = None
         await channel.set_permissions(interaction.guild.default_role, overwrite=overwrite, reason=f"Channel unlocked by {interaction.user}")
         await interaction.response.send_message(embed=success_embed("Channel Unlocked", "Members can now send messages in this channel."))
+
+    @app_commands.command(name="modview", description="Inspect complete member moderation forensics and access quick action controls")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(moderate_members=True)
+    @app_commands.describe(member="The member to inspect")
+    async def modview(self, interaction: discord.Interaction, member: discord.Member):
+        """Interactive member dossier with moderation standing and instant staff controls."""
+        can_mod, err = can_moderate(interaction.user, member, interaction.guild.me)
+        if not can_mod and not is_admin_or_owner(interaction.user):
+            await interaction.response.send_message(embed=error_embed("Permission Denied", err), ephemeral=True)
+            return
+
+        embed = await build_mod_view_embed(self.bot, member, interaction.user)
+        view = ModInspectorView(member, self.bot)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot: SentinelBot):
