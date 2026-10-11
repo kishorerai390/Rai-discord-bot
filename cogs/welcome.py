@@ -143,6 +143,27 @@ class WelcomeCog(commands.Cog, name="Welcome"):
             except (discord.Forbidden, discord.HTTPException):
                 pass
 
+        # 4. Auto Server Member Milestone Celebration in #general-chat
+        count = guild.member_count or len(guild.members)
+        if count % 100 == 0 or count in (100, 250, 500, 1000, 1500, 2000):
+            general_ch = guild.get_channel(1545502730699808768)
+            if general_ch and w_cfg.welcome_channel_id != 1545502730699808768 and isinstance(general_ch, discord.TextChannel):
+                m_embed = discord.Embed(
+                    title="🎉 ✦ 𝕸ᴇᴍʙᴇʀ 𝕸ɪʟᴇsᴛᴏɴᴇ 𝕽ᴇᴀᴄʜᴇᴅ! ✦ 🎉",
+                    description=(
+                        f"We just welcomed our **{count:,}th member**, {member.mention}!\n\n"
+                        f"Thank you everyone for making **{guild.name}** an amazing community! 🚀"
+                    ),
+                    color=0xF1C40F,
+                )
+                if guild.icon:
+                    m_embed.set_thumbnail(url=guild.icon.url)
+                m_embed.set_footer(text="✦ ʀᴀɪ Autonomous Ecosystem • Member Milestones ✦")
+                try:
+                    await general_ch.send(embed=m_embed)
+                except Exception:
+                    pass
+
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
         guild = member.guild

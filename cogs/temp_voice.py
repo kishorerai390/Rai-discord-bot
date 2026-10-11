@@ -275,6 +275,11 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         # 0. Live Screen Share Notification & Bitrate Optimizer (Features 1 & 2)
         await self._handle_stream_state_update(member, before, after)
 
+        # Dynamic Auto-Bitrate Scaling (Quality vs. Crowd Optimizer)
+        target_ch = after.channel or before.channel
+        if target_ch and isinstance(target_ch, discord.VoiceChannel):
+            await self._check_crowd_bitrate_scaling(target_ch)
+
         cfg = await self.bot.db.get_temp_voice_config(guild.id)
 
         # -------------------------------------------------------------
@@ -494,6 +499,35 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                             logger.info(f"Stream Optimizer: Restored #{prev_channel.name} bitrate to {orig_bitrate} bps")
                         except Exception as r_err:
                             logger.debug(f"Could not restore bitrate: {r_err}")
+
+    async def _check_crowd_bitrate_scaling(self, vc: discord.VoiceChannel) -> None:
+        """Dynamically scales bitrate based on crowd size (96kbps for 6+ members, restores for 1-3 members)."""
+        guild = vc.guild
+        if not guild.me.guild_permissions.manage_channels:
+            return
+
+        # Do not override if member is actively screen sharing (handled by stream optimizer)
+        if any(m.voice and m.voice.self_stream for m in vc.members):
+            return
+
+        member_count = len(vc.members)
+        guild_limit = getattr(guild, "bitrate_limit", 96000)
+        guild_max = guild_limit if isinstance(guild_limit, (int, float)) else 96000
+
+        if member_count >= 6 and vc.bitrate > 96000:
+            if vc.id not in self._original_stream_bitrates:
+                self._original_stream_bitrates[vc.id] = vc.bitrate
+            try:
+                await vc.edit(bitrate=96000, reason="Auto-Bitrate Optimizer: Crowd scaling to 96kbps (6+ members)")
+            except Exception as e:
+                logger.debug(f"Could not crowd-scale bitrate for #{vc.name}: {e}")
+        elif 1 <= member_count <= 3 and vc.id in self._original_stream_bitrates:
+            orig = self._original_stream_bitrates.pop(vc.id, 128000)
+            target = min(orig, int(guild_max))
+            try:
+                await vc.edit(bitrate=target, reason="Auto-Bitrate Optimizer: Restored High-Fidelity bitrate (1-3 members)")
+            except Exception as e:
+                logger.debug(f"Could not restore crowd bitrate for #{vc.name}: {e}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:

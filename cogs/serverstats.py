@@ -10,6 +10,8 @@ Creates and automatically maintains locked voice channel counters for:
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
+from datetime import datetime, timezone, timedelta
 import logging
 from typing import TYPE_CHECKING, Optional
 import discord
@@ -26,17 +28,29 @@ logger = logging.getLogger(__name__)
 
 
 class ServerStatsCog(commands.Cog, name="ServerStats"):
-    """Autonomous Server Stats Voice Counter Channels."""
+    """Autonomous Server Stats Voice Counter Channels & Self-Driving Background Loops."""
 
     def __init__(self, bot: SentinelBot):
         self.bot = bot
         self._update_locks: dict[int, float] = {}
+        self._daily_activity_tracker: dict[tuple[int, int], int] = defaultdict(int)
+        self._member_birthdays: dict[tuple[int, int], tuple[int, int]] = {}
         self.stats_sync_loop.start()
         self.realtime_consoles_sync_loop.start()
+        self.chatter_of_the_day_loop.start()
+        self.expired_invites_loop.start()
+        self.birthday_check_loop.start()
+        self.db_maintenance_loop.start()
+        self.invite_health_monitor_loop.start()
 
     def cog_unload(self) -> None:
         self.stats_sync_loop.cancel()
         self.realtime_consoles_sync_loop.cancel()
+        self.chatter_of_the_day_loop.cancel()
+        self.expired_invites_loop.cancel()
+        self.birthday_check_loop.cancel()
+        self.db_maintenance_loop.cancel()
+        self.invite_health_monitor_loop.cancel()
 
     stats_group = app_commands.Group(
         name="serverstats",
@@ -384,6 +398,259 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
             embed=info_embed("Disabled", "Server statistics counters have been disabled."),
             ephemeral=True,
         )
+
+    # ==========================================
+    # AUTONOMOUS BACKGROUND ENGINES (ZERO CLUTTER)
+    # ==========================================
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        """Tracks daily member activity for Chatter of the Day."""
+        if message.author.bot or not message.guild:
+            return
+        key = (message.guild.id, message.author.id)
+        self._daily_activity_tracker[key] = self._daily_activity_tracker.get(key, 0) + 1
+
+    @tasks.loop(hours=24)
+    async def chatter_of_the_day_loop(self) -> None:
+        """Automatically calculates and awards Chatter of the Day every 24 hours."""
+        for guild in self.bot.guilds:
+            try:
+                guild_scores = {
+                    uid: pts for (gid, uid), pts in self._daily_activity_tracker.items() if gid == guild.id
+                }
+                if not guild_scores:
+                    continue
+                top_uid = max(guild_scores, key=guild_scores.get)
+                winner = guild.get_member(top_uid)
+                if not winner:
+                    continue
+
+                role = discord.utils.get(guild.roles, name="✦ Chatter of the Day ✦")
+                if not role and guild.me.guild_permissions.manage_roles:
+                    try:
+                        role = await guild.create_role(
+                            name="✦ Chatter of the Day ✦",
+                            color=discord.Color.gold(),
+                            hoist=False,
+                            reason="Autonomous: Auto-created Chatter of the Day role",
+                        )
+                    except Exception:
+                        role = None
+
+                role_pos = getattr(role, "position", 0)
+                bot_pos = getattr(guild.me.top_role, "position", 0)
+                if role and guild.me.guild_permissions.manage_roles and role_pos < bot_pos:
+                    for prev_member in list(role.members):
+                        if prev_member.id != winner.id:
+                            try:
+                                await prev_member.remove_roles(role, reason="Chatter of the Day 24h rotation")
+                            except Exception:
+                                pass
+                    try:
+                        await winner.add_roles(role, reason="Awarded Chatter of the Day")
+                    except Exception:
+                        pass
+
+                general_ch = guild.get_channel(1545502730699808768) or guild.system_channel
+                if isinstance(general_ch, discord.TextChannel):
+                    pts = guild_scores[top_uid]
+                    embed = discord.Embed(
+                        title="👑 ✦ 𝓒ʜᴀᴛᴛᴇʀ ᴏғ ᴛʜᴇ 𝓓ᴀʏ ✦ 👑",
+                        description=(
+                            f"Congratulations to {winner.mention} ({winner.display_name})!\n\n"
+                            f"They earned **{pts} activity points** in the last 24 hours and have been awarded the **✦ Chatter of the Day ✦** role! 🌟"
+                        ),
+                        color=0xF1C40F,
+                    )
+                    if winner.display_avatar:
+                        embed.set_thumbnail(url=winner.display_avatar.url)
+                    embed.set_footer(text="✦ ʀᴀɪ Autonomous Ecosystem • Daily Activity Engine ✦")
+                    await general_ch.send(embed=embed)
+            except Exception as e:
+                logger.debug(f"chatter_of_the_day_loop error for {guild.id}: {e}")
+
+        # Reset scores for next cycle
+        self._daily_activity_tracker.clear()
+
+    @chatter_of_the_day_loop.before_loop
+    async def before_chatter_loop(self) -> None:
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
+
+    @tasks.loop(hours=6)
+    async def expired_invites_loop(self) -> None:
+        """Autonomously purges expired and dead invite links."""
+        for guild in self.bot.guilds:
+            if not guild.me.guild_permissions.manage_guild:
+                continue
+            try:
+                invites = await guild.invites()
+                now = datetime.now(timezone.utc)
+                for inv in invites:
+                    max_age = getattr(inv, "max_age", 0)
+                    created_at = getattr(inv, "created_at", None)
+                    max_uses = getattr(inv, "max_uses", 0)
+                    uses = getattr(inv, "uses", 0)
+                    is_expired_time = isinstance(max_age, (int, float)) and max_age > 0 and created_at and (created_at + timedelta(seconds=max_age) <= now)
+                    is_expired_uses = isinstance(max_uses, int) and max_uses > 0 and isinstance(uses, int) and uses >= max_uses
+                    if is_expired_time or is_expired_uses:
+                        try:
+                            await inv.delete(reason="Auto Invites Purge: Invite has expired or exceeded maximum uses")
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.debug(f"expired_invites_loop error in {guild.id}: {e}")
+
+    @expired_invites_loop.before_loop
+    async def before_invites_loop(self) -> None:
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
+
+    @tasks.loop(hours=24)
+    async def birthday_check_loop(self) -> None:
+        """Checks and celebrates member birthdays in #general-chat."""
+        now = datetime.now(timezone.utc)
+        today_month = now.month
+        today_day = now.day
+
+        for guild in self.bot.guilds:
+            general_ch = guild.get_channel(1545502730699808768) or guild.system_channel
+            if not isinstance(general_ch, discord.TextChannel):
+                continue
+
+            for (gid, uid), (b_m, b_d) in self._member_birthdays.items():
+                if gid == guild.id and b_m == today_month and b_d == today_day:
+                    member = guild.get_member(uid)
+                    if member:
+                        embed = discord.Embed(
+                            title="🎂 ✦ 𝓗ᴀᴘᴘʏ 𝓑ɪʀᴛʜᴅᴀʏ! ✦ 🎂",
+                            description=(
+                                f"Wishing a very **Happy Birthday** to {member.mention}! 🎉\n\n"
+                                f"Drop your warm wishes and celebrate their special day! 🍰🎈"
+                            ),
+                            color=0xFF69B4,
+                        )
+                        if member.display_avatar:
+                            embed.set_thumbnail(url=member.display_avatar.url)
+                        embed.set_footer(text="✦ ʀᴀɪ Autonomous Ecosystem • Birthday Celebrations ✦")
+                        try:
+                            await general_ch.send(embed=embed)
+                        except Exception:
+                            pass
+
+    @birthday_check_loop.before_loop
+    async def before_birthday_loop(self) -> None:
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
+
+    @tasks.loop(hours=24)
+    async def db_maintenance_loop(self) -> None:
+        """Performs nightly SQLite database VACUUM & self-healing maintenance."""
+        try:
+            db_conn = getattr(self.bot.db, "_db", None)
+            if db_conn:
+                await db_conn.execute("VACUUM")
+                await db_conn.execute("PRAGMA optimize")
+                logger.info("Autonomous DB Maintenance: Executed VACUUM and PRAGMA optimize successfully.")
+        except Exception as e:
+            logger.debug(f"db_maintenance_loop notice: {e}")
+
+    @db_maintenance_loop.before_loop
+    async def before_db_maintenance_loop(self) -> None:
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
+
+    @tasks.loop(hours=12)
+    async def invite_health_monitor_loop(self) -> None:
+        """Monitors that guilds have at least one permanent active invite link."""
+        for guild in self.bot.guilds:
+            if not guild.me.guild_permissions.manage_guild:
+                continue
+            try:
+                invites = await guild.invites()
+                permanent_invites = [inv for inv in invites if inv.max_age == 0 and inv.max_uses == 0]
+                if not permanent_invites:
+                    from utils.owner_reporter import OwnerReporter
+                    OwnerReporter.send_security_report(
+                        self.bot,
+                        guild.id,
+                        event="Invite Link Health Warning",
+                        user=None,
+                        action_taken="Owner Notification",
+                        severity="MEDIUM",
+                        details={
+                            "Warning": "No permanent invite links detected",
+                            "Recommendation": "Create a permanent invite link to avoid losing prospective members",
+                        },
+                    )
+            except Exception as e:
+                logger.debug(f"invite_health_monitor_loop error in {guild.id}: {e}")
+
+    @invite_health_monitor_loop.before_loop
+    async def before_invite_health_loop(self) -> None:
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if asyncio.iscoroutine(ready_call):
+                await ready_call
+        except Exception:
+            pass
+
+    birthday_group = app_commands.Group(
+        name="birthday",
+        description="Birthday registry and automatic celebration shoutouts",
+    )
+
+    @birthday_group.command(name="set", description="Register your birthday for an automatic server shoutout")
+    @app_commands.describe(month="Month (1-12)", day="Day (1-31)")
+    async def birthday_set(self, interaction: discord.Interaction, month: int, day: int) -> None:
+        if not interaction.guild:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        if month < 1 or month > 12 or day < 1 or day > 31:
+            await interaction.response.send_message("❌ Invalid date. Please enter a valid month (1-12) and day (1-31).", ephemeral=True)
+            return
+
+        self._member_birthdays[(interaction.guild.id, interaction.user.id)] = (month, day)
+        embed = discord.Embed(
+            title="🎂 Birthday Registered",
+            description=f"Your birthday is set to **{month:02d}/{day:02d}**!\nWe will automatically celebrate you in **#general-chat** on your special day! 🎉",
+            color=0xFF69B4,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @birthday_group.command(name="check", description="Check registered birthday")
+    @app_commands.describe(member="Member to check (defaults to yourself)")
+    async def birthday_check(self, interaction: discord.Interaction, member: Optional[discord.Member] = None) -> None:
+        target = member or interaction.user
+        guild = interaction.guild
+        if not guild:
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        bday = self._member_birthdays.get((guild.id, target.id))
+        if bday:
+            m, d = bday
+            await interaction.response.send_message(f"🎂 **{target.display_name}**'s birthday is **{m:02d}/{d:02d}**.", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ No birthday registered for **{target.display_name}**. Use `/birthday set` to register!", ephemeral=True)
 
 
 async def setup(bot: SentinelBot) -> None:

@@ -691,5 +691,190 @@ async def test_nickstyle_and_pulse():
     cog.cog_unload()
 
 
+@pytest.mark.asyncio
+async def test_auto_milestone_celebration():
+    from cogs.welcome import WelcomeCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cfg = MagicMock()
+    cfg.welcome_enabled = True
+    bot.db.get_or_create_guild_config.return_value = cfg
+    w_cfg = MagicMock()
+    w_cfg.autorole_id = None
+    w_cfg.welcome_channel_id = None
+    w_cfg.dm_enabled = False
+    bot.db.get_welcome_config.return_value = w_cfg
+
+    cog = WelcomeCog(bot)
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 888
+    guild.name = "✦ Rai Server ✦"
+    guild.member_count = 500  # Milestone count!
+    guild.icon = None
+
+    general_ch = MagicMock(spec=discord.TextChannel)
+    general_ch.id = 1545502730699808768
+    general_ch.send = AsyncMock()
+    guild.get_channel.return_value = general_ch
+
+    member = MagicMock(spec=discord.Member)
+    member.id = 9999
+    member.guild = guild
+    member.mention = "<@9999>"
+
+    await cog.on_member_join(member)
+    general_ch.send.assert_awaited_once()
+    embed = general_ch.send.call_args[1]["embed"]
+    assert "𝕸ɪʟᴇsᴛᴏɴᴇ 𝕽ᴇᴀᴄʜᴇᴅ" in embed.title
+    assert "500th member" in embed.description
+
+
+@pytest.mark.asyncio
+async def test_crowd_bitrate_scaling():
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = TempVoiceCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 111
+    guild.bitrate_limit = 256000
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_channels = True
+
+    vc = MagicMock(spec=discord.VoiceChannel)
+    vc.id = 222
+    vc.name = "✦ Squad Voice"
+    vc.bitrate = 192000
+    vc.guild = guild
+    vc.edit = AsyncMock()
+
+    # 1. 6 members -> Crowd scaling to 96kbps
+    members = []
+    for i in range(6):
+        m = MagicMock(spec=discord.Member)
+        m.id = i
+        m.voice = MagicMock()
+        m.voice.self_stream = False
+        members.append(m)
+    vc.members = members
+
+    await cog._check_crowd_bitrate_scaling(vc)
+    vc.edit.assert_awaited_once_with(bitrate=96000, reason="Auto-Bitrate Optimizer: Crowd scaling to 96kbps (6+ members)")
+    assert cog._original_stream_bitrates[vc.id] == 192000
+
+    # 2. Reduced to 2 members -> Restoration of high-fidelity bitrate
+    vc.members = members[:2]
+    vc.bitrate = 96000
+    vc.edit.reset_mock()
+
+    await cog._check_crowd_bitrate_scaling(vc)
+    vc.edit.assert_awaited_once_with(bitrate=192000, reason="Auto-Bitrate Optimizer: Restored High-Fidelity bitrate (1-3 members)")
+    assert vc.id not in cog._original_stream_bitrates
+
+
+@pytest.mark.asyncio
+async def test_chatter_of_the_day_and_birthday():
+    from cogs.serverstats import ServerStatsCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    bot.wait_until_ready = AsyncMock()
+    cog = ServerStatsCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 777
+    guild.roles = []
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_roles = True
+    guild.me.top_role = MagicMock()
+    guild.me.top_role.position = 100
+
+    role = MagicMock(spec=discord.Role)
+    role.name = "✦ Chatter of the Day ✦"
+    role.members = []
+    role.position = 10
+    guild.create_role = AsyncMock(return_value=role)
+
+    winner = MagicMock(spec=discord.Member)
+    winner.id = 456
+    winner.display_name = "Kishore"
+    winner.mention = "<@456>"
+    winner.display_avatar = None
+    winner.add_roles = AsyncMock()
+    guild.get_member.return_value = winner
+
+    general_ch = MagicMock(spec=discord.TextChannel)
+    general_ch.id = 1545502730699808768
+    general_ch.send = AsyncMock()
+    guild.get_channel.return_value = general_ch
+
+    bot.guilds = [guild]
+
+    # 1. Message activity recorded
+    msg = MagicMock(spec=discord.Message)
+    msg.author = winner
+    msg.author.bot = False
+    msg.guild = guild
+    await cog.on_message(msg)
+    assert cog._daily_activity_tracker[(guild.id, winner.id)] == 1
+
+    # 2. Chatter of the Day rotation
+    await cog.chatter_of_the_day_loop()
+    winner.add_roles.assert_awaited_once_with(role, reason="Awarded Chatter of the Day")
+    general_ch.send.assert_awaited_once()
+    assert "𝓒ʜᴀᴛᴛᴇʀ ᴏғ ᴛʜᴇ 𝓓ᴀʏ" in general_ch.send.call_args[1]["embed"].title
+
+    # 3. Birthday registration and check
+    interaction = MagicMock(spec=discord.Interaction)
+    interaction.guild = guild
+    interaction.user = winner
+    interaction.response = MagicMock()
+    interaction.response.send_message = AsyncMock()
+
+    await cog.birthday_set.callback(cog, interaction, month=10, day=11)
+    assert cog._member_birthdays[(guild.id, winner.id)] == (10, 11)
+    interaction.response.send_message.assert_awaited_once()
+
+    interaction.response.send_message.reset_mock()
+    await cog.birthday_check.callback(cog, interaction, member=winner)
+    interaction.response.send_message.assert_awaited_once()
+    assert "10/11" in interaction.response.send_message.call_args[0][0]
+
+    cog.cog_unload()
+
+
+@pytest.mark.asyncio
+async def test_expired_invites_and_db_maintenance():
+    from cogs.serverstats import ServerStatsCog
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    bot.db._db = AsyncMock()
+    bot.wait_until_ready = AsyncMock()
+    cog = ServerStatsCog(bot)
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 555
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_guild = True
+
+    expired_inv = MagicMock(spec=discord.Invite)
+    expired_inv.max_uses = 1
+    expired_inv.uses = 1
+    expired_inv.delete = AsyncMock()
+
+    guild.invites = AsyncMock(return_value=[expired_inv])
+    bot.guilds = [guild]
+
+    # 1. Expired invites loop
+    await cog.expired_invites_loop()
+    expired_inv.delete.assert_awaited_once()
+
+    # 2. DB maintenance loop
+    await cog.db_maintenance_loop()
+    assert bot.db._db.execute.call_count >= 2
+
+    cog.cog_unload()
+
+
+
 
 
