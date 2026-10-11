@@ -40,6 +40,7 @@ class AIWatchdogCog(commands.Cog, name="AI Watchdog"):
         self._last_audit_findings: list[str] = []
         self._last_audit_score: int = 100
         self._last_audit_time: Optional[datetime.datetime] = None
+        self._reported_anomalies: dict[int, tuple[set[str], float]] = {}
 
     async def cog_load(self) -> None:
         self.watchdog_loop.start()
@@ -49,13 +50,13 @@ class AIWatchdogCog(commands.Cog, name="AI Watchdog"):
         self.watchdog_loop.cancel()
 
     # ==========================================
-    # 24/7 AUTONOMOUS WATCHDOG SUPERVISOR (60s)
+    # 24/7 AUTONOMOUS WATCHDOG SUPERVISOR (5m)
     # ==========================================
 
-    @tasks.loop(seconds=60.0)
+    @tasks.loop(minutes=5.0)
     @safe_task_loop(task_name="ai_watchdog_audit", timeout_seconds=45.0)
     async def watchdog_loop(self) -> None:
-        """Autonomous 60-second server audit and anomaly detector."""
+        """Autonomous 5-minute server audit and anomaly detector with deduplication."""
         await self.bot.wait_until_ready()
         try:
             for guild in self.bot.guilds:
@@ -73,27 +74,55 @@ class AIWatchdogCog(commands.Cog, name="AI Watchdog"):
                 self._last_audit_findings = findings
                 self._last_audit_time = datetime.datetime.now(datetime.timezone.utc)
 
-                # If critical vulnerabilities are discovered
                 criticals = [f for f in findings if "CRITICAL" in f or "HIGH" in f]
                 if criticals and score < 75:
+                    finding_set = set(criticals)
+                    last_reported = self._reported_anomalies.get(guild.id)
+                    # Deduplication guard: Suppress repeated reports for identical findings within 12 hours
+                    if last_reported:
+                        prev_set, prev_time = last_reported
+                        if prev_set == finding_set and (time.time() - prev_time < 43200):
+                            continue
+
+                    self._reported_anomalies[guild.id] = (finding_set, time.time())
                     logger.warning(f"[AI Watchdog] Anomalies discovered in {guild.name}: {criticals}")
+
+                    has_everyone_ping = any("mention" in c.lower() for c in criticals)
+                    action_guidance = (
+                        "Click '⚡ Auto-Fix Permission' below to automatically remove @everyone mention permissions, "
+                        "or click '🔒 Lockdown' for emergency channel restriction."
+                        if has_everyone_ping else
+                        "Review findings below and use the resolution buttons to mitigate."
+                    )
+                    solution_text = (
+                        "Click '⚡ Auto-Fix Permission' below to instantly disable @everyone mention permissions, "
+                        "or manually turn off 'Mention @everyone / @here' in Server Settings > Roles > @everyone."
+                        if has_everyone_ping else
+                        "Review the role and channel permissions noted above and adjust access."
+                    )
+
                     try:
                         from utils.owner_reporter import OwnerReporter
                         OwnerReporter.send_security_report(
                             bot=self.bot,
                             guild_id=guild.id,
                             event="AI Security Audit Anomaly",
-                            reason=f"Server integrity score dropped to {score}/100 with {len(criticals)} critical findings.",
-                            action_taken="Security posture analyzed. Administrator review advised.",
+                            reason=f"Server integrity score is {score}/100 with {len(criticals)} critical finding(s).",
+                            action_taken=action_guidance,
                             severity="HIGH",
                             details={
                                 "Integrity Score": f"{score}/100",
                                 "AI Engine": self.brain.active_engine_name,
                                 "Key Findings": "\n".join(f"• {c}" for c in criticals[:4]),
+                                "💡 Solution": solution_text,
                             },
                         )
                     except Exception as rep_err:
                         logger.warning(f"[AI Watchdog] Could not dispatch report: {rep_err}")
+                elif score >= 75:
+                    # Clean/Resolved state: clear any tracked anomaly so future new issues will alert
+                    if guild.id in self._reported_anomalies:
+                        self._reported_anomalies.pop(guild.id, None)
         except Exception as e:
             logger.error(f"[AI Watchdog] Error in watchdog audit loop: {e}", exc_info=True)
 

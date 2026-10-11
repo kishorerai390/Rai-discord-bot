@@ -129,6 +129,21 @@ class InteractiveIncidentManager:
 
         if rep_type == "security":
             if is_active:
+                desc = (getattr(incident, "description", "") or "").lower()
+                evt = (getattr(incident, "event_type", "") or "").lower()
+                is_perm_anomaly = (
+                    "mention" in desc
+                    or "everyone" in desc
+                    or "audit" in evt
+                    or "anomaly" in evt
+                )
+                if is_perm_anomaly:
+                    view.add_item(discord.ui.Button(
+                        style=discord.ButtonStyle.success,
+                        label="Auto-Fix Permission",
+                        emoji="⚡",
+                        custom_id=f"rai_inc:fix_everyone:{inc_id}",
+                    ))
                 view.add_item(discord.ui.Button(
                     style=discord.ButtonStyle.danger,
                     label="Lockdown",
@@ -738,9 +753,49 @@ class InteractiveIncidentManager:
 
         try:
             # ==========================================
-            # 1. DETAILS
+            # 0. AUTO-FIX: PERMISSIONS (@everyone)
             # ==========================================
-            if action in ("details", "recheck"):
+            if action == "fix_everyone":
+                everyone = guild.default_role
+                try:
+                    await everyone.edit(
+                        mention_everyone=False,
+                        reason=f"Rai Incident Auto-Fix: Disabled @everyone mentions by {interaction.user}",
+                    )
+                    from utils.ai_security_brain import AISecurityBrain
+                    brain = AISecurityBrain(bot)
+                    new_score, _ = brain.calculate_server_security_score(guild)
+                    return (
+                        True,
+                        f"⚡ Auto-Fixed: Disabled @everyone mention rights. Security score restored to {new_score}/100.",
+                        f"✅ **Permission Fixed!** Successfully disabled `@everyone / @here` mention permissions for `@everyone` on **{guild.name}**!\n\n🛡️ Server security integrity score restored to **{new_score}/100**.",
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to auto-fix @everyone permissions: {e}")
+                    return False, "", f"Failed to edit @everyone role: {e}"
+
+            # ==========================================
+            # 1. DETAILS & RECHECK
+            # ==========================================
+            if action == "recheck":
+                from utils.ai_security_brain import AISecurityBrain
+                brain = AISecurityBrain(bot)
+                cur_score, cur_findings = brain.calculate_server_security_score(guild)
+                crit = [f for f in cur_findings if "CRITICAL" in f or "HIGH" in f]
+                if not crit:
+                    return (
+                        True,
+                        f"✅ Rechecked by {interaction.user.mention}: All vulnerabilities resolved! Score: {cur_score}/100.",
+                        f"✅ **Recheck Passed:** No critical findings detected! Server integrity score is **{cur_score}/100**.",
+                    )
+                else:
+                    return (
+                        True,
+                        f"🔄 Rechecked by {interaction.user.mention}: {len(crit)} issue(s) remaining. Score: {cur_score}/100.",
+                        f"⚠️ **Recheck Results:** Score is **{cur_score}/100**.\n**Remaining Findings:**\n" + "\n".join(f"• {c}" for c in crit[:3]),
+                    )
+
+            if action == "details":
                 actions_history = await db.get_incident_actions(incident.incident_id) if db else []
                 hist_str = "\n".join([f"• `{a.timestamp[:16]}` - **{a.action}**: {a.result}" for a in actions_history[-4:]]) or "None recorded yet."
                 return (
