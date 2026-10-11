@@ -67,6 +67,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         self._stream_seconds_tracker: Dict[tuple[int, int], float] = {}
         self._soundboard_spams: Dict[tuple[int, int], List[float]] = {}
         self._room_rename_cooldowns: Dict[int, float] = {}
+        self._original_vc_names: Dict[int, str] = {}
 
     def cog_unload(self):
         self._supervisor_task.cancel()
@@ -274,6 +275,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
 
         # 0. Live Screen Share Notification & Bitrate Optimizer (Features 1 & 2)
         await self._handle_stream_state_update(member, before, after)
+        await self._handle_dynamic_stream_naming(member, before, after)
 
         # Dynamic Auto-Bitrate Scaling (Quality vs. Crowd Optimizer)
         target_ch = after.channel or before.channel
@@ -499,6 +501,48 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                             logger.info(f"Stream Optimizer: Restored #{prev_channel.name} bitrate to {orig_bitrate} bps")
                         except Exception as r_err:
                             logger.debug(f"Could not restore bitrate: {r_err}")
+
+    async def _handle_dynamic_stream_naming(
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
+    ) -> None:
+        """Autonomously renames dynamic voice rooms during active screen shares and restores original names."""
+        guild = member.guild
+        if not guild.me.guild_permissions.manage_channels:
+            return
+
+        stream_started = not before.self_stream and after.self_stream and after.channel
+        stream_ended = (before.self_stream and not after.self_stream) or (before.self_stream and not after.channel)
+
+        if stream_started and isinstance(after.channel, discord.VoiceChannel):
+            vc = after.channel
+            try:
+                room = await self.bot.db.get_dynamic_room(vc.id)
+                if room and vc.id not in self._original_vc_names:
+                    last_rename = self._room_rename_cooldowns.get(vc.id, 0)
+                    if time.monotonic() - last_rename > 300:
+                        self._original_vc_names[vc.id] = vc.name
+                        clean_name = member.display_name[:16].replace("@", "")
+                        await vc.edit(name=f"📺 {clean_name}'s Stream", reason="Dynamic Voice: Screen share active")
+                        self._room_rename_cooldowns[vc.id] = time.monotonic()
+                        logger.info(f"Stream Naming: Renamed dynamic room #{vc.id} to 📺 {clean_name}'s Stream")
+            except Exception as e:
+                logger.debug(f"Dynamic stream naming notice: {e}")
+
+        elif stream_ended:
+            prev_channel = before.channel or after.channel
+            if prev_channel and isinstance(prev_channel, discord.VoiceChannel):
+                other_streamers = any(m.voice and m.voice.self_stream for m in prev_channel.members if m.id != member.id)
+                if not other_streamers and prev_channel.id in self._original_vc_names:
+                    orig_name = self._original_vc_names.pop(prev_channel.id)
+                    try:
+                        await prev_channel.edit(name=orig_name, reason="Dynamic Voice: Screen share ended, restored channel name")
+                        self._room_rename_cooldowns[prev_channel.id] = time.monotonic()
+                        logger.info(f"Stream Naming: Restored dynamic room #{prev_channel.id} to {orig_name}")
+                    except Exception as e:
+                        logger.debug(f"Dynamic stream restore notice: {e}")
 
     async def _check_crowd_bitrate_scaling(self, vc: discord.VoiceChannel) -> None:
         """Dynamically scales bitrate based on crowd size (96kbps for 6+ members, restores for 1-3 members)."""

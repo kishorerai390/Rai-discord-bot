@@ -88,6 +88,21 @@ class AIWatchdogCog(commands.Cog, name="AI Watchdog"):
                     logger.warning(f"[AI Watchdog] Anomalies discovered in {guild.name}: {criticals}")
 
                     has_everyone_ping = any("mention" in c.lower() for c in criticals)
+                    # 1. Zero-Touch Auto-Remediation: Fix dangerous @everyone permission immediately if permitted
+                    if has_everyone_ping and guild.me.guild_permissions.manage_roles:
+                        try:
+                            await guild.default_role.edit(
+                                mention_everyone=False,
+                                reason="Rai Autonomous Security Sentinel: Auto-repaired @everyone mention permission",
+                            )
+                            score, findings = self.brain.calculate_server_security_score(guild)
+                            criticals = [f for f in findings if "CRITICAL" in f or "HIGH" in f]
+                            logger.info(f"[AI Watchdog] Auto-repaired @everyone permissions on {guild.name}! New score: {score}/100")
+                            if not criticals or score >= 75:
+                                continue
+                        except Exception as ah_err:
+                            logger.debug(f"[AI Watchdog] Could not auto-heal @everyone on {guild.name}: {ah_err}")
+
                     action_guidance = (
                         "Click '⚡ Auto-Fix Permission' below to automatically remove @everyone mention permissions, "
                         "or click '🔒 Lockdown' for emergency channel restriction."

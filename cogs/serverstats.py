@@ -307,7 +307,8 @@ class ServerStatsCog(commands.Cog, name="ServerStats"):
                 elif getattr(guild, "premium_subscription_count", 0) > 0:
                     expected_name = f"💎 {guild.premium_subscription_count} Boosts ╏ Level {guild.premium_tier}"
                 else:
-                    expected_name = f"✦ {guild.name} ✦"
+                    bar, goal = make_goal_progress_bar(total_members)
+                    expected_name = f"🎯 Goal: [{bar}] {total_members}/{goal}"
 
                 if ch_bot.name != expected_name:
                     try:

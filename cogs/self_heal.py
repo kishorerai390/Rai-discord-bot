@@ -60,8 +60,6 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         """Silently verifies honeypot lock down and report channel confidentiality."""
         await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
-            if guild.id != 1457382179981099090:
-                continue
             try:
                 issues, _ = await self.audit_guild(guild)
                 if issues:
@@ -89,38 +87,47 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         issues: List[str] = []
         passes: List[str] = []
 
-        # 1. Honeypot Lock
-        hp = guild.get_channel(HONEYPOT_CHANNEL_ID)
-        if not hp:
-            issues.append(f"Honeypot channel (`{HONEYPOT_CHANNEL_ID}`) not found.")
-        else:
-            everyone_ow = hp.overwrites_for(guild.default_role)
-            if everyone_ow.view_channel is not False:
-                issues.append("Honeypot channel does NOT deny @everyone view_channel permission!")
-            else:
-                passes.append("Honeypot channel strictly locked to @everyone.")
+        # 0. Check @everyone permissions across ANY guild
+        everyone = guild.default_role
+        if everyone.permissions.mention_everyone:
+            issues.append("@everyone has dangerous `Mention Everyone` permission enabled.")
+        if everyone.permissions.administrator:
+            issues.append("@everyone has dangerous `Administrator` permission enabled.")
 
-        # 2. Report Category & Channels
-        cat = guild.get_channel(REPORT_CATEGORY_ID)
-        if not cat:
-            issues.append("Owner Reports Category missing.")
-        else:
-            passes.append("Owner Reports Category intact.")
-
-        for key, (ch_name, ch_id) in EXPECTED_REPORT_CHANNELS.items():
-            ch = guild.get_channel(ch_id)
-            if not ch:
-                issues.append(f"Report channel `{ch_name}` ({ch_id}) missing.")
+        # Specific channel audits for designated home guild
+        if guild.id == 1457382179981099090:
+            # 1. Honeypot Lock
+            hp = guild.get_channel(HONEYPOT_CHANNEL_ID)
+            if not hp:
+                issues.append(f"Honeypot channel (`{HONEYPOT_CHANNEL_ID}`) not found.")
             else:
-                passes.append(f"Report channel `{ch_name}` active.")
+                everyone_ow = hp.overwrites_for(guild.default_role)
+                if everyone_ow.view_channel is not False:
+                    issues.append("Honeypot channel does NOT deny @everyone view_channel permission!")
+                else:
+                    passes.append("Honeypot channel strictly locked to @everyone.")
 
-        # 3. Level Milestone Roles
-        for role_name, _ in MILESTONE_ROLES:
-            role = discord.utils.get(guild.roles, name=role_name)
-            if not role:
-                issues.append(f"Milestone reward role `{role_name}` missing.")
+            # 2. Report Category & Channels
+            cat = guild.get_channel(REPORT_CATEGORY_ID)
+            if not cat:
+                issues.append("Owner Reports Category missing.")
             else:
-                passes.append(f"Milestone reward role `{role_name}` verified.")
+                passes.append("Owner Reports Category intact.")
+
+            for key, (ch_name, ch_id) in EXPECTED_REPORT_CHANNELS.items():
+                ch = guild.get_channel(ch_id)
+                if not ch:
+                    issues.append(f"Report channel `{ch_name}` ({ch_id}) missing.")
+                else:
+                    passes.append(f"Report channel `{ch_name}` active.")
+
+            # 3. Level Milestone Roles
+            for role_name, _ in MILESTONE_ROLES:
+                role = discord.utils.get(guild.roles, name=role_name)
+                if not role:
+                    issues.append(f"Milestone reward role `{role_name}` missing.")
+                else:
+                    passes.append(f"Milestone reward role `{role_name}` verified.")
 
         # 4. Bot Core Permissions
         me = guild.me
@@ -143,14 +150,29 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         """Automatically executes surgical repairs."""
         repaired: List[str] = []
 
-        # 1. Lock Honeypot
-        hp = guild.get_channel(HONEYPOT_CHANNEL_ID)
-        if hp and isinstance(hp, discord.TextChannel):
-            try:
-                await hp.set_permissions(guild.default_role, view_channel=False, send_messages=False, read_message_history=False)
-                repaired.append("Re-locked `#🪤・honeypot-trap` to deny @everyone.")
-            except Exception as e:
-                logger.debug("Failed to set honeypot perms: %s", e)
+        # 0. Auto-Remediate @everyone permissions across ANY server
+        everyone = guild.default_role
+        if everyone.permissions.mention_everyone or everyone.permissions.administrator:
+            if guild.me.guild_permissions.manage_roles:
+                try:
+                    await everyone.edit(
+                        mention_everyone=False,
+                        administrator=False,
+                        reason="Rai Autonomous Self-Healing: Stripped dangerous @everyone permissions",
+                    )
+                    repaired.append("Auto-remediated @everyone: Stripped Mention Everyone & Administrator permissions.")
+                except Exception as e:
+                    logger.debug("Failed to edit @everyone role in %s: %s", guild.name, e)
+
+        # 1. Lock Honeypot (if home guild)
+        if guild.id == 1457382179981099090:
+            hp = guild.get_channel(HONEYPOT_CHANNEL_ID)
+            if hp and isinstance(hp, discord.TextChannel):
+                try:
+                    await hp.set_permissions(guild.default_role, view_channel=False, send_messages=False, read_message_history=False)
+                    repaired.append("Re-locked `#🪤・honeypot-trap` to deny @everyone.")
+                except Exception as e:
+                    logger.debug("Failed to set honeypot perms: %s", e)
 
         # 2. Milestone Roles
         for role_name, hex_col in MILESTONE_ROLES:
