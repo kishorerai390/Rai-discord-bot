@@ -57,6 +57,10 @@ class AutoModCog(commands.Cog, name="AutoMod"):
         self._spam_tracker: Dict[tuple[int, int], List[float]] = defaultdict(list)
         # Duplicate message tracking: (guild_id, user_id) -> (last_msg_content, timestamp)
         self._last_message: Dict[tuple[int, int], tuple[str, float]] = {}
+        # Channel-level message burst tracking: channel_id -> list of timestamps
+        self._channel_burst_tracker: Dict[int, List[float]] = defaultdict(list)
+        # Active auto-slowmodes: channel_id -> expiry_monotonic_timestamp
+        self._channel_slowmode_active: Dict[int, float] = {}
 
     automod_group = app_commands.Group(
         name="automod",
@@ -76,6 +80,10 @@ class AutoModCog(commands.Cog, name="AutoMod"):
 
         guild = message.guild
         member = message.author
+
+        # Anti-Raid Sudden Message Velocity Burst Check across any text channel
+        if isinstance(message.channel, discord.TextChannel):
+            await self._check_channel_burst(message.channel)
 
         # Exemption checks: Owner, Administrator, Bot, or Whitelisted
         if member.id == guild.owner_id or member.id == self.bot.user.id or member.guild_permissions.administrator:
