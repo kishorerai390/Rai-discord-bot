@@ -352,3 +352,88 @@ async def test_afk_system_set_and_clear():
     assert "Welcome back <@101>" in msg2.channel.send.call_args[0][0]
 
 
+@pytest.mark.asyncio
+async def test_stream_notification_and_bitrate_optimizer():
+    bot = MagicMock()
+    bot.db = AsyncMock()
+    cog = TempVoiceCog(bot)
+    cog._supervisor_task.cancel()
+
+    guild = MagicMock(spec=discord.Guild)
+    guild.id = 1457382179981099090
+    guild.me = MagicMock()
+    guild.me.guild_permissions.manage_channels = True
+    guild.bitrate_limit = 256000
+    guild.icon = None
+
+    general_ch = MagicMock(spec=discord.TextChannel)
+    general_ch.id = 1545502730699808768
+    general_ch.send = AsyncMock()
+    ann_msg = MagicMock()
+    ann_msg.id = 777111
+    ann_msg.delete = AsyncMock()
+    general_ch.send.return_value = ann_msg
+    general_ch.fetch_message = AsyncMock(return_value=ann_msg)
+
+    vc = MagicMock(spec=discord.VoiceChannel)
+    vc.id = 5566
+    vc.name = "✦ Squad Room"
+    vc.bitrate = 256000
+    vc.edit = AsyncMock()
+
+    guild.get_channel.side_effect = lambda cid: general_ch if cid == 1545502730699808768 else None
+
+    member = MagicMock(spec=discord.Member)
+    member.id = 333
+    member.display_name = "StreamerGuy"
+    member.mention = "<@333>"
+    member.display_avatar = None
+    member.guild = guild
+
+    # 1. State: Screen share started
+    before_state = MagicMock(spec=discord.VoiceState)
+    before_state.self_stream = False
+    before_state.channel = vc
+
+    after_state = MagicMock(spec=discord.VoiceState)
+    after_state.self_stream = True
+    after_state.channel = vc
+
+    vc.members = [member]
+
+    await cog._handle_stream_state_update(member, before_state, after_state)
+
+    # Verify General Chat notification sent
+    general_ch.send.assert_awaited_once()
+    args, kwargs = general_ch.send.call_args
+    assert "𝓛ɪᴠᴇ 𝕾ᴛʀᴇᴀᴍ" in kwargs["embed"].title
+    assert "StreamerGuy" in kwargs["embed"].description
+    assert (guild.id, member.id) in cog._active_stream_announcements
+
+    # Verify Bitrate scaled down to 96kbps to stabilize stream
+    vc.edit.assert_awaited_once_with(bitrate=96000, reason="Stream Optimizer: Adjusted audio bitrate to 96kbps for screen share stability")
+    assert cog._original_stream_bitrates[vc.id] == 256000
+
+    # 2. State: Screen share stopped
+    stop_before = MagicMock(spec=discord.VoiceState)
+    stop_before.self_stream = True
+    stop_before.channel = vc
+
+    stop_after = MagicMock(spec=discord.VoiceState)
+    stop_after.self_stream = False
+    stop_after.channel = vc
+
+    member.voice = stop_after
+    vc.members = [member]
+
+    await cog._handle_stream_state_update(member, stop_before, stop_after)
+
+    # Verify General Chat notification deleted
+    ann_msg.delete.assert_awaited_once()
+    assert (guild.id, member.id) not in cog._active_stream_announcements
+
+    # Verify Bitrate restored back to 256kbps
+    vc.edit.assert_awaited_with(bitrate=256000, reason="Stream Optimizer: Restored original audio bitrate")
+
+
+

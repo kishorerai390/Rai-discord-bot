@@ -60,6 +60,13 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         self._recent_creations: Dict[int, List[float]] = {}
         self._blocked_users: Dict[int, float] = {}
         self._deaf_inactivity_tracker: Dict[tuple[int, int], float] = {}
+        self._active_stream_announcements: Dict[tuple[int, int], int] = {}
+        self._original_stream_bitrates: Dict[int, int] = {}
+        self._sleep_timers: Dict[tuple[int, int], asyncio.Task] = {}
+        self._stream_start_times: Dict[tuple[int, int], float] = {}
+        self._stream_seconds_tracker: Dict[tuple[int, int], float] = {}
+        self._soundboard_spams: Dict[tuple[int, int], List[float]] = {}
+        self._room_rename_cooldowns: Dict[int, float] = {}
 
     def cog_unload(self):
         self._supervisor_task.cancel()
@@ -265,6 +272,9 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         if member.bot:
             return
 
+        # 0. Live Screen Share Notification & Bitrate Optimizer (Features 1 & 2)
+        await self._handle_stream_state_update(member, before, after)
+
         cfg = await self.bot.db.get_temp_voice_config(guild.id)
 
         # -------------------------------------------------------------
@@ -391,6 +401,99 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                         last_empty_at=None,
                     )
                 await DynamicVCControlManager.update_room_panel(self.bot, guild, room.voice_channel_id)
+
+    async def _handle_stream_state_update(
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
+    ) -> None:
+        """Handles real-time screen share notifications in #general-chat and optimizes VC bitrate."""
+        guild = member.guild
+        stream_started = not before.self_stream and after.self_stream and after.channel
+        stream_ended = (before.self_stream and not after.self_stream) or (before.self_stream and not after.channel)
+
+        # 1. STREAM STARTED
+        if stream_started and isinstance(after.channel, discord.VoiceChannel):
+            vc = after.channel
+            self._stream_start_times[(guild.id, member.id)] = time.time()
+            # A. Dynamic VC Bitrate Optimizer
+            if guild.me.guild_permissions.manage_channels and vc.bitrate > 96000:
+                if vc.id not in self._original_stream_bitrates:
+                    self._original_stream_bitrates[vc.id] = vc.bitrate
+                try:
+                    await vc.edit(bitrate=96000, reason="Stream Optimizer: Adjusted audio bitrate to 96kbps for screen share stability")
+                    logger.info(f"Stream Optimizer: Scaled bitrate of #{vc.name} to 96kbps for {member.display_name}'s stream")
+                except Exception as b_err:
+                    logger.debug(f"Could not optimize bitrate for #{vc.name}: {b_err}")
+
+            # B. Stream Notification in #general-chat
+            general_ch = guild.get_channel(1545502730699808768)  # #general-chat
+            if not general_ch or not isinstance(general_ch, discord.TextChannel):
+                general_ch = guild.system_channel
+
+            if general_ch and isinstance(general_ch, discord.TextChannel):
+                embed = discord.Embed(
+                    title="🎬 ✦ 𝓛ɪᴠᴇ 𝕾ᴛʀᴇᴀᴍ 𝓢ᴛᴀʀᴛᴇᴅ ✦ 🎬",
+                    description=(
+                        f"**{member.display_name}** ({member.mention}) is now sharing their screen in **#{vc.name}**!\n\n"
+                        f"📺 **Jump into the voice lounge to watch!**"
+                    ),
+                    color=0x5865F2,  # Blurple
+                )
+                if member.display_avatar:
+                    embed.set_thumbnail(url=member.display_avatar.url)
+                embed.set_footer(
+                    text="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ Live Stream Notification • Auto-cleans when stream ends ✦",
+                    icon_url=guild.icon.url if guild.icon else None,
+                )
+                view = discord.ui.View()
+                view.add_item(
+                    discord.ui.Button(
+                        label="📺 Watch Stream",
+                        style=discord.ButtonStyle.link,
+                        url=f"https://discord.com/channels/{guild.id}/{vc.id}",
+                    )
+                )
+                try:
+                    ann_msg = await general_ch.send(embed=embed, view=view)
+                    self._active_stream_announcements[(guild.id, member.id)] = ann_msg.id
+                except Exception as send_err:
+                    logger.debug(f"Could not send stream notification: {send_err}")
+
+        # 2. STREAM ENDED
+        elif stream_ended:
+            # Record total streamed seconds
+            start_t = self._stream_start_times.pop((guild.id, member.id), None)
+            if start_t:
+                elapsed = max(0.0, time.time() - start_t)
+                self._stream_seconds_tracker[(guild.id, member.id)] = self._stream_seconds_tracker.get((guild.id, member.id), 0.0) + elapsed
+
+            # A. Clean up stream notification from #general-chat
+            ann_msg_id = self._active_stream_announcements.pop((guild.id, member.id), None)
+            if ann_msg_id:
+                general_ch = guild.get_channel(1545502730699808768)
+                if not general_ch or not isinstance(general_ch, discord.TextChannel):
+                    general_ch = guild.system_channel
+                if general_ch and isinstance(general_ch, discord.TextChannel):
+                    try:
+                        msg = await general_ch.fetch_message(ann_msg_id)
+                        await msg.delete()
+                    except Exception:
+                        pass
+
+            # B. Restore Voice Channel Bitrate if no one else is streaming
+            prev_channel = before.channel or after.channel
+            if prev_channel and isinstance(prev_channel, discord.VoiceChannel):
+                other_streamers = any(m.voice and m.voice.self_stream for m in prev_channel.members if m.id != member.id)
+                if not other_streamers and prev_channel.id in self._original_stream_bitrates:
+                    orig_bitrate = self._original_stream_bitrates.pop(prev_channel.id)
+                    if guild.me.guild_permissions.manage_channels:
+                        try:
+                            await prev_channel.edit(bitrate=orig_bitrate, reason="Stream Optimizer: Restored original audio bitrate")
+                            logger.info(f"Stream Optimizer: Restored #{prev_channel.name} bitrate to {orig_bitrate} bps")
+                        except Exception as r_err:
+                            logger.debug(f"Could not restore bitrate: {r_err}")
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
@@ -1461,6 +1564,56 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             return
 
         await DynamicVCControlManager._dispatch_template_action(self.bot, interaction, room, vc, preset.value)
+
+    @app_commands.command(name="stream", description="Voice stream tools and audio bitrate optimizer")
+    @app_commands.describe(action="Optimize audio for screen sharing stability, or restore normal bitrate")
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="⚡ Optimize for Screen Sharing (96kbps)", value="optimize"),
+            app_commands.Choice(name="🔄 Restore High-Fidelity Audio", value="restore"),
+        ]
+    )
+    async def stream_command(self, interaction: discord.Interaction, action: str):
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("Must be used in a server.", ephemeral=True)
+            return
+
+        member = interaction.user
+        if not member.voice or not member.voice.channel or not isinstance(member.voice.channel, discord.VoiceChannel):
+            await interaction.response.send_message("❌ You must be connected to a voice channel to use this.", ephemeral=True)
+            return
+
+        vc = member.voice.channel
+        guild = interaction.guild
+        if not guild.me.guild_permissions.manage_channels:
+            await interaction.response.send_message("❌ Bot lacks permission to manage channel bitrate.", ephemeral=True)
+            return
+
+        if action == "optimize":
+            if vc.id not in self._original_stream_bitrates:
+                self._original_stream_bitrates[vc.id] = vc.bitrate
+            await vc.edit(bitrate=96000, reason=f"Manual stream optimization requested by {member.display_name}")
+            embed = discord.Embed(
+                title="⚡ Stream Bitrate Optimized",
+                description=(
+                    f"**#{vc.name}** audio bitrate adjusted to **`96 kbps`**.\n\n"
+                    f"This stabilizes bandwidth, minimizes stream frame drops, and prevents Discord Error 2012."
+                ),
+                color=0x5865F2,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            orig = self._original_stream_bitrates.pop(vc.id, None)
+            guild_limit = getattr(guild, "bitrate_limit", 96000)
+            guild_max = guild_limit if isinstance(guild_limit, (int, float)) else 96000
+            target = orig if orig else min(int(guild_max), 384000)
+            await vc.edit(bitrate=target, reason=f"Bitrate restore requested by {member.display_name}")
+            embed = discord.Embed(
+                title="🔄 Audio Bitrate Restored",
+                description=f"**#{vc.name}** bitrate restored to **`{target // 1000} kbps`**.",
+                color=Colors.SUCCESS,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot: SentinelBot):

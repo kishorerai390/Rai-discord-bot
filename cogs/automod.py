@@ -35,10 +35,10 @@ logger = logging.getLogger(__name__)
 
 # Invite link regex
 INVITE_REGEX = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/[a-zA-Z0-9]+", re.IGNORECASE)
-# Suspicious links regex (free nitro, steam scams, etc.)
+# Suspicious links regex (free nitro, steam scams, zero-day spoofing)
 SUSPICIOUS_REGEX = re.compile(
-    r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:steamcomm[a-z0-9-]*\.com|discorcd[a-z0-9-]*\.com|dlscord[a-z0-9-]*\.com|discord-nitro[a-z0-9-]*\.[a-z]+|gift-nitro[a-z0-9-]*\.[a-z]+|free-nitro[a-z0-9-]*\.[a-z]+)",
-    re.IGNORECASE
+    r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:steamcomm[a-z0-9-]*\.[a-z]+|discor[a-z0-9-]*\.[a-z]+|dlscord[a-z0-9-]*\.[a-z]+|discord-nitro[a-z0-9-]*\.[a-z]+|gift-nitro[a-z0-9-]*\.[a-z]+|free-nitro[a-z0-9-]*\.[a-z]+|nitro-airdrop[a-z0-9-]*\.[a-z]+|boost-discord[a-z0-9-]*\.[a-z]+|discordapp\.[a-z0-9-]*\.[a-z]+)",
+    re.IGNORECASE,
 )
 # Custom emoji regex (<:name:id> or <a:name:id>)
 EMOJI_REGEX = re.compile(r"<a?:[a-zA-Z0-9_]+:[0-9]+>")
@@ -61,6 +61,10 @@ class AutoModCog(commands.Cog, name="AutoMod"):
         self._channel_burst_tracker: Dict[int, List[float]] = defaultdict(list)
         # Active auto-slowmodes: channel_id -> expiry_monotonic_timestamp
         self._channel_slowmode_active: Dict[int, float] = {}
+        # Ghost mention tracking: message_id -> (author, mention_ids, clean_content, channel_id, guild_id, timestamp)
+        self._recent_mentions: Dict[int, tuple[discord.Member, List[int], str, int, int, float]] = {}
+        # Join burst tracking for Anti-Raid quarantine: list of monotonic timestamps
+        self._join_burst_tracker: List[float] = []
 
     automod_group = app_commands.Group(
         name="automod",
@@ -80,6 +84,21 @@ class AutoModCog(commands.Cog, name="AutoMod"):
 
         guild = message.guild
         member = message.author
+
+        # Record mentions for Ghost Mention Catcher before exemption checks
+        if message.mentions or message.role_mentions:
+            mention_ids = [m.id for m in message.mentions] + [r.id for r in message.role_mentions]
+            self._recent_mentions[message.id] = (
+                member,
+                mention_ids,
+                message.clean_content[:300] if message.clean_content else "",
+                message.channel.id,
+                guild.id,
+                time.monotonic(),
+            )
+            if len(self._recent_mentions) > 500:
+                oldest_id = min(self._recent_mentions.keys(), key=lambda k: self._recent_mentions[k][5])
+                self._recent_mentions.pop(oldest_id, None)
 
         # Anti-Raid Sudden Message Velocity Burst Check across any text channel
         if isinstance(message.channel, discord.TextChannel):
@@ -324,6 +343,63 @@ class AutoModCog(commands.Cog, name="AutoMod"):
                 await channel.send(embed=embed, delete_after=10)
             except Exception as e:
                 logger.debug(f"Could not revert slowmode on channel {channel_id}: {e}")
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message):
+        """Ghost Mention Catcher: detects quickly deleted mentions within 60s."""
+        if not message.guild or message.id not in self._recent_mentions:
+            return
+
+        author, mention_ids, content, ch_id, guild_id, timestamp = self._recent_mentions.pop(message.id)
+        if (time.monotonic() - timestamp) > 60.0:
+            return
+
+        channel = message.guild.get_channel(ch_id)
+        channel_name = channel.mention if channel else f"#{ch_id}"
+
+        from utils.owner_reporter import OwnerReporter
+        OwnerReporter.send_mod_report(
+            self.bot,
+            guild_id,
+            event="Ghost Mention Detected",
+            user=author,
+            reason="Deleted message containing mentions within 60 seconds",
+            action_taken="Discreet Mod Alert Dispatched",
+            severity="LOW",
+            details={
+                "Channel": channel_name,
+                "Content": content or "[No text]",
+                "Target Count": str(len(mention_ids)),
+            },
+        )
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        """Dynamic Anti-Raid Quarantine: Detects sudden join spikes (10+ joins in 15s)."""
+        if member.bot:
+            return
+
+        now = time.monotonic()
+        cutoff = now - 15.0
+        self._join_burst_tracker = [t for t in self._join_burst_tracker if t > cutoff]
+        self._join_burst_tracker.append(now)
+
+        if len(self._join_burst_tracker) >= 10:
+            self._join_burst_tracker.clear()
+            from utils.owner_reporter import OwnerReporter
+            OwnerReporter.send_security_report(
+                self.bot,
+                member.guild.id,
+                event="Mass Join Velocity Spike",
+                user=member,
+                action_taken="Dynamic Anti-Raid Alert Dispatched to Security Room",
+                severity="HIGH",
+                details={
+                    "Status": "Dynamic Anti-Raid Armed",
+                    "Join Spike": "10+ accounts joined within 15s",
+                    "Recommendation": "Monitor verification gate and invites",
+                },
+            )
 
     # ==========================================
     # SLASH COMMANDS
