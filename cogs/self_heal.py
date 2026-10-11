@@ -55,50 +55,30 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
     # BACKGROUND AUDIT LOOP (Every 6 Hours)
     # ==========================================
 
-    @tasks.loop(hours=1)
+    @tasks.loop(hours=6)
     async def sentinel_audit_loop(self):
-        """Silently verifies honeypot lock down, report channel confidentiality, and @everyone permissions."""
+        """Silently verifies honeypot lock down and report channel confidentiality."""
         await self.bot.wait_until_ready()
         for guild in self.bot.guilds:
+            if guild.id != 1457382179981099090:
+                continue
             try:
                 issues, _ = await self.audit_guild(guild)
                 if issues:
                     logger.warning("[SELF_HEAL] Detected %d issues in guild %s (%d). Auto-repairing...", len(issues), guild.name, guild.id)
                     repaired = await self.repair_guild(guild)
                     if repaired:
+                        # Log strictly to #bot-report
                         rep_lines = "\n".join(f"• {r}" for r in repaired)
                         OwnerReporter.send_bot_report(
                             self.bot,
                             guild.id,
                             event="Autonomous Self-Healing Executed",
-                            action_taken=f"Auto-repaired {len(repaired)} issues",
+                            action_taken=f"Resolved {len(repaired)} anomalies",
                             details={"Actions Executed": rep_lines[:1000]},
                         )
             except Exception as e:
                 logger.error("[SELF_HEAL_LOOP_ERR] Guild %d audit error: %s", guild.id, e)
-
-    @commands.Cog.listener()
-    async def on_guild_role_update(self, before: discord.Role, after: discord.Role) -> None:
-        """Instant reactive auto-heal if @everyone role is given dangerous permissions."""
-        if after.id == after.guild.id:  # @everyone role
-            if after.permissions.mention_everyone or after.permissions.administrator:
-                if after.guild.me.guild_permissions.manage_roles:
-                    try:
-                        await after.edit(
-                            mention_everyone=False,
-                            administrator=False,
-                            reason="Self-Healing Sentry: Instant auto-mitigation of dangerous @everyone permissions",
-                        )
-                        OwnerReporter.send_security_report(
-                            self.bot,
-                            after.guild.id,
-                            event="Dangerous Role Permission Auto-Healed",
-                            reason="An administrator or integration attempted to grant @everyone mention/admin permissions.",
-                            action_taken="Instantly reverted @everyone permissions to safe state.",
-                            severity="LOW",
-                        )
-                    except Exception as e:
-                        logger.debug("on_guild_role_update auto-heal notice: %s", e)
 
     # ==========================================
     # AUDIT LOGIC
@@ -109,22 +89,10 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         issues: List[str] = []
         passes: List[str] = []
 
-        # 0. @everyone Dangerous Permissions Audit
-        everyone = guild.default_role
-        if everyone.permissions.mention_everyone:
-            issues.append("@everyone role has `Mention @everyone / @here` permission enabled!")
-        else:
-            passes.append("@everyone mention permission safely locked.")
-        if everyone.permissions.administrator:
-            issues.append("@everyone role has `Administrator` permission enabled!")
-        if everyone.permissions.manage_roles or everyone.permissions.manage_channels:
-            issues.append("@everyone role has `Manage Roles/Channels` enabled!")
-
         # 1. Honeypot Lock
         hp = guild.get_channel(HONEYPOT_CHANNEL_ID)
         if not hp:
-            if guild.id == 1457382179981099090:
-                issues.append(f"Honeypot channel (`{HONEYPOT_CHANNEL_ID}`) not found.")
+            issues.append(f"Honeypot channel (`{HONEYPOT_CHANNEL_ID}`) not found.")
         else:
             everyone_ow = hp.overwrites_for(guild.default_role)
             if everyone_ow.view_channel is not False:
@@ -135,27 +103,24 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         # 2. Report Category & Channels
         cat = guild.get_channel(REPORT_CATEGORY_ID)
         if not cat:
-            if guild.id == 1457382179981099090:
-                issues.append("Owner Reports Category missing.")
+            issues.append("Owner Reports Category missing.")
         else:
             passes.append("Owner Reports Category intact.")
 
         for key, (ch_name, ch_id) in EXPECTED_REPORT_CHANNELS.items():
             ch = guild.get_channel(ch_id)
             if not ch:
-                if guild.id == 1457382179981099090:
-                    issues.append(f"Report channel `{ch_name}` ({ch_id}) missing.")
+                issues.append(f"Report channel `{ch_name}` ({ch_id}) missing.")
             else:
                 passes.append(f"Report channel `{ch_name}` active.")
 
         # 3. Level Milestone Roles
-        if guild.id == 1457382179981099090:
-            for role_name, _ in MILESTONE_ROLES:
-                role = discord.utils.get(guild.roles, name=role_name)
-                if not role:
-                    issues.append(f"Milestone reward role `{role_name}` missing.")
-                else:
-                    passes.append(f"Milestone reward role `{role_name}` verified.")
+        for role_name, _ in MILESTONE_ROLES:
+            role = discord.utils.get(guild.roles, name=role_name)
+            if not role:
+                issues.append(f"Milestone reward role `{role_name}` missing.")
+            else:
+                passes.append(f"Milestone reward role `{role_name}` verified.")
 
         # 4. Bot Core Permissions
         me = guild.me
@@ -178,27 +143,6 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
         """Automatically executes surgical repairs."""
         repaired: List[str] = []
 
-        # 0. Heal @everyone dangerous permissions
-        everyone = guild.default_role
-        if (
-            everyone.permissions.mention_everyone
-            or everyone.permissions.administrator
-            or everyone.permissions.manage_roles
-            or everyone.permissions.manage_channels
-        ):
-            if guild.me.guild_permissions.manage_roles:
-                try:
-                    await everyone.edit(
-                        mention_everyone=False,
-                        administrator=False,
-                        manage_roles=False,
-                        manage_channels=False,
-                        reason="Self-Healing Sentry: Auto-repaired dangerous @everyone permissions",
-                    )
-                    repaired.append("Reverted dangerous `@everyone / @here` mention & admin permissions on `@everyone` role.")
-                except Exception as e:
-                    logger.debug("Failed to auto-repair @everyone perms: %s", e)
-
         # 1. Lock Honeypot
         hp = guild.get_channel(HONEYPOT_CHANNEL_ID)
         if hp and isinstance(hp, discord.TextChannel):
@@ -208,27 +152,26 @@ class SelfHealCog(commands.Cog, name="SelfHeal"):
             except Exception as e:
                 logger.debug("Failed to set honeypot perms: %s", e)
 
-        # 2. Milestone Roles (Main guild)
-        if guild.id == 1457382179981099090:
-            for role_name, hex_col in MILESTONE_ROLES:
-                existing = discord.utils.get(guild.roles, name=role_name)
-                if not existing and guild.me.guild_permissions.manage_roles:
-                    try:
-                        await guild.create_role(
-                            name=role_name,
-                            color=discord.Color(hex_col),
-                            reason="Self-Healing Sentry: Restored missing milestone reward role",
-                        )
-                        repaired.append(f"Created missing milestone role `{role_name}`.")
-                    except Exception as e:
-                        logger.debug("Failed to create role %s: %s", role_name, e)
+        # 2. Milestone Roles
+        for role_name, hex_col in MILESTONE_ROLES:
+            existing = discord.utils.get(guild.roles, name=role_name)
+            if not existing:
+                try:
+                    await guild.create_role(
+                        name=role_name,
+                        color=discord.Color(hex_col),
+                        reason="Self-Healing Sentry: Restored missing milestone reward role",
+                    )
+                    repaired.append(f"Created missing milestone role `{role_name}`.")
+                except Exception as e:
+                    logger.debug("Failed to create role %s: %s", role_name, e)
 
         # 3. Report Channels Lock
         for key, (ch_name, ch_id) in EXPECTED_REPORT_CHANNELS.items():
             ch = guild.get_channel(ch_id)
             if ch and isinstance(ch, discord.TextChannel):
                 ow = ch.overwrites_for(guild.default_role)
-                if ow.view_channel is not False and guild.me.guild_permissions.manage_channels:
+                if ow.view_channel is not False:
                     try:
                         await ch.set_permissions(guild.default_role, view_channel=False, send_messages=False)
                         repaired.append(f"Secured `{ch.name}` confidential permissions.")
