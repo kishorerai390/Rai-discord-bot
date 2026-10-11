@@ -32,7 +32,7 @@ from utils.embeds import (
     success_embed,
     warning_embed,
 )
-from utils.owner_reporter import OwnerReporter
+from utils.owner_reporter import OwnerReporter, get_owner_report_channel
 from utils.permissions import is_admin_or_owner
 
 
@@ -598,23 +598,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             dyn_room.control_message_id = msg.id
             dyn_room.control_channel_id = msg.channel.id
 
-        # 8. Dual Report Delivery (Owner DM + 🔐・room-report)
-        OwnerReporter.send_room_report(
-            self.bot,
-            guild.id,
-            event=f"{room_type.title()} Voice Room Created",
-            user=member,
-            action_taken=f"Provisioned **#{temp_vc.name}** and posted controls in 🛠️・ROOM-CONTROL",
-            details={
-                "Room Type": f"`{room_type.upper()}`",
-                "Voice Channel ID": f"`{temp_vc.id}`",
-                "User Capacity": f"`{user_limit or 'Unlimited'}`",
-                "Control Channel": f"<#{dyn_room.control_channel_id}>" if dyn_room.control_channel_id else "ROOM-CONTROL",
-            },
-        )
-        logger.info(f"Successfully provisioned dynamic room #{channel_name} ({temp_vc.id}) for {member}")
-
-        # 9. Send Creator Interactive Setup Panel / Notification
+        # 8. Post Room Creation Notification to Report Channel (🔐・room-report) instead of DM
         try:
             welcome_embed = create_embed(
                 title="🎙️ ROOM CREATED",
@@ -627,9 +611,19 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                 ),
                 color=Colors.SUCCESS,
             )
-            await member.send(embed=welcome_embed)
-        except Exception:
-            pass
+            report_channel = await get_owner_report_channel(self.bot, guild.id, "room")
+            if report_channel and isinstance(report_channel, discord.TextChannel):
+                await report_channel.send(embed=welcome_embed)
+            else:
+                for ch in getattr(guild, "text_channels", []):
+                    cname = ch.name.lower().replace("-", "").replace("_", "")
+                    if "roomreport" in cname or "voicereport" in cname:
+                        await ch.send(embed=welcome_embed)
+                        break
+        except Exception as e:
+            logger.warning(f"Could not post ROOM CREATED notification to room report channel: {e}")
+
+        logger.info(f"Successfully provisioned dynamic room #{channel_name} ({temp_vc.id}) for {member}")
 
         # 10. Native Voice Channel Text Chat Welcome & Interactive Controls
         try:

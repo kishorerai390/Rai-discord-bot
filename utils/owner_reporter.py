@@ -490,10 +490,22 @@ class IncidentAggregator:
     @classmethod
     def _build_consolidated_embed(cls, session: AggregatedIncidentSession) -> discord.Embed:
         """Constructs rich consolidated Discord Embed containing all gathered incident details."""
+        prefix = "🚨 Security Alert"
+        if session.channel_key == "room_report_id":
+            prefix = "🔐 Voice Suite Lifecycle"
+        elif session.channel_key == "music_report_id":
+            prefix = "🎵 Audio Telemetry"
+        elif session.channel_key == "bot_report_id":
+            prefix = "🤖 Bot Operation"
+        elif session.channel_key == "mod_report_id":
+            prefix = "🛡️ Moderation Sanction"
+        elif session.channel_key == "system_report_id":
+            prefix = "⚙️ System Telemetry"
+
         if session.occurrences > 1:
-            title = f"🚨 Security Alert: {session.event_title} (Aggregated Summary)"
+            title = f"{prefix}: {session.event_title} (Aggregated Summary)"
         else:
-            title = f"🚨 Security Alert: {session.event_title}"
+            title = f"{prefix}: {session.event_title}"
 
         embed = discord.Embed(
             title=title,
