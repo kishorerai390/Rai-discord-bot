@@ -298,12 +298,25 @@ class NowPlayingControlView(discord.ui.View):
                     child.emoji = "▶" if self.session.is_paused else "⏸"
                     child.style = discord.ButtonStyle.success if self.session.is_paused else discord.ButtonStyle.secondary
 
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
+        if isinstance(error, discord.NotFound) and getattr(error, "code", None) == 10062:
+            return
+        logger.error(f"Error in NowPlayingControlView for {item}: {error}", exc_info=True)
+
     # --- ROW 0: [⏮ Previous] [⏸ Pause / Resume] [⏭ Skip] ---
     @discord.ui.button(emoji="⏮", label="Previous", style=discord.ButtonStyle.secondary, custom_id="music_btn_prev", row=0)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         if not self.session.history:
-            await interaction.followup.send("❌ No previous tracks in history.", ephemeral=True)
+            try:
+                await interaction.followup.send("❌ No previous tracks in history.", ephemeral=True)
+            except Exception:
+                pass
             return
 
         prev_track = self.session.history.pop()
@@ -312,13 +325,24 @@ class NowPlayingControlView(discord.ui.View):
 
         bot: RaiMusicBot = interaction.client  # type: ignore
         await MusicPlayerService.start_playback(bot, self.session, prev_track)
-        await interaction.followup.send(f"⏮ Returned to **{prev_track.title}**.", ephemeral=True)
+        try:
+            await interaction.followup.send(f"⏮ Returned to **{prev_track.title}**.", ephemeral=True)
+        except Exception:
+            pass
 
     @discord.ui.button(emoji="⏸", label="Pause", style=discord.ButtonStyle.secondary, custom_id="music_btn_play_pause", row=0)
     async def play_pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         if not self.session.voice_client:
-            await interaction.followup.send("❌ Music bot is not connected to voice.", ephemeral=True)
+            try:
+                await interaction.followup.send("❌ Music bot is not connected to voice.", ephemeral=True)
+            except Exception:
+                pass
             return
 
         if self.session.voice_client.is_playing():
@@ -338,26 +362,48 @@ class NowPlayingControlView(discord.ui.View):
 
         self._update_button_states()
         await MusicPlayerService.send_now_playing_panel(self.session)
-        await interaction.followup.send(action_text, ephemeral=True)
+        try:
+            await interaction.followup.send(action_text, ephemeral=True)
+        except Exception:
+            pass
 
     @discord.ui.button(emoji="⏭", label="Skip", style=discord.ButtonStyle.secondary, custom_id="music_btn_skip", row=0)
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         if not self.session.voice_client or not self.session.voice_client.is_playing():
-            await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            try:
+                await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            except Exception:
+                pass
             return
 
         track_title = self.session.current_track.title if self.session.current_track else "Track"
         self.session.voice_client.stop()  # Triggers after_playback -> handle_track_finished
-        await interaction.followup.send(f"⏭ Skipped **{track_title}**.", ephemeral=True)
+        try:
+            await interaction.followup.send(f"⏭ Skipped **{track_title}**.", ephemeral=True)
+        except Exception:
+            pass
 
     # --- ROW 1: [📜 Queue] [🔀 Shuffle] [🔁 Loop] ---
     @discord.ui.button(emoji="📜", label="Queue", style=discord.ButtonStyle.secondary, custom_id="music_btn_queue", row=1)
     async def queue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         tracks = list(self.session.queue)
         if not tracks and not self.session.current_track:
-            await interaction.followup.send("🐾 The music queue is currently empty.", ephemeral=True)
+            try:
+                await interaction.followup.send("🐾 The music queue is currently empty.", ephemeral=True)
+            except Exception:
+                pass
             return
 
         embed = discord.Embed(
@@ -380,23 +426,42 @@ class NowPlayingControlView(discord.ui.View):
         else:
             embed.description += "*No upcoming tracks in queue.*"
 
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception:
+            pass
 
     @discord.ui.button(emoji="🔀", label="Shuffle", style=discord.ButtonStyle.secondary, custom_id="music_btn_shuffle", row=1)
     async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         if len(self.session.queue) < 2:
-            await interaction.followup.send("❌ Need at least 2 tracks in queue to shuffle.", ephemeral=True)
+            try:
+                await interaction.followup.send("❌ Need at least 2 tracks in queue to shuffle.", ephemeral=True)
+            except Exception:
+                pass
             return
 
         tracks = list(self.session.queue)
         random.shuffle(tracks)
         self.session.queue = asyncio.queues.deque(tracks)  # type: ignore
-        await interaction.followup.send(f"🔀 Shuffled `{len(tracks)}` tracks in queue.", ephemeral=True)
+        try:
+            await interaction.followup.send(f"🔀 Shuffled `{len(tracks)}` tracks in queue.", ephemeral=True)
+        except Exception:
+            pass
 
     @discord.ui.button(emoji="🔁", label="Loop", style=discord.ButtonStyle.secondary, custom_id="music_btn_loop", row=1)
     async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         if self.session.loop_mode == LoopMode.OFF:
             self.session.loop_mode = LoopMode.TRACK
             msg = "🔂 Track loop **ENABLED**."
@@ -408,47 +473,79 @@ class NowPlayingControlView(discord.ui.View):
             msg = "➡️ Loop **DISABLED**."
 
         await MusicPlayerService.send_now_playing_panel(self.session)
-        await interaction.followup.send(msg, ephemeral=True)
+        try:
+            await interaction.followup.send(msg, ephemeral=True)
+        except Exception:
+            pass
 
     # --- ROW 2: [🔊 Volume] [❤️ Favorite] [⏹ Stop] ---
     @discord.ui.button(emoji="🔊", label="Volume", style=discord.ButtonStyle.secondary, custom_id="music_btn_vol", row=2)
     async def volume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = VolumeAdjustView(self.session)
-        await interaction.response.send_message(
-            f"🔊 **Volume Adjustment** (Current: `{self.session.volume}%`):", view=view, ephemeral=True
-        )
+        try:
+            view = VolumeAdjustView(self.session)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    f"🔊 **Volume Adjustment** (Current: `{self.session.volume}%`):", view=view, ephemeral=True
+                )
+            else:
+                await interaction.followup.send(
+                    f"🔊 **Volume Adjustment** (Current: `{self.session.volume}%`):", view=view, ephemeral=True
+                )
+        except Exception:
+            pass
 
     @discord.ui.button(emoji="❤️", label="Favorite", style=discord.ButtonStyle.secondary, custom_id="music_btn_fav", row=2)
     async def favorite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
         if not self.session.current_track:
-            await interaction.followup.send("❌ No track currently playing to add to favorites.", ephemeral=True)
+            try:
+                await interaction.followup.send("❌ No track currently playing to add to favorites.", ephemeral=True)
+            except Exception:
+                pass
             return
 
         bot: RaiMusicBot = interaction.client  # type: ignore
         success = await bot.db.add_favorite(interaction.user.id, self.session.current_track)
-        if success:
-            await interaction.followup.send(
-                f"❤️ Saved **{self.session.current_track.title}** to your favorites! View with `/music favorites`.",
-                ephemeral=True,
-            )
-        else:
-            await interaction.followup.send(
-                f"❤️ **{self.session.current_track.title}** is already in your favorites!",
-                ephemeral=True,
-            )
+        try:
+            if success:
+                await interaction.followup.send(
+                    f"❤️ Saved **{self.session.current_track.title}** to your favorites! View with `/music favorites`.",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    f"❤️ **{self.session.current_track.title}** is already in your favorites!",
+                    ephemeral=True,
+                )
+        except Exception:
+            pass
 
     @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=2)
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer(ephemeral=True)
+        # 1. State cleanup first so playback terminates even if interaction token timed out!
         self.session.queue.clear()
         if self.session.voice_client:
             self.session.voice_client.stop()
-            await self.session.voice_client.disconnect()
+            try:
+                await self.session.voice_client.disconnect()
+            except Exception:
+                pass
             self.session.voice_client = None
 
         self.session.reset()
-        await interaction.followup.send("⏹ Stopped music playback and disconnected. 🐾", ephemeral=True)
+
+        # 2. Safely respond to interaction
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+            await interaction.followup.send("⏹ Stopped music playback and disconnected. 🐾", ephemeral=True)
+        except Exception:
+            pass
 
 
 # Module-level convenience function

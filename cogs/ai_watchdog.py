@@ -89,10 +89,12 @@ class AIWatchdogCog(commands.Cog, name="AI Watchdog"):
 
                     has_everyone_ping = any("mention" in c.lower() for c in criticals)
                     # 1. Zero-Touch Auto-Remediation: Fix dangerous @everyone permission immediately if permitted
-                    if has_everyone_ping and guild.me.guild_permissions.manage_roles:
                         try:
+                            new_perms = guild.default_role.permissions
+                            new_perms.mention_everyone = False
+                            new_perms.administrator = False
                             await guild.default_role.edit(
-                                mention_everyone=False,
+                                permissions=new_perms,
                                 reason="Rai Autonomous Security Sentinel: Auto-repaired @everyone mention permission",
                             )
                             score, findings = self.brain.calculate_server_security_score(guild)

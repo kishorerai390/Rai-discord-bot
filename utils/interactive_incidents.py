@@ -758,8 +758,11 @@ class InteractiveIncidentManager:
             if action == "fix_everyone":
                 everyone = guild.default_role
                 try:
+                    new_perms = everyone.permissions
+                    new_perms.mention_everyone = False
+                    new_perms.administrator = False
                     await everyone.edit(
-                        mention_everyone=False,
+                        permissions=new_perms,
                         reason=f"Rai Incident Auto-Fix: Disabled @everyone mentions by {interaction.user}",
                     )
                     from utils.ai_security_brain import AISecurityBrain
