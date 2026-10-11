@@ -464,7 +464,7 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
     # 5. /server-audit (REPORT ONLY)
     # =========================================================================
 
-    @app_commands.command(name="server-audit", description="Structural health audit for duplicates, permissions, and redundancy (Report Only)")
+    @setup_group.command(name="audit", description="Structural health audit for duplicates, permissions, and redundancy (Report Only)")
     async def server_audit(self, interaction: discord.Interaction):
         if not check_admin(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
@@ -561,7 +561,7 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
         embed.set_footer(text="Raivora Health Auditor • Non-Destructive Analysis")
         return embed
 
-    @app_commands.command(name="server-health", description="Comprehensive server and subsystem health report")
+    @setup_group.command(name="health", description="Comprehensive server and subsystem health report")
     async def server_health(self, interaction: discord.Interaction):
         if not check_admin(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)

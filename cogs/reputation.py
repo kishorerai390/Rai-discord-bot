@@ -454,11 +454,6 @@ class ReputationCog(commands.Cog, name="Reputation"):
     ):
         await self.profile_edit(interaction, skills, interests, bio, visible)
 
-    @app_commands.command(name="member_profile", description="Quickly view your or another member's community profile")
-    @app_commands.describe(member="Member to view (defaults to you)")
-    async def profile_top_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
-        await self.profile_view(interaction, member)
-
     # ==========================================
     # /collab COMMAND SUITE
     # ==========================================
@@ -626,7 +621,7 @@ class ReputationCog(commands.Cog, name="Reputation"):
         await channel.send(embed=embed)
         return True
 
-    @app_commands.command(name="billboard_weekly", description="Broadcast the Weekly Champions Billboard to #🏆・ʟᴇᴠᴇʟ-ᴜᴘ")
+    @rep_group.command(name="billboard", description="Broadcast the Weekly Champions Billboard to #🏆・ʟᴇᴠᴇʟ-ᴜᴘ")
     async def billboard_weekly_cmd(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:

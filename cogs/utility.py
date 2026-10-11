@@ -378,7 +378,7 @@ class UtilityCog(commands.Cog, name="Utility"):
         view = HelpView()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-    @app_commands.command(name="serverinfo", description="Display detailed server information and statistics")
+    @info_group.command(name="server", description="Display detailed server information and statistics")
     async def serverinfo(self, interaction: discord.Interaction):
         guild = interaction.guild
         embed = create_embed(
@@ -401,7 +401,7 @@ class UtilityCog(commands.Cog, name="Utility"):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="userinfo", description="Display details and verification standing about a user")
+    @info_group.command(name="user", description="Display details and verification standing about a user")
     @app_commands.describe(user="The member to inspect (defaults to yourself)")
     async def userinfo(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         member = user or interaction.user
@@ -438,7 +438,7 @@ class UtilityCog(commands.Cog, name="Utility"):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="avatar", description="Display a user's avatar image")
+    @info_group.command(name="avatar", description="Display a user's avatar image")
     @app_commands.describe(user="The member whose avatar to view")
     async def avatar(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
         target = user or interaction.user
@@ -449,7 +449,7 @@ class UtilityCog(commands.Cog, name="Utility"):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="roleinfo", description="Display information about a server role")
+    @info_group.command(name="role", description="Display information about a server role")
     @app_commands.describe(role="The role to inspect")
     async def roleinfo(self, interaction: discord.Interaction, role: discord.Role):
         embed = create_embed(
@@ -480,7 +480,7 @@ class UtilityCog(commands.Cog, name="Utility"):
         embed.add_field(name="Key Permissions", value=", ".join(key_perms) if key_perms else "None", inline=False)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="channelinfo", description="Display information about a channel")
+    @info_group.command(name="channel", description="Display information about a channel")
     @app_commands.describe(channel="The channel to inspect (defaults to current)")
     async def channelinfo(self, interaction: discord.Interaction, channel: Optional[discord.abc.GuildChannel] = None):
         ch = channel or interaction.channel
@@ -499,7 +499,7 @@ class UtilityCog(commands.Cog, name="Utility"):
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="botinfo", description="Display Rai bot health and diagnostic statistics")
+    @info_group.command(name="bot", description="Display Rai bot health and diagnostic statistics")
     async def botinfo(self, interaction: discord.Interaction):
         uptime_sec = int(time.time() - self.start_time)
         hours, remainder = divmod(uptime_sec, 3600)
