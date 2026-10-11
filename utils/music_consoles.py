@@ -1,6 +1,6 @@
 """
 Dedicated Interactive Music Consoles for Rai Fam:
-1. #🎼・MUSIC-REQUESTS (1555283396660428830) -> Music Request & Search Hub
+1. #🎼・MUSIC-REQUESTS (1555283393242206301) -> Music Request & Search Hub
 2. #📜・QUEUE (1555283393242206301) -> Live Dynamic Queue Board
 3. #🔊・DJ-CONTROL (1555283394274005092) -> DJ Studio & Audio Filters Console
 4. #💿・PLAYLISTS (1555283395330842714) -> Curated Playlists & Import Console
@@ -49,9 +49,9 @@ def build_requests_console_embed(guild: discord.Guild) -> discord.Embed:
     embed.add_field(
         name="🔊 ┃ 𝓓ᴇsɪɢɴᴀᴛᴇᴅ 𝓜ᴜsɪᴄ 𝓛ᴏᴜɴɢᴇs",
         value=(
-            "• <#1555255317170749472> (`🔊・𝓜ᴜsɪᴄ・𝕽ᴏᴏᴍ Ⅰ`)\n"
-            "• <#1555255321948327936> (`🎵・𝓜ᴜsɪᴄ・𝕽ᴏᴏᴍ Ⅱ`)\n"
-            "• <#1555255319494402141> (`🎧・𝓛ᴏ-𝓕ɪ・𝕷ᴏᴜɴɢᴇ`)\n"
+            "• <#1555255325706424412> (`🔊・𝓜ᴜsɪᴄ・𝕽ᴏᴏᴍ Ⅰ`)\n"
+            "• <#1558483052550692884> (`🎵・𝓜ᴜsɪᴄ・𝕽ᴏᴏᴍ Ⅱ`)\n"
+            "• <#1558676274526814263> (`🎧・𝓛ᴏ-𝓕ɪ・𝕷ᴏᴜɴɢᴇ`)\n"
             "• <#1555255325706424412> (`⚡・𝟐𝟒/𝟕・𝓡ᴀᴅɪᴏ`)"
         ),
         inline=False,
@@ -103,7 +103,7 @@ def build_queue_console_embed(guild: discord.Guild, player: Optional["GuildMusic
         title="✦ 𝓡ᴀɪ 𝕱ᴀᴍ ╏ 𝓛ɪᴠᴇ 𝓠ᴜᴇᴜᴇ & 𝕿ʀᴀᴄᴋ 𝕸ᴏɴɪᴛᴏʀ ✦",
         description=(
             "Real-time track monitor and upcoming playback queue for **✦ 𝓡ᴀɪ 𝕱ᴀᴍ ✦**.\n\n"
-            "Tracks added by members in <#1555283396660428830> automatically appear in order below."
+            "Tracks added by members in <#1555283393242206301> automatically appear in order below."
         ),
         color=0x9B59B6,  # Royal Amethyst
     )
@@ -119,7 +119,7 @@ def build_queue_console_embed(guild: discord.Guild, player: Optional["GuildMusic
     else:
         embed.add_field(
             name="💤 ┃ 𝓝ᴏᴡ 𝕻ʟᴀʏɪɴɢ",
-            value="*No track currently active. Send a song in <#1555283396660428830> to start listening!*",
+            value="*No track currently active. Send a song in <#1555283393242206301> to start listening!*",
             inline=False,
         )
 
@@ -422,7 +422,7 @@ class MusicConsolesDispatcher:
                     "3. 🎵 `Alan Walker — Faded (Acoustic)`\n"
                     "4. 🎵 `Daft Punk — Get Lucky`\n"
                     "5. 🎵 `Coldplay — Viva La Vida`\n\n"
-                    "💡 *Type any song name in <#1555283396660428830> to play immediately!*"
+                    "💡 *Type any song name in <#1555283393242206301> to play immediately!*"
                 ),
                 color=0xE91E63,
             )
@@ -532,7 +532,7 @@ class MusicConsolesDispatcher:
         elif action == "import":
             msg = (
                 "📥 **How to Import Your Playlist**:\n"
-                "Simply paste your Spotify, Apple Music, or YouTube playlist link directly in <#1555283396660428830>.\n"
+                "Simply paste your Spotify, Apple Music, or YouTube playlist link directly in <#1555283393242206301>.\n"
                 "RAI will parse all tracks and automatically enqueue them in order!"
             )
             if not interaction.response.is_done():

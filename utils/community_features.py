@@ -175,7 +175,7 @@ def build_command_catalog_embed(guild: discord.Guild) -> discord.Embed:
 
     embed.add_field(
         name="🎵 ┃ 𝓜ᴜsɪᴄ & 𝓡ᴀᴅɪᴏ",
-        value="`/play`, `/skip`, `/queue`, `/volume`, `/radio`, `/filters`\n*Or type song names directly in <#1555283396660428830>.*",
+        value="`/play`, `/skip`, `/queue`, `/volume`, `/radio`, `/filters`\n*Or type song names directly in <#1555283393242206301>.*",
         inline=False,
     )
 
@@ -187,7 +187,7 @@ def build_command_catalog_embed(guild: discord.Guild) -> discord.Embed:
 
     embed.add_field(
         name="🛡️ ┃ 𝓤ᴛɪʟɪᴛʏ & 𝓘ɴғᴏ",
-        value="`/userinfo`, `/serverinfo`, `/ping`, `/help`\n*Server statistics & pulse live at <#1555283414205075509>.*",
+        value="`/userinfo`, `/serverinfo`, `/ping`, `/help`\n*Server statistics & pulse live at <#1545502730699808768>.*",
         inline=False,
     )
 
@@ -504,7 +504,7 @@ class CommunityFeaturesDispatcher:
                     "• `/queue` — View upcoming queued songs\n"
                     "• `/volume <1-100>` — Set master audio volume\n"
                     "• `/filters` — Apply bassboost, nightcore, or 8D audio\n\n"
-                    "*(Or just type song names in <#1555283396660428830>!)*"
+                    "*(Or just type song names in <#1555283393242206301>!)*"
                 ),
                 color=0x3498DB,
             )
@@ -588,7 +588,7 @@ class CommunityFeaturesDispatcher:
         elif action == "panic_lock":
             if general_ch and isinstance(general_ch, discord.TextChannel):
                 await general_ch.set_permissions(guild.default_role, send_messages=False, reason=f"Emergency Lockdown activated by {member.name}")
-                alert_ch = guild.get_channel(1555283378612478072)
+                alert_ch = guild.get_channel(1555283387340562574)
                 if alert_ch and isinstance(alert_ch, discord.TextChannel):
                     await alert_ch.send(f"🚨 **EMERGENCY LOCKDOWN ACTIVATED** in {general_ch.mention} by staff member {member.mention}!")
                 await interaction.response.send_message(f"🚨 **Emergency Lockdown Active**: `{general_ch.name}` is now locked against regular messages.", ephemeral=True)
@@ -598,7 +598,7 @@ class CommunityFeaturesDispatcher:
         elif action == "panic_unlock":
             if general_ch and isinstance(general_ch, discord.TextChannel):
                 await general_ch.set_permissions(guild.default_role, send_messages=True, reason=f"Emergency Lockdown released by {member.name}")
-                alert_ch = guild.get_channel(1555283378612478072)
+                alert_ch = guild.get_channel(1555283387340562574)
                 if alert_ch and isinstance(alert_ch, discord.TextChannel):
                     await alert_ch.send(f"🔓 **Lockdown Released** in {general_ch.mention} by staff member {member.mention}.")
                 await interaction.response.send_message(f"🔓 **Lockdown Released**: Normal community access restored in `{general_ch.name}`.", ephemeral=True)

@@ -41,7 +41,7 @@ OBSERVATION_ROLE_ID = 1554839328000315462
 TIMEOUT_ROLE_ID = 1554839510464987156
 
 AFK_CHANNEL_ID = 1554891485818921042
-LOFI_CHANNEL_ID = 1555255319494402141
+LOFI_CHANNEL_ID = 1558676274526814263
 
 # ==========================================
 # 1. LIVE SERVER PULSE & HEALTH RADAR
@@ -130,7 +130,7 @@ def build_server_pulse_embed(guild: discord.Guild, bot: Optional[discord.Client]
         value=(
             "• **24/7 Audio Node**: `ONLINE ⚡`\n"
             "• **Jukebox Fidelity**: `384 kbps Ultra-HD`\n"
-            "• **Request Channel**: <#1555283396660428830>\n"
+            "• **Request Channel**: <#1555283393242206301>\n"
             "• **Control Console**: <#1555255695933186228>"
         ),
         inline=True,
@@ -747,7 +747,7 @@ class LuxuryConsolesDispatcher:
                     "• **Filter List**: 1,420+ known malicious scam domains & Discord token grabs\n"
                     "• **Purge Latency**: `< 100ms`\n"
                     "• **Quarantine Role**: `🛑 │ Raid Protection` configured\n"
-                    "• **Staff Channel**: <#1555283378612478072>"
+                    "• **Staff Channel**: <#1555283387340562574>"
                 ),
                 color=0xE74C3C,
             )

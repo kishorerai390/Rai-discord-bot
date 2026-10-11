@@ -33,13 +33,13 @@ BOT_ID = 1554732669072445532
 # Designated Real-Time Channels
 REALTIME_CHANNELS = {
     "admin_control": 1555283409465778218,       # 👑・ᴀᴅᴍɪɴ-ᴄᴏɴᴛʀᴏʟ
-    "server_dashboard": 1555283414205075509,    # 📊・sᴇʀᴠᴇʀ-ᴅᴀsʜʙᴏᴀʀᴅ
+    "server_dashboard": 1545502730699808768,    # 📊・sᴇʀᴠᴇʀ-ᴅᴀsʜʙᴏᴀʀᴅ
     "bot_config": 1555283416071675954,          # ⚙️・ʙᴏᴛ-ᴄᴏɴғɪɢ
     "system_health": 1555283419355676787,       # ❤️・sʏsᴛᴇᴍ-ʜᴇᴀʟᴛʜ
     "antinuke": 1555283380961026139,            # 🧱・ᴀɴᴛɪ-ɴᴜᴋᴇ
     "lockdown": 1555283386656886825,            # 🔒・ʟᴏᴄᴋᴅᴏᴡɴ-ᴄᴏɴᴛʀᴏʟ
-    "security_alerts": 1555283378612478072,     # 🚨・sᴇᴄᴜʀɪᴛʏ-ᴀʟᴇʀᴛs
-    "honeypot": 1558168338386129004,            # 🪤・honeypot-trap
+    "security_alerts": 1555283387340562574,     # 🚨・sᴇᴄᴜʀɪᴛʏ-ᴀʟᴇʀᴛs
+    "honeypot": 1555283387340562574,            # 🪤・honeypot-trap
     "room_control": 1555459478155960421,        # 🛠️・ʀᴏᴏᴍ-ᴄᴏɴᴛʀᴏʟ
     "suggestions": 1557469924379852860,         # 💡・sᴜɢɢᴇsᴛɪᴏɴs
     "support_desk": 1555641079137706014,        # 🎟・sᴜᴘᴘᴏʀᴛ-ᴅᴇsᴋ
@@ -636,7 +636,7 @@ def build_music_control_payload(guild: Optional[Any] = None, bot: Optional[Any] 
         "fields": [
             {
                 "name": "🎧 Recommended Lounges",
-                "value": "• <#1554905803666751590> 24/7 Beats\n• <#1554905807240302652> Night Owl Cafe\n• <#1554905810574774286> Vibe Studio",
+                "value": "• <#1555255325706424412> 24/7 Beats\n• <#1554905807240302652> Night Owl Cafe\n• <#1554905810574774286> Vibe Studio",
                 "inline": False,
             }
         ],
@@ -834,7 +834,7 @@ def build_gaming_squad_vc_payload(guild: Optional[Any] = None, bot: Optional[Any
         "fields": [
             {
                 "name": "🎯 Quick Comms Rules",
-                "value": "• Keep callouts concise and clear during active rounds\n• Toggle mute when afk to preserve comms clarity\n• Share clips in `<#1558482965175078994>`",
+                "value": "• Keep callouts concise and clear during active rounds\n• Toggle mute when afk to preserve comms clarity\n• Share clips in `<#1545502730699808768>`",
                 "inline": False,
             }
         ],
@@ -875,7 +875,7 @@ def build_creator_studio_vc_payload(guild: Optional[Any] = None, bot: Optional[A
         "fields": [
             {
                 "name": "✨ Creator Channels",
-                "value": "• Editing Chat: `<#1558482941817004143>`\n• Gaming Montages: `<#1558482965175078994>`\n• Editing Tips: `<#1558483087283720352>`",
+                "value": "• Editing Chat: `<#1558482941817004143>`\n• Gaming Montages: `<#1545502730699808768>`\n• Editing Tips: `<#1555255325706424412>`",
                 "inline": False,
             }
         ],
@@ -1315,7 +1315,7 @@ class RealtimeConsoleDispatcher:
                     return True
                 elif action == "log":
                     await interaction.response.send_message(
-                        "📋 **Defense Stream:** All defensive actions are piped live to <#1555283378612478072> and SQLite audit log.",
+                        "📋 **Defense Stream:** All defensive actions are piped live to <#1555283387340562574> and SQLite audit log.",
                         ephemeral=True
                     )
                     return True
@@ -1446,7 +1446,7 @@ class RealtimeConsoleDispatcher:
                         "⚙️ **Security Engine Configuration:**\n"
                         "• Anti-Raid Mode: `Auto-Detect (Threshold 5 joins/10s)`\n"
                         "• Anti-Nuke: `Strict Sentinel Active`\n"
-                        "• Honeypot: `<#1558168338386129004> Armored`\n"
+                        "• Honeypot: `<#1555283387340562574> Armored`\n"
                         "• Owner Dual-Report: `Active to Owner DM + #⛨・member-reports` 🟢",
                         ephemeral=True
                     )
@@ -1488,7 +1488,7 @@ class RealtimeConsoleDispatcher:
                 if action == "status":
                     await interaction.response.send_message(
                         "🪤 **Honeypot Sentinel Status:**\n"
-                        "• Channel: <#1558168338386129004>\n"
+                        "• Channel: <#1555283387340562574>\n"
                         "• Visibility: `Hidden from @everyone & @Verified Member`\n"
                         "• Bot Monitoring: `24/7 Sub-Millisecond Autonomous Interception`\n"
                         "• Target: `Scrapers, Rogue Bots, Self-Bots`",
@@ -1558,7 +1558,7 @@ class RealtimeConsoleDispatcher:
             # 11. Music Control
             elif cid.startswith("rt_mus:"):
                 action = cid.split(":", 1)[1]
-                await interaction.response.send_message(f"🎵 **Audio Command Triggered:** Use `/play` or join <#1554905803666751590> for 24/7 background audio.", ephemeral=True)
+                await interaction.response.send_message(f"🎵 **Audio Command Triggered:** Use `/play` or join <#1555255325706424412> for 24/7 background audio.", ephemeral=True)
                 return True
 
             # 12. Welcome & Commands
@@ -1639,7 +1639,7 @@ class RealtimeConsoleDispatcher:
             elif cid.startswith("rt_game:"):
                 action = cid.split(":", 1)[1]
                 if action == "squad":
-                    await interaction.response.send_message("🎮 **Squad LFG:** Looking for squad members! Check `<#1557475853175234660>` (Gaming Hub) or `<#1555428426607894570>` (Free Fire) to team up!", ephemeral=True)
+                    await interaction.response.send_message("🎮 **Squad LFG:** Looking for squad members! Check `<#1557475853175234660>` (Gaming Hub) or `<#1545502730699808768>` (Free Fire) to team up!", ephemeral=True)
                     return True
                 elif action == "gg":
                     await interaction.response.send_message("🔥 **GG WP!** High five to the squad on that clean round and victory streak!", ephemeral=True)
@@ -1648,7 +1648,7 @@ class RealtimeConsoleDispatcher:
                     await interaction.response.send_message("🎯 **Comms Check:** Audio ping nominal (`384 kbps Ultra HQ`). Callouts clear, locked and loaded.", ephemeral=True)
                     return True
                 elif action == "custom":
-                    await interaction.response.send_message("⚔️ **Custom Room:** Check `<#1555428426607894570>` or `<#1557475853175234660>` for custom room codes and squad pairing.", ephemeral=True)
+                    await interaction.response.send_message("⚔️ **Custom Room:** Check `<#1545502730699808768>` or `<#1557475853175234660>` for custom room codes and squad pairing.", ephemeral=True)
                     return True
 
             # 17. Creator Studio Voice Controls
@@ -1658,10 +1658,10 @@ class RealtimeConsoleDispatcher:
                     await interaction.response.send_message("🎬 **Stream Showcase:** Drop your stream link in `<#1551184138932068373>` (Media Clips) to get featured on the server radar!", ephemeral=True)
                     return True
                 elif action == "feedback":
-                    await interaction.response.send_message("✂️ **Montage Feedback:** Post your edit in `<#1558482941817004143>` (Editing Chat) or `<#1558482965175078994>` (Gaming Montages) for peer review!", ephemeral=True)
+                    await interaction.response.send_message("✂️ **Montage Feedback:** Post your edit in `<#1558482941817004143>` (Editing Chat) or `<#1545502730699808768>` (Gaming Montages) for peer review!", ephemeral=True)
                     return True
                 elif action == "tips":
-                    await interaction.response.send_message("💡 **Editing Tips:** Visit `<#1558483087283720352>` for recommended bitrate, keyframing, and velocity sync guides!", ephemeral=True)
+                    await interaction.response.send_message("💡 **Editing Tips:** Visit `<#1555255325706424412>` for recommended bitrate, keyframing, and velocity sync guides!", ephemeral=True)
                     return True
 
             # Universal fallback for any console buttons to guarantee NO timeout
