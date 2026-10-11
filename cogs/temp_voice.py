@@ -461,7 +461,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
 
         # 3. Configure permissions and initial metadata based on mode
         if mode == "gaming_personal":
-            channel_name = f"🎮・{member.display_name}'s Room"
+            channel_name = f"🎮・{member.display_name}'s Squad"
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
                 member: discord.PermissionOverwrite(
@@ -475,7 +475,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             locked = False
             user_limit = 4  # Default Squad capacity
         elif mode == "gaming_private":
-            channel_name = f"🔒・{member.display_name}'s Squad"
+            channel_name = f"🎯・{member.display_name}'s Clan"
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
                 member: discord.PermissionOverwrite(
@@ -506,7 +506,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             locked = False
             user_limit = 5
         elif mode == "editing_private":
-            channel_name = f"🔐・{member.display_name}'s Suite"
+            channel_name = f"🎬・{member.display_name}'s Suite"
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
                 member: discord.PermissionOverwrite(
@@ -523,7 +523,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             locked = True
             user_limit = 2
         elif is_private:
-            channel_name = f"🔐・{member.display_name}'s Room"
+            channel_name = f"🔒・{member.display_name}'s Sanctum"
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=False, connect=False),
                 member: discord.PermissionOverwrite(
@@ -540,7 +540,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             locked = True
             user_limit = 2
         else:
-            channel_name = f"🎙️・{member.display_name}'s Room"
+            channel_name = f"🌸・{member.display_name}'s Lounge"
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=True, speak=True),
                 member: discord.PermissionOverwrite(
@@ -554,12 +554,13 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             locked = False
             user_limit = cfg.default_user_limit or 0
 
-        # 4. Create Voice Channel
+        # 4. Create Voice Channel (Boosted to 96kbps maximum fidelity)
         try:
             temp_vc = await guild.create_voice_channel(
                 name=channel_name,
                 category=category,
                 user_limit=user_limit,
+                bitrate=96000,
                 overwrites=overwrites,
                 reason=f"Rai Dynamic VC: Provisioned {room_type} room for {member.display_name}",
             )
