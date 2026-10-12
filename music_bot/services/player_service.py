@@ -83,10 +83,15 @@ class MusicPlayerService:
             session._dj_prequeued = False
             session.state = PlaybackState.PLAYING
 
+            session.playback_generation += 1
+            current_generation = session.playback_generation
             loop = bot.loop
 
             def after_playback(error: Optional[Exception]):
-                if getattr(session, "_is_seeking", False):
+                if getattr(session, "_is_seeking", False) or getattr(session, "_is_reencoding", False):
+                    return
+                if session.playback_generation != current_generation:
+                    logger.debug(f"Ignoring superseded playback callback (gen {current_generation} vs {session.playback_generation})")
                     return
                 if error:
                     logger.error(f"Playback error in guild {session.guild_id}: {error}")
@@ -242,10 +247,15 @@ class MusicPlayerService:
             session.paused_duration = 0.0
             session.state = PlaybackState.PLAYING
 
+            session.playback_generation += 1
+            current_generation = session.playback_generation
             loop = bot.loop
 
             def after_resumed(error: Optional[Exception]):
-                if getattr(session, "_is_seeking", False):
+                if getattr(session, "_is_seeking", False) or getattr(session, "_is_reencoding", False):
+                    return
+                if session.playback_generation != current_generation:
+                    logger.debug(f"Ignoring superseded resume callback (gen {current_generation} vs {session.playback_generation})")
                     return
                 if error:
                     logger.error(f"Post-recovery playback error in guild {session.guild_id}: {error}")

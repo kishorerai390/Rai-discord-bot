@@ -81,6 +81,8 @@ class GuildMusicSession:
         self.now_playing_message: Optional[discord.Message] = None
         self.progress_updater_task: Optional[asyncio.Task] = None
         self._is_seeking: bool = False
+        self._is_reencoding: bool = False
+        self.playback_generation: int = 0
         self.is_intentional_stop: bool = False
         self.last_checkpoint_pos: int = 0
         self.last_checkpoint_time: float = 0.0
