@@ -43,6 +43,11 @@ class MusicDatabase:
         await self._init_schema()
         logger.info(f"Music Bot database connected at {self.db_path}")
 
+    @property
+    def is_connected(self) -> bool:
+        """True if SQLite connection handle is established."""
+        return self._db is not None
+
     async def close(self) -> None:
         """Cleanly close database connection."""
         if self._db:
@@ -727,6 +732,24 @@ class MusicDatabase:
         async with self._lock:
             async with self._db.execute(
                 "SELECT * FROM music_heartbeats WHERE bot_id = ?", (bot_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return MusicHeartbeat(
+                    bot_id=row["bot_id"],
+                    version=row["version"],
+                    status=row["status"],
+                    active_sessions=row["active_sessions"],
+                    playing_count=row["playing_count"],
+                    last_heartbeat=row["last_heartbeat"],
+                )
+
+    async def get_latest_heartbeat(self) -> Optional[MusicHeartbeat]:
+        """Read the latest heartbeat record across all bots."""
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT * FROM music_heartbeats ORDER BY last_heartbeat DESC LIMIT 1"
             ) as cursor:
                 row = await cursor.fetchone()
                 if not row:

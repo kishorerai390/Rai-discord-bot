@@ -231,6 +231,18 @@ class NekoSongsBot(commands.Bot):
         self.snapshot_loop.start()
         self.web_actions_loop.start()
 
+        # 5. Start Web Platform (Raivora Music Web & Community OS)
+        self.web_server = None
+        try:
+            import os
+            from web.server import RaiCommunityOSServer
+            web_port = int(os.environ.get("PORT", 8080))
+            self.web_server = RaiCommunityOSServer(bot=self, db=self.db, port=web_port)
+            await self.web_server.start()
+            logger.info(f"✦ Raivora Music Web Platform online at http://0.0.0.0:{web_port}/music ✦")
+        except Exception as e:
+            logger.warning(f"Could not start Web Platform: {e}")
+
     @tasks.loop(seconds=5.0)
     async def snapshot_loop(self) -> None:
         """Continuously snapshots live track positions and handles gapless audio pre-caching."""
@@ -601,6 +613,12 @@ class NekoSongsBot(commands.Bot):
         self.maintenance_loop.cancel()
         self.snapshot_loop.cancel()
         self.web_actions_loop.cancel()
+
+        if hasattr(self, "web_server") and self.web_server:
+            try:
+                await self.web_server.stop()
+            except Exception:
+                pass
 
         # Feature 109 & Phase 3: Save exact persistent playback positions & queues before shutdown
         try:

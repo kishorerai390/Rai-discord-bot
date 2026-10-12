@@ -19,6 +19,7 @@ from web.api import ApiRouter
 from web.ui import UI_HTML
 
 from web.realtime import RealtimeGateway
+from web.music_api import MusicApiRouter
 
 if TYPE_CHECKING:
     from main import SentinelBot
@@ -43,6 +44,7 @@ class RaiCommunityOSServer:
         self.site: Optional[web.TCPSite] = None
         self.realtime_gateway = RealtimeGateway(self.db, self.bot)
         self.api_router = ApiRouter(self.db, self.bot, realtime=self.realtime_gateway)
+        self.music_router = MusicApiRouter(auth_manager=self.api_router.auth, bot=bot)
         self._outbox_task: Optional[asyncio.Task] = None
         self._is_running = False
 
@@ -215,10 +217,27 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/invites/rewards", r.get_invite_rewards)
         app.router.add_post("/api/invites/rewards", r.update_invite_rewards)
 
+        # Raivora Music Platform API (Phase 2 & Phase 3)
+        m = self.music_router
+        app.router.add_get("/api/music/guilds", m.get_guilds)
+        app.router.add_get("/api/music/session", m.get_session)
+        app.router.add_get("/api/music/queue", m.get_queue)
+        app.router.add_get("/api/music/history", m.get_history)
+        app.router.add_get("/api/music/favorites", m.get_favorites)
+        app.router.add_post("/api/music/favorites/toggle", m.toggle_favorite)
+        app.router.add_post("/api/music/control", m.dispatch_control)
+        app.router.add_get("/api/music/search", m.search_tracks)
+        app.router.add_post("/api/music/enqueue", m.enqueue_track)
+        app.router.add_get("/api/music/lyrics", m.get_lyrics)
+        app.router.add_get("/api/music/stats", m.get_stats)
+
     async def _outbox_worker_loop(self) -> None:
         """Background worker for asynchronous, idempotent Discord channel synchronization."""
         while self._is_running:
             try:
+                if not hasattr(self.db, "fetch_pending_sync_events"):
+                    await asyncio.sleep(15.0)
+                    continue
                 events = await self.db.fetch_pending_sync_events(limit=5)
                 for ev in events:
                     event_id = ev["event_id"]

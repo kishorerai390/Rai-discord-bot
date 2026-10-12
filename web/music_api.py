@@ -55,10 +55,15 @@ class MusicApiRouter:
             self._db_connected = True
 
     async def _get_current_user(self, request: web.Request) -> Optional[Dict[str, Any]]:
-        cookie = request.cookies.get(SESSION_COOKIE_NAME)
-        if not cookie:
+        if not self.auth_manager:
             return None
-        return await self.auth_manager.resolve_session_user(cookie)
+        try:
+            sess = await self.auth_manager.get_session_from_request(request)
+            if sess:
+                return sess.get("user_data") or sess
+        except Exception:
+            pass
+        return None
 
     # ==========================================
     # 1. GUILD DISCOVERY & STATE

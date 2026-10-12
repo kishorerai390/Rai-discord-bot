@@ -4100,65 +4100,939 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // ==========================================
-    // 20. MUSIC & AUDIO VIEW (/music)
     // ==========================================
-    function renderMusic(container) {
+    // 20. RAIVORA MUSIC WEB PLATFORM (/music) — PHASE 2 & 3
+    // ==========================================
+    let musicPollInterval = null;
+    let selectedMusicGuildId = '1525030316845301781';
+    let currentMusicSession = null;
+    let isScrubbingMusic = false;
+    let visualizerAnimId = null;
+
+    async function renderMusic(container) {
+      if (musicPollInterval) clearInterval(musicPollInterval);
+      if (visualizerAnimId) cancelAnimationFrame(visualizerAnimId);
+
       container.innerHTML = `
-        <div class="section-title" style="margin-top:1rem;">
-          <div class="title-group">
-            <span class="title-text">🎧 Lossless Music & Audio Hub</span>
-            <span class="pill pill-purple">320kbps OPUS STREAM</span>
-          </div>
-        </div>
-        <p style="color:var(--text-muted); margin-bottom:2rem; line-height:1.6;">
-          Stream crystal-clear 320kbps audio in voice channels, build shared playlists, and trigger custom soundboard effects.
-        </p>
+        <style>
+          .music-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 1.8rem;
+            margin-top: 0.5rem;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+          }
+          .music-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            background: rgba(15, 17, 26, 0.7);
+            border: 1px solid rgba(147, 51, 234, 0.25);
+            backdrop-filter: blur(16px);
+            padding: 1rem 1.4rem;
+            border-radius: var(--radius-md);
+          }
+          .music-hero-card {
+            background: linear-gradient(135deg, rgba(20, 15, 35, 0.85) 0%, rgba(10, 14, 25, 0.95) 100%);
+            border: 1px solid rgba(147, 51, 234, 0.35);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(147, 51, 234, 0.15);
+            backdrop-filter: blur(25px);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 2.2rem;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+          }
+          @media (max-width: 820px) {
+            .music-hero-card { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+          }
+          .music-art-wrap {
+            position: relative;
+            width: 210px;
+            height: 210px;
+            border-radius: 50%;
+            padding: 8px;
+            background: radial-gradient(circle, rgba(147, 51, 234, 0.4) 0%, rgba(6, 182, 212, 0.2) 60%, transparent 100%);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7), 0 0 25px rgba(147, 51, 234, 0.3);
+          }
+          .music-vinyl {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            transition: transform 0.5s ease;
+          }
+          .music-vinyl.spinning {
+            animation: spinVinyl 12s linear infinite;
+          }
+          @keyframes spinVinyl {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          .music-meta-col {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 100%;
+          }
+          .music-track-title {
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.5px;
+            line-height: 1.2;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+            word-break: break-word;
+          }
+          .music-track-artist {
+            font-size: 1.05rem;
+            color: var(--cyan);
+            font-weight: 600;
+          }
+          .music-badges-row {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            align-items: center;
+          }
+          .scrub-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            width: 100%;
+          }
+          .scrub-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 7px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.12);
+            outline: none;
+            cursor: pointer;
+            transition: background 0.2s;
+          }
+          .scrub-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--cyan);
+            box-shadow: 0 0 10px var(--cyan);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+          }
+          .scrub-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+          }
+          .scrub-times {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+          }
+          .controls-cluster {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+          }
+          .ctrl-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.15rem;
+            transition: all 0.2s ease;
+          }
+          .ctrl-btn:hover {
+            background: rgba(147, 51, 234, 0.3);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+          }
+          .ctrl-btn.play-master {
+            width: 58px;
+            height: 58px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--cyan) 100%);
+            border: none;
+            box-shadow: 0 0 20px rgba(147, 51, 234, 0.5);
+            font-size: 1.5rem;
+          }
+          .ctrl-btn.play-master:hover {
+            transform: scale(1.08);
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.6);
+          }
+          .ctrl-btn.active {
+            border-color: var(--cyan);
+            background: rgba(6, 182, 212, 0.25);
+            color: var(--cyan);
+          }
+          .volume-bar-row {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            width: 100%;
+            max-width: 380px;
+          }
+          .vol-chip {
+            padding: 0.2rem 0.6rem;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s;
+          }
+          .vol-chip:hover, .vol-chip.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+          }
+          .music-tabs-nav {
+            display: flex;
+            gap: 0.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.6rem;
+            margin-top: 1rem;
+            overflow-x: auto;
+          }
+          .m-tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.6rem 1.2rem;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+          }
+          .m-tab-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+          .m-tab-btn.active {
+            color: #fff;
+            background: rgba(147, 51, 234, 0.25);
+            border: 1px solid rgba(147, 51, 234, 0.4);
+          }
+          .music-tab-content { display: none; margin-top: 1.2rem; }
+          .music-tab-content.active { display: block; }
+          .queue-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 17, 26, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: var(--radius-md);
+            padding: 0.75rem 1rem;
+            gap: 1rem;
+            transition: all 0.15s ease;
+          }
+          .queue-item:hover {
+            border-color: rgba(147, 51, 234, 0.4);
+            background: rgba(147, 51, 234, 0.08);
+          }
+          .eq-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 0.8rem;
+          }
+          .eq-card {
+            background: rgba(15, 17, 26, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: var(--radius-md);
+            padding: 1rem 0.8rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+          .eq-card:hover, .eq-card.active {
+            border-color: var(--cyan);
+            background: rgba(6, 182, 212, 0.18);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+            transform: translateY(-2px);
+          }
+          #visualizer-canvas {
+            width: 100%;
+            height: 48px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.35);
+          }
+        </style>
 
-        <div class="player-widget" style="margin-bottom:2.5rem;">
-          <div class="player-header">
-            <div style="display:flex; align-items:center; gap:0.6rem;">
-              <span class="pill pill-green">🟢 Active Voice Stream</span>
-              <span class="pill pill-cyan">Zero Latency Audio</span>
+        <div class="music-shell">
+          <!-- TOP BAR: GUILD SELECTOR & STATUS -->
+          <div class="music-top-bar">
+            <div style="display:flex; align-items:center; gap:0.9rem;">
+              <span style="font-size:1.6rem;">🎧</span>
+              <div>
+                <div style="font-weight:800; color:#fff; font-size:1.15rem;">RAIVORA HI-FI MUSIC PLATFORM</div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">Independent 320kbps Opus Voice Engine • Rythm-Style Memory</div>
+              </div>
             </div>
-          </div>
-          <div class="player-main">
-            <div class="player-disc" id="music-disc">💿</div>
-            <div class="player-info">
-              <div class="player-title" id="music-track-title">Resonance • Synthwave Hi-Fi</div>
-              <div class="player-artist" id="music-track-artist">The Raivora 2.6 • 320kbps Opus Stream</div>
-            </div>
-            <div class="player-controls">
-              <button class="ctrl-icon-btn" onclick="nextDemoTrack()">⏮</button>
-              <button class="play-btn" id="music-play-btn" onclick="toggleAudioPreview()">▶</button>
-              <button class="ctrl-icon-btn" onclick="nextDemoTrack()">⏭</button>
-            </div>
-          </div>
-        </div>
 
-        <div class="discovery-grid">
-          <div class="discovery-card">
-            <div>
-              <div class="card-name">✦ Midnight Cyber Lounge</div>
-              <div class="card-subtitle">SYNTHWAVE & LO-FI</div>
-              <div class="card-desc" style="margin-top:0.6rem;">Curated synthwave and midnight electronic tracks streamed 24/7 in General Lounge VC.</div>
-            </div>
-            <div class="card-bottom-actions">
-              <button class="btn btn-discord btn-sm" style="width:100%;" onclick="alert('Join any Discord voice channel and use /music play')">Play in Discord</button>
+            <div style="display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+              <label style="font-size:0.82rem; color:var(--text-muted); font-weight:600;">ACTIVE SERVER:</label>
+              <select id="music-guild-select" class="input-field" style="padding:0.45rem 0.8rem; min-width:210px;" onchange="onMusicGuildChanged(this.value)">
+                <option value="1525030316845301781">THOR APEX ⚡ (Active)</option>
+                <option value="1457382179981099090">✦ ʀᴀɪ ʀᴀᴍ ✦</option>
+                <option value="1428058914141900860">ABIJITH 777</option>
+                <option value="1494692962041467005">SUPPORT SERVER FOR RAIVORA</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="fetchMusicSessionState()" title="Instant Sync">⟳ Sync</button>
             </div>
           </div>
 
-          <div class="discovery-card">
-            <div>
-              <div class="card-name">✦ Competitive Hype Squad</div>
-              <div class="card-subtitle">BASS BOOSTED</div>
-              <div class="card-desc" style="margin-top:0.6rem;">High energy gaming beats with bass boost equalization.</div>
+          <!-- HERO NOW PLAYING DECK -->
+          <div class="music-hero-card">
+            <div class="music-art-wrap">
+              <img id="music-album-art" class="music-vinyl spinning" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500" alt="Album Cover">
             </div>
-            <div class="card-bottom-actions">
-              <button class="btn btn-discord btn-sm" style="width:100%;" onclick="alert('Join any Discord voice channel and use /music queue')">Queue in Discord</button>
+
+            <div class="music-meta-col">
+              <div class="music-badges-row">
+                <span class="pill pill-green" id="music-badge-state">🟢 PLAYING</span>
+                <span class="pill pill-purple" id="music-badge-vc">📍 In #❄️. Fun Time !</span>
+                <span class="pill pill-cyan" id="music-badge-filter">🎛️ Filter: Flat</span>
+                <span class="pill pill-pink" id="music-badge-autodj">🎧 Auto-DJ: OFF</span>
+              </div>
+
+              <div>
+                <div class="music-track-title" id="music-live-title">Innimey Ippadithaan - Paatha Oru Lookula Video</div>
+                <div class="music-track-artist" id="music-live-artist">Santhanam, Ashna Zaveri • Neko Songs</div>
+              </div>
+
+              <!-- REALTIME CANVAS AUDIO VISUALIZER -->
+              <canvas id="visualizer-canvas"></canvas>
+
+              <!-- PROGRESS SLIDER -->
+              <div class="scrub-container">
+                <input type="range" id="music-scrub" class="scrub-slider" min="0" max="100" value="0" oninput="onMusicScrubInput()" onchange="onMusicScrubChange(this.value)">
+                <div class="scrub-times">
+                  <span id="music-time-elapsed">00:00</span>
+                  <span id="music-time-total">00:00 (-00:00)</span>
+                </div>
+              </div>
+
+              <!-- 13-BUTTON MASTER CONTROLS MATRIX -->
+              <div class="controls-cluster">
+                <button class="ctrl-btn" onclick="sendMusicAction('PREVIOUS')" title="Previous Track">⏮</button>
+                <button class="ctrl-btn" onclick="sendMusicSeekRelative(-10)" title="Rewind 10s">⏪</button>
+                <button class="ctrl-btn play-master" id="music-master-play-btn" onclick="toggleMusicPlayPause()" title="Play / Pause">▶</button>
+                <button class="ctrl-btn" onclick="sendMusicSeekRelative(10)" title="Fast Forward 10s">⏩</button>
+                <button class="ctrl-btn" onclick="sendMusicAction('SKIP')" title="Skip Current Song">⏭</button>
+
+                <div style="width:1px; height:28px; background:rgba(255,255,255,0.15); margin:0 0.3rem;"></div>
+
+                <button class="ctrl-btn" id="music-btn-shuffle" onclick="sendMusicAction('SHUFFLE')" title="Shuffle Queue">🔀</button>
+                <button class="ctrl-btn" id="music-btn-loop" onclick="cycleMusicLoop()" title="Toggle Loop Mode">🔁</button>
+                <button class="ctrl-btn" id="music-btn-favorite" onclick="toggleCurrentFavorite()" title="Add to Favorites" style="color:var(--pink);">❤️</button>
+                <button class="ctrl-btn" onclick="openLyricsModal()" title="View Song Lyrics">💬</button>
+                <button class="ctrl-btn" onclick="sendMusicAction('STOP')" title="Stop & Clear Voice Channel" style="color:var(--danger);">⏹</button>
+              </div>
+
+              <!-- REAL-TIME MASTER VOLUME BAR -->
+              <div class="volume-bar-row">
+                <span style="font-size:1.1rem;" id="music-vol-icon">🔊</span>
+                <input type="range" id="music-vol-slider" class="scrub-slider" min="0" max="100" value="80" oninput="onMusicVolSlider(this.value)">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; width:45px;" id="music-vol-label">80%</span>
+                <div style="display:flex; gap:0.3rem;">
+                  <button class="vol-chip" onclick="setMusicVolumePreset(20)">20%</button>
+                  <button class="vol-chip" onclick="setMusicVolumePreset(50)">50%</button>
+                  <button class="vol-chip" onclick="setMusicVolumePreset(80)">80%</button>
+                  <button class="vol-chip" onclick="setMusicVolumePreset(100)">100%</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TABS NAVIGATION -->
+          <div class="music-tabs-nav">
+            <button class="m-tab-btn active" onclick="switchMusicTab('queue', this)">📜 Live Queue (<span id="tab-queue-count">0</span>)</button>
+            <button class="m-tab-btn" onclick="switchMusicTab('eq', this)">🎛️ Equalizer & DSP</button>
+            <button class="m-tab-btn" onclick="switchMusicTab('autodj', this)">🎧 Auto-DJ & 24/7 Radio</button>
+            <button class="m-tab-btn" onclick="switchMusicTab('history', this)">🕒 Listening History</button>
+            <button class="m-tab-btn" onclick="switchMusicTab('favorites', this)">❤️ My Favorites</button>
+            <button class="m-tab-btn" onclick="switchMusicTab('health', this)">🩺 Bot Health & Telemetry</button>
+          </div>
+
+          <!-- TAB 1: LIVE QUEUE & SEARCH -->
+          <div class="music-tab-content active" id="mtab-queue">
+            <!-- QUICK ENQUEUE SEARCH BAR -->
+            <div style="display:flex; gap:0.8rem; margin-bottom:1.5rem;">
+              <input type="text" id="music-search-input" class="input-field" style="flex:1;" placeholder="Search YouTube or paste URL (e.g. Kaappaan - Hey Amigo, Spotify, Soundcloud)..." onkeydown="if(event.key==='Enter') quickEnqueueTrack()">
+              <button class="btn btn-primary" onclick="quickEnqueueTrack()"><span>+</span> Add to Queue</button>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+              <div style="font-size:0.9rem; color:var(--text-muted);" id="queue-summary-text">0 tracks queued • Total duration: 0m</div>
+              <button class="btn btn-outline btn-sm" onclick="sendMusicAction('CLEAR')" style="color:var(--danger); border-color:rgba(239,68,68,0.4);">Clear Queue</button>
+            </div>
+
+            <div id="queue-items-list" style="display:flex; flex-direction:column; gap:0.6rem;">
+              <div class="state-box"><div class="state-desc">Loading live queue...</div></div>
+            </div>
+          </div>
+
+          <!-- TAB 2: EQUALIZER & DSP SUITE -->
+          <div class="music-tab-content" id="mtab-eq">
+            <div class="section-title">
+              <span class="title-text">🎛️ 10-Band DSP Equalizer Presets</span>
+              <span class="pill pill-cyan">REAL-TIME HOT SWAP</span>
+            </div>
+            <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1.4rem;">
+              Click any DSP filter to switch audio profiles without interrupting the track.
+            </p>
+
+            <div class="eq-grid">
+              <div class="eq-card active" onclick="applyMusicEQ('flat', 'Flat / Normal', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">🔄</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Flat / Normal</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Studio Neutral</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('bassboost', 'Bass Boost', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">🎧</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Bass Boost</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">+10dB Sub-60Hz</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('nightcore', 'Nightcore', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">⚡</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Nightcore</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">1.25x Pitch & Speed</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('8d', '8D Audio', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">🌌</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">8D Audio</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Pulsating 360° Pan</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('vaporwave', 'Lo-Fi Relax', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">☕</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Lo-Fi Relax</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">0.85x Warm Chill</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('vocal', 'Clear Vocal', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">🎤</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Clear Vocal</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">+6dB Midrange</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('rock', 'Rock / Metal', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">🎸</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Rock / Metal</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Punchy V-Curve</div>
+              </div>
+              <div class="eq-card" onclick="applyMusicEQ('pop', 'Pop Boost', this)">
+                <div style="font-size:1.8rem; margin-bottom:0.4rem;">✨</div>
+                <div style="font-weight:700; color:#fff; font-size:0.9rem;">Pop Boost</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Highs & Presence</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: AUTO-DJ & 24/7 RADIO -->
+          <div class="music-tab-content" id="mtab-autodj">
+            <div class="section-title">
+              <span class="title-text">🎧 Autonomous Auto-DJ & Circadian Radio</span>
+              <span class="pill pill-green">AI VIBE ENGINE</span>
+            </div>
+            <p style="color:var(--text-muted); font-size:0.88rem; margin-bottom:1.4rem;">
+              When the manual queue empties, Auto-DJ keeps the music going with diverse, non-repeating recommendations.
+            </p>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.2rem;">
+              <div class="card" style="padding:1.4rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+                  <span style="font-weight:700; color:#fff; font-size:1.05rem;">Auto-DJ Non-Stop</span>
+                  <span class="pill pill-cyan">Continuous</span>
+                </div>
+                <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1.2rem; line-height:1.5;">
+                  Uses algorithmic audio vectors to recommend tracks based on recent history with zero repetition.
+                </p>
+                <button class="btn btn-primary btn-sm" onclick="sendMusicAction('AUTODJ_TOGGLE')">Toggle Auto-DJ Mode</button>
+              </div>
+
+              <div class="card" style="padding:1.4rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+                  <span style="font-weight:700; color:#fff; font-size:1.05rem;">24/7 Voice Channel Anchor</span>
+                  <span class="pill pill-purple">Always Connected</span>
+                </div>
+                <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1.2rem; line-height:1.5;">
+                  The bot remains in the voice channel permanently, resuming automatically even after bot restarts.
+                </p>
+                <button class="btn btn-outline btn-sm" onclick="sendMusicAction('247_TOGGLE')">Toggle 24/7 Mode</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: LISTENING HISTORY -->
+          <div class="music-tab-content" id="mtab-history">
+            <div class="section-title">
+              <span class="title-text">🕒 Server Playback History</span>
+              <span class="pill pill-cyan">LAST 25 TRACKS</span>
+            </div>
+            <div id="history-items-list" style="display:flex; flex-direction:column; gap:0.6rem; margin-top:1rem;">
+              <div class="state-box"><div class="state-desc">Loading playback history...</div></div>
+            </div>
+          </div>
+
+          <!-- TAB 5: MY FAVORITES -->
+          <div class="music-tab-content" id="mtab-favorites">
+            <div class="section-title">
+              <span class="title-text">❤️ Saved Favorites</span>
+              <span class="pill pill-pink">PERSONAL PLAYLIST</span>
+            </div>
+            <div id="favorites-items-list" style="display:flex; flex-direction:column; gap:0.6rem; margin-top:1rem;">
+              <div class="state-box"><div class="state-desc">Loading personal favorites...</div></div>
+            </div>
+          </div>
+
+          <!-- TAB 6: BOT HEALTH & TELEMETRY -->
+          <div class="music-tab-content" id="mtab-health">
+            <div class="section-title">
+              <span class="title-text">🩺 Audio Engine Health & Observability</span>
+              <span class="pill pill-green">SELF-HEALING</span>
+            </div>
+            <div class="discovery-grid" id="telemetry-grid">
+              <div class="discovery-card">
+                <div class="card-name">Gateway Latency</div>
+                <div style="font-size:2rem; font-weight:800; color:var(--cyan); margin:0.4rem 0;" id="stat-latency">18ms</div>
+                <div class="card-desc">Zero packet-loss connection to Discord Mumbai/Singapore voice gateways.</div>
+              </div>
+              <div class="discovery-card">
+                <div class="card-name">Audio Decoder</div>
+                <div style="font-size:1.1rem; font-weight:700; color:#fff; margin:0.4rem 0;">FFmpeg 9.0 + PyNaCl</div>
+                <div class="card-desc">Lossless 320kbps stereo PCM frames validated before output.</div>
+              </div>
+              <div class="discovery-card">
+                <div class="card-name">yt-dlp Extractor Engine</div>
+                <div style="font-size:1.1rem; font-weight:700; color:var(--emerald); margin:0.4rem 0;">v2026.08.19 (Patched)</div>
+                <div class="card-desc">Autonomous background updater active with Node.js EJS challenge solver.</div>
+              </div>
+              <div class="discovery-card">
+                <div class="card-name">Session Resilience</div>
+                <div style="font-size:1.1rem; font-weight:700; color:var(--pink); margin:0.4rem 0;">Rythm-Style WAL Memory</div>
+                <div class="card-desc">Persisted to SQLite WAL for zero-loss recovery across bot restarts.</div>
+              </div>
             </div>
           </div>
         </div>
       `;
+
+      initVisualizer();
+      await loadMusicGuilds();
+      await fetchMusicSessionState();
+      await fetchMusicQueue();
+
+      // Launch real-time background sync loop every 1.5 seconds
+      musicPollInterval = setInterval(fetchMusicSessionState, 1500);
+    }
+
+    // ==========================================
+    // AUDIO VISUALIZER CANVAS ANIMATION
+    // ==========================================
+    function initVisualizer() {
+      const canvas = document.getElementById('visualizer-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.parentElement.clientWidth || 600;
+      canvas.height = 48;
+
+      let bars = Array.from({ length: 48 }, () => Math.random() * 0.4);
+
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const isPlaying = currentMusicSession && currentMusicSession.is_playing;
+        const barWidth = canvas.width / bars.length;
+
+        for (let i = 0; i < bars.length; i++) {
+          if (isPlaying) {
+            bars[i] = Math.max(0.1, Math.min(1.0, bars[i] + (Math.random() - 0.48) * 0.25));
+          } else {
+            bars[i] = Math.max(0.05, bars[i] * 0.95);
+          }
+
+          const h = bars[i] * canvas.height * 0.85;
+          const x = i * barWidth;
+          const y = canvas.height - h;
+
+          const grad = ctx.createLinearGradient(0, y, 0, canvas.height);
+          grad.addColorStop(0, '#06b6d4');
+          grad.addColorStop(1, '#9333ea');
+
+          ctx.fillStyle = grad;
+          ctx.fillRect(x + 1, y, barWidth - 2, h);
+        }
+        visualizerAnimId = requestAnimationFrame(draw);
+      }
+      draw();
+    }
+
+    // ==========================================
+    // CLIENT MUSIC CONTROLLERS & DATA FETCHING
+    // ==========================================
+    async function loadMusicGuilds() {
+      try {
+        const res = await fetch('/api/music/guilds');
+        const json = await res.json();
+        if (json.success && json.data.guilds) {
+          const select = document.getElementById('music-guild-select');
+          if (select) {
+            select.innerHTML = json.data.guilds.map(g => `
+              <option value="${g.id}" ${g.id === selectedMusicGuildId ? 'selected' : ''}>
+                ${g.name} ${g.has_active_playback ? '🟢 (Playing)' : ''}
+              </option>
+            `).join('');
+          }
+        }
+      } catch (e) {}
+    }
+
+    function onMusicGuildChanged(guildId) {
+      selectedMusicGuildId = guildId;
+      fetchMusicSessionState();
+      fetchMusicQueue();
+    }
+
+    async function fetchMusicSessionState() {
+      try {
+        const res = await fetch('/api/music/session?guild_id=' + selectedMusicGuildId);
+        const json = await res.json();
+        if (!json.success || !json.data) return;
+
+        const data = json.data;
+        currentMusicSession = data;
+
+        const titleEl = document.getElementById('music-live-title');
+        const artistEl = document.getElementById('music-live-artist');
+        const artEl = document.getElementById('music-album-art');
+        const badgeState = document.getElementById('music-badge-state');
+        const badgeVc = document.getElementById('music-badge-vc');
+        const badgeFilter = document.getElementById('music-badge-filter');
+        const badgeAutodj = document.getElementById('music-badge-autodj');
+        const playBtn = document.getElementById('music-master-play-btn');
+        const scrub = document.getElementById('music-scrub');
+        const elapsedEl = document.getElementById('music-time-elapsed');
+        const totalEl = document.getElementById('music-time-total');
+        const volSlider = document.getElementById('music-vol-slider');
+        const volLabel = document.getElementById('music-vol-label');
+        const tabQueueCount = document.getElementById('tab-queue-count');
+
+        if (data.current_track) {
+          if (titleEl) titleEl.innerText = data.current_track.title;
+          if (artistEl) artistEl.innerText = `${data.current_track.artist || 'Unknown'} • Req by ${data.current_track.requester_name || 'User'}`;
+          if (artEl && data.current_track.thumbnail) artEl.src = data.current_track.thumbnail;
+        } else {
+          if (titleEl) titleEl.innerText = 'Queue is finished / Idle';
+          if (artistEl) artistEl.innerText = 'Use search bar below or /music play to queue audio';
+        }
+
+        if (badgeState) {
+          badgeState.innerText = data.is_playing ? '🟢 PLAYING' : (data.is_paused ? '⏸️ PAUSED' : '⏹️ IDLE');
+          badgeState.className = data.is_playing ? 'pill pill-green' : (data.is_paused ? 'pill pill-cyan' : 'pill pill-purple');
+        }
+        if (badgeVc) badgeVc.innerText = data.voice_channel_name ? `📍 In ${data.voice_channel_name}` : '📍 Voice Not Connected';
+        if (badgeFilter) badgeFilter.innerText = `🎛️ Filter: ${data.eq_preset || 'Flat'}`;
+        if (badgeAutodj) badgeAutodj.innerText = `🎧 Auto-DJ: ${data.auto_dj ? 'ON' : 'OFF'}`;
+
+        if (artEl) {
+          if (data.is_playing) artEl.classList.add('spinning');
+          else artEl.classList.remove('spinning');
+        }
+
+        if (playBtn) playBtn.innerHTML = data.is_playing ? '⏸' : '▶';
+
+        if (!isScrubbingMusic && scrub && data.duration_seconds > 0) {
+          scrub.max = data.duration_seconds;
+          scrub.value = data.position_seconds;
+          if (elapsedEl) elapsedEl.innerText = formatTimeSec(data.position_seconds);
+          if (totalEl) totalEl.innerText = `${formatTimeSec(data.duration_seconds)} (-${formatTimeSec(data.remaining_seconds)})`;
+        }
+
+        if (volSlider && !document.activeElement?.isSameNode(volSlider)) {
+          volSlider.value = data.volume;
+          if (volLabel) volLabel.innerText = data.volume + '%';
+        }
+
+        if (tabQueueCount) tabQueueCount.innerText = data.queue_count || 0;
+
+        const loopBtn = document.getElementById('music-btn-loop');
+        if (loopBtn) {
+          loopBtn.className = 'ctrl-btn' + (data.loop_mode !== 'off' ? ' active' : '');
+          loopBtn.title = `Loop: ${data.loop_mode.toUpperCase()}`;
+        }
+      } catch (e) {}
+    }
+
+    async function fetchMusicQueue() {
+      try {
+        const res = await fetch('/api/music/queue?guild_id=' + selectedMusicGuildId);
+        const json = await res.json();
+        const list = document.getElementById('queue-items-list');
+        const summary = document.getElementById('queue-summary-text');
+        if (!list) return;
+
+        if (json.success && json.data.tracks && json.data.tracks.length > 0) {
+          const tracks = json.data.tracks;
+          if (summary) summary.innerText = `${tracks.length} tracks queued • Total playtime: ${formatTimeSec(json.data.total_duration)}`;
+          list.innerHTML = tracks.map(t => `
+            <div class="queue-item">
+              <div style="display:flex; align-items:center; gap:0.9rem;">
+                <span style="font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text-muted); width:24px;">#${t.index + 1}</span>
+                <img src="${t.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" style="width:42px; height:42px; border-radius:6px; object-fit:cover;" alt="Thumb">
+                <div>
+                  <div style="font-weight:700; color:#fff; font-size:0.92rem;">${t.title}</div>
+                  <div style="font-size:0.78rem; color:var(--text-muted);">${t.artist || 'Unknown'} • Req by ${t.requester_name || 'User'}</div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:0.8rem;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--cyan);">${formatTimeSec(t.duration)}</span>
+                <button class="btn btn-outline btn-sm" onclick="sendMusicRemoveTrack(${t.index})" style="padding:0.25rem 0.5rem; color:var(--danger); border-color:rgba(239,68,68,0.3);">✕</button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          if (summary) summary.innerText = '0 tracks queued • Queue is currently empty';
+          list.innerHTML = `
+            <div class="state-box" style="padding:2.5rem 1rem;">
+              <div style="font-size:2rem; margin-bottom:0.5rem;">🐾</div>
+              <div class="state-title">Queue is Empty</div>
+              <div class="state-desc">Give Neko another song! Type in the box above or use /music play in Discord.</div>
+            </div>
+          `;
+        }
+      } catch (e) {}
+    }
+
+    async function sendMusicAction(action, payload = {}) {
+      try {
+        const res = await fetch('/api/music/control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            guild_id: selectedMusicGuildId,
+            action: action,
+            payload: payload
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          setTimeout(() => {
+            fetchMusicSessionState();
+            fetchMusicQueue();
+          }, 350);
+        } else {
+          alert('Action error: ' + (json.error?.message || 'Failed'));
+        }
+      } catch (err) {
+        alert('Communication error: ' + err);
+      }
+    }
+
+    function toggleMusicPlayPause() {
+      if (!currentMusicSession) return;
+      if (currentMusicSession.is_playing) sendMusicAction('PAUSE');
+      else sendMusicAction('RESUME');
+    }
+
+    function sendMusicSeekRelative(deltaSec) {
+      if (!currentMusicSession) return;
+      const target = Math.max(0, (currentMusicSession.position_seconds || 0) + deltaSec);
+      sendMusicAction('SEEK', { seconds: target });
+    }
+
+    function onMusicScrubInput() {
+      isScrubbingMusic = true;
+    }
+
+    function onMusicScrubChange(val) {
+      isScrubbingMusic = false;
+      sendMusicAction('SEEK', { seconds: parseInt(val, 10) });
+    }
+
+    function onMusicVolSlider(val) {
+      const label = document.getElementById('music-vol-label');
+      if (label) label.innerText = val + '%';
+      sendMusicAction('VOLUME', { volume: parseInt(val, 10) });
+    }
+
+    function setMusicVolumePreset(val) {
+      const slider = document.getElementById('music-vol-slider');
+      if (slider) slider.value = val;
+      onMusicVolSlider(val);
+    }
+
+    function cycleMusicLoop() {
+      if (!currentMusicSession) return;
+      const current = currentMusicSession.loop_mode || 'off';
+      let next = 'off';
+      if (current === 'off') next = 'track';
+      else if (current === 'track') next = 'queue';
+      else next = 'off';
+      sendMusicAction('LOOP', { mode: next });
+    }
+
+    function applyMusicEQ(presetKey, displayName, cardEl) {
+      document.querySelectorAll('.eq-card').forEach(c => c.classList.remove('active'));
+      if (cardEl) cardEl.classList.add('active');
+      sendMusicAction('FILTER', { preset: presetKey, name: displayName });
+    }
+
+    async function quickEnqueueTrack() {
+      const inp = document.getElementById('music-search-input');
+      if (!inp || !inp.value.trim()) return;
+      const query = inp.value.trim();
+      inp.value = '';
+      await fetch('/api/music/enqueue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guild_id: selectedMusicGuildId, query: query })
+      });
+      setTimeout(() => {
+        fetchMusicSessionState();
+        fetchMusicQueue();
+      }, 500);
+    }
+
+    function sendMusicRemoveTrack(idx) {
+      sendMusicAction('REMOVE', { index: idx });
+    }
+
+    async function toggleCurrentFavorite() {
+      if (!currentMusicSession || !currentMusicSession.current_track) return;
+      const t = currentMusicSession.current_track;
+      const res = await fetch('/api/music/favorites/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(t)
+      });
+      const json = await res.json();
+      if (json.success) alert(json.data.message);
+    }
+
+    async function openLyricsModal() {
+      if (!currentMusicSession || !currentMusicSession.current_track) {
+        alert('No track is currently playing.');
+        return;
+      }
+      const t = currentMusicSession.current_track;
+      openModal(`💬 Lyrics: ${t.title}`, `
+        <div style="padding:1rem; text-align:center; color:var(--text-muted);">Fetching synchronized lyrics...</div>
+      `);
+      try {
+        const res = await fetch(`/api/music/lyrics?title=${encodeURIComponent(t.title)}&artist=${encodeURIComponent(t.artist || '')}`);
+        const json = await res.json();
+        const bodyEl = document.getElementById('modal-body');
+        if (bodyEl && json.success) {
+          bodyEl.innerHTML = `
+            <pre style="white-space:pre-wrap; font-family:'Outfit',sans-serif; font-size:0.95rem; line-height:1.7; color:#fff; max-height:450px; overflow-y:auto; padding:0.5rem;">${json.data.lyrics}</pre>
+          `;
+        }
+      } catch (e) {}
+    }
+
+    function switchMusicTab(tabName, btnEl) {
+      document.querySelectorAll('.m-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.music-tab-content').forEach(c => c.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
+      const target = document.getElementById('mtab-' + tabName);
+      if (target) target.classList.add('active');
+
+      if (tabName === 'history') loadMusicHistory();
+      if (tabName === 'favorites') loadMusicFavorites();
+      if (tabName === 'health') loadMusicHealth();
+    }
+
+    async function loadMusicHistory() {
+      const container = document.getElementById('history-items-list');
+      if (!container) return;
+      try {
+        const res = await fetch('/api/music/history?guild_id=' + selectedMusicGuildId);
+        const json = await res.json();
+        if (json.success && json.data.history && json.data.history.length > 0) {
+          container.innerHTML = json.data.history.map(t => `
+            <div class="queue-item">
+              <div>
+                <div style="font-weight:700; color:#fff; font-size:0.92rem;">${t.title}</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">${t.artist || 'Unknown'} • Req by ${t.requester_name || 'User'}</div>
+              </div>
+              <div style="display:flex; align-items:center; gap:0.8rem;">
+                <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--cyan);">${formatTimeSec(t.duration)}</span>
+                <button class="btn btn-primary btn-sm" onclick="quickReplayHistory('${t.url || t.title}')">Play Again</button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `<div class="state-box"><div class="state-desc">No playback history recorded yet.</div></div>`;
+        }
+      } catch (e) {}
+    }
+
+    async function quickReplayHistory(query) {
+      await fetch('/api/music/enqueue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guild_id: selectedMusicGuildId, query: query })
+      });
+      setTimeout(() => {
+        fetchMusicSessionState();
+        fetchMusicQueue();
+      }, 500);
+    }
+
+    async function loadMusicFavorites() {
+      const container = document.getElementById('favorites-items-list');
+      if (!container) return;
+      try {
+        const res = await fetch('/api/music/favorites');
+        const json = await res.json();
+        if (json.success && json.data && json.data.length > 0) {
+          container.innerHTML = json.data.map(f => `
+            <div class="queue-item">
+              <div>
+                <div style="font-weight:700; color:#fff; font-size:0.92rem;">${f.title}</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">${f.artist || 'Unknown'}</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="quickReplayHistory('${f.url}')">Queue Track</button>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `<div class="state-box"><div class="state-desc">No favorites saved yet. Click ❤️ on the now playing bar to save tracks!</div></div>`;
+        }
+      } catch (e) {}
+    }
+
+    async function loadMusicHealth() {
+      try {
+        const res = await fetch('/api/music/stats');
+        const json = await res.json();
+        if (json.success && json.data) {
+          const latEl = document.getElementById('stat-latency');
+          if (latEl) latEl.innerText = `${json.data.gateway_latency_ms}ms`;
+        }
+      } catch (e) {}
+    }
+
+    function formatTimeSec(sec) {
+      if (!sec || isNaN(sec) || sec <= 0) return '00:00';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
     }
 
     // ==========================================

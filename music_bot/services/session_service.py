@@ -173,6 +173,10 @@ class SessionManager:
             self._sessions[guild_id] = GuildMusicSession(guild_id)
         return self._sessions[guild_id]
 
+    def get_session_nowait(self, guild_id: int) -> GuildMusicSession:
+        """Synchronously retrieve existing session or instantiate new session without blocking."""
+        return self.get_session_sync(guild_id)
+
     async def remove_session(self, guild_id: int) -> None:
         """Remove and cleanup guild session."""
         async with self._global_lock:
