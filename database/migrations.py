@@ -1985,8 +1985,8 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 guild_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
                 added_by INTEGER NOT NULL,
-                notes TEXT DEFAULT '',
-                added_at TEXT NOT NULL,
+                reason TEXT DEFAULT '',
+                created_at TEXT NOT NULL,
                 PRIMARY KEY (guild_id, user_id),
                 FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
             );
@@ -2112,6 +2112,14 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             "ALTER TABLE welcome_config ADD COLUMN goodbye_title TEXT DEFAULT 'Goodbye from {server}';",
             "ALTER TABLE welcome_config ADD COLUMN welcome_color INTEGER DEFAULT 3066993;",
             "ALTER TABLE welcome_config ADD COLUMN goodbye_color INTEGER DEFAULT 2895667;"
+        ]
+    ),
+    (
+        52,
+        "Ensure trusted_security_users reason and created_at columns exist",
+        [
+            "ALTER TABLE trusted_security_users ADD COLUMN reason TEXT DEFAULT '';",
+            "ALTER TABLE trusted_security_users ADD COLUMN created_at TEXT NOT NULL DEFAULT '';"
         ]
     )
 ]

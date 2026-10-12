@@ -237,10 +237,14 @@ class UtilityCog(commands.Cog, name="Utility"):
         self.start_time = time.time()
         self._afk_users: dict[tuple[int, int], tuple[str, float]] = {}
         self._status_index: int = 0
-        self._presence_loop = self._rotate_presence.start()
+
+    async def cog_load(self):
+        if not self._rotate_presence.is_running():
+            self._rotate_presence.start()
 
     def cog_unload(self):
-        self._presence_loop.cancel()
+        if self._rotate_presence.is_running():
+            self._rotate_presence.cancel()
 
     @tasks.loop(minutes=3)
     async def _rotate_presence(self):

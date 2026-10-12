@@ -511,7 +511,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
 
         try:
             old_nick = member.display_name
-            await member.edit(nick=target_nick, reason=f"{reason} (Modified by {interaction.user})")
+            await member.edit(nick=target_nick, reason=f"{reason} (Modified by {interaction.user.name})")
             desc = f"Changed {member.mention}'s nickname to **{target_nick}** (was `{old_nick}`)." if target_nick else f"Reset {member.mention}'s nickname back to `{member.name}`."
             await interaction.response.send_message(embed=success_embed("Nickname Updated", desc), ephemeral=True)
             await self._log_mod_action(interaction.guild, "Nickname Change", member, interaction.user, reason, extra=f"Old: {old_nick} -> New: {target_nick or '[Reset]'}")

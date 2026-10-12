@@ -52,6 +52,7 @@ class TestProductionUpgrade(unittest.IsolatedAsyncioTestCase):
         self.guild.member_count = 150
         self.guild.members = []
         self.guild.channels = []
+        self.guild.text_channels = []
         self.guild.categories = []
         self.guild.roles = []
         self.guild.icon = None
@@ -274,6 +275,7 @@ class TestProductionUpgrade(unittest.IsolatedAsyncioTestCase):
             ch.mention = f"<#{ch.id}>"
             created_channels[name] = ch
             self.guild.channels.append(ch)
+            self.guild.text_channels.append(ch)
             if category:
                 category.text_channels.append(ch)
             return ch

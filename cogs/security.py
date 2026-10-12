@@ -2526,28 +2526,28 @@ class SecurityCog(commands.Cog, name="Security"):
     @is_strict_owner()
     @app_commands.describe(user="User to add to trusted allowlist", reason="Reason for trust")
     async def antinuke_trust_add(self, interaction: discord.Interaction, user: discord.User, reason: Optional[str] = "Authorized by Server Owner"):
-        await self.trusted_add(interaction, user, reason)
+        await self.trusted_add.callback(self, interaction, user, reason)
 
     @antinuke_trust_group.command(name="remove", description="Remove user from anti-nuke trusted allowlist (Owner-only)")
     @is_strict_owner()
     @app_commands.describe(user="User to remove from trusted allowlist")
     async def antinuke_trust_remove(self, interaction: discord.Interaction, user: discord.User):
-        await self.trusted_remove(interaction, user)
+        await self.trusted_remove.callback(self, interaction, user)
 
     @antinuke_trust_group.command(name="list", description="List all anti-nuke trusted users and server owner")
     @is_strict_owner_or_trusted()
     async def antinuke_trust_list(self, interaction: discord.Interaction):
-        await self.security_allowlist(interaction)
+        await self.security_allowlist.callback(self, interaction)
 
     @antinuke_group.command(name="lockdown", description="Initiate emergency lockdown on all channels")
     @is_admin_or_owner()
     async def antinuke_lockdown_cmd(self, interaction: discord.Interaction):
-        await self.security_lockdown(interaction)
+        await self.security_lockdown.callback(self, interaction)
 
     @antinuke_group.command(name="unlock", description="Lift lockdown and restore channel permissions")
     @is_admin_or_owner()
     async def antinuke_unlock_cmd(self, interaction: discord.Interaction):
-        await self.security_unlock(interaction)
+        await self.security_unlock.callback(self, interaction)
 
     @security_group.command(name="audit", description="Run comprehensive server security and permission audit")
     @is_admin_or_owner()

@@ -36,12 +36,16 @@ def can_moderate(
     # 4. Check if moderator is server owner (owner bypasses hierarchy checks against other members)
     is_mod_owner = (moderator.id == guild.owner_id)
 
+    target_pos = getattr(target.top_role, 'position', 0)
+    mod_pos = getattr(moderator.top_role, 'position', 0)
+    bot_pos = getattr(bot_member.top_role, 'position', 0)
+
     # 5. Role hierarchy: Moderator vs Target
-    if not is_mod_owner and target.top_role >= moderator.top_role:
+    if not is_mod_owner and target_pos >= mod_pos:
         return False, f"Cannot moderate {target.mention}: their highest role ({target.top_role.name}) is equal to or higher than yours ({moderator.top_role.name})."
 
     # 6. Role hierarchy: Bot vs Target
-    if target.top_role >= bot_member.top_role:
+    if target_pos >= bot_pos:
         return False, f"The bot cannot moderate {target.mention}: their highest role ({target.top_role.name}) is equal to or higher than the bot's highest role ({bot_member.top_role.name})."
 
     return True, ""
@@ -53,7 +57,9 @@ def check_bot_hierarchy(target: discord.Member, bot_member: discord.Member) -> T
         return False, "Target is the server owner."
     if target.id == bot_member.id:
         return False, "Target is the bot."
-    if target.top_role >= bot_member.top_role:
+    target_pos = getattr(target.top_role, 'position', 0)
+    bot_pos = getattr(bot_member.top_role, 'position', 0)
+    if target_pos >= bot_pos:
         return False, f"Target's highest role ({target.top_role.name}) is equal or higher than the bot's role ({bot_member.top_role.name})."
     return True, ""
 

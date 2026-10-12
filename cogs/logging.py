@@ -1364,7 +1364,7 @@ class LoggingCog(commands.Cog, name="Logging"):
     @logs_group.command(name="status", description="Display full status of all 14 dedicated log channels")
     @is_admin_or_owner()
     async def logs_status(self, interaction: discord.Interaction):
-        await self.logging_status(interaction)
+        await self.logging_status.callback(self, interaction)
 
     @logs_group.command(name="configure", description="Assign or redirect a specific log category to a channel")
     @is_admin_or_owner()
