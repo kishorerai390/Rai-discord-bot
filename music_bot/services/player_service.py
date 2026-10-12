@@ -159,7 +159,7 @@ class MusicPlayerService:
             )
 
             # Validate that audio source actually produces valid PCM audio frames
-            loop = bot.loop
+            loop = asyncio.get_running_loop()
             first_frame: Optional[bytes] = None
             try:
                 first_frame = await asyncio.wait_for(
@@ -378,7 +378,7 @@ class MusicPlayerService:
                 ffmpeg_opts["options"] = f"-vn {session.audio_filter}"
 
             norm_vol = max(0.05, min(1.0, session.volume / 100.0))
-            loop = bot.loop
+            loop = asyncio.get_running_loop()
             first_frame: Optional[bytes] = None
 
             try:

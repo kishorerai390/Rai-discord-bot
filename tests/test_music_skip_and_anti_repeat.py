@@ -236,3 +236,74 @@ class TestSkipAndAntiRepeat:
             await skip_btn.callback(mock_interaction)
             mock_skip.assert_called_once_with(mock_bot, mock_session)
             mock_interaction.followup.send.assert_called_once_with("⏭ Skipped **Song**.", ephemeral=True)
+
+    async def test_start_playback_with_valid_frames(self, mock_bot, mock_session):
+        """10. Start playback: validates first frame, wraps in ValidatedAudioSource, starts playing."""
+        t1 = make_track("Good Track")
+        mock_session.voice_client.is_playing.return_value = False
+        mock_session.voice_client.is_paused.return_value = False
+        mock_session.voice_client.guild.me.voice.mute = False
+        mock_session.voice_client.guild.me.voice.self_mute = False
+
+        fake_pcm = b"\x01\x02\x03\x04" * 960  # 3840 bytes of PCM
+        mock_transformer = MagicMock()
+        mock_transformer.read.return_value = fake_pcm
+
+        with patch("music_bot.services.player_service.discord.FFmpegPCMAudio") as mock_ffmpeg, \
+             patch("music_bot.services.player_service.discord.PCMVolumeTransformer", return_value=mock_transformer):
+            success = await MusicPlayerService.start_playback(mock_bot, mock_session, t1)
+
+            assert success is True
+            assert mock_session.state == PlaybackState.PLAYING
+            assert mock_session.current_track == t1
+            mock_session.voice_client.play.assert_called_once()
+            played_source = mock_session.voice_client.play.call_args[0][0]
+            # Verify source produces the buffered first frame
+            assert played_source.read() == fake_pcm
+
+    async def test_start_playback_aborts_on_empty_audio_stream(self, mock_bot, mock_session):
+        """11. Start playback aborts and skips if audio source outputs 0 bytes (expired or dead URL)."""
+        t1 = make_track("Dead Track")
+        mock_session.voice_client.is_playing.return_value = False
+        mock_session.voice_client.is_paused.return_value = False
+
+        mock_transformer = MagicMock()
+        mock_transformer.read.return_value = b""  # Empty audio stream
+
+        with patch("music_bot.services.player_service.discord.FFmpegPCMAudio"), \
+             patch("music_bot.services.player_service.discord.PCMVolumeTransformer", return_value=mock_transformer), \
+             patch("music_bot.services.resolver_service.AudioResolver.resolve_track", new_callable=AsyncMock, return_value=None), \
+             patch.object(MusicPlayerService, "handle_track_finished", new_callable=AsyncMock) as mock_finished:
+
+            success = await MusicPlayerService.start_playback(mock_bot, mock_session, t1)
+
+            assert success is False
+            assert mock_session.state == PlaybackState.ERROR
+            mock_session.voice_client.play.assert_not_called()
+            mock_finished.assert_called_once_with(mock_bot, mock_session)
+
+    async def test_server_mute_reported_in_now_playing_embed(self, mock_session):
+        """12. Server-muted condition is clearly displayed in Now Playing status."""
+        t1 = make_track("Muted Track")
+        mock_session.current_track = t1
+        mock_session.state = PlaybackState.PLAYING
+        mock_session.voice_client.is_playing.return_value = True
+
+        # Bot is server-muted
+        mock_session.voice_client.guild.me.voice.mute = True
+
+        embed = MusicPlayerService.build_now_playing_embed(mock_session)
+        assert "Server Muted" in embed.description
+        assert "🟢 Playing (⚠️ Server Muted)" in embed.description
+
+    async def test_now_playing_embed_does_not_display_fake_playing(self, mock_session):
+        """13. Embed does not show 'Playing' if voice_client is not actively playing audio."""
+        t1 = make_track("Silent Track")
+        mock_session.current_track = t1
+        mock_session.state = PlaybackState.IDLE
+        mock_session.voice_client.is_playing.return_value = False
+
+        embed = MusicPlayerService.build_now_playing_embed(mock_session)
+        assert "🟢 Playing" not in embed.description
+        assert "⏹️ Idle" in embed.description
+
