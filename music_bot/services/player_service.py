@@ -47,6 +47,27 @@ def create_progress_bar(elapsed: int, total: int, length: int = 15) -> str:
     return f"▶ {bar}"
 
 
+class ValidatedAudioSource(discord.AudioSource):
+    """Audio source wrapper ensuring verified first frame is preserved and delivered without frame loss."""
+
+    def __init__(self, original: discord.AudioSource, first_frame: bytes):
+        self.original = original
+        self.first_frame: Optional[bytes] = first_frame
+
+    def read(self) -> bytes:
+        if self.first_frame is not None:
+            frame = self.first_frame
+            self.first_frame = None
+            return frame
+        return self.original.read()
+
+    def is_opus(self) -> bool:
+        return self.original.is_opus()
+
+    def cleanup(self) -> None:
+        self.original.cleanup()
+
+
 class MusicPlayerService:
     """High-level audio playback and queue transition coordinator."""
 
@@ -58,7 +79,57 @@ class MusicPlayerService:
         if not session.voice_client or not session.voice_client.is_connected():
             logger.warning(f"Cannot start playback in guild {session.guild_id}: voice client not connected.")
             session.state = PlaybackState.DISCONNECTED
+            session.last_error = "Voice client is not connected to a voice channel."
             return False
+
+        # Channel permissions & mute checks
+        try:
+            vc_channel = session.voice_client.channel
+            if vc_channel and session.voice_client.guild and session.voice_client.guild.me:
+                me = session.voice_client.guild.me
+                perms = vc_channel.permissions_for(me)
+                if not perms.speak:
+                    logger.warning(f"Bot lacks SPEAK permission in voice channel '{vc_channel.name}' (guild {session.guild_id}).")
+                    session.last_error = f"Bot lacks **Speak** permission in {vc_channel.mention}."
+                if me.voice:
+                    if getattr(me.voice, "mute", False):
+                        logger.warning(f"Bot is server-muted in guild {session.guild_id}! Audio cannot be heard.")
+                        session.last_error = "⚠️ Bot is currently server-muted in voice channel."
+                    if getattr(me.voice, "self_mute", False):
+                        try:
+                            await session.voice_client.guild.change_voice_state(channel=vc_channel, self_mute=False)
+                        except Exception as e:
+                            logger.debug(f"Could not clear self_mute: {e}")
+        except Exception as perm_err:
+            logger.debug(f"Permission/mute inspection warning: {perm_err}")
+
+        # Ensure track stream_url is resolved
+        from music_bot.services.resolver_service import AudioResolver
+        if not track.stream_url:
+            session.state = PlaybackState.RESOLVING
+            fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+            if fresh and fresh.stream_url:
+                track.stream_url = fresh.stream_url
+                track.duration = fresh.duration
+                if not track.thumbnail and fresh.thumbnail:
+                    track.thumbnail = fresh.thumbnail
+            else:
+                logger.error(f"Cannot play '{track.title}': Failed to resolve playable audio stream URL.")
+                session.state = PlaybackState.ERROR
+                session.last_error = f"Could not extract audio stream for '{track.title}'."
+                if session.text_channel:
+                    try:
+                        await session.text_channel.send(
+                            embed=discord.Embed(
+                                title="❌ AUDIO EXTRACTION FAILED",
+                                description=f"Unable to extract audio stream for **{track.title}**.\nSkipping to next track...",
+                                color=0xED4245,
+                            )
+                        )
+                    except Exception:
+                        pass
+                await cls.handle_track_finished(bot, session)
+                return False
 
         try:
             session._is_skipping = False
@@ -87,14 +158,66 @@ class MusicPlayerService:
                 audio_source, volume=norm_vol
             )
 
+            # Validate that audio source actually produces valid PCM audio frames
+            loop = bot.loop
+            first_frame: Optional[bytes] = None
+            try:
+                first_frame = await asyncio.wait_for(
+                    loop.run_in_executor(None, volume_transformer.read),
+                    timeout=3.5,
+                )
+            except Exception as read_err:
+                logger.warning(f"Initial frame read failed for '{track.title}': {read_err}")
+                first_frame = b""
+
+            if not first_frame:
+                logger.warning(f"Audio source produced empty audio for '{track.title}' (stream URL may be stale/expired). Attempting fresh re-resolution...")
+                try:
+                    volume_transformer.cleanup()
+                except Exception:
+                    pass
+
+                fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+                if fresh and fresh.stream_url:
+                    track.stream_url = fresh.stream_url
+                    audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                    volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                    try:
+                        first_frame = await asyncio.wait_for(
+                            loop.run_in_executor(None, volume_transformer.read),
+                            timeout=3.5,
+                        )
+                    except Exception:
+                        first_frame = b""
+
+                if not first_frame:
+                    try:
+                        volume_transformer.cleanup()
+                    except Exception:
+                        pass
+                    session.state = PlaybackState.ERROR
+                    session.last_error = f"Audio source produced no sound for '{track.title}'."
+                    if session.text_channel:
+                        try:
+                            await session.text_channel.send(
+                                embed=discord.Embed(
+                                    title="❌ NO AUDIO STREAM",
+                                    description=f"FFmpeg received no audio data for **{track.title}** (stream blocked or unavailable).\nSkipping to next track...",
+                                    color=0xED4245,
+                                )
+                            )
+                        except Exception:
+                            pass
+                    await cls.handle_track_finished(bot, session)
+                    return False
+
+            playable_source = ValidatedAudioSource(volume_transformer, first_frame)
+
             session.current_track = track
             session.track_start_time = time.time()
             session.pause_time = 0.0
             session.paused_duration = 0.0
             session._dj_prequeued = False
-            session.state = PlaybackState.PLAYING
-
-            loop = bot.loop
 
             def after_playback(error: Optional[Exception]):
                 if (
@@ -107,7 +230,8 @@ class MusicPlayerService:
                     logger.debug(f"Ignoring superseded playback callback (gen {current_generation} vs {session.playback_generation})")
                     return
                 if error:
-                    logger.error(f"Playback error in guild {session.guild_id}: {error}")
+                    session.last_error = f"Audio playback error: {error}"
+                    logger.error(f"Playback error in guild {session.guild_id}: {error}", exc_info=True)
 
                 # Mid-song stream auto-recovery for premature stream failures
                 elapsed = session.progress_seconds
@@ -133,7 +257,8 @@ class MusicPlayerService:
                 # Schedule track transition on the bot event loop
                 asyncio.run_coroutine_threadsafe(cls.handle_track_finished(bot, session), loop)
 
-            session.voice_client.play(volume_transformer, after=after_playback)
+            session.voice_client.play(playable_source, after=after_playback)
+            session.state = PlaybackState.PLAYING
 
             # Launch real-time progress bar updater loop (every 5 seconds)
             if session.progress_updater_task and not session.progress_updater_task.done():

@@ -121,7 +121,7 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
 YTDL_OPTIONS = _build_ytdl_options()
 
 FFMPEG_OPTIONS = {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -reconnect_at_eof 1",
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
     "options": "-vn",
 }
 
