@@ -434,7 +434,16 @@ class MusicPlayerService:
 
         preset_name = session.eq_preset if session.eq_preset else "Flat"
         is_247_str = "Active 🛡️" if session.twenty_four_seven else "Off"
+        is_autodj_on = getattr(session, "dj_enabled", False) or session.autoplay
+        is_autodj_str = "ON 🎧" if is_autodj_on else "OFF"
         recovery_line = f"\n• **Recovery:** `{session.recovery_status}`" if getattr(session, "recovery_status", None) else ""
+
+        if session.queue:
+            next_info_line = f"\n• **Next Track:** `{session.queue[0].title[:35]}` *(Manual Queue)*"
+        elif is_autodj_on:
+            next_info_line = "\n• **Next Track:** `Auto-DJ Recommendation` 🎧"
+        else:
+            next_info_line = ""
 
         embed = discord.Embed(
             title="🎶 NOW PLAYING",
@@ -446,7 +455,8 @@ class MusicPlayerService:
                 f"• **Requested by:** {requester_str}\n"
                 f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
                 f"• **Queue:** `{len(session.queue)} tracks` • **Loop:** `{session.loop_mode.value.title()}`\n"
-                f"• **Filter:** `{preset_name}` • **24/7:** `{is_247_str}`{recovery_line}"
+                f"• **Filter:** `{preset_name}` • **Auto-DJ:** `{is_autodj_str}` • **24/7:** `{is_247_str}`"
+                f"{next_info_line}{recovery_line}"
             ),
             color=0x00E5FF if session.is_playing else 0x9B59B6,
         )
@@ -530,6 +540,7 @@ class MusicPlayerService:
         else:
             target_seconds = max(0, target_seconds)
 
+        session.playback_generation += 1
         session._is_seeking = True
         try:
             if session.voice_client.is_playing() or session.voice_client.is_paused():
