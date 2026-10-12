@@ -1948,6 +1948,99 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             "CREATE INDEX IF NOT EXISTS idx_support_tickets_creator ON support_tickets(creator_id);",
             "CREATE INDEX IF NOT EXISTS idx_system_error_logs_created ON system_error_logs(created_at);"
         ]
+    ),
+    (
+        49,
+        "Add Ultimate Auto Security tables (mention protection, anti-nuke, anti-raid, trusted users, and permission audit)",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS mention_protection_config (
+                guild_id INTEGER PRIMARY KEY,
+                owner_only INTEGER NOT NULL DEFAULT 1,
+                punishment_level TEXT NOT NULL DEFAULT 'timeout',
+                timeout_duration_seconds INTEGER NOT NULL DEFAULT 600,
+                restrict_mention_everyone_overwrites INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS mention_violations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                message_id INTEGER NOT NULL,
+                content TEXT,
+                punishment_applied TEXT NOT NULL,
+                violation_count INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_mention_violations_guild_user ON mention_violations(guild_id, user_id);",
+            "CREATE INDEX IF NOT EXISTS idx_mention_violations_guild_time ON mention_violations(guild_id, created_at);",
+            """
+            CREATE TABLE IF NOT EXISTS trusted_security_users (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                added_by INTEGER NOT NULL,
+                notes TEXT DEFAULT '',
+                added_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, user_id),
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_trusted_users_guild ON trusted_security_users(guild_id);",
+            """
+            CREATE TABLE IF NOT EXISTS anti_nuke_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                channel_delete_limit INTEGER NOT NULL DEFAULT 3,
+                channel_create_limit INTEGER NOT NULL DEFAULT 5,
+                role_delete_limit INTEGER NOT NULL DEFAULT 3,
+                role_create_limit INTEGER NOT NULL DEFAULT 5,
+                ban_limit INTEGER NOT NULL DEFAULT 3,
+                kick_limit INTEGER NOT NULL DEFAULT 3,
+                webhook_limit INTEGER NOT NULL DEFAULT 3,
+                action_window_seconds INTEGER NOT NULL DEFAULT 15,
+                containment_action TEXT NOT NULL DEFAULT 'timeout',
+                auto_rollback INTEGER NOT NULL DEFAULT 1,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS anti_raid_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                join_threshold INTEGER NOT NULL DEFAULT 5,
+                join_window_seconds INTEGER NOT NULL DEFAULT 10,
+                min_account_age_days INTEGER NOT NULL DEFAULT 7,
+                auto_lockdown INTEGER NOT NULL DEFAULT 1,
+                quiet_period_seconds INTEGER NOT NULL DEFAULT 300,
+                quarantine_new_members INTEGER NOT NULL DEFAULT 1,
+                lockdown_active INTEGER NOT NULL DEFAULT 0,
+                lockdown_reason TEXT DEFAULT '',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS permission_audit_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                actor_id INTEGER NOT NULL,
+                target_id INTEGER NOT NULL,
+                target_type TEXT NOT NULL,
+                permission_diff TEXT NOT NULL,
+                restored INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_perm_audit_guild ON permission_audit_history(guild_id);"
+        ]
     )
 ]
 

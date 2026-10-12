@@ -12,14 +12,25 @@ import logging
 import os
 import re
 import uuid
-from typing import TYPE_CHECKING, List, Optional
+import collections
+import time
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
 from backups.manager import BackupManager, format_bytes
 from config import Colors
-from database.models import SecurityIncident
+from database.models import (
+    SecurityIncident,
+    MentionProtectionConfig,
+    MentionViolation,
+    TrustedSecurityUser,
+    AntiNukeConfig,
+    AntiRaidConfig,
+    PermissionAuditHistory,
+)
+from security.antinuke import AntiNukeEngine
 from utils.embeds import (
     create_embed,
     error_embed,
@@ -34,7 +45,16 @@ from utils.helpers import (
     find_audit_executor,
     format_duration,
 )
-from utils.permissions import can_moderate, check_bot_hierarchy, is_admin_or_owner, is_founder_or_owner, is_guild_owner
+from utils.permissions import (
+    can_moderate,
+    check_bot_hierarchy,
+    is_admin_or_owner,
+    is_founder_or_owner,
+    is_guild_owner,
+    is_verified_owner_or_trusted,
+    is_strict_owner,
+    is_strict_owner_or_trusted,
+)
 
 if TYPE_CHECKING:
     from main import SentinelBot
@@ -51,8 +71,18 @@ class SecurityCog(commands.Cog, name="Security"):
 
     def __init__(self, bot: SentinelBot):
         self.bot = bot
+        # Central Anti-Nuke Response Engine
+        self.antinuke = AntiNukeEngine(self.bot)
         # Temporary storage for channel permissions before lockdown to restore cleanly
         self._lockdown_cache: dict[int, dict[int, discord.PermissionOverwrite]] = {}
+        # Sliding window for coordinated @everyone burst detection: guild_id -> deque of (timestamp, user_id)
+        self._mention_burst_windows: Dict[int, collections.deque[Tuple[float, int]]] = collections.defaultdict(collections.deque)
+        # Anti-raid tracking: guild_id -> deque of (timestamp, member_id, account_age_days)
+        self._join_burst_windows: Dict[int, collections.deque[Tuple[float, int, float]]] = collections.defaultdict(collections.deque)
+        # Active raid auto-recovery tasks: guild_id -> asyncio.Task
+        self._raid_recovery_tasks: Dict[int, asyncio.Task] = {}
+        # Safe-mode tracking: guild_id -> consecutive failure count
+        self._security_failure_counts: Dict[int, int] = collections.defaultdict(int)
         self._backup_task = None
 
     async def cog_load(self):
@@ -156,8 +186,11 @@ class SecurityCog(commands.Cog, name="Security"):
             return
 
         # Step 3: Safeguard Whitelist Checks
-        # Never punish: Server owner, Bot itself, Whitelisted user, Whitelisted role
+        # Never punish: Server owner, Bot itself, Whitelisted user, Whitelisted role, Trusted security users
         if executor.id == guild.owner_id or executor.id == self.bot.user.id:
+            return
+
+        if await is_verified_owner_or_trusted(self.bot, guild, executor.id):
             return
 
         role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
@@ -545,10 +578,15 @@ class SecurityCog(commands.Cog, name="Security"):
 
     async def _handle_everyone_mention(self, message: discord.Message) -> None:
         """
-        Enforce Strict Founder-Only @everyone Rule:
-        Only the Server Founder is permitted to mention @everyone or @here.
-        Any other user attempting to do so has their message deleted instantly,
-        is kicked from the server, and the incident is reported in the private staff/security channel.
+        Owner-Only @everyone and @here Protection System:
+        Only the verified Discord server owner and explicitly authorized trusted users
+        may mention @everyone or @here.
+        
+        Enforces graduated configurable punishment:
+        1. Level 1: Delete message & warn user.
+        2. Level 2: Delete message & apply timeout (configurable seconds, default 300s).
+        3. Level 3: Delete message & kick member.
+        4. Level 4: Coordinated attack detected -> Activate raid lockdown & restrict accounts.
         """
         if not message.guild:
             return
@@ -589,101 +627,229 @@ class SecurityCog(commands.Cog, name="Security"):
         guild = message.guild
         member = message.author
 
-        # Exemption: Server Founder ONLY
+        # Exemption check: Verified Server Owner ID, Founder role, or Trusted Security Users
+        if member.id == guild.owner_id:
+            logger.info("Permitted @everyone mention by verified Server Owner %s (%s)", member.name, member.id)
+            return
+
+        if await is_verified_owner_or_trusted(self.bot, guild, member.id):
+            logger.info("Permitted @everyone mention by trusted security user %s (%s)", member.name, member.id)
+            return
+
         if is_founder_or_owner(member):
-            logger.info(f"Permitted @everyone mention by Server Founder {member.name} ({member.id}) in #{message.channel.name}")
+            logger.info("Permitted @everyone mention by Founder %s (%s)", member.name, member.id)
             return
 
         # ==========================================
         # UNAUTHORIZED MENTION DETECTED
         # ==========================================
         logger.warning(
-            f"Unauthorized @everyone mention by {member.name} ({member.id}) in #{message.channel.name} — executing kick & private channel alert."
+            "Unauthorized @everyone mention by %s (%s) in #%s — evaluating mention protection policy.",
+            member.name, member.id, message.channel.name
         )
 
-        # 1. Delete the message immediately to prevent notification spread
-        msg_deleted = False
+        # Retrieve configuration (fail-safe fallback)
         try:
-            await message.delete()
-            msg_deleted = True
-        except (discord.Forbidden, discord.NotFound, discord.HTTPException) as e:
-            logger.debug(f"Failed to delete unauthorized @everyone message: {e}")
-
-        # 2. Attempt to notify member via DM
-        try:
-            dm_embed = error_embed(
-                title="⛔ Kicked: Unauthorized @everyone Mention",
-                description=(
-                    f"You have been kicked from **{guild.name}**.\n\n"
-                    f"**Violation:** Unauthorized `@everyone` / `@here` mention.\n"
-                    f"**Server Policy:** Only the Server Founder is permitted to mention `@everyone`.\n"
-                    f"Your message was automatically deleted."
-                ),
-            )
-            await member.send(embed=dm_embed)
+            cfg = await self.bot.db.get_mention_protection_config(guild.id)
         except Exception:
-            pass  # User DMs closed or blocked
+            cfg = MentionProtectionConfig(guild_id=guild.id)
 
-        # 3. Check bot hierarchy and kick member from the server
-        kick_success = False
-        action_detail = ""
-        can_mod, mod_reason = check_bot_hierarchy(member, guild.me)
-        if not can_mod:
-            action_detail = f"Could not kick due to hierarchy: {mod_reason}"
-            logger.warning(f"Cannot kick {member.name} for @everyone mention: {mod_reason}")
-        else:
+        if not getattr(cfg, "enabled", True):
+            return
+
+        violation_type = "@everyone" if ("@everyone" in message.content or (message.mention_everyone and "@here" not in message.content)) else "@here"
+
+        # 1. Delete message immediately
+        msg_deleted = False
+        if getattr(cfg, "delete_message", True):
             try:
-                await member.kick(reason="Unauthorized @everyone / @here mention (Only Server Founder permitted)")
-                kick_success = True
-                action_detail = "Kicked from server"
-                logger.info(f"Kicked {member.name} ({member.id}) for unauthorized @everyone mention.")
-            except discord.Forbidden:
-                action_detail = "Failed to kick: Missing Kick Members permission"
-            except Exception as e:
-                action_detail = f"Failed to kick: {str(e)[:100]}"
+                await message.delete()
+                msg_deleted = True
+            except (discord.Forbidden, discord.NotFound, discord.HTTPException) as e:
+                logger.debug("Failed to delete unauthorized mention message: %s", e)
 
-        # 4. Record security incident in database
+        # 2. Check for coordinated multi-account mention raid (Burst Detection)
+        now_ts = time.time()
+        dq = self._mention_burst_windows[guild.id]
+        while dq and dq[0][0] < (now_ts - 15.0):
+            dq.popleft()
+        dq.append((now_ts, member.id))
+        distinct_raiders = len(set(uid for _, uid in dq))
+        is_coordinated_raid = distinct_raiders >= 3
+
+        # 3. Violation count in the last 24 hours
+        recent_count = 1
+        try:
+            recent_count = (await self.bot.db.count_recent_mention_violations(guild.id, member.id, seconds=86400)) + 1
+        except Exception:
+            pass
+
+        # 4. Resolve Graduated Punishment Level
+        # 1: Warn, 2: Timeout, 3: Kick, 4: Raid Lockdown
+        cfg_level = getattr(cfg, "punishment_level", 2)
+        if isinstance(cfg_level, int):
+            effective_level = cfg_level
+        else:
+            effective_level = 2
+
+        if is_coordinated_raid:
+            effective_level = 4
+        elif recent_count >= 3:
+            effective_level = max(effective_level, 3)
+        elif recent_count == 2:
+            effective_level = max(effective_level, 2)
+
+        action_summary = ""
+        can_mod, mod_reason = check_bot_hierarchy(member, guild.me)
+
+        if effective_level == 1 and recent_count == 1:
+            # Level 1: Delete + Warn
+            action_summary = "Warned member and deleted message"
+            try:
+                warn_embed = warning_embed(
+                    title="⚠️ Warning: Unauthorized Mention Policy",
+                    description=(
+                        f"Your message in **{guild.name}** was deleted.\n\n"
+                        f"**Reason:** Only the Server Owner is permitted to mention `@everyone` or `@here`.\n"
+                        f"Repeated violations will result in automatic timeout or removal."
+                    ),
+                )
+                await member.send(embed=warn_embed)
+            except Exception:
+                pass
+
+        elif effective_level == 2:
+            # Level 2: Timeout
+            timeout_secs = getattr(cfg, "timeout_duration_seconds", 300)
+            if not can_mod:
+                action_summary = f"Timeout blocked: {mod_reason}"
+            else:
+                try:
+                    until = discord.utils.utcnow() + datetime.timedelta(seconds=timeout_secs)
+                    await member.timeout(until, reason=f"Unauthorized {violation_type} mention (Violation #{recent_count})")
+                    action_summary = f"Timed out for {timeout_secs}s"
+                except Exception as e:
+                    action_summary = f"Timeout failed: {e}"
+
+        elif effective_level == 3:
+            # Level 3: Kick
+            if not can_mod:
+                action_summary = f"Kick blocked: {mod_reason}"
+            else:
+                try:
+                    try:
+                        dm_embed = error_embed(
+                            title=f"⛔ Kicked: Unauthorized {violation_type} Mention",
+                            description=(
+                                f"You have been kicked from **{guild.name}**.\n\n"
+                                f"**Violation:** Unauthorized `{violation_type}` mention.\n"
+                                f"**Server Policy:** Only the Server Owner is permitted to use mass mentions."
+                            ),
+                        )
+                        await member.send(embed=dm_embed)
+                    except Exception:
+                        pass
+                    await member.kick(reason=f"Unauthorized {violation_type} mention policy violation")
+                    action_summary = "Kicked from server"
+                except Exception as e:
+                    action_summary = f"Kick failed: {e}"
+
+        elif effective_level >= 4:
+            # Level 4: Coordinated Raid Attack Containment
+            action_summary = f"Coordinated attack ({distinct_raiders} accounts): Emergency lockdown engaged"
+            if can_mod:
+                try:
+                    until = discord.utils.utcnow() + datetime.timedelta(days=7)
+                    await member.timeout(until, reason=f"Coordinated {violation_type} mention raid")
+                except Exception:
+                    pass
+            # Trigger channel/guild lockdown
+            try:
+                await self._execute_lockdown(guild)
+            except Exception as e:
+                logger.error("Failed to execute emergency lockdown during mention raid: %s", e)
+
+        # 5. Record mention violation in SQLite
+        try:
+            if hasattr(self.bot.db, "record_mention_violation"):
+                await self.bot.db.record_mention_violation(
+                    guild_id=guild.id,
+                    user_id=member.id,
+                    channel_id=message.channel.id,
+                    message_id=message.id,
+                    violation_type=violation_type,
+                    action_taken=action_summary,
+                )
+        except Exception as e:
+            logger.warning("Failed to record mention violation in database: %s", e)
+
+        # 6. Record security incident
         event_id = generate_event_id()
         now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        incident = SecurityIncident(
-            event_id=event_id,
-            guild_id=guild.id,
-            timestamp=now_iso,
-            event_type="UNAUTHORIZED_EVERYONE_MENTION",
-            executor_id=member.id,
-            executor_name=f"{member.name} ({member.id})",
-            target_id=message.channel.id,
-            target_name=f"#{message.channel.name}",
-            action="mention_everyone",
-            detected_count=1,
-            threshold=1,
-            audit_log_id=None,
-            reason="Non-founder member attempted to mention @everyone or @here",
-            automated_action="Message Deleted & Member Kicked",
-            result=action_detail,
-            severity="critical",
-            audit_verified=True,
-        )
-        await self.bot.db.record_security_incident(incident)
-        await self.bot.db.record_violation(guild.id, member.id, "UNAUTHORIZED_EVERYONE_MENTION")
+        try:
+            incident = SecurityIncident(
+                event_id=event_id,
+                guild_id=guild.id,
+                timestamp=now_iso,
+                event_type="UNAUTHORIZED_EVERYONE_MENTION",
+                executor_id=member.id,
+                executor_name=f"{member.name} ({member.id})",
+                target_id=message.channel.id,
+                target_name=f"#{message.channel.name}",
+                action="mention_everyone",
+                detected_count=recent_count,
+                threshold=1,
+                audit_log_id=None,
+                reason=f"Non-owner member attempted unauthorized {violation_type} ping",
+                automated_action=action_summary,
+                result="SUCCESS" if ("failed" not in action_summary and "blocked" not in action_summary) else "RESTRICTED",
+                severity="critical" if effective_level >= 3 else "high",
+                audit_verified=True,
+            )
+            await self.bot.db.record_security_incident(incident)
+            if hasattr(self.bot.db, "record_violation"):
+                await self.bot.db.record_violation(guild.id, member.id, "UNAUTHORIZED_EVERYONE_MENTION")
+        except Exception as e:
+            logger.error("Failed to record security incident for mention: %s", e)
 
-        # 5. Tell in private text channel
+        # 7. Feed into AntiNuke engine for multi-vector correlation
+        try:
+            await self.antinuke.record_and_evaluate(guild, member, "everyone_mention_spam", threshold=3)
+        except Exception:
+            pass
+
+        # 8. Send security alert to configured log channel or private alert channel
         clean_content = message.content[:500] if message.content else "*[No Text Content / Embed Only]*"
         alert_embed = security_embed(
-            title="🚨 UNAUTHORIZED @EVERYONE MENTION BLOCKED",
+            title="🚨 UNAUTHORIZED MASS MENTION INTERCEPTED",
             description=(
-                f"**A non-founder user attempted to mention `@everyone` or `@here`!**\n\n"
+                f"**A non-owner member attempted to use `{violation_type}`!**\n\n"
                 f"👤 **Offender:** {member.mention} (`{member.name}` | ID: `{member.id}`)\n"
                 f"📍 **Channel:** {message.channel.mention} (`#{message.channel.name}`)\n"
                 f"💬 **Message Content:**\n```{clean_content}```\n"
-                f"👢 **Enforcement Action:** `{'Kicked from Server' if kick_success else action_detail}`\n"
-                f"🗑️ **Message:** {'Deleted instantly' if msg_deleted else 'Failed to delete'}\n"
-                f"⚖️ **Policy:** Only the Server Founder is permitted to mention `@everyone`."
+                f"⚖️ **Punishment Applied:** `{action_summary}`\n"
+                f"📊 **Violation Count (24h):** `{recent_count}`\n"
+                f"🗑️ **Message Status:** {'Deleted immediately' if msg_deleted else 'Failed to delete'}\n"
+                f"👑 **Policy:** Strictly restricted to verified Server Owner ID."
             ),
         )
-        alert_embed.set_footer(text=f"Sentinel Security Protection • Incident ID: {event_id}")
+        alert_embed.set_footer(text=f"Raivora Auto-Security • Incident ID: {event_id}")
         alert_embed.timestamp = discord.utils.utcnow()
-        await self._send_private_security_alert(guild, alert_embed)
+
+        # Check configured log channel first
+        sent_log = False
+        log_cid = getattr(cfg, "log_channel_id", None)
+        if log_cid:
+            target_ch = guild.get_channel(log_cid)
+            if target_ch and isinstance(target_ch, discord.TextChannel):
+                try:
+                    await target_ch.send(embed=alert_embed)
+                    sent_log = True
+                except Exception:
+                    pass
+        if not sent_log:
+            await self._send_private_security_alert(guild, alert_embed)
+
 
     async def _handle_honeypot_trap(self, message: discord.Message) -> bool:
         """

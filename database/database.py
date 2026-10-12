@@ -84,6 +84,12 @@ from database.models import (
     PrivateControlConfig,
     ServerBillboardConfig,
     PendingSyncOperation,
+    MentionProtectionConfig,
+    MentionViolation,
+    TrustedSecurityUser,
+    AntiNukeConfig,
+    AntiRaidConfig,
+    PermissionAuditHistory,
 )
 
 logger = logging.getLogger(__name__)
@@ -8898,3 +8904,350 @@ class Database:
         )
         await self._db.commit()
         return (cur.rowcount or 0) > 0
+
+    # =========================================================================
+    # ULTIMATE SECURITY UPGRADE: Mention Protection, Anti-Nuke, Anti-Raid, Trusted
+    # =========================================================================
+
+    async def get_mention_protection_config(self, guild_id: int) -> MentionProtectionConfig:
+        async with self._db.execute(
+            "SELECT * FROM mention_protection_config WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return MentionProtectionConfig(
+                    guild_id=row["guild_id"],
+                    enabled=bool(row["enabled"]),
+                    owner_only=bool(row["owner_only"]),
+                    punishment_level=row["punishment_level"],
+                    timeout_duration_seconds=row["timeout_duration_seconds"],
+                    delete_message=bool(row["delete_message"]),
+                    log_channel_id=row["log_channel_id"],
+                    strip_overwrites=bool(row["strip_overwrites"]),
+                    created_at=row["created_at"],
+                    updated_at=row["updated_at"],
+                )
+        return MentionProtectionConfig(guild_id=guild_id)
+
+    async def save_mention_protection_config(self, config: MentionProtectionConfig) -> None:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO mention_protection_config (
+                guild_id, enabled, owner_only, punishment_level,
+                timeout_duration_seconds, delete_message, log_channel_id,
+                strip_overwrites, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                owner_only = excluded.owner_only,
+                punishment_level = excluded.punishment_level,
+                timeout_duration_seconds = excluded.timeout_duration_seconds,
+                delete_message = excluded.delete_message,
+                log_channel_id = excluded.log_channel_id,
+                strip_overwrites = excluded.strip_overwrites,
+                updated_at = excluded.updated_at
+            """,
+            (
+                config.guild_id,
+                1 if config.enabled else 0,
+                1 if config.owner_only else 0,
+                config.punishment_level,
+                config.timeout_duration_seconds,
+                1 if config.delete_message else 0,
+                config.log_channel_id,
+                1 if config.strip_overwrites else 0,
+                now,
+            ),
+        )
+        await self._db.commit()
+
+    async def record_mention_violation(
+        self,
+        guild_id: int,
+        user_id: int,
+        channel_id: int,
+        message_id: int,
+        violation_type: str,
+        action_taken: str,
+    ) -> MentionViolation:
+        now = utcnow_iso()
+        async with self._db.execute(
+            """
+            INSERT INTO mention_violations (
+                guild_id, user_id, channel_id, message_id,
+                violation_type, action_taken, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, user_id, channel_id, message_id, violation_type, action_taken, now),
+        ) as cursor:
+            new_id = cursor.lastrowid or 0
+        await self._db.commit()
+        return MentionViolation(
+            id=new_id,
+            guild_id=guild_id,
+            user_id=user_id,
+            channel_id=channel_id,
+            message_id=message_id,
+            violation_type=violation_type,
+            action_taken=action_taken,
+            created_at=now,
+        )
+
+    async def get_recent_mention_violations(
+        self, guild_id: int, user_id: Optional[int] = None, limit: int = 20
+    ) -> List[MentionViolation]:
+        if user_id:
+            query = "SELECT * FROM mention_violations WHERE guild_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT ?"
+            params = (guild_id, user_id, limit)
+        else:
+            query = "SELECT * FROM mention_violations WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?"
+            params = (guild_id, limit)
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                MentionViolation(
+                    id=r["id"],
+                    guild_id=r["guild_id"],
+                    user_id=r["user_id"],
+                    channel_id=r["channel_id"],
+                    message_id=r["message_id"],
+                    violation_type=r["violation_type"],
+                    action_taken=r["action_taken"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def count_recent_mention_violations(
+        self, guild_id: int, user_id: int, seconds: int = 86400
+    ) -> int:
+        cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=seconds)).isoformat()
+        async with self._db.execute(
+            "SELECT COUNT(*) as cnt FROM mention_violations WHERE guild_id = ? AND user_id = ? AND created_at >= ?",
+            (guild_id, user_id, cutoff),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row["cnt"] if row else 0
+
+    async def is_user_trusted(self, guild_id: int, user_id: int) -> bool:
+        async with self._db.execute(
+            "SELECT 1 FROM trusted_security_users WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        ) as cursor:
+            return (await cursor.fetchone()) is not None
+
+    async def get_trusted_users(self, guild_id: int) -> List[TrustedSecurityUser]:
+        async with self._db.execute(
+            "SELECT * FROM trusted_security_users WHERE guild_id = ? ORDER BY created_at ASC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                TrustedSecurityUser(
+                    guild_id=r["guild_id"],
+                    user_id=r["user_id"],
+                    added_by=r["added_by"],
+                    reason=r["reason"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def add_trusted_user(
+        self, guild_id: int, user_id: int, added_by: int, reason: Optional[str] = None
+    ) -> bool:
+        now = utcnow_iso()
+        try:
+            await self._db.execute(
+                """
+                INSERT INTO trusted_security_users (guild_id, user_id, added_by, reason, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                    added_by = excluded.added_by,
+                    reason = excluded.reason
+                """,
+                (guild_id, user_id, added_by, reason, now),
+            )
+            await self._db.commit()
+            return True
+        except Exception as e:
+            logger.error("Failed to add trusted security user %s in guild %s: %s", user_id, guild_id, e)
+            return False
+
+    async def remove_trusted_user(self, guild_id: int, user_id: int) -> bool:
+        cur = await self._db.execute(
+            "DELETE FROM trusted_security_users WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        )
+        await self._db.commit()
+        return (cur.rowcount or 0) > 0
+
+    async def get_anti_nuke_config(self, guild_id: int) -> AntiNukeConfig:
+        async with self._db.execute(
+            "SELECT * FROM anti_nuke_config WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return AntiNukeConfig(
+                    guild_id=row["guild_id"],
+                    enabled=bool(row["enabled"]),
+                    max_channel_deletions=row["max_channel_deletions"],
+                    max_channel_creations=row["max_channel_creations"],
+                    max_role_deletions=row["max_role_deletions"],
+                    max_role_creations=row["max_role_creations"],
+                    max_ban_spike=row["max_ban_spike"],
+                    max_kick_spike=row["max_kick_spike"],
+                    max_webhook_creations=row["max_webhook_creations"],
+                    sliding_window_seconds=row["sliding_window_seconds"],
+                    auto_quarantine_action=row["auto_quarantine_action"],
+                    log_channel_id=row["log_channel_id"],
+                    updated_at=row["updated_at"],
+                )
+        return AntiNukeConfig(guild_id=guild_id)
+
+    async def save_anti_nuke_config(self, config: AntiNukeConfig) -> None:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO anti_nuke_config (
+                guild_id, enabled, max_channel_deletions, max_channel_creations,
+                max_role_deletions, max_role_creations, max_ban_spike,
+                max_kick_spike, max_webhook_creations, sliding_window_seconds,
+                auto_quarantine_action, log_channel_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                max_channel_deletions = excluded.max_channel_deletions,
+                max_channel_creations = excluded.max_channel_creations,
+                max_role_deletions = excluded.max_role_deletions,
+                max_role_creations = excluded.max_role_creations,
+                max_ban_spike = excluded.max_ban_spike,
+                max_kick_spike = excluded.max_kick_spike,
+                max_webhook_creations = excluded.max_webhook_creations,
+                sliding_window_seconds = excluded.sliding_window_seconds,
+                auto_quarantine_action = excluded.auto_quarantine_action,
+                log_channel_id = excluded.log_channel_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                config.guild_id,
+                1 if config.enabled else 0,
+                config.max_channel_deletions,
+                config.max_channel_creations,
+                config.max_role_deletions,
+                config.max_role_creations,
+                config.max_ban_spike,
+                config.max_kick_spike,
+                config.max_webhook_creations,
+                config.sliding_window_seconds,
+                config.auto_quarantine_action,
+                config.log_channel_id,
+                now,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_anti_raid_config(self, guild_id: int) -> AntiRaidConfig:
+        async with self._db.execute(
+            "SELECT * FROM anti_raid_config WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return AntiRaidConfig(
+                    guild_id=row["guild_id"],
+                    enabled=bool(row["enabled"]),
+                    join_threshold=row["join_threshold"],
+                    join_window_seconds=row["join_window_seconds"],
+                    account_age_threshold_days=row["account_age_threshold_days"],
+                    auto_lockdown=bool(row["auto_lockdown"]),
+                    lockdown_duration_seconds=row["lockdown_duration_seconds"],
+                    quarantine_role_id=row["quarantine_role_id"],
+                    log_channel_id=row["log_channel_id"],
+                    updated_at=row["updated_at"],
+                )
+        return AntiRaidConfig(guild_id=guild_id)
+
+    async def save_anti_raid_config(self, config: AntiRaidConfig) -> None:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO anti_raid_config (
+                guild_id, enabled, join_threshold, join_window_seconds,
+                account_age_threshold_days, auto_lockdown, lockdown_duration_seconds,
+                quarantine_role_id, log_channel_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                join_threshold = excluded.join_threshold,
+                join_window_seconds = excluded.join_window_seconds,
+                account_age_threshold_days = excluded.account_age_threshold_days,
+                auto_lockdown = excluded.auto_lockdown,
+                lockdown_duration_seconds = excluded.lockdown_duration_seconds,
+                quarantine_role_id = excluded.quarantine_role_id,
+                log_channel_id = excluded.log_channel_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                config.guild_id,
+                1 if config.enabled else 0,
+                config.join_threshold,
+                config.join_window_seconds,
+                config.account_age_threshold_days,
+                1 if config.auto_lockdown else 0,
+                config.lockdown_duration_seconds,
+                config.quarantine_role_id,
+                config.log_channel_id,
+                now,
+            ),
+        )
+        await self._db.commit()
+
+    async def record_permission_audit(
+        self,
+        guild_id: int,
+        actor_id: int,
+        target_type: str,
+        action: str,
+        target_id: Optional[int] = None,
+        permissions_changed: Optional[str] = None,
+        status: str = "logged",
+    ) -> None:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO permission_audit_history (
+                guild_id, actor_id, target_id, target_type,
+                action, permissions_changed, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (guild_id, actor_id, target_id, target_type, action, permissions_changed, status, now),
+        )
+        await self._db.commit()
+
+    async def get_permission_audits(
+        self, guild_id: int, limit: int = 50
+    ) -> List[PermissionAuditHistory]:
+        async with self._db.execute(
+            "SELECT * FROM permission_audit_history WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?",
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                PermissionAuditHistory(
+                    id=r["id"],
+                    guild_id=r["guild_id"],
+                    actor_id=r["actor_id"],
+                    target_id=r["target_id"],
+                    target_type=r["target_type"],
+                    action=r["action"],
+                    permissions_changed=r["permissions_changed"],
+                    status=r["status"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+

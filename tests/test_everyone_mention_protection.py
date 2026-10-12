@@ -17,6 +17,11 @@ class TestEveryoneMentionProtection(unittest.IsolatedAsyncioTestCase):
         ))
         self.bot.db.record_security_incident = AsyncMock()
         self.bot.db.record_violation = AsyncMock()
+        self.bot.db.record_mention_violation = AsyncMock()
+        self.bot.db.is_user_trusted = AsyncMock(return_value=False)
+        self.bot.db.count_recent_mention_violations = AsyncMock(return_value=0)
+        from database.models import MentionProtectionConfig
+        self.bot.db.get_mention_protection_config = AsyncMock(return_value=MentionProtectionConfig(guild_id=1457382179981099090, punishment_level=3))
         self.cog = SecurityCog(self.bot)
 
     async def test_founder_is_exempt(self):

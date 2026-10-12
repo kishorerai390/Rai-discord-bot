@@ -1244,3 +1244,83 @@ class InteractionRecord:
     error_code: Optional[str] = None
     created_at: str = ""
 
+
+@dataclass
+class MentionProtectionConfig:
+    guild_id: int
+    enabled: bool = True
+    owner_only: bool = True
+    punishment_level: int = 2
+    timeout_duration_seconds: int = 300
+    delete_message: bool = True
+    log_channel_id: Optional[int] = None
+    strip_overwrites: bool = False
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class MentionViolation:
+    id: int
+    guild_id: int
+    user_id: int
+    channel_id: int
+    message_id: int
+    violation_type: str
+    action_taken: str
+    created_at: str = ""
+
+
+@dataclass
+class TrustedSecurityUser:
+    guild_id: int
+    user_id: int
+    added_by: int
+    reason: Optional[str] = None
+    created_at: str = ""
+
+
+@dataclass
+class AntiNukeConfig:
+    guild_id: int
+    enabled: bool = True
+    max_channel_deletions: int = 3
+    max_channel_creations: int = 5
+    max_role_deletions: int = 3
+    max_role_creations: int = 5
+    max_ban_spike: int = 5
+    max_kick_spike: int = 5
+    max_webhook_creations: int = 3
+    sliding_window_seconds: int = 15
+    auto_quarantine_action: str = "timeout"
+    log_channel_id: Optional[int] = None
+    updated_at: str = ""
+
+
+@dataclass
+class AntiRaidConfig:
+    guild_id: int
+    enabled: bool = True
+    join_threshold: int = 5
+    join_window_seconds: int = 10
+    account_age_threshold_days: int = 7
+    auto_lockdown: bool = True
+    lockdown_duration_seconds: int = 300
+    quarantine_role_id: Optional[int] = None
+    log_channel_id: Optional[int] = None
+    updated_at: str = ""
+
+
+@dataclass
+class PermissionAuditHistory:
+    id: int
+    guild_id: int
+    actor_id: int
+    target_id: Optional[int]
+    target_type: str
+    action: str
+    permissions_changed: Optional[str] = None
+    status: str = "logged"
+    created_at: str = ""
+
+

@@ -108,3 +108,57 @@ def is_guild_owner():
             return False
         return is_founder_or_owner(interaction.user)
     return app_commands.check(predicate)
+
+
+async def is_verified_owner_or_trusted(bot: any, guild: discord.Guild, user_id: int) -> bool:
+    """
+    Verifies user ID against actual Discord server owner ID or trusted_security_users allowlist.
+    Never trusts nicknames, usernames, or role names alone.
+    """
+    if not guild or not user_id:
+        return False
+    if user_id == guild.owner_id:
+        return True
+    try:
+        if hasattr(bot, "db") and hasattr(bot.db, "is_user_trusted"):
+            res = bot.db.is_user_trusted(guild.id, user_id)
+            if hasattr(res, "__await__"):
+                return await res
+            return bool(res)
+    except Exception:
+        pass
+    return False
+
+
+def is_strict_owner():
+    """Slash command decorator strictly restricting execution to the verified guild owner ID."""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.guild or not interaction.user:
+            return False
+        if interaction.user.id == interaction.guild.owner_id:
+            return True
+        await interaction.response.send_message(
+            "⛔ **Access Denied:** This command is strictly reserved for the verified Discord Server Owner.",
+            ephemeral=True,
+        )
+        return False
+    return app_commands.check(predicate)
+
+
+def is_strict_owner_or_trusted():
+    """Slash command decorator restricting execution to verified guild owner or trusted security users."""
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not interaction.guild or not interaction.user:
+            return False
+        if interaction.user.id == interaction.guild.owner_id:
+            return True
+        is_trusted = await is_verified_owner_or_trusted(interaction.client, interaction.guild, interaction.user.id)
+        if is_trusted:
+            return True
+        await interaction.response.send_message(
+            "⛔ **Access Denied:** Only the verified Server Owner or explicitly authorized Security Administrators may execute this command.",
+            ephemeral=True,
+        )
+        return False
+    return app_commands.check(predicate)
+
