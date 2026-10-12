@@ -1874,7 +1874,9 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.describe(action="Maintenance action to perform")
     @app_commands.choices(action=[
         app_commands.Choice(name="Check Status & Health", value="check"),
-        app_commands.Choice(name="Update yt-dlp Now", value="update"),
+        app_commands.Choice(name="Update yt-dlp & EJS Now", value="update"),
+        app_commands.Choice(name="Run Canary Probe (Test YouTube)", value="canary"),
+        app_commands.Choice(name="Rotate Client Profile", value="rotate"),
         app_commands.Choice(name="Git Pull Code & Hot Reload", value="git_pull"),
         app_commands.Choice(name="Hot-Reload Changed Files & Resume", value="reload"),
         app_commands.Choice(name="Full Autonomous Self-Heal", value="self_heal"),
@@ -1895,7 +1897,7 @@ class MusicCog(commands.Cog, name="Music"):
 
             embed_progress = discord.Embed(
                 title="🔄 UPDATING AUDIO EXTRACTOR",
-                description="Upgrading `yt-dlp` to latest release in background...\nPlayback will continue uninterrupted.",
+                description="Upgrading `yt-dlp` and `yt-dlp-ejs` to latest releases in background...\nPlayback will continue uninterrupted.",
                 color=COLOR_NEON_BLUE,
             )
             await interaction.followup.send(embed=embed_progress)
@@ -1906,6 +1908,30 @@ class MusicCog(commands.Cog, name="Music"):
                 color=COLOR_ELECTRIC_CYAN if success else 0xED4245,
             )
             await interaction.edit_original_response(embed=embed_result)
+
+        elif act == "canary":
+            health = await AudioResolver.probe_extractor_health()
+            is_ok = health.get("operational", False)
+            embed_result = discord.Embed(
+                title="🐦 EXTRACTOR CANARY PROBE",
+                description=(
+                    f"• **Operational:** {'✅ YES (Zero SABR Blocks)' if is_ok else '❌ NO (Needs Rotation)'}\n"
+                    f"• **Resolution Latency:** `{health.get('latency_ms', 0)}ms`\n"
+                    f"• **Active Profile:** `{health.get('profile')}`\n"
+                    f"• **Status:** `{health.get('message')}`"
+                ),
+                color=COLOR_ELECTRIC_CYAN if is_ok else 0xED4245,
+            )
+            await interaction.followup.send(embed=embed_result)
+
+        elif act == "rotate":
+            new_prof = AudioResolver.rotate_client_profile()
+            embed_result = discord.Embed(
+                title="🔄 ROTATED EXTRACTOR PROFILE",
+                description=f"Rotated active yt-dlp client profile to **`{new_prof}`**!\n*0.0s downtime, active streams preserved.*",
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            await interaction.followup.send(embed=embed_result)
 
         elif act == "git_pull":
             if not is_admin and not is_owner:
@@ -1953,7 +1979,7 @@ class MusicCog(commands.Cog, name="Music"):
                 description=(
                     f"• **Extractor Probe:** {'🟢 Operational' if is_ok else '🔴 Issue Detected'}\n"
                     f"• **Diagnostics:** `{health.get('message', 'OK')[:150]}`\n"
-                    f"• **Auto-Recovery:** Active (Android/iOS/Web client rotation)"
+                    f"• **Auto-Recovery:** Active (In-memory client rotation enabled)"
                 ),
                 color=COLOR_ELECTRIC_CYAN if is_ok else 0xED4245,
             )
@@ -1961,28 +1987,33 @@ class MusicCog(commands.Cog, name="Music"):
 
         else:
             check = await MusicAutoUpdater.check_ytdl_version()
-            curr = check.get("current", "unknown")
-            latest = check.get("latest", "unknown")
+            curr_ytdl = check.get("current_ytdl", "unknown")
+            latest_ytdl = check.get("latest_ytdl", "unknown")
+            curr_ejs = check.get("current_ejs", "unknown")
             has_update = check.get("update_available", False)
+            js_info = MusicAutoUpdater.get_js_runtime_info()
+            profile = AudioResolver.get_current_profile_name()
             git_info = await MusicAutoUpdater.check_git_updates()
 
-            status_text = "🟢 **Up-To-Date** (Optimal)" if not has_update else f"🟡 **Update Available** (`v{latest}` available on PyPI)"
+            status_text = "🟢 **Up-To-Date & Healthy**" if not has_update else f"🟡 **Update Available** (`v{latest_ytdl}` on PyPI)"
             git_text = f"🟢 Commit `{git_info.get('current_commit', 'main')}`" if not git_info.get("has_updates") else f"🟡 `{git_info.get('pending_commits')}` new commits available"
 
             embed = discord.Embed(
-                title="🤖 MUSIC BOT AUTO-UPDATER & SYNC STATUS",
+                title="🤖 MUSIC BOT AUTO-UPDATER & EXTRACTOR SUPERVISOR",
                 description=(
-                    f"• **Current yt-dlp:** `v{curr}`\n"
-                    f"• **Latest PyPI:** `v{latest}`\n"
+                    f"• **yt-dlp Core:** `v{curr_ytdl}` (Latest: `v{latest_ytdl}`)\n"
+                    f"• **EJS Challenge Solver:** `v{curr_ejs}`\n"
+                    f"• **Active JS Runtime:** `{js_info.get('active')}`\n"
+                    f"• **Active Profile:** `{profile}`\n"
                     f"• **Extractor Health:** {status_text}\n"
                     f"• **Git Repository:** {git_text}\n\n"
-                    f"• **Autonomous Schedule:** Runs every **6 hours** in the background\n"
-                    f"• **Self-Healing:** Client rotation (`android`, `ios`, `web`) & automatic stream recovery\n"
-                    f"• **Zero-Interrupt:** In-memory hot reloads without dropping voice connections"
+                    f"• **Autonomous Schedule:** Runs every **30 mins** in the background\n"
+                    f"• **Self-Healing:** In-memory client rotation & Canary probes\n"
+                    f"• **Zero-Interrupt:** Hot reloads without dropping voice connections"
                 ),
                 color=COLOR_ELECTRIC_CYAN if not has_update else 0xFEE75C,
             )
-            embed.set_footer(text="Use /autoupdate action:Git Pull Code to sync newest commits")
+            embed.set_footer(text="MusicMaid Autonomous Self-Healing & Extractor Supervisor")
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="reload", description="Zero-downtime hot reload: update bot modules while music keeps playing")
@@ -2962,59 +2993,6 @@ class MusicCog(commands.Cog, name="Music"):
         await interaction.edit_original_response(embed=embed)
 
     # =========================================================================
-    # LIVE LYRICS & KARAOKE VIEWER (/lyrics)
-    # =========================================================================
-
-    @app_commands.command(name="lyrics", description="Display live synchronized or full song lyrics")
-    @app_commands.describe(search="Optional track name (defaults to currently playing track)")
-    async def cmd_lyrics(self, interaction: discord.Interaction, search: Optional[str] = None) -> None:
-        """Fetch and display lyrics in a responsive, clean embed without creating extra channels."""
-        await self.ensure_deferred(interaction, ephemeral=False)
-        session = await self.session_manager.get_session(interaction.guild_id) if interaction.guild_id else None
-
-        title = search
-        artist = None
-        if not title and session and session.current_track:
-            title = session.current_track.title
-            artist = session.current_track.artist
-
-        if not title:
-            await interaction.edit_original_response(content="❌ No track currently playing. Please specify a song name!")
-            return
-
-        lyrics_text = await LyricsService.fetch_lyrics(title, artist)
-        if not lyrics_text:
-            await interaction.edit_original_response(content=f"❌ No lyrics found for **{title}**.")
-            return
-
-        pages = []
-        lines = lyrics_text.splitlines()
-        cur_page = []
-        cur_len = 0
-        for l in lines:
-            if cur_len + len(l) > 3500:
-                pages.append("\n".join(cur_page))
-                cur_page = [l]
-                cur_len = len(l)
-            else:
-                cur_page.append(l)
-                cur_len += len(l) + 1
-        if cur_page:
-            pages.append("\n".join(cur_page))
-
-        embed = discord.Embed(
-            title=f"🎤 Lyrics: {title[:50]}",
-            description=pages[0],
-            color=COLOR_ELECTRIC_CYAN,
-        )
-        if len(pages) > 1:
-            embed.set_footer(text=f"Page 1 of {len(pages)} • LRCLIB Engine")
-        else:
-            embed.set_footer(text="LRCLIB Synced Lyrics Engine")
-
-        await interaction.edit_original_response(embed=embed)
-
-    # =========================================================================
     # PERSONAL FAVORITES SUITE (/favorite)
     # =========================================================================
 
@@ -3295,101 +3273,6 @@ class MusicCog(commands.Cog, name="Music"):
 
         embed.set_footer(text="Neko Music Wrapped • Powered by Rai Analytics")
         await interaction.edit_original_response(embed=embed)
-
-    # =========================================================================
-    # AUTONOMOUS EXTRACTOR SUPERVISOR & AUTO-UPDATER (/autoupdate)
-    # =========================================================================
-
-    autoupdate_group = app_commands.Group(name="autoupdate", description="Extractor self-healing & autonomous update supervisor")
-
-    @autoupdate_group.command(name="status", description="Show yt-dlp, EJS challenge solver, JS runtime, and canary health status")
-    async def au_status(self, interaction: discord.Interaction) -> None:
-        await self.ensure_deferred(interaction, ephemeral=True)
-        ytdl_ver = MusicAutoUpdater.get_current_ytdl_version()
-        ejs_ver = MusicAutoUpdater.get_ejs_version()
-        js_info = MusicAutoUpdater.get_js_runtime_info()
-        profile = AudioResolver.get_current_profile_name()
-
-        health = await AudioResolver.probe_extractor_health()
-        operational_badge = "🟢 Operational (Zero Blocks)" if health.get("operational") else "🔴 Restricted / Auto-Healing"
-
-        embed = discord.Embed(
-            title="🛠️ AUTONOMOUS EXTRACTOR & UPDATER STATUS",
-            description=(
-                f"**System Health:** {operational_badge}\n"
-                f"• **Latency:** `{health.get('latency_ms', 0)}ms`\n"
-                f"• **Active Profile:** `{profile}`\n\n"
-                f"**Engines & Solvers:**\n"
-                f"• **yt-dlp Core:** `v{ytdl_ver}`\n"
-                f"• **EJS Challenge Solver:** `v{ejs_ver}`\n"
-                f"• **Active JS Runtime:** `{js_info.get('active')}`\n"
-                f"• **Node.js Path:** `{js_info.get('node_path') or 'Not Found'}`\n\n"
-                f"**Auto-Healing Policy:**\n"
-                f"• 30-min canary probing active\n"
-                f"• In-memory client profile auto-rotation enabled\n"
-                f"• Zero-downtime hot-reloading enabled"
-            ),
-            color=COLOR_ELECTRIC_CYAN if health.get("operational") else 0xFF0055,
-        )
-        embed.set_footer(text="MusicMaid Autonomous Self-Healing Engine")
-        await interaction.edit_original_response(embed=embed)
-
-    @autoupdate_group.command(name="check", description="Check PyPI for latest yt-dlp and yt-dlp-ejs releases")
-    async def au_check(self, interaction: discord.Interaction) -> None:
-        await self.ensure_deferred(interaction, ephemeral=True)
-        res = await MusicAutoUpdater.check_ytdl_version()
-        upd = res.get("update_available", False)
-        embed = discord.Embed(
-            title="🔍 PYPI EXTRACTOR RELEASE CHECK",
-            description=(
-                f"• **Current yt-dlp:** `v{res.get('current_ytdl')}`\n"
-                f"• **Latest PyPI yt-dlp:** `v{res.get('latest_ytdl')}`\n"
-                f"• **Current EJS Solver:** `v{res.get('current_ejs')}`\n"
-                f"• **Latest PyPI EJS:** `v{res.get('latest_ejs')}`\n\n"
-                f"**Update Status:** `{'⚠️ Update Available!' if upd else '✅ Fully Up-to-Date'}`"
-            ),
-            color=0xFFD700 if upd else COLOR_ELECTRIC_CYAN,
-        )
-        await interaction.edit_original_response(embed=embed)
-
-    @autoupdate_group.command(name="update", description="Instantly update yt-dlp and EJS solver in background with 0 downtime")
-    async def au_update(self, interaction: discord.Interaction) -> None:
-        await self.ensure_deferred(interaction, ephemeral=True)
-        if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.owner_id:
-            await interaction.edit_original_response(content="❌ Administrator permission required.")
-            return
-
-        ok, msg = await MusicAutoUpdater.update_ytdl(force=True, bot=self.bot)
-        embed = discord.Embed(
-            title="🔄 BACKGROUND AUTO-UPDATE TRIGGERED",
-            description=f"**Result:** {msg}\n\n*Live playback streams were preserved without interruption.*",
-            color=COLOR_ELECTRIC_CYAN if ok else 0xFF0055,
-        )
-        await interaction.edit_original_response(embed=embed)
-
-    @autoupdate_group.command(name="canary", description="Run immediate canary resolution probe on YouTube")
-    async def au_canary(self, interaction: discord.Interaction) -> None:
-        await self.ensure_deferred(interaction, ephemeral=True)
-        health = await AudioResolver.probe_extractor_health()
-        embed = discord.Embed(
-            title="🐦 EXTRACTOR CANARY PROBE",
-            description=(
-                f"• **Operational:** `{'✅ YES' if health.get('operational') else '❌ NO'}`\n"
-                f"• **Resolution Latency:** `{health.get('latency_ms', 0)}ms`\n"
-                f"• **Active Profile:** `{health.get('profile')}`\n"
-                f"• **Status:** `{health.get('message')}`"
-            ),
-            color=COLOR_ELECTRIC_CYAN if health.get("operational") else 0xFF0055,
-        )
-        await interaction.edit_original_response(embed=embed)
-
-    @autoupdate_group.command(name="rotate", description="Cycle to next yt-dlp client profile in memory")
-    async def au_rotate(self, interaction: discord.Interaction) -> None:
-        await self.ensure_deferred(interaction, ephemeral=True)
-        new_prof = AudioResolver.rotate_client_profile()
-        await interaction.edit_original_response(
-            content=f"🔄 Rotated yt-dlp client profile to: **`{new_prof}`** (0 downtime, live streams intact)."
-        )
 
     @app_commands.command(name="support", description="Official Support Server for MusicMaid and Rai bots (MRL GAMING)")
     async def music_support(self, interaction: discord.Interaction) -> None:
