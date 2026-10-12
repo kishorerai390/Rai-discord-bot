@@ -441,7 +441,9 @@ class ModerationCog(commands.Cog, name="Moderation"):
         else:
             await interaction.response.send_message(embed=success_embed("Slowmode Updated", f"Slowmode delay set to **{seconds}s**."))
 
-    @app_commands.command(name="lock", description="Lock the current channel preventing @everyone from sending messages")
+    channel_group = app_commands.Group(name="channel", description="Channel moderation and lockdown controls")
+
+    @channel_group.command(name="lock", description="Lock the current channel preventing @everyone from sending messages")
     @app_commands.default_permissions(manage_channels=True)
     @is_admin_or_owner()
     async def lock(self, interaction: discord.Interaction):
@@ -451,7 +453,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
         await channel.set_permissions(interaction.guild.default_role, overwrite=overwrite, reason=f"Channel locked by {interaction.user}")
         await interaction.response.send_message(embed=security_embed("Channel Locked", "Members can no longer send messages in this channel."))
 
-    @app_commands.command(name="unlock", description="Unlock the current channel allowing @everyone to send messages")
+    @channel_group.command(name="unlock", description="Unlock the current channel allowing @everyone to send messages")
     @app_commands.default_permissions(manage_channels=True)
     @is_admin_or_owner()
     async def unlock(self, interaction: discord.Interaction):

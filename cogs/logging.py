@@ -53,11 +53,7 @@ class LoggingCog(commands.Cog, name="Logging"):
         description="Configure server audit logging channels",
         default_permissions=discord.Permissions(administrator=True),
     )
-    logs_group = app_commands.Group(
-        name="logs",
-        description="Configure server audit logging channels and separate category",
-        default_permissions=discord.Permissions(administrator=True),
-    )
+    logs_group = logging_group
 
     async def _dispatch_founder_activity_dm(
         self,

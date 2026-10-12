@@ -31,6 +31,8 @@ class AnalyticsCog(commands.Cog, name="Analytics"):
     def __init__(self, bot: SentinelBot):
         self.bot = bot
 
+    analytics_group = app_commands.Group(name="analytics", description="Operational server intelligence and analytics")
+
     @app_commands.command(name="stats", description="Display overarching Rai community performance and activity stats")
     async def stats_cmd(self, interaction: discord.Interaction):
         await self._render_overview_stats(interaction)
@@ -173,8 +175,6 @@ class AnalyticsCog(commands.Cog, name="Analytics"):
     # ==========================================
     # SERVER INTELLIGENCE & ANALYTICS GROUP
     # ==========================================
-
-    analytics_group = app_commands.Group(name="analytics", description="Operational server intelligence and analytics")
 
     @analytics_group.command(name="members", description="View membership demographics, active users, and growth")
     async def analytics_members_cmd(self, interaction: discord.Interaction):

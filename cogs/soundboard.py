@@ -60,7 +60,7 @@ class SoundboardCog(commands.Cog, name="Soundboard"):
             embed = error_embed("Soundboard Error", msg)
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="sound", description="Quickly play or stop a sound clip in your voice channel")
+    @soundboard_group.command(name="quick", description="Quickly play or stop a sound clip in your voice channel")
     @app_commands.describe(sound="Name of the sound clip to play, or 'stop' to halt playback")
     @app_commands.autocomplete(sound=sound_autocomplete)
     async def sound_alias_cmd(self, interaction: discord.Interaction, sound: str):
