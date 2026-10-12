@@ -644,12 +644,29 @@ class MusicCog(commands.Cog, name="Music"):
     # HELPERS
     # =========================================================================
 
+    @staticmethod
+    async def ensure_deferred(interaction: discord.Interaction, ephemeral: bool = False) -> bool:
+        """Guarantee interaction is deferred within Discord's 3-second deadline."""
+        if not interaction.response.is_done():
+            try:
+                await interaction.response.defer(ephemeral=ephemeral)
+                return True
+            except (discord.errors.NotFound, discord.errors.InteractionResponded):
+                return True
+            except Exception as e:
+                logger.debug(f"Interaction deferral notice: {e}")
+                return False
+        return True
+
     async def _check_permissions(self, interaction: discord.Interaction) -> bool:
         """Verify user is in voice channel and allowed to use music commands."""
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             msg = "❌ This command must be used in a server."
             if interaction.response.is_done():
-                await interaction.followup.send(msg, ephemeral=True)
+                try:
+                    await interaction.edit_original_response(content=msg, embed=None, view=None)
+                except Exception:
+                    await interaction.followup.send(msg, ephemeral=True)
             else:
                 await interaction.response.send_message(msg, ephemeral=True)
             return False
@@ -657,7 +674,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not interaction.user.voice or not interaction.user.voice.channel:
             msg = "❌ You must join a voice channel first."
             if interaction.response.is_done():
-                await interaction.followup.send(msg, ephemeral=True)
+                try:
+                    await interaction.edit_original_response(content=msg, embed=None, view=None)
+                except Exception:
+                    await interaction.followup.send(msg, ephemeral=True)
             else:
                 await interaction.response.send_message(msg, ephemeral=True)
             return False
@@ -668,59 +688,84 @@ class MusicCog(commands.Cog, name="Music"):
         self, interaction: discord.Interaction, query: str, ephemeral: bool = False
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition."""
+        start_t = time.time()
         guild = interaction.guild
         member = interaction.user
         text_channel = interaction.channel
 
         if not guild or not isinstance(member, discord.Member) or not isinstance(text_channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)):
-            await interaction.followup.send("❌ Cannot determine server or channel context.", ephemeral=True)
+            try:
+                await interaction.edit_original_response(content="❌ Cannot determine server or channel context.")
+            except Exception:
+                await interaction.followup.send("❌ Cannot determine server or channel context.", ephemeral=True)
             return
 
         session = await self.session_manager.get_session(guild.id)
 
-        # 1. Connect to voice
+        # 1. Connect to voice with timeout protection
         async with session.lock:
-            vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+            try:
+                vc = await asyncio.wait_for(VoiceManager.join_voice_channel(member, text_channel, session), timeout=10.0)
+            except asyncio.TimeoutError:
+                vc = None
+                session.last_error = "Voice connection handshake timed out."
+            except Exception as vc_err:
+                vc = None
+                session.last_error = str(vc_err)
+
             if not vc:
                 err_detail = getattr(session, "last_error", None) or "Bot lacks Connect or Speak permissions in this channel."
                 ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
-                await interaction.followup.send(
-                    f"❌ **Could not connect to {ch_name}!**\n"
-                    f"• **Reason:** {err_detail}\n\n"
-                    f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions (or grant the bot Administrator role)!",
-                    ephemeral=True,
+                embed_conn_err = discord.Embed(
+                    title="❌ COULD NOT CONNECT TO VOICE",
+                    description=(
+                        f"Could not connect to **{ch_name}**.\n"
+                        f"• **Reason:** {err_detail}\n\n"
+                        f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
+                    ),
+                    color=0xED4245,
                 )
+                try:
+                    await interaction.edit_original_response(embed=embed_conn_err)
+                except Exception:
+                    await interaction.followup.send(embed=embed_conn_err, ephemeral=True)
                 return
 
-        # 2. Resolve query
+        # 2. Resolve query: Edit original response directly so NO duplicate dangling loading message in chat!
         embed_loading = discord.Embed(
             title="🔍 SEARCHING TRACK",
             description=f"Resolving: `{query[:100]}`...\n*{DIALOGUE_START}*",
             color=COLOR_NEON_BLUE,
         )
-        await interaction.followup.send(embed=embed_loading, ephemeral=ephemeral)
-
         try:
-            track = await AudioResolver.resolve_track(query, member.id, str(member))
+            await interaction.edit_original_response(embed=embed_loading)
+        except Exception:
+            pass
+
+        search_start = time.time()
+        try:
+            track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=18.0)
+        except asyncio.TimeoutError:
+            track = None
+            logger.warning(f"[Playback] Audio resolution timed out for query '{query}'")
         except Exception as e:
-            await interaction.edit_original_response(
-                embed=discord.Embed(
-                    title="❌ TRACK RESOLUTION FAILED",
-                    description=f"{DIALOGUE_UNAVAILABLE}\nError: `{e}`",
-                    color=0xED4245,
-                )
-            )
-            return
+            track = None
+            logger.error(f"[Playback] Track resolution exception for '{query}': {e}", exc_info=True)
 
         if not track:
-            await interaction.edit_original_response(
-                embed=discord.Embed(
-                    title="😿 NO AUDIO TRACK FOUND",
-                    description=f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query}`",
-                    color=0xED4245,
-                )
+            embed_fail = discord.Embed(
+                title="😿 NO AUDIO TRACK FOUND",
+                description=f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`",
+                color=0xED4245,
             )
+            try:
+                await interaction.edit_original_response(embed=embed_fail)
+            except Exception:
+                await interaction.followup.send(embed=embed_fail, ephemeral=True)
             return
+
+        search_dur = time.time() - search_start
+        logger.info(f"[Playback] Track '{track.title}' resolved in {search_dur:.2f}s")
 
         # Feature 113: Audio Track Duration Ceiling Limiter (> 3 hours rejected for non-admins)
         if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
@@ -749,7 +794,10 @@ class MusicCog(commands.Cog, name="Music"):
                 embed_queued.set_footer(text=f"Requested by {member.display_name}")
                 await interaction.edit_original_response(embed=embed_queued)
             else:
+                play_start = time.time()
                 success = await MusicPlayerService.start_playback(self.bot, session, track)
+                play_dur = time.time() - play_start
+                logger.info(f"[Playback] Stream initialization took {play_dur:.2f}s (success={success})")
                 if success:
                     try:
                         await interaction.edit_original_response(

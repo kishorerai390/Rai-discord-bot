@@ -77,7 +77,10 @@ class VoiceManager:
 
         try:
             session.state = PlaybackState.CONNECTING
-            vc = await target_channel.connect(timeout=15.0, reconnect=True, self_deaf=True)
+            vc = await asyncio.wait_for(
+                target_channel.connect(timeout=8.0, reconnect=True, self_deaf=True),
+                timeout=8.0,
+            )
             session.voice_client = vc
             session.state = PlaybackState.CONNECTED
             session.last_error = None

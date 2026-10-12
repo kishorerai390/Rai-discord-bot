@@ -51,6 +51,12 @@ def _load_po_tokens_and_cookies() -> Dict[str, Any]:
         return {}
 
 
+import concurrent.futures
+import time
+
+_audio_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="AudioResolver")
+
+
 def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str, Any]:
     clients = player_clients or ["android", "ios", "web_creator", "mweb"]
     opts: Dict[str, Any] = {
@@ -66,6 +72,7 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
+        "socket_timeout": 8,
         "extractor_args": {
             "youtube": {
                 "player_client": clients,
@@ -141,8 +148,11 @@ class AudioResolver:
 
         for attempt in range(len(cls.PROFILE_PRESETS)):
             try:
-                data = await loop.run_in_executor(
-                    None, functools.partial(_ytdl.extract_info, test_target, download=False)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor, functools.partial(_ytdl.extract_info, test_target, download=False)
+                    ),
+                    timeout=6.0,
                 )
                 entry = data["entries"][0] if "entries" in data and data["entries"] else data
                 stream_url = entry.get("url") if entry else None
@@ -242,16 +252,22 @@ class AudioResolver:
         search_query = f"ytsearch{limit}:{query}" if not query.startswith("http") else query
 
         try:
-            data = await loop.run_in_executor(
-                None, functools.partial(_ytdl.extract_info, search_query, download=False)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(_ytdl.extract_info, search_query, download=False)
+                ),
+                timeout=8.0,
             )
         except Exception as e:
             logger.warning(f"YouTube search failed for '{query}': {e}. Attempting SoundCloud fallback...")
             try:
                 sc_query = f"scsearch{limit}:{query}"
-                sc_ydl = yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True})
-                data = await loop.run_in_executor(
-                    None, functools.partial(sc_ydl.extract_info, sc_query, download=False)
+                sc_ydl = yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True, "socket_timeout": 8})
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor, functools.partial(sc_ydl.extract_info, sc_query, download=False)
+                    ),
+                    timeout=8.0,
                 )
             except Exception as sc_err:
                 logger.error(f"SoundCloud search fallback also failed for '{query}': {sc_err}")
@@ -281,6 +297,7 @@ class AudioResolver:
         cls, query_or_url: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
         """Resolve a query or direct link into a playable QueuedTrack with multi-source fallback."""
+        start_t = time.time()
         loop = asyncio.get_running_loop()
 
         # Clean spotify or apple music links to plain track title
@@ -292,11 +309,16 @@ class AudioResolver:
 
         # Strategy 1: Primary YouTube extraction with modern client list
         try:
-            data = await loop.run_in_executor(
-                None, functools.partial(_ytdl.extract_info, target, download=False)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(_ytdl.extract_info, target, download=False)
+                ),
+                timeout=8.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
+                dur = time.time() - start_t
+                logger.info(f"[Resolver] Primary YouTube resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
         except Exception as yt_err:
             logger.warning(f"Primary YouTube resolver failed for '{cleaned_query}': {yt_err}. Trying secondary fallback...")
@@ -305,11 +327,16 @@ class AudioResolver:
         try:
             fallback_opts = _build_ytdl_options(["ios", "web_creator", "mweb"])
             fallback_ytdl = yt_dlp.YoutubeDL(fallback_opts)
-            data = await loop.run_in_executor(
-                None, functools.partial(fallback_ytdl.extract_info, target, download=False)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(fallback_ytdl.extract_info, target, download=False)
+                ),
+                timeout=8.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
+                dur = time.time() - start_t
+                logger.info(f"[Resolver] Secondary profile resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
         except Exception as fb_err:
             logger.warning(f"Secondary YouTube profile failed for '{cleaned_query}': {fb_err}")
@@ -319,16 +346,22 @@ class AudioResolver:
             try:
                 sc_target = f"scsearch1:{cleaned_query}"
                 logger.info(f"Failing over to SoundCloud for '{cleaned_query}'...")
-                sc_opts = {"format": "bestaudio/best", "noplaylist": True, "quiet": True}
+                sc_opts = {"format": "bestaudio/best", "noplaylist": True, "quiet": True, "socket_timeout": 8}
                 sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
-                data = await loop.run_in_executor(
-                    None, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
+                    ),
+                    timeout=8.0,
                 )
                 track = cls._parse_entry(data, requester_id, requester_name)
                 if track:
-                    logger.info(f"Successfully recovered track from SoundCloud: {track.title}")
+                    dur = time.time() - start_t
+                    logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
                     return track
             except Exception as sc_err:
                 logger.error(f"SoundCloud fallback failed for '{cleaned_query}': {sc_err}")
 
+        dur = time.time() - start_t
+        logger.warning(f"[Resolver] Track resolution completely exhausted for '{cleaned_query}' in {dur:.2f}s")
         return None

@@ -1562,6 +1562,10 @@ async def get_owner_report_channel(
         return None
 
 
+# Backward-compatibility alias
+get_report_channel = get_owner_report_channel
+
+
 async def dispatch_owner_report(
     bot: SentinelBot,
     guild_id: int,
