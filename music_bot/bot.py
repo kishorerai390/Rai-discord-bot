@@ -156,11 +156,23 @@ class NekoSongsBot(commands.Bot):
 
         # 2b. Global Tree Error Handler & Upgrade Interceptor
         async def on_tree_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
-            logger.error(f"App command error in {interaction.command}: {error}", exc_info=error)
+            orig = getattr(error, "original", error)
+            if isinstance(orig, discord.NotFound) and getattr(orig, "code", None) == 10062:
+                logger.debug(f"Ignored expired/unknown interaction in {interaction.command}")
+                return
+
+            if isinstance(orig, asyncio.TimeoutError):
+                msg = "⏱️ **Audio Request Timed Out:** The audio search or voice connection took too long to respond. Please try again with a direct URL or different query."
+            else:
+                msg = f"⚠️ **Music Command Notice:** {str(orig or error)}"
+
+            logger.error(f"App command error in {interaction.command}: {error}", exc_info=orig)
             try:
-                msg = f"⚠️ **Music Command Notice:** {str(error)}"
                 if interaction.response.is_done():
-                    await interaction.followup.send(msg, ephemeral=True)
+                    try:
+                        await interaction.edit_original_response(content=msg, embed=None, view=None)
+                    except Exception:
+                        await interaction.followup.send(msg, ephemeral=True)
                 else:
                     await interaction.response.send_message(msg, ephemeral=True)
             except Exception:
@@ -282,14 +294,17 @@ class NekoSongsBot(commands.Bot):
             status=discord.Status.online,
         )
 
-        # Clear any guild-specific duplicate command copies so each command only appears once
-        for guild in self.guilds:
-            try:
-                self.tree.clear_commands(guild=guild)
-                await self.tree.sync(guild=guild)
-                logger.info(f"Cleaned guild command copies in {guild.name} ({guild.id}) to eliminate duplicates.")
-            except Exception as e:
-                logger.debug(f"Guild command cleanup notice for {guild.name}: {e}")
+        # Non-blocking background cleanup of guild command copies (prevents on_ready gateway stall)
+        async def _cleanup_guild_commands():
+            if COMMAND_SYNC_MODE != "guild":
+                for guild in self.guilds:
+                    try:
+                        self.tree.clear_commands(guild=guild)
+                        await self.tree.sync(guild=guild)
+                        logger.info(f"Cleaned guild command copies in {guild.name} ({guild.id}) to eliminate duplicates.")
+                    except Exception as e:
+                        logger.debug(f"Guild command cleanup notice for {guild.name}: {e}")
+        asyncio.create_task(_cleanup_guild_commands())
 
         # Feature 109: Auto-Resume active music sessions across restarts
         if self.db:
