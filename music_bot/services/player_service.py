@@ -377,14 +377,44 @@ class MusicPlayerService:
             if session.audio_filter:
                 ffmpeg_opts["options"] = f"-vn {session.audio_filter}"
 
+            norm_vol = max(0.05, min(1.0, session.volume / 100.0))
+            loop = bot.loop
+            first_frame: Optional[bytes] = None
+
             try:
                 audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
-            except Exception:
-                fresh_track = await AudioResolver.resolve_track(track.url, track.requester_id, track.requester_name)
+                volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                first_frame = await asyncio.wait_for(
+                    loop.run_in_executor(None, volume_transformer.read),
+                    timeout=3.5,
+                )
+            except Exception as e:
+                logger.warning(f"Initial frame read failed during stream resume for '{track.title}': {e}")
+                first_frame = b""
+
+            if not first_frame:
+                logger.info(f"Stream URL may be expired during resume for '{track.title}'. Re-resolving...")
+                fresh_track = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
                 if fresh_track and fresh_track.stream_url:
                     track.stream_url = fresh_track.stream_url
-                audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
-            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=session.volume / 100.0)
+                    try:
+                        audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                        volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                        first_frame = await asyncio.wait_for(
+                            loop.run_in_executor(None, volume_transformer.read),
+                            timeout=3.5,
+                        )
+                    except Exception:
+                        first_frame = b""
+
+            if not first_frame:
+                logger.error(f"Failed to resume stream for '{track.title}': No audio data decoded.")
+                session.state = PlaybackState.ERROR
+                session.last_error = f"Audio source produced no sound for '{track.title}' during stream resume."
+                await cls.handle_track_finished(bot, session)
+                return False
+
+            playable_source = ValidatedAudioSource(volume_transformer, first_frame)
 
             session.current_track = track
             session.track_start_time = time.time() - start_seconds
@@ -393,7 +423,6 @@ class MusicPlayerService:
 
             session.playback_generation += 1
             current_generation = session.playback_generation
-            loop = bot.loop
 
             def after_resumed(error: Optional[Exception]):
                 if (
@@ -409,7 +438,7 @@ class MusicPlayerService:
                     logger.error(f"Post-recovery playback error in guild {session.guild_id}: {error}")
                 asyncio.run_coroutine_threadsafe(cls.handle_track_finished(bot, session), loop)
 
-            session.voice_client.play(volume_transformer, after=after_resumed)
+            session.voice_client.play(playable_source, after=after_resumed)
 
             # Ensure real-time progress updater is running
             if session.progress_updater_task and not session.progress_updater_task.done():
@@ -420,6 +449,7 @@ class MusicPlayerService:
             return True
         except Exception as e:
             logger.error(f"Failed to auto-recover stream: {e}")
+            session.state = PlaybackState.ERROR
             await cls.handle_track_finished(bot, session)
             return False
 
@@ -564,7 +594,7 @@ class MusicPlayerService:
 
         elapsed = session.elapsed_seconds
         total = track.duration or 0
-        is_active_play = session.state == PlaybackState.PLAYING or session.is_playing
+        is_active_play = session.is_playing
         if total > 0:
             remaining = max(0, total - elapsed)
             end_ts = int(time.time() + remaining)
@@ -575,7 +605,13 @@ class MusicPlayerService:
             progress_str = f"{format_duration(elapsed, is_position=True)} / 🔴 LIVE"
             progress_bar = "🔘──────────────"
 
-        if session.state == PlaybackState.PLAYING or session.is_playing:
+        is_server_muted = False
+        if session.voice_client and session.voice_client.guild and session.voice_client.guild.me:
+            me = session.voice_client.guild.me
+            if me.voice and getattr(me.voice, "mute", False):
+                is_server_muted = True
+
+        if session.is_playing:
             status_text = "🟢 Playing"
         elif session.is_paused or session.state == PlaybackState.PAUSED:
             status_text = "⏸️ Paused"
@@ -583,8 +619,13 @@ class MusicPlayerService:
             status_text = "⏳ Buffering"
         elif session.state == PlaybackState.RECOVERING:
             status_text = "🔄 Recovering"
+        elif session.state == PlaybackState.ERROR:
+            status_text = "❌ Error"
         else:
             status_text = "⏹️ Idle"
+
+        if is_server_muted:
+            status_text += " (⚠️ Server Muted)"
 
         requester_str = f"<@{track.requester_id}>" if track.requester_id else track.requester_name
 
@@ -604,6 +645,7 @@ class MusicPlayerService:
         is_autodj_on = getattr(session, "dj_enabled", False) or session.autoplay
         is_autodj_str = "ON 🎧" if is_autodj_on else "OFF"
         recovery_line = f"\n• **Recovery:** `{session.recovery_status}`" if getattr(session, "recovery_status", None) else ""
+        error_line = f"\n• **Error:** `{session.last_error[:80]}`" if session.state == PlaybackState.ERROR and session.last_error else ""
 
         if session.queue:
             next_info_line = f"\n• **Next Track:** `{session.queue[0].title[:35]}` *(Manual Queue)*"
@@ -611,6 +653,8 @@ class MusicPlayerService:
             next_info_line = "\n• **Next Track:** `Auto-DJ Recommendation` 🎧"
         else:
             next_info_line = ""
+
+        embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0x00E5FF if session.is_playing else 0x9B59B6)
 
         embed = discord.Embed(
             title="🎶 NOW PLAYING",
@@ -623,9 +667,9 @@ class MusicPlayerService:
                 f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
                 f"• **Queue:** `{len(session.queue)} tracks` • **Loop:** `{session.loop_mode.value.title()}`\n"
                 f"• **Filter:** `{preset_name}` • **Auto-DJ:** `{is_autodj_str}` • **24/7:** `{is_247_str}`"
-                f"{next_info_line}{recovery_line}"
+                f"{next_info_line}{recovery_line}{error_line}"
             ),
-            color=0x00E5FF if session.is_playing else 0x9B59B6,
+            color=embed_color,
         )
 
         if track.thumbnail:
