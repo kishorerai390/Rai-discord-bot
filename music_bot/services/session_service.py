@@ -13,6 +13,7 @@ import math
 import random
 import time
 from typing import Any, Callable, Dict, List, Optional
+import uuid
 import discord
 
 from music_bot.database.models import QueuedTrack
@@ -46,6 +47,8 @@ class GuildMusicSession:
 
     def __init__(self, guild_id: int):
         self.guild_id = guild_id
+        self.session_id: str = f"sess_{uuid.uuid4().hex[:12]}"
+        self.session_name: str = "Active Session"
         self.state: PlaybackState = PlaybackState.IDLE
         self.lock = asyncio.Lock()  # Per-guild operation serializer
 
@@ -77,6 +80,10 @@ class GuildMusicSession:
         self.now_playing_message: Optional[discord.Message] = None
         self.progress_updater_task: Optional[asyncio.Task] = None
         self._is_seeking: bool = False
+        self.is_intentional_stop: bool = False
+        self.last_checkpoint_pos: int = 0
+        self.last_checkpoint_time: float = 0.0
+        self.recovery_attempts: int = 0
 
     @property
     def is_playing(self) -> bool:

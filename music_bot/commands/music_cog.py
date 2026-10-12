@@ -702,6 +702,7 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         session = await self.session_manager.get_session(guild.id)
+        session.is_intentional_stop = False
 
         # 1. Connect to voice with timeout protection
         async with session.lock:
@@ -956,6 +957,7 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_stop(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.is_intentional_stop = True
         session.queue.clear()
         if session.voice_client:
             session.voice_client.stop()

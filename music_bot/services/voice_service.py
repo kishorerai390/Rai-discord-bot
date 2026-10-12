@@ -135,6 +135,7 @@ class VoiceManager:
                         except Exception:
                             pass
 
+                    session.is_intentional_stop = True
                     session.queue.clear()
                     if session.voice_client.is_playing():
                         session.voice_client.stop()

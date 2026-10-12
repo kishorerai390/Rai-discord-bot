@@ -20,6 +20,7 @@ from music_bot.database.models import (
     MusicGuildSettings,
     MusicHeartbeat,
     MusicPlaylist,
+    PersistentMusicSession,
     QueuedTrack,
 )
 
@@ -172,6 +173,42 @@ class MusicDatabase:
                     playing_count INTEGER DEFAULT 0,
                     last_heartbeat TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS persistent_music_sessions (
+                    guild_id INTEGER NOT NULL,
+                    session_id TEXT NOT NULL,
+                    session_name TEXT DEFAULT 'Default Session',
+                    session_status TEXT NOT NULL DEFAULT 'SAVED',
+                    current_track_json TEXT,
+                    current_track_title TEXT,
+                    stable_track_identifier TEXT,
+                    source_provider TEXT DEFAULT 'youtube',
+                    source_url TEXT,
+                    track_duration INTEGER DEFAULT 0,
+                    last_known_position INTEGER DEFAULT 0,
+                    is_paused INTEGER DEFAULT 0,
+                    queue_json TEXT DEFAULT '[]',
+                    history_json TEXT DEFAULT '[]',
+                    loop_mode TEXT DEFAULT 'off',
+                    shuffle_enabled INTEGER DEFAULT 0,
+                    volume INTEGER DEFAULT 80,
+                    voice_channel_id INTEGER,
+                    text_channel_id INTEGER,
+                    created_by_user_id INTEGER,
+                    created_by_user_name TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_checkpoint TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    recovery_attempts INTEGER DEFAULT 0,
+                    schema_version INTEGER DEFAULT 1,
+                    is_pinned INTEGER DEFAULT 0,
+                    recovery_mode TEXT DEFAULT 'MANUAL',
+                    PRIMARY KEY (guild_id, session_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_pers_sessions_guild ON persistent_music_sessions(guild_id);
+                CREATE INDEX IF NOT EXISTS idx_pers_sessions_status ON persistent_music_sessions(session_status);
+                CREATE INDEX IF NOT EXISTS idx_pers_sessions_expires ON persistent_music_sessions(expires_at);
             """)
             await self._db.commit()
 
@@ -184,6 +221,9 @@ class MusicDatabase:
                 ("twenty_four_seven_enabled", "INTEGER", "0"),
                 ("twenty_four_seven_channel_id", "INTEGER", "NULL"),
                 ("prefix", "TEXT", "','"),
+                ("recovery_mode", "TEXT", "'MANUAL'"),
+                ("session_retention_days", "INTEGER", "7"),
+                ("checkpoint_interval", "INTEGER", "10"),
             ]:
                 try:
                     await self._db.execute(
@@ -248,6 +288,9 @@ class MusicDatabase:
                     dj_mode_enabled=bool(row["dj_mode_enabled"]) if "dj_mode_enabled" in keys else False,
                     twenty_four_seven_enabled=bool(row["twenty_four_seven_enabled"]) if "twenty_four_seven_enabled" in keys else False,
                     twenty_four_seven_channel_id=row["twenty_four_seven_channel_id"] if "twenty_four_seven_channel_id" in keys else None,
+                    recovery_mode=row["recovery_mode"] if "recovery_mode" in keys and row["recovery_mode"] else "MANUAL",
+                    session_retention_days=int(row["session_retention_days"]) if "session_retention_days" in keys and row["session_retention_days"] is not None else 7,
+                    checkpoint_interval=int(row["checkpoint_interval"]) if "checkpoint_interval" in keys and row["checkpoint_interval"] is not None else 10,
                     updated_at=row["updated_at"],
                 )
 
@@ -262,8 +305,9 @@ class MusicDatabase:
                     natural_requests_enabled, allowed_channels_json,
                     allowed_voice_channels_json, queue_limit, quiet_mode,
                     response_style, vote_skip_threshold, dj_mode_enabled,
-                    twenty_four_seven_enabled, twenty_four_seven_channel_id, prefix, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    twenty_four_seven_enabled, twenty_four_seven_channel_id, prefix,
+                    recovery_mode, session_retention_days, checkpoint_interval, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
                     request_channel_id = excluded.request_channel_id,
                     dj_role_id = excluded.dj_role_id,
@@ -282,6 +326,9 @@ class MusicDatabase:
                     twenty_four_seven_enabled = excluded.twenty_four_seven_enabled,
                     twenty_four_seven_channel_id = excluded.twenty_four_seven_channel_id,
                     prefix = excluded.prefix,
+                    recovery_mode = excluded.recovery_mode,
+                    session_retention_days = excluded.session_retention_days,
+                    checkpoint_interval = excluded.checkpoint_interval,
                     updated_at = excluded.updated_at
             """, (
                 settings.guild_id,
@@ -302,6 +349,9 @@ class MusicDatabase:
                 1 if settings.twenty_four_seven_enabled else 0,
                 settings.twenty_four_seven_channel_id,
                 settings.prefix or ",",
+                getattr(settings, "recovery_mode", "MANUAL"),
+                getattr(settings, "session_retention_days", 7),
+                getattr(settings, "checkpoint_interval", 10),
                 now,
             ))
             await self._db.commit()
@@ -797,4 +847,217 @@ class MusicDatabase:
         async with self._lock:
             await self._db.execute("DELETE FROM music_sessions WHERE guild_id = ?", (guild_id,))
             await self._db.commit()
+
+    # =========================================================================
+    # ADVANCED RYTHM-STYLE PERSISTENT SESSION MEMORY (PHASE 2 & 9)
+    # =========================================================================
+
+    async def save_persistent_session(self, session: PersistentMusicSession) -> None:
+        """Upsert a comprehensive persistent music session record with exact queue & position."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        current_track_json = json.dumps(session.current_track.to_dict()) if session.current_track else None
+        queue_json = json.dumps([t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in session.queue])
+        history_json = json.dumps([t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in session.history])
+
+        async with self._lock:
+            await self._db.execute("""
+                INSERT INTO persistent_music_sessions (
+                    guild_id, session_id, session_name, session_status,
+                    current_track_json, current_track_title, stable_track_identifier,
+                    source_provider, source_url, track_duration, last_known_position,
+                    is_paused, queue_json, history_json, loop_mode, shuffle_enabled,
+                    volume, voice_channel_id, text_channel_id, created_by_user_id,
+                    created_by_user_name, created_at, updated_at, last_checkpoint,
+                    expires_at, recovery_attempts, schema_version, is_pinned, recovery_mode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(guild_id, session_id) DO UPDATE SET
+                    session_name = excluded.session_name,
+                    session_status = excluded.session_status,
+                    current_track_json = excluded.current_track_json,
+                    current_track_title = excluded.current_track_title,
+                    stable_track_identifier = excluded.stable_track_identifier,
+                    source_provider = excluded.source_provider,
+                    source_url = excluded.source_url,
+                    track_duration = excluded.track_duration,
+                    last_known_position = excluded.last_known_position,
+                    is_paused = excluded.is_paused,
+                    queue_json = excluded.queue_json,
+                    history_json = excluded.history_json,
+                    loop_mode = excluded.loop_mode,
+                    shuffle_enabled = excluded.shuffle_enabled,
+                    volume = excluded.volume,
+                    voice_channel_id = excluded.voice_channel_id,
+                    text_channel_id = excluded.text_channel_id,
+                    updated_at = excluded.updated_at,
+                    last_checkpoint = excluded.last_checkpoint,
+                    expires_at = excluded.expires_at,
+                    recovery_attempts = excluded.recovery_attempts,
+                    is_pinned = excluded.is_pinned,
+                    recovery_mode = excluded.recovery_mode
+            """, (
+                session.guild_id,
+                session.session_id,
+                session.session_name,
+                session.session_status,
+                current_track_json,
+                session.current_track_title,
+                session.stable_track_identifier,
+                session.source_provider,
+                session.source_url,
+                session.track_duration,
+                session.last_known_position,
+                1 if session.is_paused else 0,
+                queue_json,
+                history_json,
+                session.loop_mode,
+                1 if session.shuffle_enabled else 0,
+                session.volume,
+                session.voice_channel_id,
+                session.text_channel_id,
+                session.created_by_user_id,
+                session.created_by_user_name,
+                session.created_at,
+                now_iso,
+                now_iso,
+                session.expires_at,
+                session.recovery_attempts,
+                session.schema_version,
+                1 if session.is_pinned else 0,
+                session.recovery_mode,
+            ))
+            await self._db.commit()
+
+    async def get_persistent_session(self, guild_id: int, session_id: Optional[str] = None) -> Optional[PersistentMusicSession]:
+        """Fetch a specific session by ID or the latest active session for the guild."""
+        async with self._lock:
+            if session_id:
+                query = "SELECT * FROM persistent_music_sessions WHERE guild_id = ? AND session_id = ? LIMIT 1"
+                params = (guild_id, session_id)
+            else:
+                query = """
+                    SELECT * FROM persistent_music_sessions
+                    WHERE guild_id = ? AND session_status NOT IN ('EXPIRED', 'TERMINATED')
+                    ORDER BY updated_at DESC LIMIT 1
+                """
+                params = (guild_id,)
+
+            async with self._db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return self._row_to_persistent_session(dict(row))
+
+    async def get_persistent_session_by_name(self, guild_id: int, name: str) -> Optional[PersistentMusicSession]:
+        """Fetch a persistent session by custom name."""
+        async with self._lock:
+            query = """
+                SELECT * FROM persistent_music_sessions
+                WHERE guild_id = ? AND LOWER(session_name) = LOWER(?)
+                ORDER BY updated_at DESC LIMIT 1
+            """
+            async with self._db.execute(query, (guild_id, name.strip())) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return self._row_to_persistent_session(dict(row))
+
+    async def list_persistent_sessions(self, guild_id: int, limit: int = 25) -> List[PersistentMusicSession]:
+        """List all saved/active sessions for a guild in reverse chronological order."""
+        async with self._lock:
+            query = """
+                SELECT * FROM persistent_music_sessions
+                WHERE guild_id = ? AND session_status NOT IN ('TERMINATED')
+                ORDER BY is_pinned DESC, updated_at DESC LIMIT ?
+            """
+            async with self._db.execute(query, (guild_id, limit)) as cursor:
+                rows = await cursor.fetchall()
+                return [self._row_to_persistent_session(dict(r)) for r in rows]
+
+    async def delete_persistent_session(self, guild_id: int, session_id: str) -> bool:
+        """Mark or delete a persistent session record."""
+        async with self._lock:
+            cursor = await self._db.execute(
+                "DELETE FROM persistent_music_sessions WHERE guild_id = ? AND session_id = ?",
+                (guild_id, session_id),
+            )
+            await self._db.commit()
+            return cursor.rowcount > 0
+
+    async def update_persistent_checkpoint(
+        self,
+        guild_id: int,
+        session_id: str,
+        last_known_position: int,
+        is_paused: bool,
+        status: str = "ACTIVE",
+    ) -> None:
+        """Efficiently update playback position and pause status without full serialization."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            await self._db.execute("""
+                UPDATE persistent_music_sessions
+                SET last_known_position = ?,
+                    is_paused = ?,
+                    session_status = ?,
+                    last_checkpoint = ?,
+                    updated_at = ?
+                WHERE guild_id = ? AND session_id = ?
+            """, (last_known_position, 1 if is_paused else 0, status, now_iso, now_iso, guild_id, session_id))
+            await self._db.commit()
+
+    async def get_all_eligible_auto_resume_sessions(self) -> List[PersistentMusicSession]:
+        """Fetch all sessions eligible for automatic startup recovery."""
+        async with self._lock:
+            query = """
+                SELECT s.* FROM persistent_music_sessions s
+                JOIN music_guild_settings g ON s.guild_id = g.guild_id
+                WHERE s.session_status IN ('ACTIVE', 'SAVED', 'PAUSED')
+                  AND (g.recovery_mode = 'AUTO_RESUME' OR s.recovery_mode = 'AUTO_RESUME')
+                  AND s.recovery_attempts < 3
+                ORDER BY s.updated_at DESC
+            """
+            async with self._db.execute(query) as cursor:
+                rows = await cursor.fetchall()
+                return [self._row_to_persistent_session(dict(r)) for r in rows]
+
+    async def cleanup_expired_persistent_sessions(self) -> int:
+        """Purge sessions that have exceeded their retention expiration and are not pinned."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            cursor = await self._db.execute("""
+                DELETE FROM persistent_music_sessions
+                WHERE is_pinned = 0
+                  AND expires_at < ?
+                  AND session_status NOT IN ('ACTIVE', 'PLAYING')
+            """, (now_iso,))
+            await self._db.commit()
+            return cursor.rowcount
+
+    def _row_to_persistent_session(self, row: Dict[str, Any]) -> PersistentMusicSession:
+        """Helper to deserialize database row into a structured PersistentMusicSession."""
+        if row.get("current_track_json"):
+            try:
+                row["current_track"] = json.loads(row["current_track_json"])
+            except Exception:
+                row["current_track"] = None
+        else:
+            row["current_track"] = None
+
+        if row.get("queue_json"):
+            try:
+                row["queue"] = json.loads(row["queue_json"])
+            except Exception:
+                row["queue"] = []
+        else:
+            row["queue"] = []
+
+        if row.get("history_json"):
+            try:
+                row["history"] = json.loads(row["history_json"])
+            except Exception:
+                row["history"] = []
+        else:
+            row["history"] = []
+
+        return PersistentMusicSession.from_dict(row)
 

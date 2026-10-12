@@ -7,6 +7,7 @@ from music_bot.services.voice_service import VoiceManager
 from music_bot.services.lyrics_service import LyricsService
 from music_bot.services.diagnostics_service import MusicDiagnosticsService
 from music_bot.services.updater_service import MusicAutoUpdater
+from music_bot.services.session_memory_service import MusicSessionMemoryService
 
 __all__ = [
     "GuildMusicSession",
@@ -19,4 +20,5 @@ __all__ = [
     "LyricsService",
     "MusicDiagnosticsService",
     "MusicAutoUpdater",
+    "MusicSessionMemoryService",
 ]
