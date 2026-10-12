@@ -114,10 +114,14 @@ async def test_server_health_dashboard():
 
     interaction = MagicMock()
     interaction.guild = guild
-    interaction.user = MagicMock()
-    interaction.user.guild_permissions = discord.Permissions(administrator=True)
+    user = MagicMock(spec=discord.Member)
+    user.guild = guild
+    user.id = 999
+    user.guild_permissions = discord.Permissions(administrator=True)
+    interaction.user = user
     interaction.response = MagicMock()
     interaction.response.defer = AsyncMock()
+    interaction.response.send_message = AsyncMock()
     interaction.followup = MagicMock()
     interaction.followup.send = AsyncMock()
 

@@ -328,11 +328,15 @@ class ModerationCog(commands.Cog, name="Moderation"):
         except (discord.Forbidden, discord.HTTPException):
             pass
 
-    @app_commands.command(name="warnings", description="View warnings for a member")
-    @app_commands.guild_only()
-    @app_commands.default_permissions(moderate_members=True)
+    warnings_group = app_commands.Group(
+        name="warnings",
+        description="View and manage member warnings",
+        default_permissions=discord.Permissions(moderate_members=True),
+    )
+
+    @warnings_group.command(name="list", description="View warnings for a member")
     @app_commands.describe(member="The member whose warnings to inspect")
-    async def warnings(self, interaction: discord.Interaction, member: discord.Member):
+    async def warnings_list(self, interaction: discord.Interaction, member: discord.Member):
         warns = await self.bot.db.get_warnings(interaction.guild.id, member.id)
         if not warns:
             await interaction.response.send_message(embed=info_embed("No Warnings", f"{member.mention} has a clean record with 0 warnings."), ephemeral=True)
@@ -361,9 +365,7 @@ class ModerationCog(commands.Cog, name="Moderation"):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="clearwarnings", description="Clear all recorded warnings for a member")
-    @app_commands.guild_only()
-    @app_commands.default_permissions(moderate_members=True)
+    @warnings_group.command(name="clear", description="Clear all recorded warnings for a member")
     @is_admin_or_owner()
     @app_commands.describe(member="The member whose warnings should be cleared", reason="Reason for clearing warnings")
     async def clearwarnings(
