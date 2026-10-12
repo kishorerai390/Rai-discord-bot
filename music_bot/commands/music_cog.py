@@ -1822,19 +1822,24 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.command(name="stay", description="Keep the bot in voice channel 24/7 (Shortcut for /247)")
     async def cmd_stay(self, interaction: discord.Interaction) -> None:
         """Alias for /247."""
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.cmd_247.callback(self, interaction)
 
     @app_commands.command(name="c", description="Interactive Master Control Panel showing all music bot features")
     async def cmd_c(self, interaction: discord.Interaction) -> None:
         """Interactive control panel & command center displaying all music features."""
+        await self.ensure_deferred(interaction, ephemeral=True)
         if not interaction.guild:
-            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            await interaction.followup.send("❌ This command must be used in a server.", ephemeral=True)
             return
 
         session = await self.session_manager.get_session(interaction.guild.id)
         view = MusicControlPanelView(self.bot, interaction.guild, session)
         embed = view.build_embed()
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        try:
+            await interaction.edit_original_response(embed=embed, view=view)
+        except Exception:
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="control", description="Interactive Master Control Panel (Shortcut for /c)")
     async def cmd_control(self, interaction: discord.Interaction) -> None:
@@ -2236,52 +2241,64 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.command(name="play", description="Play a song or playlist (Shortcut for /music play)")
     @app_commands.describe(query="Song title, artist, or URL")
     async def alias_play(self, interaction: discord.Interaction, query: str) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_play.callback(self, interaction, query)
 
     @app_commands.command(name="pause", description="Pause music playback (Shortcut for /music pause)")
     async def alias_pause(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_pause.callback(self, interaction)
 
     @app_commands.command(name="resume", description="Resume music playback (Shortcut for /music resume)")
     async def alias_resume(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_resume.callback(self, interaction)
 
     @app_commands.command(name="skip", description="Skip current song (Shortcut for /music skip)")
     async def alias_skip(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_skip.callback(self, interaction)
 
     @app_commands.command(name="previous", description="Play previous song (Shortcut for /music previous)")
     async def alias_previous(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_previous.callback(self, interaction)
 
     @app_commands.command(name="stop", description="Stop music and leave (Shortcut for /music stop)")
     async def alias_stop(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_stop.callback(self, interaction)
 
     @app_commands.command(name="queue", description="View music queue (Shortcut for /music queue)")
     async def alias_queue(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_queue.callback(self, interaction, 1)
 
     @app_commands.command(name="np", description="View Now Playing dashboard (Shortcut for /music nowplaying)")
     async def alias_np(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_nowplaying.callback(self, interaction)
 
     @app_commands.command(name="nowplaying", description="View Now Playing dashboard")
     async def alias_nowplaying(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_nowplaying.callback(self, interaction)
 
     @app_commands.command(name="volume", description="Set volume 0-100% (Shortcut for /music volume)")
     @app_commands.describe(percent="Volume percentage (0-100)")
     async def alias_volume(self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 100]) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_volume.callback(self, interaction, percent)
 
     @app_commands.command(name="lyrics", description="Fetch lyrics for track (Shortcut for /music lyrics)")
     @app_commands.describe(song="Optional song title")
     async def alias_lyrics(self, interaction: discord.Interaction, song: Optional[str] = None) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_lyrics.callback(self, interaction, song)
 
     @app_commands.command(name="shuffle", description="Shuffle songs in current queue (Shortcut for /music shuffle)")
     async def alias_shuffle(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_shuffle.callback(self, interaction)
 
     @app_commands.command(name="loop", description="Configure loop mode (Shortcut for /music loop)")
@@ -2292,10 +2309,12 @@ class MusicCog(commands.Cog, name="Music"):
         app_commands.Choice(name="Whole Queue", value="queue"),
     ])
     async def alias_loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_loop.callback(self, interaction, mode)
 
     @app_commands.command(name="clear", description="Clear upcoming songs from queue (Shortcut for /music clear)")
     async def alias_clear(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_clear.callback(self, interaction)
 
 
