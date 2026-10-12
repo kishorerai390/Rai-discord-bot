@@ -31,9 +31,11 @@ async def _determine_prefix(bot: NekoSongsBot, message: discord.Message) -> List
     prefixes: List[str] = []
     if message.guild:
         guild_pref = await bot.get_guild_prefix(message.guild.id)
-        if guild_pref:
+        if guild_pref and guild_pref not in prefixes:
             prefixes.append(guild_pref)
-    if not prefixes:
+    if "!" not in prefixes:
+        prefixes.append("!")
+    if "," not in prefixes:
         prefixes.append(",")
     if "m!" not in prefixes:
         prefixes.append("m!")

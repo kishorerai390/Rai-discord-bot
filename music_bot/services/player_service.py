@@ -750,6 +750,14 @@ class AudioEqualizerView(discord.ui.View):
     async def clear_vocal(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._apply_eq(interaction, "vocal", "Clear Vocal")
 
+    @discord.ui.button(label="Pop", emoji="✨", style=discord.ButtonStyle.secondary, row=1)
+    async def pop_preset(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._apply_eq(interaction, "pop", "Pop")
+
+    @discord.ui.button(label="Rock", emoji="🎸", style=discord.ButtonStyle.secondary, row=1)
+    async def rock_preset(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._apply_eq(interaction, "rock", "Rock")
+
     @discord.ui.button(label="Flat / Normal", emoji="🔄", style=discord.ButtonStyle.success, row=1)
     async def flat_normal(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self._apply_eq(interaction, "reset", "Flat / Normal")
@@ -762,33 +770,21 @@ class AudioEqualizerView(discord.ui.View):
         except Exception:
             pass
 
-        filter_chains = {
-            "bassboost": "-af equalizer=f=60:width_type=h:width=50:g=10",
-            "nightcore": "-af atempo=1.25,asetrate=48000*1.25",
-            "8d": "-af apulsator=hz=0.125",
-            "vaporwave": "-af atempo=0.85,asetrate=48000*0.85",
-            "vocal": "-af equalizer=f=1000:width_type=h:width=200:g=6",
-            "reset": "",
-        }
-
-        self.session.eq_preset = display_name
-        self.session.audio_filter = filter_chains.get(preset_key, "")
-
-        # 2. If music is playing, seamlessly re-encode and seek to current position so it applies live!
         bot_instance = self.bot or getattr(interaction.client, "bot", interaction.client)
-        if self.session.current_track and self.session.is_playing and bot_instance:
-            import time
-            current_pos = self.session.elapsed_seconds
-            await MusicPlayerService.start_playback(bot_instance, self.session, self.session.current_track)
-            self.session.paused_duration = 0.0
-            self.session.track_start_time = time.time() - current_pos
+        success = await MusicPlayerService.apply_filter_or_eq(bot_instance, self.session, preset_key, display_name)
 
         try:
-            await interaction.followup.send(
-                f"🎛️ Applied Equalizer Preset: **{display_name}** 🐾\n"
-                f"*(Audio stream instantly refreshed with real-time DSP filter)*",
-                ephemeral=True,
-            )
+            if success:
+                await interaction.followup.send(
+                    f"🎛️ Applied Equalizer Preset: **{display_name}** 🐾\n"
+                    f"*(Audio stream instantly refreshed with real-time DSP filter)*",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    f"⚠️ Failed to apply preset **{display_name}**. Preserved previous audio filter.",
+                    ephemeral=True,
+                )
         except Exception:
             pass
         self.stop()

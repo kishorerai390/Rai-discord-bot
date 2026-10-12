@@ -1183,10 +1183,40 @@ class MusicCog(commands.Cog, name="Music"):
         session.autoplay = state.value == "on"
         await interaction.followup.send(f"🔄 Autoplay is now **{'ON' if session.autoplay else 'OFF'}**.")
 
-    @app_commands.command(name="eq", description="Select an Audio Equalizer preset")
-    async def music_eq(self, interaction: discord.Interaction) -> None:
+    @app_commands.command(name="eq", description="Select or apply an Audio Equalizer preset")
+    @app_commands.describe(preset="Direct preset to apply immediately (optional)")
+    @app_commands.choices(preset=[
+        app_commands.Choice(name="Flat / Normal 🔄", value="reset"),
+        app_commands.Choice(name="Bass Boost 🎧", value="bassboost"),
+        app_commands.Choice(name="8D Audio 🌌", value="8d"),
+        app_commands.Choice(name="Lo-Fi Relax ☕", value="vaporwave"),
+        app_commands.Choice(name="Clear Vocal ⚡", value="vocal"),
+        app_commands.Choice(name="Nightcore 🚀", value="nightcore"),
+        app_commands.Choice(name="Pop ✨", value="pop"),
+        app_commands.Choice(name="Rock 🎸", value="rock"),
+    ])
+    async def music_eq(self, interaction: discord.Interaction, preset: Optional[app_commands.Choice[str]] = None) -> None:
         await self.ensure_deferred(interaction, ephemeral=True)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if preset is not None:
+            display_names = {
+                "reset": "Flat / Normal",
+                "bassboost": "Bass Boost",
+                "8d": "8D Audio",
+                "vaporwave": "Lo-Fi Relax",
+                "vocal": "Clear Vocal",
+                "nightcore": "Nightcore",
+                "pop": "Pop",
+                "rock": "Rock",
+            }
+            d_name = display_names.get(preset.value, preset.name)
+            success = await MusicPlayerService.apply_filter_or_eq(self.bot, session, preset.value, d_name)
+            if success:
+                await interaction.edit_original_response(content=f"🎛️ Applied Equalizer Preset: **{d_name}** 🐾\n*(Current song continues playing seamlessly with real-time DSP filter)*")
+            else:
+                await interaction.edit_original_response(content=f"⚠️ Failed to apply preset **{d_name}**. Preserved previous audio filter.")
+            return
+
         view = AudioEqualizerView(session, self.bot)
         msg_text = f"🎛️ **Audio Equalizer Presets** (Current: `{getattr(session, 'eq_preset', 'Flat')}`):"
         try:
@@ -2406,6 +2436,72 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_clear.callback(self, interaction)
 
+    @app_commands.command(name="autodj", description="Configure individual-song Auto-DJ mode")
+    @app_commands.describe(action="Turn Auto-DJ on, off, or check status")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="On (Recommend individual tracks automatically)", value="on"),
+        app_commands.Choice(name="Off (Disable Auto-DJ)", value="off"),
+        app_commands.Choice(name="Status (Check current Auto-DJ state)", value="status"),
+    ])
+    async def alias_autodj(self, interaction: discord.Interaction, action: app_commands.Choice[str]) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        settings = await self.bot.db.get_dj_settings(interaction.guild_id)  # type: ignore
+
+        if action.value == "on":
+            settings.enabled = True
+            await self.bot.db.update_dj_settings(settings)
+            session.dj_enabled = True
+            started_msg = ""
+            member = interaction.user
+            if not session.is_playing and isinstance(member, discord.Member) and member.voice and member.voice.channel:
+                from music_bot.services.voice_service import VoiceManager
+                text_channel = interaction.channel if isinstance(interaction.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
+                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+                if vc:
+                    from music_bot.services.dj_service import NekoDJService
+                    rec = await NekoDJService.get_recommendation(self.bot, session)
+                    if rec:
+                        track, rationale = rec
+                        if await MusicPlayerService.start_playback(self.bot, session, track):
+                            started_msg = f"\n🎧 Started first recommendation: **{track.title}**"
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                except Exception:
+                    pass
+            await interaction.edit_original_response(
+                content=f"🎧 **Auto-DJ is now ON!** (Individual songs will be recommended automatically when the manual queue is empty){started_msg}"
+            )
+
+        elif action.value == "off":
+            settings.enabled = False
+            await self.bot.db.update_dj_settings(settings)
+            session.dj_enabled = False
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                except Exception:
+                    pass
+            await interaction.edit_original_response(content="⏹️ **Auto-DJ is now OFF.**")
+
+        else:
+            status_str = "ON 🎧" if (settings.enabled or getattr(session, "dj_enabled", False)) else "OFF ⏹️"
+            from music_bot.services.dj_service import NekoDJService
+            rec = await NekoDJService.get_recommendation(self.bot, session) if settings.enabled else None
+            next_sugg = f"{rec[0].artist} — {rec[0].title}" if rec else "None ready"
+            embed = discord.Embed(
+                title="🎧 Auto-DJ Status",
+                description=(
+                    f"• **Auto-DJ:** `{status_str}`\n"
+                    f"• **Queue Mode:** Individual-Song Radio\n"
+                    f"• **Next Suggestion:** `{next_sugg}`\n"
+                    f"• **Manual Queue Priority:** Active (manual queue always plays first)"
+                ),
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            await interaction.edit_original_response(embed=embed)
+
 
     # =========================================================================
     # NATURAL MUSIC REQUEST LISTENER (SECTION 12)
@@ -2426,7 +2522,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         query = message.content.strip()
         guild_pref = await self.bot.get_guild_prefix(message.guild.id)
-        if query.startswith(guild_pref) or query.startswith("m!") or query.startswith(","):
+        if query.startswith(guild_pref) or query.startswith("m!") or query.startswith(",") or query.startswith("!"):
             return
 
         if not message.author.voice or not message.author.voice.channel:  # type: ignore
@@ -2600,7 +2696,7 @@ class MusicCog(commands.Cog, name="Music"):
     @commands.command(name="play", aliases=["p"])
     async def pfx_play(self, ctx: commands.Context, *, query: str = "") -> None:
         """Plays audio from YouTube, Spotify, or SoundCloud via prefix command."""
-        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+        if not ctx.guild or not hasattr(ctx.author, "id"):
             return
 
         pref = await self.bot.get_guild_prefix(ctx.guild.id)
@@ -2629,14 +2725,26 @@ class MusicCog(commands.Cog, name="Music"):
         async with session.lock:
             if session.is_playing:
                 session.queue.append(track)
+                pos = len(session.queue)
                 embed = discord.Embed(
-                    title="🎵 ADDED TO QUEUE",
-                    description=f"**[{track.title}]({track.url})**\nDuration: `{format_duration(track.duration)}` • Position: `#{len(session.queue)}`",
+                    title="🎵 Added to Queue",
+                    description=(
+                        f"**Track:** [{track.title}]({track.url})\n"
+                        f"**Artist:** `{track.artist}`\n"
+                        f"**Duration:** `{format_duration(track.duration)}`\n"
+                        f"**Requested by:** <@{ctx.author.id}>\n"
+                        f"**Position:** `#{pos}`"
+                    ),
                     color=COLOR_NEON_BLUE,
                 )
                 if track.thumbnail:
                     embed.set_thumbnail(url=track.thumbnail)
                 await status_msg.edit(content=None, embed=embed)
+                if session.now_playing_message:
+                    try:
+                        await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                    except Exception:
+                        pass
             else:
                 success = await MusicPlayerService.start_playback(self.bot, session, track)
                 if success:
@@ -2820,15 +2928,56 @@ class MusicCog(commands.Cog, name="Music"):
         session = await self.session_manager.get_session(ctx.guild.id)
         mode = mode.lower().strip()
         if mode in ("track", "song", "single"):
-            session.loop_mode = "track"
+            session.loop_mode = LoopMode.TRACK
         elif mode in ("queue", "all"):
-            session.loop_mode = "queue"
+            session.loop_mode = LoopMode.QUEUE
         elif mode in ("off", "none", "disable"):
-            session.loop_mode = "off"
+            session.loop_mode = LoopMode.OFF
         else:
-            cycle = {"off": "track", "track": "queue", "queue": "off"}
-            session.loop_mode = cycle.get(session.loop_mode, "off")
-        await ctx.reply(f"🔁 Loop mode is now: **{session.loop_mode.upper()}**", mention_author=False)
+            if session.loop_mode == LoopMode.OFF:
+                session.loop_mode = LoopMode.TRACK
+            elif session.loop_mode == LoopMode.TRACK:
+                session.loop_mode = LoopMode.QUEUE
+            else:
+                session.loop_mode = LoopMode.OFF
+        await ctx.reply(f"🔁 Loop mode is now: **{session.loop_mode.value.upper()}**", mention_author=False)
+
+    @commands.command(name="seek")
+    async def pfx_seek(self, ctx: commands.Context, seconds: int) -> None:
+        """Seeks to a specific timestamp (in seconds) in the current song."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
+            await ctx.reply("❌ Nothing is currently playing.", mention_author=False)
+            return
+        if seconds < 0:
+            await ctx.reply("❌ Timestamp must be a positive number of seconds.", mention_author=False)
+            return
+        success = await MusicPlayerService.seek(self.bot, session, seconds)
+        if success:
+            await ctx.reply(f"⏩ Seeked to **{format_duration(seconds)}**.", mention_author=False)
+        else:
+            await ctx.reply("❌ Failed to seek in current stream.", mention_author=False)
+
+    @commands.command(name="previous", aliases=["prev"])
+    async def pfx_previous(self, ctx: commands.Context) -> None:
+        """Plays the previously played track from history."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.history:
+            await ctx.reply("❌ No previously played songs in history.", mention_author=False)
+            return
+        prev_track = session.history.pop()
+        async with session.lock:
+            if session.current_track:
+                session.queue.appendleft(session.current_track)
+            success = await MusicPlayerService.start_playback(self.bot, session, prev_track)
+        if success:
+            await ctx.reply(f"⏮️ Playing previous track: **{prev_track.title}**", mention_author=False)
+        else:
+            await ctx.reply("❌ Failed to play previous track.", mention_author=False)
 
     @commands.command(name="shuffle")
     async def pfx_shuffle(self, ctx: commands.Context) -> None:
@@ -2855,18 +3004,102 @@ class MusicCog(commands.Cog, name="Music"):
 
     @commands.command(name="filter", aliases=["eq"])
     async def pfx_filter(self, ctx: commands.Context, preset: str = "") -> None:
-        """Applies audio DSP preset (bassboost, nightcore, 8d, vaporwave, vocal, reset)."""
+        """Applies audio DSP preset (bassboost, 8d, lofi, vocal, nightcore, pop, rock, flat)."""
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
         preset = preset.lower().strip()
-        valid = ["bassboost", "nightcore", "8d", "vaporwave", "vocal", "reset"]
-        if preset not in valid:
-            pref = await self.bot.get_guild_prefix(ctx.guild.id)
-            await ctx.reply(f"🎛️ **Available presets:** `{'`, `'.join(valid)}`\nUsage: `{pref}filter bassboost` (or `{pref}eq nightcore`)", mention_author=False)
+        if not preset:
+            view = AudioEqualizerView(session, self.bot)
+            await ctx.reply(f"🎛️ **Audio Equalizer Presets** (Current: `{getattr(session, 'eq_preset', 'Flat')}`):", view=view, mention_author=False)
             return
-        session.active_preset = "none" if preset == "reset" else preset
-        await ctx.reply(f"🎛️ Audio filter preset set to: **{preset.upper()}** (applies on next song/seek)", mention_author=False)
+
+        presets_map = {
+            "bassboost": "Bass Boost",
+            "bass": "Bass Boost",
+            "nightcore": "Nightcore",
+            "8d": "8D Audio",
+            "vaporwave": "Lo-Fi Relax",
+            "lofi": "Lo-Fi Relax",
+            "vocal": "Clear Vocal",
+            "pop": "Pop",
+            "rock": "Rock",
+            "flat": "Flat / Normal",
+            "reset": "Flat / Normal",
+            "normal": "Flat / Normal",
+            "off": "Flat / Normal",
+        }
+        if preset not in presets_map:
+            pref = await self.bot.get_guild_prefix(ctx.guild.id)
+            valid = ["bassboost", "8d", "lofi", "vocal", "nightcore", "pop", "rock", "flat"]
+            await ctx.reply(f"🎛️ **Available presets:** `{'`, `'.join(valid)}`\nUsage: `{pref}filter bassboost` or `{pref}eq flat`", mention_author=False)
+            return
+
+        d_name = presets_map[preset]
+        key = "reset" if preset in ("flat", "reset", "normal", "off") else ("vaporwave" if preset == "lofi" else ("bassboost" if preset == "bass" else preset))
+        success = await MusicPlayerService.apply_filter_or_eq(self.bot, session, key, d_name)
+        if success:
+            await ctx.reply(f"🎛️ Equalizer preset set to: **{d_name}** *(Current song continues playing seamlessly with real-time DSP filter)*", mention_author=False)
+        else:
+            await ctx.reply(f"⚠️ Failed to apply preset **{d_name}**. Preserved previous audio filter.", mention_author=False)
+
+    @commands.command(name="autodj", aliases=["dj"])
+    async def pfx_autodj(self, ctx: commands.Context, action: str = "status") -> None:
+        """Control individual-song Auto-DJ mode: on, off, status."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        action = action.lower().strip()
+        settings = await self.bot.db.get_dj_settings(ctx.guild.id)
+
+        if action in ("on", "enable", "start"):
+            settings.enabled = True
+            await self.bot.db.update_dj_settings(settings)
+            session.dj_enabled = True
+            started_msg = ""
+            if not session.is_playing and isinstance(ctx.author, discord.Member) and ctx.author.voice and ctx.author.voice.channel:
+                vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)  # type: ignore
+                if vc:
+                    from music_bot.services.dj_service import NekoDJService
+                    rec = await NekoDJService.get_recommendation(self.bot, session)
+                    if rec:
+                        track, rationale = rec
+                        if await MusicPlayerService.start_playback(self.bot, session, track):
+                            started_msg = f"\n🎧 Started first recommendation: **{track.title}**"
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                except Exception:
+                    pass
+            await ctx.reply(f"🎧 **Auto-DJ is now ON!** (Individual songs will be recommended automatically when the manual queue is empty){started_msg}", mention_author=False)
+
+        elif action in ("off", "disable", "stop"):
+            settings.enabled = False
+            await self.bot.db.update_dj_settings(settings)
+            session.dj_enabled = False
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                except Exception:
+                    pass
+            await ctx.reply("⏹️ **Auto-DJ is now OFF.**", mention_author=False)
+
+        else:
+            status_str = "ON 🎧" if (settings.enabled or getattr(session, "dj_enabled", False)) else "OFF ⏹️"
+            from music_bot.services.dj_service import NekoDJService
+            rec = await NekoDJService.get_recommendation(self.bot, session) if settings.enabled else None
+            next_sugg = f"{rec[0].artist} — {rec[0].title}" if rec else "None ready"
+            embed = discord.Embed(
+                title="🎧 Auto-DJ Status",
+                description=(
+                    f"• **Auto-DJ:** `{status_str}`\n"
+                    f"• **Queue Mode:** Individual-Song Radio\n"
+                    f"• **Next Suggestion:** `{next_sugg}`\n"
+                    f"• **Manual Queue Priority:** Active (manual queue always plays first)"
+                ),
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            await ctx.reply(embed=embed, mention_author=False)
 
     @commands.command(name="commands", aliases=["help", "cmds"])
     async def pfx_help(self, ctx: commands.Context) -> None:
