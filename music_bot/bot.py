@@ -143,8 +143,14 @@ class NekoSongsBot(commands.Bot):
         # 1. Connect independent database
         await self.db.connect()
 
-        # 2. Add MusicCog
+        # 2. Add MusicCog & MusicSessionCog
         await self.add_cog(MusicCog(self))
+        try:
+            from music_bot.commands.session_cog import MusicSessionCog
+            await self.add_cog(MusicSessionCog(self))
+            logger.info("Loaded MusicSessionCog for Rythm-style persistent session memory.")
+        except Exception as e:
+            logger.error(f"Failed to load MusicSessionCog: {e}", exc_info=True)
 
         # 2a. Register persistent Now Playing control view so buttons across restarts always work
         try:
@@ -227,7 +233,9 @@ class NekoSongsBot(commands.Bot):
         """Continuously snapshots live track positions and handles gapless audio pre-caching."""
         try:
             from music_bot.services.player_service import MusicPlayerService
+            from music_bot.services.session_memory_service import MusicSessionMemoryService
             await MusicPlayerService.snapshot_all_active_sessions(self)
+            await MusicSessionMemoryService.checkpoint_all_active_sessions(self, reason="periodic")
 
             # Feature: Gapless Transition Audio Buffer Pre-Caching (at >=85% song progress)
             for session in self.session_manager.get_all_sessions():
@@ -274,6 +282,8 @@ class NekoSongsBot(commands.Bot):
             async with aiosqlite.connect(str(dest)) as target_db:
                 await self.db._db.backup(target_db)
             logger.info(f"Autonomous Music DB DR snapshot created: {dest.name}")
+            from music_bot.services.session_memory_service import MusicSessionMemoryService
+            await MusicSessionMemoryService.cleanup_expired_sessions(self)
         except Exception as e:
             logger.debug(f"Music backup snapshot note: {e}")
 
@@ -370,6 +380,15 @@ class NekoSongsBot(commands.Bot):
             except Exception as e:
                 logger.warning(f"24/7 guilds recovery error: {e}")
 
+        # Phase 4: Startup Recovery Coordinator for Persistent Rythm-Style Sessions
+        try:
+            from music_bot.services.session_memory_service import MusicSessionMemoryService
+            recovered_count = await MusicSessionMemoryService.startup_recovery_coordinator(self)
+            if recovered_count > 0:
+                logger.info(f"Startup recovery coordinator resurrected {recovered_count} persistent music session(s).")
+        except Exception as e:
+            logger.warning(f"Startup recovery coordinator note: {e}")
+
         # Initialize Autonomous Dependency & Extractor Updater
         try:
             from music_bot.services.updater_service import MusicAutoUpdater
@@ -381,21 +400,15 @@ class NekoSongsBot(commands.Bot):
         self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
     ) -> None:
         """Monitor voice states for auto-leave behavior, 24/7 recovery, and stage ducking."""
-        # Reconnect 24/7 channels if bot was involuntarily disconnected
+        # Phase 7: Unexpected voice disconnect detection & backoff recovery
         if member.id == self.user.id and not after.channel and before.channel:
             session = await self.session_manager.get_session(member.guild.id)
-            if session.twenty_four_seven:
-                logger.info(f"Involuntary 24/7 disconnect in guild {member.guild.id}. Reconnecting in 3s...")
-                async def _reconnect():
-                    await asyncio.sleep(3.0)
-                    try:
-                        if not session.is_active and before.channel:
-                            vc = await before.channel.connect(timeout=15.0, reconnect=True)
-                            session.voice_client = vc
-                            logger.info(f"Reconnected 24/7 voice channel in guild {member.guild.id}")
-                    except Exception as err:
-                        logger.warning(f"24/7 reconnection failed: {err}")
-                asyncio.create_task(_reconnect())
+            if not session.is_intentional_stop:
+                from music_bot.services.session_memory_service import MusicSessionMemoryService
+                logger.warning(f"Involuntary voice disconnect for {member.guild.name}. Scheduling recovery...")
+                asyncio.create_task(
+                    MusicSessionMemoryService.handle_unexpected_disconnect(self, member.guild.id)
+                )
             return
 
         if member.bot:
@@ -452,11 +465,13 @@ class NekoSongsBot(commands.Bot):
         self.maintenance_loop.cancel()
         self.snapshot_loop.cancel()
 
-        # Feature 109: Save exact playback position & queues across restarts before disconnect
+        # Feature 109 & Phase 3: Save exact persistent playback positions & queues before shutdown
         try:
             from music_bot.services.player_service import MusicPlayerService
+            from music_bot.services.session_memory_service import MusicSessionMemoryService
             await MusicPlayerService.snapshot_all_active_sessions(self)
-            logger.info("Saved all active music sessions & playback timestamps before shutdown.")
+            await MusicSessionMemoryService.checkpoint_all_active_sessions(self, reason="graceful_shutdown")
+            logger.info("Saved all active music sessions & persistent checkpoints before shutdown.")
         except Exception as e:
             logger.debug(f"Pre-shutdown snapshot notice: {e}")
 
