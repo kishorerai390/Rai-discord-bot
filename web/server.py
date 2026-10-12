@@ -88,7 +88,7 @@ class RaiCommunityOSServer:
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
             "/status", "/wiki", "/mission-control", "/login",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
-            "/discover/constellation", "/studio", "/bounties", "/passport"
+            "/discover/constellation", "/studio", "/bounties", "/passport", "/invites"
         ]
         for path in ui_routes:
             app.router.add_get(path, self.handle_ui)
@@ -205,6 +205,15 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/doctor", r.get_doctor_diagnostics)
         app.router.add_get("/api/mission-control/overview", r.mission_control_overview)
         app.router.add_post("/api/mission-control/emergency", r.toggle_emergency_safe_mode)
+
+        # Invite Tracker (APEX INVITE) API
+        app.router.add_get("/api/invites/overview", r.get_invite_overview)
+        app.router.add_get("/api/invites/leaderboard", r.get_invite_leaderboard)
+        app.router.add_get("/api/invites/history", r.get_invite_history)
+        app.router.add_get("/api/invites/config", r.get_invite_config)
+        app.router.add_post("/api/invites/config", r.update_invite_config)
+        app.router.add_get("/api/invites/rewards", r.get_invite_rewards)
+        app.router.add_post("/api/invites/rewards", r.update_invite_rewards)
 
     async def _outbox_worker_loop(self) -> None:
         """Background worker for asynchronous, idempotent Discord channel synchronization."""

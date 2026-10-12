@@ -9353,7 +9353,7 @@ class Database:
         now = utcnow_iso()
         cursor = await self._db.execute(
             """
-            INSERT INTO member_invites (
+            INSERT INTO invite_join_records (
                 guild_id, member_id, inviter_id, invite_code,
                 joined_at, left_at, classification, account_age_days,
                 is_cleared, notes
@@ -9378,7 +9378,7 @@ class Database:
     ) -> Optional[MemberInvite]:
         async with self._db.execute(
             """
-            SELECT * FROM member_invites
+            SELECT * FROM invite_join_records
             WHERE guild_id = ? AND member_id = ?
             ORDER BY id DESC LIMIT 1
             """,
@@ -9408,7 +9408,7 @@ class Database:
         invite = await self.get_member_invite(guild_id, member_id)
         if invite:
             await self._db.execute(
-                "UPDATE member_invites SET left_at = ? WHERE id = ?",
+                "UPDATE invite_join_records SET left_at = ? WHERE id = ?",
                 (now, invite.id),
             )
             await self._db.commit()
@@ -9417,19 +9417,19 @@ class Database:
 
     async def get_inviter_stats(self, guild_id: int, user_id: int) -> InviterStats:
         async with self._db.execute(
-            "SELECT * FROM inviter_stats WHERE guild_id = ? AND user_id = ?",
+            "SELECT * FROM member_invites WHERE guild_id = ? AND inviter_id = ?",
             (guild_id, user_id),
         ) as cursor:
             row = await cursor.fetchone()
             if row:
                 return InviterStats(
                     guild_id=row["guild_id"],
-                    user_id=row["user_id"],
-                    regular_invites=row["regular_invites"],
-                    left_invites=row["left_invites"],
-                    fake_invites=row["fake_invites"],
-                    bonus_invites=row["bonus_invites"],
-                    updated_at=row["updated_at"],
+                    user_id=row["inviter_id"],
+                    regular_invites=row["regular"],
+                    left_invites=row["leaves"],
+                    fake_invites=row["fake"],
+                    bonus_invites=row["bonus"],
+                    updated_at="",
                 )
             return InviterStats(
                 guild_id=guild_id,
@@ -9438,7 +9438,7 @@ class Database:
                 left_invites=0,
                 fake_invites=0,
                 bonus_invites=0,
-                updated_at=utcnow_iso(),
+                updated_at="",
             )
 
     async def increment_inviter_stats(
@@ -9450,61 +9450,43 @@ class Database:
         fake_delta: int = 0,
         bonus_delta: int = 0,
     ) -> InviterStats:
-        now = utcnow_iso()
-        await self._db.execute(
-            """
-            INSERT INTO inviter_stats (
-                guild_id, user_id, regular_invites, left_invites,
-                fake_invites, bonus_invites, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(guild_id, user_id) DO UPDATE SET
-                regular_invites = MAX(0, regular_invites + excluded.regular_invites),
-                left_invites = MAX(0, left_invites + excluded.left_invites),
-                fake_invites = MAX(0, fake_invites + excluded.fake_invites),
-                bonus_invites = bonus_invites + excluded.bonus_invites,
-                updated_at = excluded.updated_at
-            """,
-            (
-                guild_id,
-                user_id,
-                regular_delta,
-                left_delta,
-                fake_delta,
-                bonus_delta,
-                now,
-            ),
+        await self.increment_member_invites(
+            guild_id=guild_id,
+            inviter_id=user_id,
+            regular=regular_delta,
+            leaves=left_delta,
+            fake=fake_delta,
+            bonus=bonus_delta,
         )
-        await self._db.commit()
         return await self.get_inviter_stats(guild_id, user_id)
 
     async def reset_inviter_stats(
         self, guild_id: int, user_id: Optional[int] = None
     ) -> None:
-        now = utcnow_iso()
         if user_id is not None:
             await self._db.execute(
                 """
-                UPDATE inviter_stats
-                SET regular_invites = 0, left_invites = 0, fake_invites = 0, bonus_invites = 0, updated_at = ?
-                WHERE guild_id = ? AND user_id = ?
+                UPDATE member_invites
+                SET regular = 0, leaves = 0, fake = 0, bonus = 0
+                WHERE guild_id = ? AND inviter_id = ?
                 """,
-                (now, guild_id, user_id),
+                (guild_id, user_id),
             )
             await self._db.execute(
-                "UPDATE member_invites SET is_cleared = 1 WHERE guild_id = ? AND inviter_id = ?",
+                "UPDATE invite_join_records SET is_cleared = 1 WHERE guild_id = ? AND inviter_id = ?",
                 (guild_id, user_id),
             )
         else:
             await self._db.execute(
                 """
-                UPDATE inviter_stats
-                SET regular_invites = 0, left_invites = 0, fake_invites = 0, bonus_invites = 0, updated_at = ?
+                UPDATE member_invites
+                SET regular = 0, leaves = 0, fake = 0, bonus = 0
                 WHERE guild_id = ?
                 """,
-                (now, guild_id),
+                (guild_id,),
             )
             await self._db.execute(
-                "UPDATE member_invites SET is_cleared = 1 WHERE guild_id = ?",
+                "UPDATE invite_join_records SET is_cleared = 1 WHERE guild_id = ?",
                 (guild_id,),
             )
         await self._db.commit()
@@ -9514,9 +9496,9 @@ class Database:
     ) -> List[InviterStats]:
         async with self._db.execute(
             """
-            SELECT * FROM inviter_stats
-            WHERE guild_id = ? AND (regular_invites > 0 OR bonus_invites > 0)
-            ORDER BY (regular_invites + bonus_invites - left_invites) DESC, regular_invites DESC
+            SELECT * FROM member_invites
+            WHERE guild_id = ? AND (regular > 0 OR bonus > 0)
+            ORDER BY (regular + bonus - leaves - fake) DESC, regular DESC
             LIMIT ? OFFSET ?
             """,
             (guild_id, limit, offset),
@@ -9525,12 +9507,12 @@ class Database:
             return [
                 InviterStats(
                     guild_id=r["guild_id"],
-                    user_id=r["user_id"],
-                    regular_invites=r["regular_invites"],
-                    left_invites=r["left_invites"],
-                    fake_invites=r["fake_invites"],
-                    bonus_invites=r["bonus_invites"],
-                    updated_at=r["updated_at"],
+                    user_id=r["inviter_id"],
+                    regular_invites=r["regular"],
+                    left_invites=r["leaves"],
+                    fake_invites=r["fake"],
+                    bonus_invites=r["bonus"],
+                    updated_at="",
                 )
                 for r in rows
             ]
@@ -9540,14 +9522,14 @@ class Database:
     ) -> List[MemberInvite]:
         if user_id is not None:
             query = """
-                SELECT * FROM member_invites
+                SELECT * FROM invite_join_records
                 WHERE guild_id = ? AND inviter_id = ?
                 ORDER BY joined_at DESC LIMIT ?
             """
             params = (guild_id, user_id, limit)
         else:
             query = """
-                SELECT * FROM member_invites
+                SELECT * FROM invite_join_records
                 WHERE guild_id = ?
                 ORDER BY joined_at DESC LIMIT ?
             """
@@ -9625,7 +9607,7 @@ class Database:
             return invite
 
         await self._db.execute(
-            "UPDATE member_invites SET classification = ?, notes = ? WHERE id = ?",
+            "UPDATE invite_join_records SET classification = ?, notes = ? WHERE id = ?",
             (new_classification, notes or invite.notes, invite.id),
         )
 
@@ -9651,5 +9633,6 @@ class Database:
         await self._db.commit()
         invite.classification = new_classification
         return invite
+
 
 

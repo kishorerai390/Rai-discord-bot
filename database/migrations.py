@@ -2065,7 +2065,7 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """,
             """
-            CREATE TABLE IF NOT EXISTS member_invites (
+            CREATE TABLE IF NOT EXISTS invite_join_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
                 member_id INTEGER NOT NULL,
@@ -2080,24 +2080,10 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
                 FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
             );
             """,
-            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_member ON member_invites(guild_id, member_id);",
-            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_inviter ON member_invites(guild_id, inviter_id);",
-            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_code ON member_invites(guild_id, invite_code);",
-            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_class ON member_invites(guild_id, classification);",
-            """
-            CREATE TABLE IF NOT EXISTS inviter_stats (
-                guild_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                regular_invites INTEGER NOT NULL DEFAULT 0,
-                left_invites INTEGER NOT NULL DEFAULT 0,
-                fake_invites INTEGER NOT NULL DEFAULT 0,
-                bonus_invites INTEGER NOT NULL DEFAULT 0,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (guild_id, user_id),
-                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
-            );
-            """,
-            "CREATE INDEX IF NOT EXISTS idx_inviter_stats_ranking ON inviter_stats(guild_id, regular_invites DESC);",
+            "CREATE INDEX IF NOT EXISTS idx_invite_joins_guild_member ON invite_join_records(guild_id, member_id);",
+            "CREATE INDEX IF NOT EXISTS idx_invite_joins_guild_inviter ON invite_join_records(guild_id, inviter_id);",
+            "CREATE INDEX IF NOT EXISTS idx_invite_joins_guild_code ON invite_join_records(guild_id, invite_code);",
+            "CREATE INDEX IF NOT EXISTS idx_invite_joins_guild_class ON invite_join_records(guild_id, classification);",
             """
             CREATE TABLE IF NOT EXISTS invite_rewards (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

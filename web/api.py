@@ -2193,3 +2193,176 @@ class ApiRouter:
             "passport_id": f"RAI-2026-{str(user_id)[-6:]}"
         }
         return json_success({"passport": passport_data})
+
+    # ==========================================
+    # INVITE TRACKER CONTROLLER (APEX INVITE)
+    # ==========================================
+
+    async def get_invite_overview(self, request: web.Request) -> web.Response:
+        gid = int(request.query.get("guild_id", COMMUNITY_GUILD_ID))
+        config = await self.db.get_invite_tracker_config(gid)
+        leaderboard = await self.db.get_invite_leaderboard(gid, limit=5)
+        history = await self.db.get_recent_invite_history(gid, limit=10)
+        rewards = await self.db.get_invite_rewards(gid)
+
+        total_net = sum(s.effective_invites for s in leaderboard)
+        return json_success({
+            "overview": {
+                "guild_id": str(gid),
+                "enabled": config.enabled,
+                "total_tracked_net": total_net,
+                "top_inviters": [
+                    {
+                        "user_id": str(s.user_id),
+                        "regular": s.regular_invites,
+                        "left": s.left_invites,
+                        "fake": s.fake_invites,
+                        "bonus": s.bonus_invites,
+                        "net": s.effective_invites,
+                    }
+                    for s in leaderboard
+                ],
+                "recent_joins": [
+                    {
+                        "member_id": str(h.member_id),
+                        "inviter_id": str(h.inviter_id) if h.inviter_id else None,
+                        "invite_code": h.invite_code,
+                        "classification": h.classification,
+                        "joined_at": h.joined_at,
+                        "left_at": h.left_at,
+                    }
+                    for h in history
+                ],
+                "rewards_count": len(rewards),
+            }
+        })
+
+    async def get_invite_leaderboard(self, request: web.Request) -> web.Response:
+        gid = int(request.query.get("guild_id", COMMUNITY_GUILD_ID))
+        limit = min(100, max(1, int(request.query.get("limit", 25))))
+        offset = max(0, int(request.query.get("offset", 0)))
+        entries = await self.db.get_invite_leaderboard(gid, limit=limit, offset=offset)
+        return json_success({
+            "leaderboard": [
+                {
+                    "rank": offset + i + 1,
+                    "user_id": str(s.user_id),
+                    "regular_invites": s.regular_invites,
+                    "left_invites": s.left_invites,
+                    "fake_invites": s.fake_invites,
+                    "bonus_invites": s.bonus_invites,
+                    "effective_invites": s.effective_invites,
+                    "total_invites": s.total_invites,
+                }
+                for i, s in enumerate(entries)
+            ]
+        })
+
+    async def get_invite_history(self, request: web.Request) -> web.Response:
+        gid = int(request.query.get("guild_id", COMMUNITY_GUILD_ID))
+        limit = min(100, max(1, int(request.query.get("limit", 25))))
+        user_id_raw = request.query.get("user_id")
+        user_id = int(user_id_raw) if user_id_raw and user_id_raw.isdigit() else None
+        history = await self.db.get_recent_invite_history(gid, user_id=user_id, limit=limit)
+        return json_success({
+            "history": [
+                {
+                    "id": h.id,
+                    "member_id": str(h.member_id),
+                    "inviter_id": str(h.inviter_id) if h.inviter_id else None,
+                    "invite_code": h.invite_code,
+                    "classification": h.classification,
+                    "account_age_days": h.account_age_days,
+                    "joined_at": h.joined_at,
+                    "left_at": h.left_at,
+                    "notes": h.notes,
+                }
+                for h in history
+            ]
+        })
+
+    async def get_invite_config(self, request: web.Request) -> web.Response:
+        gid = int(request.query.get("guild_id", COMMUNITY_GUILD_ID))
+        config = await self.db.get_invite_tracker_config(gid)
+        return json_success({
+            "config": {
+                "guild_id": str(config.guild_id),
+                "enabled": config.enabled,
+                "log_channel_id": str(config.log_channel_id) if config.log_channel_id else None,
+                "welcome_channel_id": str(config.welcome_channel_id) if config.welcome_channel_id else None,
+                "welcome_message": config.welcome_message,
+                "send_welcome": config.send_welcome,
+                "min_account_age_days": config.min_account_age_days,
+                "deduct_on_leave": config.deduct_on_leave,
+                "track_vanity": config.track_vanity,
+                "leaderboard_visible": config.leaderboard_visible,
+                "rewards_enabled": config.rewards_enabled,
+            }
+        })
+
+    async def update_invite_config(self, request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("INVALID_JSON", "Request body must be valid JSON", status=400)
+
+        gid = int(body.get("guild_id", COMMUNITY_GUILD_ID))
+        config = await self.db.get_invite_tracker_config(gid)
+
+        if "enabled" in body:
+            config.enabled = bool(body["enabled"])
+        if "log_channel_id" in body:
+            config.log_channel_id = int(body["log_channel_id"]) if body["log_channel_id"] else None
+        if "welcome_channel_id" in body:
+            config.welcome_channel_id = int(body["welcome_channel_id"]) if body["welcome_channel_id"] else None
+        if "welcome_message" in body:
+            config.welcome_message = str(body["welcome_message"])
+        if "send_welcome" in body:
+            config.send_welcome = bool(body["send_welcome"])
+        if "min_account_age_days" in body:
+            config.min_account_age_days = max(0, int(body["min_account_age_days"]))
+        if "deduct_on_leave" in body:
+            config.deduct_on_leave = bool(body["deduct_on_leave"])
+        if "rewards_enabled" in body:
+            config.rewards_enabled = bool(body["rewards_enabled"])
+
+        await self.db.upsert_invite_tracker_config(config)
+        return json_success({"message": "Invite tracker configuration saved.", "guild_id": str(gid)})
+
+    async def get_invite_rewards(self, request: web.Request) -> web.Response:
+        gid = int(request.query.get("guild_id", COMMUNITY_GUILD_ID))
+        rewards = await self.db.get_invite_rewards(gid)
+        return json_success({
+            "rewards": [
+                {
+                    "id": r.id,
+                    "required_invites": r.required_invites,
+                    "role_id": str(r.role_id),
+                    "created_at": r.created_at,
+                }
+                for r in rewards
+            ]
+        })
+
+    async def update_invite_rewards(self, request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("INVALID_JSON", "Request body must be valid JSON", status=400)
+
+        gid = int(body.get("guild_id", COMMUNITY_GUILD_ID))
+        action = body.get("action", "add")
+        invites = int(body.get("required_invites", 0))
+
+        if action == "add":
+            role_id = int(body.get("role_id", 0))
+            if invites <= 0 or role_id <= 0:
+                return json_error("INVALID_PARAMS", "required_invites and role_id must be positive integers", status=400)
+            await self.db.add_invite_reward(gid, required_invites=invites, role_id=role_id)
+            return json_success({"message": f"Added reward milestone for {invites} invites."})
+        elif action == "remove":
+            removed = await self.db.remove_invite_reward(gid, required_invites=invites)
+            return json_success({"removed": removed})
+        else:
+            return json_error("INVALID_ACTION", "action must be 'add' or 'remove'", status=400)
+
