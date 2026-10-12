@@ -7,6 +7,7 @@ Adheres strictly to the Neko Songs brand identity, cute personality, and isolate
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 from datetime import datetime, timezone
 import io
 import json
@@ -1090,7 +1091,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         tracks = list(session.queue)
         random.shuffle(tracks)
-        session.queue = asyncio.queues.deque(tracks)  # type: ignore
+        session.queue = deque(tracks)
         await interaction.followup.send(f"🔀 Shuffled `{len(tracks)}` songs in queue.")
 
     @music_group.command(name="loop", description="Configure loop mode (Off / Track / Queue)")
@@ -1118,7 +1119,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         tracks = list(session.queue)
         removed = tracks.pop(position - 1)
-        session.queue = asyncio.queues.deque(tracks)  # type: ignore
+        session.queue = deque(tracks)
         await interaction.followup.send(f"🗑️ Removed **{removed.title}** from queue.")
 
     @app_commands.command(name="move", description="Move a song in queue from one position to another")
@@ -1134,7 +1135,7 @@ class MusicCog(commands.Cog, name="Music"):
         tracks = list(session.queue)
         track = tracks.pop(from_pos - 1)
         tracks.insert(to_pos - 1, track)
-        session.queue = asyncio.queues.deque(tracks)  # type: ignore
+        session.queue = deque(tracks)
         await interaction.followup.send(f"📦 Moved **{track.title}** to `#{to_pos}`.")
 
     @music_group.command(name="clear", description="Clear all upcoming songs from queue")
