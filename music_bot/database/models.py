@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class MusicGuildSettings:
     guild_id: int
+    prefix: str = ","
     request_channel_id: Optional[int] = None
     dj_role_id: Optional[int] = None
     default_volume: int = 80
@@ -27,6 +28,8 @@ class MusicGuildSettings:
     response_style: str = "normal"  # normal, minimal, cute
     vote_skip_threshold: float = 0.5  # 50% of listeners must vote
     dj_mode_enabled: bool = False
+    twenty_four_seven_enabled: bool = False
+    twenty_four_seven_channel_id: Optional[int] = None
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 

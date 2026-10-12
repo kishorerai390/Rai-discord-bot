@@ -35,9 +35,9 @@ logger = logging.getLogger(__name__)
 
 # Invite link regex
 INVITE_REGEX = re.compile(r"(?:https?://)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com/invite)/[a-zA-Z0-9]+", re.IGNORECASE)
-# Suspicious links regex (free nitro, steam scams, zero-day spoofing)
+# Suspicious links regex (free nitro, steam scams, homoglyph & typo domain spoofing)
 SUSPICIOUS_REGEX = re.compile(
-    r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:steamcomm[a-z0-9-]*\.[a-z]+|discor(?:cd|cl|d-gift)[a-z0-9-]*\.[a-z]+|dlscord[a-z0-9-]*\.[a-z]+|discord-nitro[a-z0-9-]*\.[a-z]+|gift-nitro[a-z0-9-]*\.[a-z]+|free-nitro[a-z0-9-]*\.[a-z]+|nitro-airdrop[a-z0-9-]*\.[a-z]+|boost-discord[a-z0-9-]*\.[a-z]+|discordapp\.(?:click|gift|org|info|ru|vip|top|club|fun))",
+    r"(?:https?://)?(?:www\.)?(?:[a-zA-Z0-9-]+\.)*(?:steamcomm[a-z0-9-]*\.[a-z]+|steampowered-[a-z0-9-]*\.[a-z]+|d1scord[a-z0-9-]*\.[a-z]+|discrod[a-z0-9-]*\.[a-z]+|discocrd[a-z0-9-]*\.[a-z]+|discor(?:cd|cl|d-gift)[a-z0-9-]*\.[a-z]+|dlscord[a-z0-9-]*\.[a-z]+|discord-nitro[a-z0-9-]*\.[a-z]+|gift-nitro[a-z0-9-]*\.[a-z]+|free-nitro[a-z0-9-]*\.[a-z]+|nitro-airdrop[a-z0-9-]*\.[a-z]+|boost-discord[a-z0-9-]*\.[a-z]+|discordapp\.(?:click|gift|org|info|ru|vip|top|club|fun))",
     re.IGNORECASE,
 )
 # Custom emoji regex (<:name:id> or <a:name:id>)
@@ -78,6 +78,22 @@ class AutoModCog(commands.Cog, name="AutoMod"):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        # Feature 84: Malicious Webhook Payload Interceptor
+        wh_id = getattr(message, "webhook_id", None)
+        if isinstance(wh_id, int) and message.guild:
+            if SUSPICIOUS_REGEX.search(message.content or "") or ("@everyone" in message.content and "nitro" in message.content.lower()):
+                try:
+                    await message.delete()
+                    if message.guild.me.guild_permissions.manage_webhooks:
+                        whs = await message.channel.webhooks()
+                        for wh in whs:
+                            if wh.id == message.webhook_id:
+                                await wh.delete(reason="Rai Security: Pruned malicious webhook posting phishing/nitro scams")
+                                break
+                except Exception:
+                    pass
+            return
+
         # Ignore webhooks, bots, DMs
         if message.author.bot or not message.guild or not isinstance(message.author, discord.Member):
             return
@@ -148,6 +164,20 @@ class AutoModCog(commands.Cog, name="AutoMod"):
         if len(message.mentions) > auto_cfg.mention_limit:
             await self._enforce_automod(message, f"Excessive Mentions ({len(message.mentions)}/{auto_cfg.mention_limit})", auto_cfg.action)
             return
+
+        # 3.5 New Account Anti-Avatar Raid Shield (Feature 55)
+        if len(message.attachments) > 0 and member.avatar is None and isinstance(member.created_at, datetime.datetime):
+            acct_age = (datetime.datetime.now(datetime.timezone.utc) - member.created_at).total_seconds()
+            if acct_age < 172800.0:  # < 48 hours
+                await self._enforce_automod(message, "New Account (<48h) Default Avatar Attachment Shield", "delete")
+                return
+
+        # 3.6 Suspicious Rapid Join Self-Bot / Scripted Activity Scanner (Feature 56)
+        if isinstance(member.joined_at, datetime.datetime):
+            join_age = (datetime.datetime.now(datetime.timezone.utc) - member.joined_at).total_seconds()
+            if join_age < 30.0 and (len(message.mentions) >= 3 or "http" in message.content.lower()):
+                await self._enforce_automod(message, "Suspicious Rapid Join Self-Bot / Scripted Activity", "timeout")
+                return
 
         # 4. Invite Links
         if auto_cfg.invite_links_block and INVITE_REGEX.search(message.content):
@@ -378,6 +408,15 @@ class AutoModCog(commands.Cog, name="AutoMod"):
         """Dynamic Anti-Raid Quarantine: Detects sudden join spikes (10+ joins in 15s)."""
         if member.bot:
             return
+
+        # Feature 67: Auto-Quarantine Homoglyph & Zero-Width Username Spoofs
+        name_str = member.name or ""
+        if any(c in name_str for c in ("\u200b", "\u200c", "\u200d", "\ufeff")):
+            if member.guild.me.guild_permissions.manage_nicknames:
+                try:
+                    await member.edit(nick="[Sanitized Name]", reason="Rai Security: Cleared invisible / zero-width characters in username")
+                except Exception:
+                    pass
 
         now = time.monotonic()
         cutoff = now - 15.0

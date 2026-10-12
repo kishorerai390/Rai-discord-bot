@@ -1880,6 +1880,74 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             );
             """
         ]
+    ),
+    (
+        48,
+        "Centralized 15-channel logging routing, server configuration backups, support tickets, and system health error logs",
+        [
+            "ALTER TABLE logging_config ADD COLUMN channel_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN role_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN server_audit_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN backup_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN report_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN ticket_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN staff_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN bot_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN error_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN system_status_channel_id INTEGER;",
+            """
+            CREATE TABLE IF NOT EXISTS server_backups (
+                backup_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                created_by INTEGER NOT NULL,
+                backup_type TEXT NOT NULL DEFAULT 'manual',
+                file_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                checksum TEXT NOT NULL,
+                categories_count INTEGER DEFAULT 0,
+                channels_count INTEGER DEFAULT 0,
+                roles_count INTEGER DEFAULT 0,
+                verified INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL,
+                metadata_json TEXT
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS support_tickets (
+                ticket_id TEXT PRIMARY KEY,
+                numeric_id INTEGER,
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                creator_id INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'open',
+                title TEXT DEFAULT '',
+                claimed_by INTEGER,
+                closed_by INTEGER,
+                closed_at TEXT,
+                transcript_path TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS system_error_logs (
+                error_id TEXT PRIMARY KEY,
+                guild_id INTEGER,
+                subsystem TEXT NOT NULL,
+                error_type TEXT NOT NULL,
+                error_message TEXT NOT NULL,
+                stack_trace TEXT,
+                retry_count INTEGER DEFAULT 0,
+                resolved INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_server_backups_guild ON server_backups(guild_id);",
+            "CREATE INDEX IF NOT EXISTS idx_support_tickets_guild ON support_tickets(guild_id);",
+            "CREATE INDEX IF NOT EXISTS idx_support_tickets_creator ON support_tickets(creator_id);",
+            "CREATE INDEX IF NOT EXISTS idx_system_error_logs_created ON system_error_logs(created_at);"
+        ]
     )
 ]
 

@@ -60,8 +60,16 @@ DISCORD_CLIENT_ID: str = _raw_client_id
 DISCORD_CLIENT_SECRET: str = os.getenv("DISCORD_CLIENT_SECRET", "").strip()
 DISCORD_REDIRECT_URI: str = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8080/api/auth/callback").strip()
 SESSION_SECRET: str = os.getenv("SESSION_SECRET", "rai_production_secret_key_change_in_production").strip()
-_comm_guild_raw = (os.getenv("COMMUNITY_GUILD_ID") or os.getenv("TEST_GUILD_ID") or "1457382179981099090").strip()
-COMMUNITY_GUILD_ID: int = int(_comm_guild_raw) if _comm_guild_raw.isdigit() else 1457382179981099090
+_comm_guild_raw = (os.getenv("COMMUNITY_GUILD_ID") or os.getenv("SUPPORT_SERVER_ID") or "1494692962041467005").strip()
+COMMUNITY_GUILD_ID: int = int(_comm_guild_raw) if _comm_guild_raw.isdigit() else 1494692962041467005
+SUPPORT_SERVER_ID: int = COMMUNITY_GUILD_ID
+SUPPORT_INVITE_URL: str = os.getenv("SUPPORT_INVITE_URL", "https://discord.gg/KSxEHfmpCe").strip()
+
+_report_guild_raw = (os.getenv("CENTRAL_REPORT_GUILD_ID") or os.getenv("REPORT_SERVER_ID") or "1494692962041467005").strip()
+CENTRAL_REPORT_GUILD_ID: int = int(_report_guild_raw) if _report_guild_raw.isdigit() else 1494692962041467005
+REPORT_SERVER_ID: int = CENTRAL_REPORT_GUILD_ID
+_backup_ch_raw = os.getenv("BACKUP_DATA_CHANNEL_ID", "1558930615644987484").strip()
+BACKUP_DATA_CHANNEL_ID: int = int(_backup_ch_raw) if _backup_ch_raw.isdigit() else 1558930615644987484
 
 # Resource & Rate Limit Defaults
 MAX_QUEUE_SIZE: int = int(os.getenv("MAX_QUEUE_SIZE", "200"))

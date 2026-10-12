@@ -23,7 +23,7 @@ else:
 # Neko Songs Brand Identity
 BOT_NAME: str = "Neko Songs"
 BOT_BRAND_TAG: str = "🎵 NEKO SONGS"
-MUSIC_BOT_VERSION: str = "2.1.0"
+MUSIC_BOT_VERSION: str = "2.2.0"
 
 # Brand Palette
 COLOR_MIDNIGHT_BLACK: int = 0x0B0E14

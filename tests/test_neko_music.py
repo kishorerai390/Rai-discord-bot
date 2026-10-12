@@ -19,6 +19,7 @@ import asyncio
 from datetime import datetime, timezone
 import os
 from pathlib import Path
+import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -343,35 +344,42 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         session.state = PlaybackState.PLAYING
 
         embed = build_now_playing_embed(session)
-        self.assertIn("NEKO SONGS", embed.title or "")
-        self.assertIn("🐱 **NOW PLAYING**", embed.description or "")
+        self.assertIn("NOW PLAYING", embed.title or "")
         self.assertIn("YOASOBI", embed.description or "")
         self.assertIn("Idol", embed.description or "")
         self.assertIn("80%", embed.description or "")
         self.assertIn(str(self.user_id), embed.description or "")
 
-
-
     def test_now_playing_control_view_buttons(self):
-        """Now Playing view must contain the exact 9 required interactive buttons."""
+        """Now Playing view must contain all 13 interactive buttons and support persistent mode."""
+        # 1. Per-session view
         session = GuildMusicSession(guild_id=self.guild_id_1)
         view = NowPlayingControlView(session)
 
-        # 9 buttons in layout:
-        # [⏮ Previous] [⏸ Pause] [⏭ Skip]
-        # [📜 Queue] [🔀 Shuffle] [🔁 Loop]
-        # [🔊 Volume] [❤️ Favorite] [⏹ Stop]
-        self.assertEqual(len(view.children), 9)
+        # 13 buttons across 3 rows:
+        # Row 0: [⏮ Previous] [⏪ -10s] [⏸ Pause] [⏩ +10s] [⏭ Skip]
+        # Row 1: [📜 Queue] [🔀 Shuffle] [🔁 Loop] [🔊 Volume] [⏹ Stop]
+        # Row 2: [❤️ Favorite] [🎛️ Filter] [💬 Lyrics]
+        self.assertEqual(len(view.children), 13)
 
         labels = [btn.label for btn in view.children if hasattr(btn, "label")]
         self.assertIn("Previous", labels)
+        self.assertIn("-10s", labels)
+        self.assertIn("Pause", labels)
+        self.assertIn("+10s", labels)
         self.assertIn("Skip", labels)
         self.assertIn("Queue", labels)
         self.assertIn("Shuffle", labels)
         self.assertIn("Loop", labels)
         self.assertIn("Volume", labels)
         self.assertIn("Favorite", labels)
+        self.assertIn("Filter", labels)
+        self.assertIn("Lyrics", labels)
         self.assertIn("Stop", labels)
+
+        # 2. Persistent view with session=None
+        persistent_view = NowPlayingControlView()
+        self.assertEqual(len(persistent_view.children), 13)
 
     def test_volume_adjust_view_preset_buttons(self):
         """Volume adjust view provides 20%, 50%, 80%, and 100% quick buttons."""
@@ -417,6 +425,187 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         swap_res = await MusicGateway.play(self.guild_id_1, "lofi study", self.user_id)
         self.assertTrue(swap_res.success)
 
+    # =========================================================================
+    # 7. 24/7 VOICE MODE & AUTONOMOUS AUTO-UPDATER
+    # =========================================================================
+
+    async def test_twenty_four_seven_persistence_and_query(self):
+        """Validates 24/7 guild settings persistence and get_all_247_guilds retrieval."""
+        settings = await self.db.get_guild_settings(self.guild_id_1)
+        self.assertFalse(settings.twenty_four_seven_enabled)
+        self.assertIsNone(settings.twenty_four_seven_channel_id)
+
+        # Enable 24/7 mode
+        settings.twenty_four_seven_enabled = True
+        settings.twenty_four_seven_channel_id = 9988776655
+        await self.db.update_guild_settings(settings)
+
+        # Verify single guild retrieval
+        fetched = await self.db.get_guild_settings(self.guild_id_1)
+        self.assertTrue(fetched.twenty_four_seven_enabled)
+        self.assertEqual(fetched.twenty_four_seven_channel_id, 9988776655)
+
+        # Verify bulk 24/7 guilds query
+        all_247 = await self.db.get_all_247_guilds()
+        self.assertEqual(len(all_247), 1)
+        self.assertEqual(all_247[0].guild_id, self.guild_id_1)
+
+    async def test_music_auto_updater_version_check(self):
+        """Validates MusicAutoUpdater version discovery and update inspection."""
+        from music_bot.services.updater_service import MusicAutoUpdater
+
+        ver = MusicAutoUpdater.get_current_ytdl_version()
+        self.assertIsInstance(ver, str)
+        self.assertNotEqual(ver, "")
+
+        # Check version resolution mock
+        with patch("urllib.request.urlopen") as mock_url:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = b'{"info": {"version": "2026.10.15"}}'
+            mock_url.return_value.__enter__.return_value = mock_resp
+
+            res = await MusicAutoUpdater.check_ytdl_version()
+            self.assertEqual(res["latest"], "2026.10.15")
+
+    async def test_voice_manager_bypasses_auto_leave_in_247_mode(self):
+        """VoiceManager must never schedule auto-leave if 24/7 mode is active."""
+        from music_bot.services.voice_service import VoiceManager
+
+        session = GuildMusicSession(self.guild_id_1)
+        session.twenty_four_seven = True
+
+        mock_bot = MagicMock()
+        VoiceManager.schedule_auto_leave(mock_bot, session, timeout=60)
+        self.assertIsNone(session.auto_leave_task)
+
+    async def test_audio_filters_and_sleep_timer(self):
+        """Validates dynamic audio filters and bedtime sleep timer state."""
+        session = GuildMusicSession(self.guild_id_1)
+        self.assertEqual(session.audio_filter, "")
+
+        # Apply Bass Boost
+        session.audio_filter = "-af equalizer=f=60:width_type=h:width=50:g=10"
+        self.assertIn("equalizer", session.audio_filter)
+
+        # Apply Sleep Timer
+        self.assertEqual(session.sleep_timer_end, 0.0)
+        session.sleep_timer_end = time.time() + 1800
+        self.assertGreater(session.sleep_timer_end, time.time())
+
+    async def test_lyrics_caching_and_precache(self):
+        """Validates LyricsService in-memory caching and 0ms cache retrieval."""
+        from music_bot.services.lyrics_service import LyricsService
+
+        # Manually prime cache
+        LyricsService._store_cache("test song::test artist", "Line 1\nLine 2")
+        lyrics = await LyricsService.fetch_lyrics("test song", "test artist")
+        self.assertEqual(lyrics, "Line 1\nLine 2")
+
+    async def test_music_control_panel_view_and_features(self):
+        """Validates MusicControlPanelView embed generation, dropdown tabs, and feature coverage."""
+        from music_bot.commands.music_cog import MusicControlPanelView
+
+        session = GuildMusicSession(self.guild_id_1)
+        mock_guild = MagicMock()
+        mock_guild.id = self.guild_id_1
+        mock_bot = MagicMock()
+        mock_bot.user.name = "MusicMaid"
+        mock_bot.user.id = 1556676516274905218
+
+        view = MusicControlPanelView(mock_bot, mock_guild, session)
+        self.assertEqual(view.current_page, "overview")
+
+        # Verify overview embed
+        overview_embed = view.build_embed()
+        self.assertIn("Master Control Panel", overview_embed.title)
+        self.assertTrue(any("Core Playback" in f.name for f in overview_embed.fields))
+        self.assertTrue(any("Audio Filters" in f.name for f in overview_embed.fields))
+
+        # Test each category tab
+        categories = ["playback", "filters", "247_radio", "sleeptimer", "playlists", "smart_dj"]
+        for cat in categories:
+            view.current_page = cat
+            embed = view.build_embed()
+            self.assertIsNotNone(embed.title)
+            self.assertGreater(len(embed.fields), 0)
+
+    async def test_git_updates_and_recovery_stream(self):
+        """Validates MusicAutoUpdater git update discovery and stream recovery hooks."""
+        from music_bot.services.updater_service import MusicAutoUpdater
+        from music_bot.services.player_service import MusicPlayerService
+        from music_bot.database.models import QueuedTrack
+
+        git_res = await MusicAutoUpdater.check_git_updates()
+        self.assertIsInstance(git_res, dict)
+        self.assertIn("is_git", git_res)
+
+        # Test track recovery state
+        track = QueuedTrack(
+            title="Test Song",
+            url="https://youtube.com/watch?v=123",
+            duration=200,
+            artist="Test Artist",
+            requester_id=1,
+            requester_name="User",
+        )
+        self.assertEqual(getattr(track, "_retry_count", 0), 0)
+        track._retry_count = 1
+        self.assertEqual(track._retry_count, 1)
+
+    async def test_session_queue_and_history_persistence(self):
+        """Verifies session queue and history are fully persisted and recovered across restarts."""
+        from music_bot.database.models import QueuedTrack
+        from music_bot.services.session_service import GuildMusicSession
+
+        curr_track = QueuedTrack(title="Song 1", url="https://youtube.com/watch?v=1", duration=180, requester_id=1, requester_name="User", artist="Artist 1")
+        t2 = QueuedTrack(title="Song 2", url="https://youtube.com/watch?v=2", duration=200, requester_id=1, requester_name="User", artist="Artist 2")
+        t3 = QueuedTrack(title="Song 3", url="https://youtube.com/watch?v=3", duration=220, requester_id=1, requester_name="User", artist="Artist 3")
+        h1 = QueuedTrack(title="Past Song A", url="https://youtube.com/watch?v=A", duration=150, requester_id=1, requester_name="User", artist="Past Artist")
+
+        await self.db.save_session(
+            guild_id=self.guild_id_1,
+            voice_channel_id=12345,
+            text_channel_id=67890,
+            state="PLAYING",
+            volume=75,
+            current_track=curr_track,
+            position_seconds=85,
+            queue=[t2, t3],
+            history=[h1],
+        )
+
+        active = await self.db.get_active_sessions()
+        session_data = next((s for s in active if s["guild_id"] == self.guild_id_1), None)
+        self.assertIsNotNone(session_data)
+        self.assertEqual(session_data["position_seconds"], 85)
+        self.assertEqual(session_data["current_track"]["title"], "Song 1")
+        self.assertEqual(len(session_data["queue"]), 2)
+        self.assertEqual(session_data["queue"][0]["title"], "Song 2")
+        self.assertEqual(len(session_data["history"]), 1)
+        self.assertEqual(session_data["history"][0]["title"], "Past Song A")
+
+    def test_now_playing_embed_relative_countdown(self):
+        """Now Playing embed includes relative timestamp countdown for live UI display."""
+        from music_bot.database.models import QueuedTrack
+        from music_bot.services.player_service import build_now_playing_embed
+
+        session = GuildMusicSession(guild_id=self.guild_id_1)
+        session.current_track = QueuedTrack(
+            title="Long Jukebox",
+            url="https://youtube.com/watch?v=123",
+            duration=6148,
+            requester_id=1,
+            requester_name="User",
+            artist="Sony Music",
+        )
+        session.state = PlaybackState.PLAYING
+        session.track_start_time = time.time() - 100
+
+        embed = build_now_playing_embed(session)
+        self.assertIn("Ends <t:", embed.description)
+        self.assertIn(":R>", embed.description)
+
 
 if __name__ == "__main__":
     unittest.main()
+

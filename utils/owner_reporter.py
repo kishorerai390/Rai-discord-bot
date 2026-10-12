@@ -759,18 +759,39 @@ class OwnerReporter:
         # ==========================================
         channel = None
         try:
+            # Resolve designated Central Report Server (defaults to 1494692962041467005)
+            import os
+            central_gid_raw = (os.getenv("CENTRAL_REPORT_GUILD_ID") or os.getenv("REPORT_SERVER_ID") or "1494692962041467005").strip()
+            central_gid = int(central_gid_raw) if central_gid_raw.isdigit() else 1494692962041467005
+
+            report_guild_obj = None
+            if hasattr(bot, "get_guild") and central_gid:
+                report_guild_obj = bot.get_guild(central_gid)
+            if not report_guild_obj and hasattr(bot, "fetch_guild") and central_gid:
+                try:
+                    report_guild_obj = await bot.fetch_guild(central_gid)
+                except Exception:
+                    report_guild_obj = None
+
+            # Fall back to origin guild if central report server unavailable
+            if not report_guild_obj:
+                report_guild_obj = guild_obj
+                target_report_gid = guild_id
+            else:
+                target_report_gid = report_guild_obj.id
+
             cfg = None
             if hasattr(bot, "db") and bot.db and hasattr(bot.db, "get_owner_reports_config"):
                 try:
-                    cfg = await bot.db.get_owner_reports_config(guild_id)
+                    cfg = await bot.db.get_owner_reports_config(target_report_gid)
                 except Exception:
                     cfg = None
 
             ch_id = getattr(cfg, channel_key, None) if cfg else None
 
             if ch_id:
-                if guild_obj:
-                    channel = guild_obj.get_channel(ch_id)
+                if report_guild_obj:
+                    channel = report_guild_obj.get_channel(ch_id)
                 if not channel and hasattr(bot, "get_channel"):
                     channel = bot.get_channel(ch_id)
                 if not channel and hasattr(bot, "fetch_channel"):
@@ -783,35 +804,41 @@ class OwnerReporter:
                     except Exception:
                         channel = None
 
-            # Fallback for existing or styled channels in guild strictly matching report targets
-            if (not channel or not isinstance(channel, discord.TextChannel)) and guild_obj and hasattr(guild_obj, "text_channels") and guild_obj.text_channels:
+            # Fallback for existing or styled channels in report guild strictly matching report targets
+            if (not channel or not isinstance(channel, discord.TextChannel)) and report_guild_obj and hasattr(report_guild_obj, "text_channels") and report_guild_obj.text_channels:
                 key_targets = cls.CHANNEL_TARGETS.get(channel_key, [])
                 target_tokens = [t.replace("-", "").replace("_", "") for t in key_targets]
 
-                for ch in guild_obj.text_channels:
+                for ch in report_guild_obj.text_channels:
                     cname = getattr(ch, "name", "")
                     cnorm = normalize_channel_name(cname)
                     if any(t in cnorm for t in target_tokens):
                         channel = ch
                         if hasattr(bot, "db") and bot.db and hasattr(bot.db, "update_owner_reports_config"):
                             try:
-                                await bot.db.update_owner_reports_config(guild_id, **{channel_key: ch.id})
+                                await bot.db.update_owner_reports_config(target_report_gid, **{channel_key: ch.id})
                             except Exception:
                                 pass
                         break
 
-            # Auto-repair / ensure channel if missing or deleted
+            # Auto-repair / ensure channel in report guild
             has_owner_setup = bool(cfg and (getattr(cfg, "category_id", None) or getattr(cfg, "security_report_id", None)))
             should_auto_repair = bool(getattr(cfg, "auto_repair", True) if cfg else True)
-            if (not channel or not isinstance(channel, discord.TextChannel)) and should_auto_repair and guild_obj:
+            if (not channel or not isinstance(channel, discord.TextChannel)) and should_auto_repair and report_guild_obj:
                 try:
-                    repair_res = cls.repair_missing_channel(bot, guild_obj, channel_key)
+                    repair_res = cls.repair_missing_channel(bot, report_guild_obj, channel_key)
                     if inspect.isawaitable(repair_res):
                         channel = await repair_res
                     else:
                         channel = repair_res
                 except Exception as rep_err:
-                    logger.warning(f"Auto-repair attempt failed for {channel_key}: {rep_err}")
+                    logger.warning(f"Auto-repair attempt failed for {channel_key} in {report_guild_obj.name}: {rep_err}")
+
+            # If origin guild is different from report guild, note origin server on embed
+            if guild_obj and report_guild_obj and guild_obj.id != report_guild_obj.id:
+                has_origin = any(f.name.lower().startswith("origin") or f.name.lower().startswith("server") for f in getattr(embed, "fields", []))
+                if not has_origin:
+                    embed.add_field(name="🌐 Origin Server", value=f"**{guild_obj.name}** (`{guild_obj.id}`)", inline=False)
 
             if channel and hasattr(channel, "send"):
                 send_kwargs = {"embed": embed}
@@ -1479,16 +1506,19 @@ async def get_owner_report_channel(
         "system": "system_report_id",
     }
     field = key_map.get(category.lower(), f"{category}_report_id")
+    import os
+    central_gid_raw = (os.getenv("CENTRAL_REPORT_GUILD_ID") or os.getenv("REPORT_SERVER_ID") or "1494692962041467005").strip()
+    target_gid = int(central_gid_raw) if central_gid_raw.isdigit() else guild_id
     try:
         cfg = None
         if hasattr(bot, "db") and bot.db and hasattr(bot.db, "get_owner_reports_config"):
-            cfg = await bot.db.get_owner_reports_config(guild_id)
+            cfg = await bot.db.get_owner_reports_config(target_gid)
 
         ch_id = getattr(cfg, field, None) if cfg else None
-        guild = bot.get_guild(guild_id) if hasattr(bot, "get_guild") else None
+        guild = bot.get_guild(target_gid) if hasattr(bot, "get_guild") else None
         if not guild and hasattr(bot, "fetch_guild"):
             try:
-                guild = await bot.fetch_guild(guild_id)
+                guild = await bot.fetch_guild(target_gid)
             except Exception:
                 guild = None
 

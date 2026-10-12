@@ -57,6 +57,8 @@ git push -u origin main
 6. Scroll down to **Environment Variables** and click **Add Environment Variable**:
    * Key: `DISCORD_TOKEN`
      Value: `your_discord_bot_token_here`
+   * Key: `MUSIC_BOT_TOKEN` (or `NEKO_SONGS_BOT_TOKEN`)
+     Value: `your_music_bot_token_here`
    * Key: `APPLICATION_ID`
      Value: `1554732669072445532`
    * Key: `BOT_NAME`

@@ -59,13 +59,24 @@ class GuildMusicSession:
         self.volume: int = 80
         self.loop_mode: LoopMode = LoopMode.OFF
         self.autoplay: bool = False
+        self.twenty_four_seven: bool = False
+        self.dj_enabled: bool = False
+        self.radio_station: Optional[str] = None
+        self.eq_preset: str = "Flat"
+        self.ducking_enabled: bool = True
+        self.skip_votes: set[int] = set()
 
         self.track_start_time: float = 0.0
         self.pause_time: float = 0.0
         self.paused_duration: float = 0.0
 
         self.auto_leave_task: Optional[asyncio.Task] = None
+        self.sleep_timer_task: Optional[asyncio.Task] = None
+        self.sleep_timer_end: float = 0.0
+        self.audio_filter: str = ""
         self.now_playing_message: Optional[discord.Message] = None
+        self.progress_updater_task: Optional[asyncio.Task] = None
+        self._is_seeking: bool = False
 
     @property
     def is_playing(self) -> bool:
@@ -90,13 +101,22 @@ class GuildMusicSession:
             current_elapsed = time.time() - self.track_start_time - self.paused_duration
         return max(0, int(current_elapsed))
 
+    @property
+    def progress_seconds(self) -> int:
+        """Alias for elapsed_seconds providing uniform interface for progress tracking."""
+        return self.elapsed_seconds
+
     def reset(self) -> None:
         """Reset player state without clearing queue/history."""
+        if self.progress_updater_task and not self.progress_updater_task.done():
+            self.progress_updater_task.cancel()
+            self.progress_updater_task = None
         self.state = PlaybackState.IDLE
         self.current_track = None
         self.track_start_time = 0.0
         self.pause_time = 0.0
         self.paused_duration = 0.0
+        self.skip_votes.clear()
 
 
 class SessionManager:
@@ -120,6 +140,12 @@ class SessionManager:
             if guild_id not in self._sessions:
                 self._sessions[guild_id] = GuildMusicSession(guild_id)
             return self._sessions[guild_id]
+
+    def get_session_sync(self, guild_id: int) -> GuildMusicSession:
+        """Synchronously retrieve existing session or instantiate new session."""
+        if guild_id not in self._sessions:
+            self._sessions[guild_id] = GuildMusicSession(guild_id)
+        return self._sessions[guild_id]
 
     async def remove_session(self, guild_id: int) -> None:
         """Remove and cleanup guild session."""

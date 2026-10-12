@@ -96,6 +96,7 @@ COGS_LIST: List[str] = [
     "cogs.temp_roles",
     "cogs.system_upgrade",
     "cogs.server_setup",
+    "cogs.plugins",
 ]
 
 
@@ -472,6 +473,39 @@ class SentinelBot(commands.Bot):
             await self.self_healing.handle_component_error("command_pipeline", orig_error, error_id)
             self.watchdog.record_end(interaction, status="INTERNAL_ERROR", error_id=error_id)
 
+            # Persist to database & dispatch to #error-logs
+            try:
+                from database.models import SystemErrorLog
+                err_log = SystemErrorLog(
+                    error_id=error_id,
+                    guild_id=interaction.guild_id,
+                    component=f"slash_{cmd_name}",
+                    error_type=type(orig_error).__name__,
+                    message=str(orig_error)[:500],
+                    severity="ERROR",
+                )
+                await self.db.record_system_error(err_log)
+
+                if interaction.guild:
+                    log_cfg = await self.db.get_logging_config(interaction.guild.id)
+                    err_cid = log_cfg.error_logs_channel_id or log_cfg.general_channel_id
+                    if err_cid:
+                        err_ch = interaction.guild.get_channel(err_cid)
+                        if err_ch and isinstance(err_ch, discord.TextChannel):
+                            err_embed = create_embed(
+                                title=f"⚠️ Command Error — {error_id}",
+                                description=(
+                                    f"**Command:** `/{cmd_name}`\n"
+                                    f"**User:** {interaction.user.mention} (`{interaction.user.id}`)\n"
+                                    f"**Channel:** {interaction.channel.mention if interaction.channel else 'N/A'}\n"
+                                    f"**Error:** `{type(orig_error).__name__}: {str(orig_error)[:250]}`"
+                                ),
+                                color=Colors.ERROR,
+                            )
+                            await err_ch.send(embed=err_embed)
+            except Exception as dbe:
+                logger.debug(f"Error log persistence notice: {dbe}")
+
         await safe_response(interaction, embed=embed, ephemeral=True)
 
     async def on_app_command_completion(
@@ -510,6 +544,27 @@ class SentinelBot(commands.Bot):
                 logger.info(f"Instantly synced {len(synced_guild)} slash commands to guild: {guild.name} ({guild.id})")
             except Exception as e:
                 logger.warning(f"Direct guild sync note for {guild.id}: {e}")
+
+        # Dispatch system status heartbeat to #system-status
+        for guild in self.guilds:
+            try:
+                log_cfg = await self.db.get_logging_config(guild.id)
+                status_cid = log_cfg.system_status_channel_id or log_cfg.bot_logs_channel_id
+                if status_cid:
+                    status_ch = guild.get_channel(status_cid)
+                    if status_ch and isinstance(status_ch, discord.TextChannel):
+                        heartbeat_embed = create_embed(
+                            title="🟢 Rai System Online & Operational",
+                            description=(
+                                f"**Identity:** `{self.user}` (`{self.user.id}`)\n"
+                                f"**Heartbeat Latency:** `{int(self.latency * 1000)}ms`\n"
+                                f"**Subsystems Active:** Gateway, Commands, Security, Anti-Nuke, Backups, Centralized Logging"
+                            ),
+                            color=Colors.SUCCESS,
+                        )
+                        await status_ch.send(embed=heartbeat_embed)
+            except Exception as se:
+                logger.debug(f"Status heartbeat notice for {guild.id}: {se}")
 
         try:
             from utils.owner_reporter import OwnerReporter

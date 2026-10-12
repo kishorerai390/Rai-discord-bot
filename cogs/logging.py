@@ -11,9 +11,10 @@ Routes logs to dedicated channels:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import logging
 import time
-from typing import TYPE_CHECKING, Optional, List, Dict
+from typing import TYPE_CHECKING, Optional, List, Dict, Any
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -21,6 +22,7 @@ from discord.ext import commands
 from config import Colors
 from utils.embeds import create_embed, error_embed, info_embed, success_embed
 from utils.permissions import is_admin_or_owner
+from utils.helpers import find_audit_executor
 from utils.ai_incident_responder import AIIncidentAnalyzer, OwnerIncidentActionView, IncidentAlertTracker
 
 if TYPE_CHECKING:
@@ -275,17 +277,164 @@ class LoggingCog(commands.Cog, name="Logging"):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):
+        # Correlate with audit log to distinguish kicks from voluntary leaves
+        executor, audit_entry = await find_audit_executor(
+            member.guild, discord.AuditLogAction.kick, target_id=member.id, max_retries=2, delay_seconds=0.4
+        )
+        roles = [r.mention for r in member.roles if not r.is_default()]
+
+        if executor and audit_entry:
+            embed = create_embed(
+                title="👢 Member Kicked",
+                description=f"**Target:** {member.mention} (`{member.name}` | ID: `{member.id}`)",
+                color=Colors.WARNING,
+                thumbnail_url=member.display_avatar.url,
+            )
+            embed.add_field(name="Moderator", value=f"{executor.mention} (`{executor.name}`)", inline=True)
+            embed.add_field(name="Reason", value=audit_entry.reason or "No reason provided", inline=True)
+            if roles:
+                embed.add_field(name="Roles Held", value=", ".join(roles[:15]), inline=False)
+            embed.add_field(name="Server Member Count", value=str(member.guild.member_count), inline=True)
+            await self._send_log(member.guild, "moderation_channel_id", embed)
+            return
+
         embed = create_embed(
             title="📤 Member Left",
             description=f"**{member.name}** (`{member.id}`)",
             color=Colors.ERROR,
             thumbnail_url=member.display_avatar.url,
         )
-        roles = [r.mention for r in member.roles if not r.is_default()]
         if roles:
             embed.add_field(name="Roles Held", value=", ".join(roles[:15]), inline=False)
         embed.add_field(name="Server Member Count", value=str(member.guild.member_count), inline=True)
         await self._send_log(member.guild, "member_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_member_ban(self, guild: discord.Guild, user: discord.User | discord.Member):
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.ban, target_id=user.id, max_retries=2, delay_seconds=0.4
+        )
+        embed = create_embed(
+            title="🔨 Member Banned",
+            description=f"**Target:** {user.mention} (`{user.name}` | ID: `{user.id}`)",
+            color=Colors.ERROR,
+            thumbnail_url=user.display_avatar.url if hasattr(user, "display_avatar") else None,
+        )
+        actor_text = f"{executor.mention} (`{executor.name}`)" if executor else "Unknown / External Integration"
+        reason_text = audit_entry.reason if (audit_entry and audit_entry.reason) else "No reason specified"
+        embed.add_field(name="Moderator", value=actor_text, inline=True)
+        embed.add_field(name="Reason", value=reason_text, inline=True)
+        await self._send_log(guild, "moderation_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_member_unban(self, guild: discord.Guild, user: discord.User):
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.unban, target_id=user.id, max_retries=2, delay_seconds=0.4
+        )
+        embed = create_embed(
+            title="🔓 Member Unbanned",
+            description=f"**Target:** {user.mention} (`{user.name}` | ID: `{user.id}`)",
+            color=Colors.SUCCESS,
+            thumbnail_url=user.display_avatar.url if hasattr(user, "display_avatar") else None,
+        )
+        actor_text = f"{executor.mention} (`{executor.name}`)" if executor else "Unknown / External Integration"
+        reason_text = audit_entry.reason if (audit_entry and audit_entry.reason) else "No reason specified"
+        embed.add_field(name="Moderator", value=actor_text, inline=True)
+        embed.add_field(name="Reason", value=reason_text, inline=True)
+        await self._send_log(guild, "moderation_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        guild = after.guild
+
+        # 1. Timeout / Communication Disabled detection
+        if before.timed_out_until != after.timed_out_until:
+            now_utc = discord.utils.utcnow()
+            if after.timed_out_until and after.timed_out_until > now_utc:
+                executor, audit_entry = await find_audit_executor(
+                    guild, discord.AuditLogAction.member_update, target_id=after.id, max_retries=2, delay_seconds=0.4
+                )
+                actor_text = f"{executor.mention} (`{executor.name}`)" if executor else "Staff (Uncertain Attribution)"
+                reason_text = audit_entry.reason if (audit_entry and audit_entry.reason) else "No reason specified"
+                embed = create_embed(
+                    title="⏳ Member Timed Out",
+                    description=f"{after.mention} (`{after.name}` | ID: `{after.id}`) was placed in timeout.",
+                    color=Colors.WARNING,
+                    thumbnail_url=after.display_avatar.url,
+                )
+                embed.add_field(name="Moderator", value=actor_text, inline=True)
+                embed.add_field(name="Expires", value=discord.utils.format_dt(after.timed_out_until, "R"), inline=True)
+                embed.add_field(name="Reason", value=reason_text, inline=False)
+                await self._send_log(guild, "moderation_channel_id", embed)
+            elif before.timed_out_until and (not after.timed_out_until or after.timed_out_until <= now_utc):
+                executor, audit_entry = await find_audit_executor(
+                    guild, discord.AuditLogAction.member_update, target_id=after.id, max_retries=2, delay_seconds=0.4
+                )
+                actor_text = f"{executor.mention} (`{executor.name}`)" if executor else "Staff (Uncertain Attribution)"
+                embed = create_embed(
+                    title="⌛ Timeout Removed",
+                    description=f"{after.mention} (`{after.name}`) had their timeout removed.",
+                    color=Colors.SUCCESS,
+                    thumbnail_url=after.display_avatar.url,
+                )
+                embed.add_field(name="Moderator", value=actor_text, inline=True)
+                await self._send_log(guild, "moderation_channel_id", embed)
+
+        # 2. Nickname Changes
+        if before.nick != after.nick:
+            embed = create_embed(
+                title="🏷️ Nickname Changed",
+                description=f"**Member:** {after.mention} (`{after.id}`)",
+                color=Colors.INFO,
+                thumbnail_url=after.display_avatar.url,
+            )
+            embed.add_field(name="Before", value=before.nick or "*None (Username)*", inline=True)
+            embed.add_field(name="After", value=after.nick or "*None (Reset to Username)*", inline=True)
+            await self._send_log(guild, "member_channel_id", embed)
+
+        # 3. Roles Assigned / Removed
+        if set(before.roles) != set(after.roles):
+            added_roles = [r for r in after.roles if r not in before.roles]
+            removed_roles = [r for r in before.roles if r not in after.roles]
+            if added_roles or removed_roles:
+                executor, _ = await find_audit_executor(
+                    guild, discord.AuditLogAction.member_role_update, target_id=after.id, max_retries=2, delay_seconds=0.4
+                )
+                embed = create_embed(
+                    title="🛡️ Member Roles Updated",
+                    description=f"**Member:** {after.mention} (`{after.id}`)",
+                    color=Colors.INFO,
+                    thumbnail_url=after.display_avatar.url,
+                )
+                if added_roles:
+                    embed.add_field(name="➕ Roles Added", value=", ".join(r.mention for r in added_roles), inline=False)
+                if removed_roles:
+                    embed.add_field(name="➖ Roles Removed", value=", ".join(r.mention for r in removed_roles), inline=False)
+                embed.add_field(
+                    name="Updated By",
+                    value=f"{executor.mention} (`{executor.name}`)" if executor else "Uncertain / Self-Assigned",
+                    inline=True,
+                )
+                await self._send_log(guild, "role_logs_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent):
+        guild = self.bot.get_guild(payload.guild_id) if payload.guild_id else None
+        if not guild:
+            return
+        channel = guild.get_channel(payload.channel_id)
+        count = len(payload.message_ids)
+
+        embed = create_embed(
+            title="📑 Bulk Messages Purged",
+            description=(
+                f"**Channel:** {channel.mention if channel else f'ID: `{payload.channel_id}`'}\n"
+                f"**Messages Deleted:** `{count} message(s)`\n"
+                f"**Action:** Consolidated bulk deletion log (flood protection active)"
+            ),
+            color=Colors.ERROR,
+        )
+        await self._send_log(guild, "message_channel_id", embed)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -572,7 +721,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 description="\n".join(role_lines),
                 color=Colors.SUCCESS,
             )
-        await self._send_log(guild, "general_channel_id", embed)
+        await self._send_log(guild, "role_logs_channel_id", embed)
 
     async def _flush_role_deletions(self, guild: discord.Guild) -> None:
         await asyncio.sleep(2.5)
@@ -597,7 +746,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 description="\n".join(role_lines),
                 color=Colors.ERROR,
             )
-        await self._send_log(guild, "general_channel_id", embed)
+        await self._send_log(guild, "role_logs_channel_id", embed)
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role):
@@ -626,31 +775,66 @@ class LoggingCog(commands.Cog, name="Logging"):
         self._role_delete_tasks[guild.id] = asyncio.create_task(self._flush_role_deletions(guild))
 
     @commands.Cog.listener()
+    async def on_guild_role_update(self, before: discord.Role, after: discord.Role):
+        if before.managed or after.managed:
+            return
+        guild = after.guild
+        changes = []
+        if before.name != after.name:
+            changes.append(f"**Name:** `{before.name}` ➔ `{after.name}`")
+        if before.color != after.color:
+            changes.append(f"**Color:** `{before.color}` ➔ `{after.color}`")
+        if before.hoist != after.hoist:
+            changes.append(f"**Separately Displayed (Hoist):** `{before.hoist}` ➔ `{after.hoist}`")
+        if before.mentionable != after.mentionable:
+            changes.append(f"**Mentionable:** `{before.mentionable}` ➔ `{after.mentionable}`")
+        if before.permissions != after.permissions:
+            added_perms = [perm for perm, val in after.permissions if val and not getattr(before.permissions, perm)]
+            removed_perms = [perm for perm, val in before.permissions if val and not getattr(after.permissions, perm)]
+            if added_perms:
+                changes.append(f"**Permissions Granted:** `+{', +'.join(added_perms[:8])}`")
+            if removed_perms:
+                changes.append(f"**Permissions Revoked:** `-{', -'.join(removed_perms[:8])}`")
+
+        if not changes:
+            return
+
+        executor, _ = await find_audit_executor(
+            guild, discord.AuditLogAction.role_update, target_id=after.id, max_retries=2, delay_seconds=0.4
+        )
+        embed = create_embed(
+            title="🛡️ Role Updated",
+            description=f"**Role:** {after.mention} (`{after.name}` | ID: `{after.id}`)\n\n" + "\n".join(changes),
+            color=Colors.INFO,
+        )
+        embed.add_field(
+            name="Executor",
+            value=f"{executor.mention} (`{executor.name}`)" if executor else "Uncertain Attribution",
+            inline=True,
+        )
+        await self._send_log(guild, "role_logs_channel_id", embed)
+
+    @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel):
         icon = "🔊" if isinstance(channel, discord.VoiceChannel) else ("📁" if isinstance(channel, discord.CategoryChannel) else "💬")
         embed = create_embed(
             title="📁 Channel Created",
-            description=f"Channel: {icon} {channel.mention} ( {channel.name} | ID: `{channel.id}` )",
+            description=f"Channel: {icon} {channel.mention} ( `#{channel.name}` | ID: `{channel.id}` )",
             color=Colors.SUCCESS,
         )
-        actor = None
-        try:
-            guild = channel.guild
-            if guild.me.guild_permissions.view_audit_log:
-                async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.channel_create):
-                    if entry.target and entry.target.id == channel.id:
-                        actor = entry.user
-                        break
-        except Exception:
-            actor = None
+        executor, _ = await find_audit_executor(
+            channel.guild, discord.AuditLogAction.channel_create, target_id=channel.id, max_retries=2, delay_seconds=0.4
+        )
+        if executor:
+            embed.add_field(name="Created By", value=f"{executor.mention} (`{executor.name}`)", inline=True)
 
         context = {
             "event_type": "channel_create",
             "target_id": channel.id,
             "target_name": channel.name,
-            "actor": actor,
+            "actor": executor,
         }
-        await self._send_log(channel.guild, "general_channel_id", embed, context=context)
+        await self._send_log(channel.guild, "channel_logs_channel_id", embed, context=context)
 
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel: discord.abc.GuildChannel):
@@ -658,16 +842,9 @@ class LoggingCog(commands.Cog, name="Logging"):
         cname_low = getattr(channel, "name", "").lower()
         is_temp_room = is_voice and any(term in cname_low for term in ["room", "suite", "sanctum", "lounge", "chamber", "🔏", "➕"])
 
-        actor = None
-        try:
-            guild = channel.guild
-            if guild.me.guild_permissions.view_audit_log:
-                async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.channel_delete):
-                    if entry.target and entry.target.id == channel.id:
-                        actor = entry.user
-                        break
-        except Exception:
-            actor = None
+        executor, _ = await find_audit_executor(
+            channel.guild, discord.AuditLogAction.channel_delete, target_id=channel.id, max_retries=2, delay_seconds=0.4
+        )
 
         if is_temp_room:
             embed = create_embed(
@@ -679,7 +856,7 @@ class LoggingCog(commands.Cog, name="Logging"):
                 "event_type": "room_delete",
                 "target_id": channel.id,
                 "target_name": channel.name,
-                "actor": actor,
+                "actor": executor,
             }
             await self._send_log(channel.guild, "voice_channel_id", embed, context=context)
             return
@@ -690,13 +867,16 @@ class LoggingCog(commands.Cog, name="Logging"):
             description=f"Channel Name: {icon} `#{channel.name}` (ID: `{channel.id}`)",
             color=Colors.ERROR,
         )
+        if executor:
+            embed.add_field(name="Deleted By", value=f"{executor.mention} (`{executor.name}`)", inline=True)
+
         context = {
             "event_type": "channel_delete",
             "target_id": channel.id,
             "target_name": channel.name,
-            "actor": actor,
+            "actor": executor,
         }
-        await self._send_log(channel.guild, "general_channel_id", embed, context=context)
+        await self._send_log(channel.guild, "channel_logs_channel_id", embed, context=context)
 
     @commands.Cog.listener()
     async def on_guild_channel_update(self, before: discord.abc.GuildChannel, after: discord.abc.GuildChannel):
@@ -705,20 +885,30 @@ class LoggingCog(commands.Cog, name="Logging"):
             changes.append(f"**Name:** `#{before.name}` ➔ `#{after.name}`")
         if getattr(before, "topic", None) != getattr(after, "topic", None):
             changes.append(f"**Topic:** Updated in {after.mention}")
+        if before.overwrites != after.overwrites:
+            changes.append("⚙️ **Permission Overwrites Modified**")
+
         if not changes:
             return
 
+        executor, _ = await find_audit_executor(
+            after.guild, discord.AuditLogAction.channel_update, target_id=after.id, max_retries=2, delay_seconds=0.4
+        )
         embed = create_embed(
             title="📁 Channel Updated",
             description="\n".join(changes),
             color=Colors.INFO,
         )
+        if executor:
+            embed.add_field(name="Updated By", value=f"{executor.mention} (`{executor.name}`)", inline=True)
+
         context = {
             "event_type": "channel_update",
             "target_id": after.id,
             "target_name": after.name,
+            "actor": executor,
         }
-        await self._send_log(after.guild, "general_channel_id", embed, context=context)
+        await self._send_log(after.guild, "channel_logs_channel_id", embed, context=context)
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
@@ -732,12 +922,87 @@ class LoggingCog(commands.Cog, name="Logging"):
             "target_id": thread.id,
             "target_name": thread.name,
         }
-        await self._send_log(thread.guild, "general_channel_id", embed, context=context)
+        await self._send_log(thread.guild, "channel_logs_channel_id", embed, context=context)
+
+    @commands.Cog.listener()
+    async def on_webhooks_update(self, channel: discord.abc.GuildChannel):
+        guild = channel.guild
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.webhook_create, max_retries=2, delay_seconds=0.4
+        )
+        action_name = "Webhook Created"
+        if not executor:
+            executor, audit_entry = await find_audit_executor(
+                guild, discord.AuditLogAction.webhook_delete, max_retries=2, delay_seconds=0.4
+            )
+            if executor:
+                action_name = "Webhook Deleted"
+
+        embed = create_embed(
+            title=f"🔗 {action_name}",
+            description=f"Webhook modification detected in {channel.mention} (`#{channel.name}`).",
+            color=Colors.WARNING if action_name == "Webhook Created" else Colors.INFO,
+        )
+        embed.add_field(
+            name="Executor",
+            value=f"{executor.mention} (`{executor.name}`)" if executor else "Uncertain Attribution",
+            inline=True,
+        )
+        await self._send_log(guild, "server_audit_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
+        changes = []
+        if before.name != after.name:
+            changes.append(f"**Server Name:** `{before.name}` ➔ `{after.name}`")
+        if before.verification_level != after.verification_level:
+            changes.append(f"**Verification Level:** `{before.verification_level.name}` ➔ `{after.verification_level.name}`")
+        if before.default_notifications != after.default_notifications:
+            changes.append(f"**Default Notifications:** `{before.default_notifications.name}` ➔ `{after.default_notifications.name}`")
+        if before.afk_channel != after.afk_channel:
+            old_afk = before.afk_channel.name if before.afk_channel else "None"
+            new_afk = after.afk_channel.name if after.afk_channel else "None"
+            changes.append(f"**AFK Channel:** `#{old_afk}` ➔ `#{new_afk}`")
+        if before.afk_timeout != after.afk_timeout:
+            changes.append(f"**AFK Timeout:** `{before.afk_timeout}s` ➔ `{after.afk_timeout}s`")
+
+        if not changes:
+            return
+
+        executor, _ = await find_audit_executor(
+            after, discord.AuditLogAction.guild_update, max_retries=2, delay_seconds=0.4
+        )
+        embed = create_embed(
+            title="⚙️ Server Settings Modified",
+            description="\n".join(changes),
+            color=Colors.PRIMARY,
+        )
+        if executor:
+            embed.add_field(name="Modified By", value=f"{executor.mention} (`{executor.name}`)", inline=True)
+        await self._send_log(after, "server_audit_channel_id", embed)
 
 
     # ==========================================
     # SLASH COMMANDS
     # ==========================================
+
+    LOG_CHANNEL_SPECS = [
+        ("mod-logs", "moderation_channel_id", "Moderation actions, bans, kicks, timeouts"),
+        ("security-logs", "security_channel_id", "Security alerts, anti-raid, and anti-nuke detections"),
+        ("message-logs", "message_channel_id", "Message edits, deletions, and bulk purges"),
+        ("member-logs", "member_channel_id", "Member joins, leaves, and nickname updates"),
+        ("voice-logs", "voice_channel_id", "Voice connections, disconnections, and state changes"),
+        ("channel-logs", "channel_logs_channel_id", "Channel creation, deletion, and permission updates"),
+        ("role-logs", "role_logs_channel_id", "Role creation, deletion, and role permission updates"),
+        ("server-audit-logs", "server_audit_channel_id", "Server setting adjustments and webhook modifications"),
+        ("backup-logs", "backup_logs_channel_id", "Automated backups and disaster recovery logs"),
+        ("report-logs", "report_logs_channel_id", "Member reports, incident submissions, and appeals"),
+        ("ticket-logs", "ticket_logs_channel_id", "Ticket creation, claiming, transcripts, and closures"),
+        ("staff-logs", "staff_logs_channel_id", "Internal staff escalations and management logs"),
+        ("bot-logs", "bot_logs_channel_id", "Bot commands, configuration changes, and background tasks"),
+        ("error-logs", "error_logs_channel_id", "Operational errors, exceptions, and recovery diagnostics"),
+        ("system-status", "system_status_channel_id", "Bot connectivity, heartbeats, and cluster health status"),
+    ]
 
     @logging_group.command(name="setup", description="Configure general audit logging channel")
     @is_admin_or_owner()
@@ -745,9 +1010,87 @@ class LoggingCog(commands.Cog, name="Logging"):
     async def logging_setup(self, interaction: discord.Interaction, channel: discord.TextChannel):
         await self.bot.db.update_logging_config(interaction.guild.id, general_channel_id=channel.id)
         await interaction.response.send_message(
-            embed=success_embed("General Log Channel Configured", f"Logs will be sent to {channel.mention}."),
+            embed=success_embed("General Log Channel Configured", f"Default logs will be sent to {channel.mention}."),
             ephemeral=True,
         )
+
+    @logging_group.command(name="auto_setup", description="Automatically provision or link all 15 centralized audit channels")
+    @is_admin_or_owner()
+    @app_commands.describe(category_name="Optional category name for audit logs (default: 📜 | AUDIT & LOGS)")
+    async def logging_auto_setup(self, interaction: discord.Interaction, category_name: Optional[str] = "📜 | AUDIT & LOGS"):
+        guild = interaction.guild
+        await interaction.response.defer(ephemeral=True)
+
+        if not guild.me.guild_permissions.manage_channels:
+            await interaction.followup.send(
+                embed=error_embed("Missing Permissions", "Bot requires `Manage Channels` permission to auto-setup logging channels."),
+                ephemeral=True,
+            )
+            return
+
+        # 1. Locate or create parent category
+        category = discord.utils.get(guild.categories, name=category_name)
+        if not category:
+            try:
+                overwrites = {
+                    guild.default_role: discord.PermissionOverwrite(read_messages=False, send_messages=False),
+                    guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True, attach_files=True),
+                }
+                category = await guild.create_category(name=category_name, overwrites=overwrites)
+            except Exception as e:
+                await interaction.followup.send(
+                    embed=error_embed("Category Creation Failed", f"Could not create category `{category_name}`: {e}"),
+                    ephemeral=True,
+                )
+                return
+
+        # 2. Map existing channels or create missing ones (reusing existing to avoid duplicates)
+        updates = {}
+        report_lines = []
+
+        cfg = await self.bot.db.get_logging_config(guild.id)
+
+        for c_name, attr_name, desc in self.LOG_CHANNEL_SPECS:
+            existing_id = getattr(cfg, attr_name, None)
+            target_ch = guild.get_channel(existing_id) if existing_id else None
+
+            # Fallback: check if a channel with matching name already exists in guild
+            if not target_ch:
+                target_ch = discord.utils.get(guild.text_channels, name=c_name)
+
+            if target_ch:
+                updates[attr_name] = target_ch.id
+                report_lines.append(f"• **{c_name}**: {target_ch.mention} *(Linked existing)*")
+            else:
+                try:
+                    overwrites = {
+                        guild.default_role: discord.PermissionOverwrite(read_messages=False, send_messages=False),
+                        guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True, attach_files=True),
+                    }
+                    new_ch = await guild.create_text_channel(
+                        name=c_name,
+                        category=category,
+                        overwrites=overwrites,
+                        topic=f"Rai Centralized Logging • {desc}",
+                    )
+                    updates[attr_name] = new_ch.id
+                    report_lines.append(f"• **{c_name}**: {new_ch.mention} *(Created)*")
+                    await asyncio.sleep(0.4)
+                except Exception as ce:
+                    report_lines.append(f"• **{c_name}**: ⚠️ Creation failed ({ce})")
+
+        if updates:
+            await self.bot.db.update_logging_config(guild.id, **updates)
+
+        embed = create_embed(
+            title="🛡️ Centralized Logging System Initialized",
+            description=(
+                f"Configured **{len(updates)}** dedicated audit channels under **{category.name}**.\n\n"
+                + "\n".join(report_lines[:15])
+            ),
+            color=Colors.SUCCESS,
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     @logging_group.command(name="set", description="Assign a specific channel for an event category")
     @is_admin_or_owner()
@@ -757,12 +1100,22 @@ class LoggingCog(commands.Cog, name="Logging"):
     )
     @app_commands.choices(
         category=[
-            app_commands.Choice(name="Moderation Logs", value="moderation_channel_id"),
-            app_commands.Choice(name="Security Incidents", value="security_channel_id"),
-            app_commands.Choice(name="AutoMod Logs", value="automod_channel_id"),
-            app_commands.Choice(name="Member Joins/Leaves", value="member_channel_id"),
-            app_commands.Choice(name="Message Edits/Deletions", value="message_channel_id"),
-            app_commands.Choice(name="Voice State Activity", value="voice_channel_id"),
+            app_commands.Choice(name="Moderation Logs (#mod-logs)", value="moderation_channel_id"),
+            app_commands.Choice(name="Security Incidents (#security-logs)", value="security_channel_id"),
+            app_commands.Choice(name="AutoMod Logs (#automod-logs)", value="automod_channel_id"),
+            app_commands.Choice(name="Member Joins/Leaves (#member-logs)", value="member_channel_id"),
+            app_commands.Choice(name="Message Edits/Deletions (#message-logs)", value="message_channel_id"),
+            app_commands.Choice(name="Voice State Activity (#voice-logs)", value="voice_channel_id"),
+            app_commands.Choice(name="Channel Updates (#channel-logs)", value="channel_logs_channel_id"),
+            app_commands.Choice(name="Role Updates (#role-logs)", value="role_logs_channel_id"),
+            app_commands.Choice(name="Server Audit Logs (#server-audit-logs)", value="server_audit_channel_id"),
+            app_commands.Choice(name="Backup Logs (#backup-logs)", value="backup_logs_channel_id"),
+            app_commands.Choice(name="Report Logs (#report-logs)", value="report_logs_channel_id"),
+            app_commands.Choice(name="Ticket Logs (#ticket-logs)", value="ticket_logs_channel_id"),
+            app_commands.Choice(name="Staff Logs (#staff-logs)", value="staff_logs_channel_id"),
+            app_commands.Choice(name="Bot Logs (#bot-logs)", value="bot_logs_channel_id"),
+            app_commands.Choice(name="Error Logs (#error-logs)", value="error_logs_channel_id"),
+            app_commands.Choice(name="System Status (#system-status)", value="system_status_channel_id"),
         ]
     )
     async def logging_set(
@@ -816,16 +1169,27 @@ class LoggingCog(commands.Cog, name="Logging"):
         recip_text = f"<@{founder_recipient_id}>" if founder_recipient_id else "Server Owner / Founder (Default)"
 
         embed = create_embed(
-            title=f"📋 Logging Channel Routing — {interaction.guild.name}",
+            title=f"📋 Centralized Logging Routing — {interaction.guild.name}",
+            description="Status of all 15 dedicated server audit channels:",
             color=Colors.INFO,
         )
         embed.add_field(name="General Logs", value=ch_mention(cfg.general_channel_id), inline=True)
         embed.add_field(name="Moderation Logs", value=ch_mention(cfg.moderation_channel_id), inline=True)
         embed.add_field(name="Security Alerts", value=ch_mention(cfg.security_channel_id), inline=True)
-        embed.add_field(name="AutoMod Violations", value=ch_mention(cfg.automod_channel_id), inline=True)
-        embed.add_field(name="Member Joins/Leaves", value=ch_mention(cfg.member_channel_id), inline=True)
+        embed.add_field(name="AutoMod Logs", value=ch_mention(cfg.automod_channel_id), inline=True)
+        embed.add_field(name="Member Logs", value=ch_mention(cfg.member_channel_id), inline=True)
         embed.add_field(name="Message Logs", value=ch_mention(cfg.message_channel_id), inline=True)
         embed.add_field(name="Voice Logs", value=ch_mention(cfg.voice_channel_id), inline=True)
+        embed.add_field(name="Channel Logs", value=ch_mention(cfg.channel_logs_channel_id), inline=True)
+        embed.add_field(name="Role Logs", value=ch_mention(cfg.role_logs_channel_id), inline=True)
+        embed.add_field(name="Server Audit Logs", value=ch_mention(cfg.server_audit_channel_id), inline=True)
+        embed.add_field(name="Backup Logs", value=ch_mention(cfg.backup_logs_channel_id), inline=True)
+        embed.add_field(name="Report Logs", value=ch_mention(cfg.report_logs_channel_id), inline=True)
+        embed.add_field(name="Ticket Logs", value=ch_mention(cfg.ticket_logs_channel_id), inline=True)
+        embed.add_field(name="Staff Logs", value=ch_mention(cfg.staff_logs_channel_id), inline=True)
+        embed.add_field(name="Bot Logs", value=ch_mention(cfg.bot_logs_channel_id), inline=True)
+        embed.add_field(name="Error Logs", value=ch_mention(cfg.error_logs_channel_id), inline=True)
+        embed.add_field(name="System Status", value=ch_mention(cfg.system_status_channel_id), inline=True)
         embed.add_field(
             name="Founder Live DM Alerts",
             value=f"{'🟢 Enabled' if founder_dm_enabled else '🔴 Disabled'} • Recipient: {recip_text}",

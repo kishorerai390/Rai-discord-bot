@@ -359,6 +359,16 @@ class LoggingConfig:
     member_channel_id: Optional[int] = None
     message_channel_id: Optional[int] = None
     voice_channel_id: Optional[int] = None
+    channel_logs_channel_id: Optional[int] = None
+    role_logs_channel_id: Optional[int] = None
+    server_audit_channel_id: Optional[int] = None
+    backup_logs_channel_id: Optional[int] = None
+    report_logs_channel_id: Optional[int] = None
+    ticket_logs_channel_id: Optional[int] = None
+    staff_logs_channel_id: Optional[int] = None
+    bot_logs_channel_id: Optional[int] = None
+    error_logs_channel_id: Optional[int] = None
+    system_status_channel_id: Optional[int] = None
     updated_at: str = ""
 
 
@@ -382,6 +392,54 @@ class TicketRecord:
     created_at: str
     closed_at: Optional[str] = None
     closed_by: Optional[int] = None
+
+
+@dataclass
+class SupportTicket:
+    ticket_id: str
+    numeric_id: int
+    guild_id: int
+    channel_id: int
+    creator_id: int
+    category: str
+    status: str
+    title: str = ""
+    claimed_by: Optional[int] = None
+    closed_by: Optional[int] = None
+    closed_at: Optional[str] = None
+    transcript_path: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class ServerBackupRecord:
+    backup_id: str
+    guild_id: int
+    created_by: int
+    backup_type: str
+    file_path: str
+    file_size: int
+    checksum: str
+    categories_count: int = 0
+    channels_count: int = 0
+    roles_count: int = 0
+    verified: bool = True
+    created_at: str = ""
+    metadata_json: Optional[str] = None
+
+
+@dataclass
+class SystemErrorLog:
+    error_id: str
+    guild_id: Optional[int]
+    subsystem: str
+    error_type: str
+    error_message: str
+    stack_trace: Optional[str] = None
+    retry_count: int = 0
+    resolved: bool = False
+    created_at: str = ""
 
 
 @dataclass

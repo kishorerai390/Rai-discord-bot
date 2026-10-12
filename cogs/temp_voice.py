@@ -209,14 +209,17 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                                     self._deaf_inactivity_tracker[key] = now_mono
                                 else:
                                     deaf_duration = now_mono - self._deaf_inactivity_tracker[key]
-                                    if deaf_duration >= 1200.0:  # 20 minutes (1200s)
+                                    # Feature 86: Dynamic Voice AFK Timeout Scaling (10m during peak hours >25 members, 20m standard)
+                                    total_voice_members = sum(len(c.members) for c in guild.voice_channels)
+                                    afk_timeout = 600.0 if total_voice_members > 25 else 1200.0
+                                    if deaf_duration >= afk_timeout:
                                         afk_target = guild.afk_channel
                                         try:
                                             if afk_target and afk_target.id != vc.id:
-                                                await m.move_to(afk_target, reason="Smart AFK: Deafened/inactive in dynamic room for 20+ minutes")
+                                                await m.move_to(afk_target, reason="Smart AFK: Deafened/inactive in dynamic room")
                                                 action_desc = f"moved to AFK channel **#{afk_target.name}**"
                                             else:
-                                                await m.move_to(None, reason="Smart AFK: Deafened/inactive in dynamic room for 20+ minutes")
+                                                await m.move_to(None, reason="Smart AFK: Deafened/inactive in dynamic room")
                                                 action_desc = "disconnected from voice channel"
 
                                             self._deaf_inactivity_tracker.pop(key, None)
@@ -225,17 +228,25 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
                                                 guild.id,
                                                 event="Smart AFK Voice Room Inactivity",
                                                 user=m,
-                                                action_taken=f"User was {action_desc} after 20 minutes deafened in dynamic VC",
+                                                action_taken=f"User was {action_desc} after inactivity in dynamic VC",
                                                 details={
                                                     "Voice Channel": f"`#{vc.name}` (`{vc.id}`)",
                                                     "State": "Deafened / Inactive",
-                                                    "Duration": "20+ minutes",
+                                                    "Duration": f"{int(afk_timeout // 60)} minutes threshold",
                                                 },
                                             )
                                         except Exception as move_err:
                                             logger.warning(f"Failed to move deafened member {m.id} from dynamic room {vc.id}: {move_err}")
                             else:
                                 self._deaf_inactivity_tracker.pop((vc.id, m.id), None)
+
+                        # Feature 87: Left Member Dynamic Room Overwrite Scrubber
+                        for target in list(vc.overwrites.keys()):
+                            if isinstance(target, discord.Member) and target not in guild.members:
+                                try:
+                                    await vc.set_permissions(target, overwrite=None, reason="Dynamic VC Clean: Scrubber for departed member")
+                                except Exception:
+                                    pass
 
                         # Prune disconnected members from inactivity tracker
                         active_member_ids = {mem.id for mem in vc.members}
@@ -271,6 +282,14 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         """Monitors member voice joins and departures for dynamic channel creation and cleanup."""
         guild = member.guild
         if member.bot:
+            # Feature 70: Auto-Server-Deafen Background Bots in Music/Voice Lounges
+            if after.channel and before.channel != after.channel:
+                if member.id not in (self.bot.user.id, 1556676516274905218) and not after.deaf:
+                    if guild.me.guild_permissions.deafen_members:
+                        try:
+                            await member.edit(deafen=True, reason="Auto-Deafen: Suppressed background bot in voice lounge to prevent mic feedback")
+                        except Exception:
+                            pass
             return
 
         # 0. Live Screen Share Notification & Bitrate Optimizer (Features 1 & 2)

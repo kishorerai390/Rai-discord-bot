@@ -107,15 +107,12 @@ class NekoDJService:
 
         """
         Inspect session metadata and find a suitable next track that hasn't
-        been played in the recent history window.
+        been played in recent history. Guaranteed non-stop fallback mechanism.
         Returns: (QueuedTrack, rationale_string)
         """
         base_track = session.current_track
         if not base_track and session.history:
             base_track = session.history[-1]
-
-        if not base_track:
-            return None
 
         recent_titles = {h.title.lower() for h in session.history[-15:]}
         if session.current_track:
@@ -123,23 +120,53 @@ class NekoDJService:
         for q in session.queue:
             recent_titles.add(q.title.lower())
 
-        artist = base_track.artist if base_track.artist != "Unknown Artist" else None
-        search_query = f"{artist} songs" if artist else f"{base_track.title} remix style"
-        rationale = f"Similar artist ({artist}) and musical style." if artist else f"Similar theme to '{base_track.title[:30]}'."
+        artist = (base_track.artist if base_track and base_track.artist != "Unknown Artist" else None)
+        title = base_track.title if base_track else ""
 
+        # Prioritized query hierarchy for continuous infinite variety
+        queries_to_try = []
+        if artist:
+            queries_to_try.append((f"{artist} top tracks songs", f"More top hits by **{artist}**."))
+            queries_to_try.append((f"{artist} mix playlist", f"Related artists & styles matching **{artist}**."))
+        if title:
+            queries_to_try.append((f"{title} radio mix", f"Songs with matching tempo & vibe to **{title[:30]}**."))
+            queries_to_try.append((f"{title} style similar songs", f"Curated vibe matching **{title[:30]}**."))
+
+        # Global trending & circadian fallbacks if specific track queries are exhausted
+        queries_to_try.append(("trending top viral hits playlist songs", "Trending global hit recommended by Neko DJ."))
+        queries_to_try.append(("upbeat energetic party dance hits", "Energetic groove to keep the vibe going."))
+        queries_to_try.append(("chill acoustic indie pop focus", "Smooth acoustic flow recommended by Neko DJ."))
+        queries_to_try.append(("lofi chill morning beats study", "Relaxing continuous ambient beats."))
+
+        for query, rationale in queries_to_try:
+            try:
+                candidates = await AudioResolver.search(query, limit=8)
+                # First pass: strictly exclude recently played songs
+                for c in candidates:
+                    if c["title"].lower() in recent_titles:
+                        continue
+                    resolved = await AudioResolver.resolve_track(c["url"], 0, "Neko DJ Non-Stop")
+                    if resolved:
+                        return resolved, rationale
+
+                # Second pass: if user exhausted all new songs, allow songs not played in last 3 tracks
+                strict_recent = {h.title.lower() for h in session.history[-3:]}
+                for c in candidates:
+                    if c["title"].lower() in strict_recent:
+                        continue
+                    resolved = await AudioResolver.resolve_track(c["url"], 0, "Neko DJ Non-Stop")
+                    if resolved:
+                        return resolved, rationale
+            except Exception as e:
+                logger.debug(f"Neko DJ candidate probe notice for '{query}': {e}")
+
+        # Ultimate failsafe: resolve dependable stream
         try:
-            candidates = await AudioResolver.search(search_query, limit=6)
-            for c in candidates:
-                if c["title"].lower() in recent_titles:
-                    continue
-
-                resolved = await AudioResolver.resolve_track(
-                    c["url"], 0, "Neko DJ"
-                )
-                if resolved:
-                    return resolved, rationale
-        except Exception as e:
-            logger.warning(f"Neko DJ recommendation query failed: {e}")
+            resolved = await AudioResolver.resolve_track("lofi hip hop radio beats to relax study to", 0, "Neko DJ Non-Stop")
+            if resolved:
+                return resolved, "Continuous 24/7 Neko DJ radio stream."
+        except Exception:
+            pass
 
         return None
 

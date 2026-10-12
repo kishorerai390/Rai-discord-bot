@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import re
 import uuid
 from typing import TYPE_CHECKING, List, Optional
@@ -60,6 +61,26 @@ class SecurityCog(commands.Cog, name="Security"):
     def cog_unload(self):
         if self._backup_task:
             self._backup_task.cancel()
+
+    @commands.Cog.listener()
+    async def on_guild_update(self, before: discord.Guild, after: discord.Guild) -> None:
+        """Dangerous Vanity URL & Invite Modification Shield (Feature 68)."""
+        old_vanity = getattr(before, "vanity_url_code", None)
+        new_vanity = getattr(after, "vanity_url_code", None)
+        if old_vanity and new_vanity and old_vanity != new_vanity:
+            from utils.owner_reporter import OwnerReporter
+            OwnerReporter.send_security_report(
+                self.bot,
+                after.id,
+                event="Vanity URL Modification Alert",
+                action_taken="Security Alert Dispatched to Security Channel",
+                severity="HIGH",
+                details={
+                    "Previous Vanity": f"`{old_vanity}`",
+                    "New Vanity": f"`{new_vanity}`",
+                    "Recommendation": "Verify guild vanity URL integrity",
+                },
+            )
 
     security_group = app_commands.Group(
         name="security",
@@ -1509,7 +1530,7 @@ class SecurityCog(commands.Cog, name="Security"):
             ephemeral=True,
         )
 
-    @tasks.loop(hours=24)
+    @tasks.loop(hours=6)
     async def _nightly_backup_loop(self):
         try:
             if hasattr(self.bot, "wait_until_ready") and callable(self.bot.wait_until_ready):
@@ -1523,21 +1544,37 @@ class SecurityCog(commands.Cog, name="Security"):
             rec = await mgr.run_backup(trigger="scheduled_nightly")
             logger.info(f"Nightly disaster recovery backup verified: {rec.backup_id}")
 
-            BACKUP_CONTROL_ID = 1555283418126876856  # #💾・ʙᴀᴄᴋᴜᴘ-ᴄᴏɴᴛʀᴏʟ
-            for guild in self.bot.guilds:
-                ch = guild.get_channel(BACKUP_CONTROL_ID)
-                if ch and isinstance(ch, discord.TextChannel):
-                    embed = success_embed(
-                        "Disaster Recovery Backup Verified",
-                        (
-                            f"**Snapshot ID:** `{rec.backup_id}`\n"
-                            f"**Status:** `VERIFIED (SHA-256 Validated)`\n"
-                            f"**Archive Size:** `{format_bytes(rec.archive_size)}`\n"
-                            f"**Storage:** `{rec.storage_type}`\n"
-                            f"**Created:** `{rec.formatted_created_at}`\n\n"
-                            f"Disaster recovery checkpoint saved to `data/backups/`."
-                        ),
-                    )
+            from config import BACKUP_DATA_CHANNEL_ID
+            ch = self.bot.get_channel(BACKUP_DATA_CHANNEL_ID)
+            if not ch and hasattr(self.bot, "fetch_channel"):
+                try:
+                    ch = await self.bot.fetch_channel(BACKUP_DATA_CHANNEL_ID)
+                except Exception:
+                    ch = None
+
+            if ch and isinstance(ch, discord.TextChannel):
+                embed = success_embed(
+                    f"Disaster Recovery Backup Archive ({rec.backup_id})",
+                    (
+                        f"**📦 Snapshot ID:** `{rec.backup_id}`\n"
+                        f"**⚡ Status:** `VERIFIED (SHA-256 Validated)`\n"
+                        f"**📊 Archive Size:** `{format_bytes(rec.archive_size)}`\n"
+                        f"**📁 Format:** `ZIP Archive (.zip)`\n"
+                        f"**🛡️ Storage:** `{rec.storage_type}`\n"
+                        f"**⏱️ Created:** `{rec.formatted_created_at}`\n\n"
+                        f"**Included Components:**\n"
+                        f"• SQLite Database Snapshot (`data/bot.db`)\n"
+                        f"• Music Bot State & Playlists (`data/music.db`)\n"
+                        f"• Security Policies, Baselines & Whitelists\n"
+                        f"• Dynamic Room Layouts & Server Configurations\n\n"
+                        f"*Direct `.zip` disaster recovery file attached below.*"
+                    ),
+                )
+                if rec.archive_path and os.path.exists(rec.archive_path):
+                    with open(rec.archive_path, "rb") as bf:
+                        vault_file = discord.File(bf, filename=os.path.basename(rec.archive_path))
+                        await ch.send(embed=embed, file=vault_file)
+                else:
                     await ch.send(embed=embed)
         except Exception as e:
             logger.error(f"Nightly backup failed: {e}")
@@ -1550,17 +1587,40 @@ class SecurityCog(commands.Cog, name="Security"):
             mgr = BackupManager.get_instance()
             rec = await mgr.run_backup(trigger=f"manual_by_{interaction.user}")
             embed = success_embed(
-                "Disaster Recovery Backup Complete",
+                f"Disaster Recovery Backup Complete ({rec.backup_id})",
                 (
-                    f"**Snapshot ID:** `{rec.backup_id}`\n"
-                    f"**Status:** `VERIFIED (SHA-256 Validated)`\n"
-                    f"**Archive Size:** `{format_bytes(rec.archive_size)}`\n"
-                    f"**Components Included:** Database, Configuration, Security Policies, Voice Rooms, Playlists\n"
-                    f"**Timestamp:** `{rec.formatted_created_at}`\n\n"
-                    f"Snapshot safely established in `data/backups/`."
+                    f"**📦 Snapshot ID:** `{rec.backup_id}`\n"
+                    f"**⚡ Status:** `VERIFIED (SHA-256 Validated)`\n"
+                    f"**📊 Archive Size:** `{format_bytes(rec.archive_size)}`\n"
+                    f"**📁 Format:** `ZIP Archive (.zip)`\n"
+                    f"**🛡️ Storage:** `{rec.storage_type}`\n"
+                    f"**⏱️ Timestamp:** `{rec.formatted_created_at}`\n\n"
+                    f"Disaster Recovery archive file attached below. A copy has also been archived into `#💾・backup-data`."
                 ),
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            # Post copy to central backup channel in MRL GAMING
+            from config import BACKUP_DATA_CHANNEL_ID
+            ch = self.bot.get_channel(BACKUP_DATA_CHANNEL_ID)
+            if not ch and hasattr(self.bot, "fetch_channel"):
+                try:
+                    ch = await self.bot.fetch_channel(BACKUP_DATA_CHANNEL_ID)
+                except Exception:
+                    ch = None
+
+            if ch and isinstance(ch, discord.TextChannel) and rec.archive_path and os.path.exists(rec.archive_path):
+                try:
+                    with open(rec.archive_path, "rb") as bf:
+                        vault_file = discord.File(bf, filename=os.path.basename(rec.archive_path))
+                        await ch.send(embed=embed, file=vault_file)
+                except Exception as ve:
+                    logger.warning(f"Vault post error: {ve}")
+
+            if rec.archive_path and os.path.exists(rec.archive_path):
+                with open(rec.archive_path, "rb") as f:
+                    discord_file = discord.File(f, filename=os.path.basename(rec.archive_path))
+                    await interaction.followup.send(embed=embed, file=discord_file, ephemeral=True)
+            else:
+                await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception as e:
             await interaction.followup.send(embed=error_embed("Backup Failed", str(e)), ephemeral=True)
 

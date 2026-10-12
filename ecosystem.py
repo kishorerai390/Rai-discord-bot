@@ -57,6 +57,42 @@ def clear_stale_instance(port: int, name: str, exclude_pids: set[int] | None = N
         pass
 
 
+def auto_heal_dependencies(base_dir: str, python_executable: str) -> None:
+    """Computes requirements checksum and auto-installs dependencies on changes with zero manual work."""
+    req_path = Path(base_dir) / "requirements-music.txt"
+    if not req_path.exists():
+        return
+    import hashlib
+    content = req_path.read_bytes()
+    current_hash = hashlib.sha256(content).hexdigest()
+    hash_file = Path(base_dir) / "data" / ".req_music_hash"
+
+    saved_hash = ""
+    if hash_file.exists():
+        try:
+            saved_hash = hash_file.read_text().strip()
+        except Exception:
+            pass
+
+    if current_hash != saved_hash:
+        print("[AUTO-HEAL] requirements-music.txt changed or initial run. Synchronizing dependencies...")
+        try:
+            res = subprocess.run(
+                [python_executable, "-m", "pip", "install", "--no-cache-dir", "-q", "-r", "requirements-music.txt"],
+                cwd=base_dir,
+                capture_output=True,
+                timeout=120,
+            )
+            if res.returncode == 0:
+                hash_file.parent.mkdir(parents=True, exist_ok=True)
+                hash_file.write_text(current_hash)
+                print("  • Virtual environment dependencies verified & synchronized.")
+            else:
+                print(f"  • Pip note: {res.stderr.decode()[:150]}")
+        except Exception as e:
+            print(f"  • Pip self-healing notice: {e}")
+
+
 def run():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     lock_path = Path(base_dir) / ECOSYSTEM_LOCK_FILE
@@ -81,7 +117,16 @@ def run():
     venv_py = os.path.join(base_dir, ".venv", "Scripts", "python.exe")
     python_executable = venv_py if os.path.exists(venv_py) else sys.executable
 
-    # Pre-flight: Clear any stale orphan processes on dedicated bot ports
+    # Pre-flight: Self-heal dependencies & clean stale lock artifacts
+    auto_heal_dependencies(base_dir, python_executable)
+    for lock_name in (".bot.lock", ".music_bot.lock"):
+        lp = Path(base_dir) / lock_name
+        if lp.exists():
+            try:
+                lp.unlink()
+            except Exception:
+                pass
+
     clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora")
     clear_stale_instance(MUSIC_LOCK_PORT, "Neko Songs")
 

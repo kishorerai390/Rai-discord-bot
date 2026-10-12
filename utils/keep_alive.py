@@ -329,8 +329,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 
 class KeepAliveServer:
-    def __init__(self, bot: Optional[SentinelBot] = None, port: Optional[int] = None):
+    def __init__(self, bot: Optional[SentinelBot] = None, port: Optional[int] = None, music_bot: Optional[Any] = None):
         self.bot = bot
+        self.music_bot = music_bot
         self.port = port or int(os.environ.get("PORT", 8080))
         self.runner: Optional[web.AppRunner] = None
         self.site: Optional[web.TCPSite] = None
@@ -348,6 +349,7 @@ class KeepAliveServer:
         ping = int(self.bot.latency * 1000) if self.bot else 0
         cmd_count = len(self.bot.tree.get_commands()) if self.bot else 68
         guild_count = len(self.bot.guilds) if self.bot else 1
+        active_music_vcs = len(self.music_bot.voice_clients) if self.music_bot else 0
 
         return web.json_response({
             "status": "online",
@@ -359,6 +361,7 @@ class KeepAliveServer:
             "uptime": f"{hours}h {minutes}m {seconds}s",
             "shield_score": 100,
             "automod_mode": "timeout",
+            "music_active_sessions": active_music_vcs,
         })
 
     async def handle_leaderboard(self, request: web.Request) -> web.Response:
@@ -385,10 +388,17 @@ class KeepAliveServer:
         return web.json_response(results)
 
     async def handle_health(self, request: web.Request) -> web.Response:
-        """Health check endpoint."""
+        """Health check endpoint for Render & UptimeRobot."""
+        music_status = "unconfigured"
+        if self.music_bot:
+            music_status = "online" if getattr(self.music_bot, "is_ready", lambda: False)() else "starting"
+
         return web.json_response({
             "status": "healthy",
-            "bot": "The Raivora",
+            "security_bot": "The Raivora",
+            "security_status": "online" if (self.bot and self.bot.is_ready()) else "starting",
+            "music_bot": "Neko Songs / MusicMaid",
+            "music_status": music_status,
             "timestamp": int(time.time()),
         })
 

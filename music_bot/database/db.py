@@ -69,6 +69,9 @@ class MusicDatabase:
                     response_style TEXT DEFAULT 'normal',
                     vote_skip_threshold REAL DEFAULT 0.5,
                     dj_mode_enabled INTEGER DEFAULT 0,
+                    twenty_four_seven_enabled INTEGER DEFAULT 0,
+                    twenty_four_seven_channel_id INTEGER DEFAULT NULL,
+                    prefix TEXT DEFAULT ',',
                     updated_at TEXT NOT NULL
                 );
 
@@ -81,6 +84,7 @@ class MusicDatabase:
                     loop_mode TEXT DEFAULT 'off',
                     is_paused INTEGER DEFAULT 0,
                     current_track_json TEXT,
+                    position_seconds INTEGER DEFAULT 0,
                     started_at TEXT,
                     updated_at TEXT NOT NULL
                 );
@@ -177,10 +181,26 @@ class MusicDatabase:
                 ("response_style", "TEXT", "'normal'"),
                 ("vote_skip_threshold", "REAL", "0.5"),
                 ("dj_mode_enabled", "INTEGER", "0"),
+                ("twenty_four_seven_enabled", "INTEGER", "0"),
+                ("twenty_four_seven_channel_id", "INTEGER", "NULL"),
+                ("prefix", "TEXT", "','"),
             ]:
                 try:
                     await self._db.execute(
                         f"ALTER TABLE music_guild_settings ADD COLUMN {col} {col_type} DEFAULT {default_val}"
+                    )
+                    await self._db.commit()
+                except Exception:
+                    pass
+
+            for col, col_type, default_val in [
+                ("position_seconds", "INTEGER", "0"),
+                ("queue_json", "TEXT", "'[]'"),
+                ("history_json", "TEXT", "'[]'"),
+            ]:
+                try:
+                    await self._db.execute(
+                        f"ALTER TABLE music_sessions ADD COLUMN {col} {col_type} DEFAULT {default_val}"
                     )
                     await self._db.commit()
                 except Exception:
@@ -200,16 +220,18 @@ class MusicDatabase:
                 if not row:
                     now = datetime.now(timezone.utc).isoformat()
                     await self._db.execute(
-                        "INSERT INTO music_guild_settings (guild_id, updated_at) VALUES (?, ?)",
-                        (guild_id, now),
+                        "INSERT INTO music_guild_settings (guild_id, prefix, updated_at) VALUES (?, ?, ?)",
+                        (guild_id, ",", now),
                     )
                     await self._db.commit()
-                    return MusicGuildSettings(guild_id=guild_id)
+                    return MusicGuildSettings(guild_id=guild_id, prefix=",")
 
                 allowed_ch = json.loads(row["allowed_channels_json"] or "[]")
                 allowed_vc = json.loads(row["allowed_voice_channels_json"] or "[]")
+                keys = row.keys()
                 return MusicGuildSettings(
                     guild_id=row["guild_id"],
+                    prefix=row["prefix"] if ("prefix" in keys and row["prefix"]) else ",",
                     request_channel_id=row["request_channel_id"],
                     dj_role_id=row["dj_role_id"],
                     default_volume=row["default_volume"],
@@ -220,10 +242,12 @@ class MusicDatabase:
                     allowed_channels=allowed_ch,
                     allowed_voice_channels=allowed_vc,
                     queue_limit=row["queue_limit"],
-                    quiet_mode=bool(row["quiet_mode"]) if "quiet_mode" in row.keys() else False,
-                    response_style=row["response_style"] if "response_style" in row.keys() else "normal",
-                    vote_skip_threshold=float(row["vote_skip_threshold"]) if "vote_skip_threshold" in row.keys() else 0.5,
-                    dj_mode_enabled=bool(row["dj_mode_enabled"]) if "dj_mode_enabled" in row.keys() else False,
+                    quiet_mode=bool(row["quiet_mode"]) if "quiet_mode" in keys else False,
+                    response_style=row["response_style"] if "response_style" in keys else "normal",
+                    vote_skip_threshold=float(row["vote_skip_threshold"]) if "vote_skip_threshold" in keys else 0.5,
+                    dj_mode_enabled=bool(row["dj_mode_enabled"]) if "dj_mode_enabled" in keys else False,
+                    twenty_four_seven_enabled=bool(row["twenty_four_seven_enabled"]) if "twenty_four_seven_enabled" in keys else False,
+                    twenty_four_seven_channel_id=row["twenty_four_seven_channel_id"] if "twenty_four_seven_channel_id" in keys else None,
                     updated_at=row["updated_at"],
                 )
 
@@ -237,8 +261,9 @@ class MusicDatabase:
                     autoplay_enabled, auto_leave_enabled, auto_leave_timeout,
                     natural_requests_enabled, allowed_channels_json,
                     allowed_voice_channels_json, queue_limit, quiet_mode,
-                    response_style, vote_skip_threshold, dj_mode_enabled, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    response_style, vote_skip_threshold, dj_mode_enabled,
+                    twenty_four_seven_enabled, twenty_four_seven_channel_id, prefix, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(guild_id) DO UPDATE SET
                     request_channel_id = excluded.request_channel_id,
                     dj_role_id = excluded.dj_role_id,
@@ -254,6 +279,9 @@ class MusicDatabase:
                     response_style = excluded.response_style,
                     vote_skip_threshold = excluded.vote_skip_threshold,
                     dj_mode_enabled = excluded.dj_mode_enabled,
+                    twenty_four_seven_enabled = excluded.twenty_four_seven_enabled,
+                    twenty_four_seven_channel_id = excluded.twenty_four_seven_channel_id,
+                    prefix = excluded.prefix,
                     updated_at = excluded.updated_at
             """, (
                 settings.guild_id,
@@ -271,9 +299,48 @@ class MusicDatabase:
                 settings.response_style,
                 settings.vote_skip_threshold,
                 1 if settings.dj_mode_enabled else 0,
+                1 if settings.twenty_four_seven_enabled else 0,
+                settings.twenty_four_seven_channel_id,
+                settings.prefix or ",",
                 now,
             ))
             await self._db.commit()
+
+    async def get_all_247_guilds(self) -> List[MusicGuildSettings]:
+        """Fetch all guilds that have 24/7 mode enabled."""
+        results = []
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT * FROM music_guild_settings WHERE twenty_four_seven_enabled = 1"
+            ) as cursor:
+                rows = await cursor.fetchall()
+                for row in rows:
+                    keys = row.keys()
+                    allowed_ch = json.loads(row["allowed_channels_json"] or "[]")
+                    allowed_vc = json.loads(row["allowed_voice_channels_json"] or "[]")
+                    results.append(
+                        MusicGuildSettings(
+                            guild_id=row["guild_id"],
+                            request_channel_id=row["request_channel_id"],
+                            dj_role_id=row["dj_role_id"],
+                            default_volume=row["default_volume"],
+                            autoplay_enabled=bool(row["autoplay_enabled"]),
+                            auto_leave_enabled=bool(row["auto_leave_enabled"]),
+                            auto_leave_timeout=row["auto_leave_timeout"],
+                            natural_requests_enabled=bool(row["natural_requests_enabled"]),
+                            allowed_channels=allowed_ch,
+                            allowed_voice_channels=allowed_vc,
+                            queue_limit=row["queue_limit"],
+                            quiet_mode=bool(row["quiet_mode"]) if "quiet_mode" in keys else False,
+                            response_style=row["response_style"] if "response_style" in keys else "normal",
+                            vote_skip_threshold=float(row["vote_skip_threshold"]) if "vote_skip_threshold" in keys else 0.5,
+                            dj_mode_enabled=bool(row["dj_mode_enabled"]) if "dj_mode_enabled" in keys else False,
+                            twenty_four_seven_enabled=bool(row["twenty_four_seven_enabled"]) if "twenty_four_seven_enabled" in keys else False,
+                            twenty_four_seven_channel_id=row["twenty_four_seven_channel_id"] if "twenty_four_seven_channel_id" in keys else None,
+                            updated_at=row["updated_at"],
+                        )
+                    )
+        return results
 
     # =========================================================================
     # NEKO DJ SETTINGS
@@ -630,3 +697,104 @@ class MusicDatabase:
                 "top_songs": top_songs or ["None yet"],
                 "top_artists": top_artists or ["None yet"],
             }
+
+    # =========================================================================
+    # SESSION PERSISTENCE & AUTO-RESUME (FEATURE 109)
+    # =========================================================================
+
+    async def save_session(
+        self,
+        guild_id: int,
+        voice_channel_id: Optional[int],
+        text_channel_id: Optional[int],
+        state: str,
+        volume: int = 80,
+        loop_mode: str = "off",
+        is_paused: bool = False,
+        current_track: Optional[QueuedTrack] = None,
+        started_at: Optional[str] = None,
+        position_seconds: int = 0,
+        queue: Optional[List[Any]] = None,
+        history: Optional[List[Any]] = None,
+    ) -> None:
+        """Persist active session state for seamless recovery across restarts."""
+        async with self._lock:
+            track_json = json.dumps(current_track.to_dict()) if current_track else None
+            queue_json = json.dumps([t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in queue]) if queue else "[]"
+            history_json = json.dumps([t.to_dict() if hasattr(t, "to_dict") else dict(t) for t in history]) if history else "[]"
+            now_iso = datetime.now(timezone.utc).isoformat()
+            await self._db.execute("""
+                INSERT INTO music_sessions (
+                    guild_id, voice_channel_id, text_channel_id, state, volume,
+                    loop_mode, is_paused, current_track_json, position_seconds,
+                    queue_json, history_json, started_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(guild_id) DO UPDATE SET
+                    voice_channel_id = excluded.voice_channel_id,
+                    text_channel_id = excluded.text_channel_id,
+                    state = excluded.state,
+                    volume = excluded.volume,
+                    loop_mode = excluded.loop_mode,
+                    is_paused = excluded.is_paused,
+                    current_track_json = excluded.current_track_json,
+                    position_seconds = excluded.position_seconds,
+                    queue_json = excluded.queue_json,
+                    history_json = excluded.history_json,
+                    started_at = COALESCE(excluded.started_at, music_sessions.started_at),
+                    updated_at = excluded.updated_at
+            """, (
+                guild_id,
+                voice_channel_id,
+                text_channel_id,
+                state,
+                volume,
+                loop_mode,
+                1 if is_paused else 0,
+                track_json,
+                position_seconds,
+                queue_json,
+                history_json,
+                started_at or now_iso,
+                now_iso,
+            ))
+            await self._db.commit()
+
+    async def get_active_sessions(self) -> List[Dict[str, Any]]:
+        """Retrieve all persisted active music sessions."""
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT * FROM music_sessions
+                WHERE state IN ('PLAYING', 'PAUSED') AND current_track_json IS NOT NULL
+            """) as cursor:
+                rows = await cursor.fetchall()
+                results = []
+                for r in rows:
+                    d = dict(r)
+                    if d.get("current_track_json"):
+                        try:
+                            d["current_track"] = json.loads(d["current_track_json"])
+                        except Exception:
+                            d["current_track"] = None
+                    if d.get("queue_json"):
+                        try:
+                            d["queue"] = json.loads(d["queue_json"])
+                        except Exception:
+                            d["queue"] = []
+                    else:
+                        d["queue"] = []
+                    if d.get("history_json"):
+                        try:
+                            d["history"] = json.loads(d["history_json"])
+                        except Exception:
+                            d["history"] = []
+                    else:
+                        d["history"] = []
+                    results.append(d)
+                return results
+
+    async def delete_session(self, guild_id: int) -> None:
+        """Prune session row on complete stop / leave."""
+        async with self._lock:
+            await self._db.execute("DELETE FROM music_sessions WHERE guild_id = ?", (guild_id,))
+            await self._db.commit()
+

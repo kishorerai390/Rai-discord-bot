@@ -18,6 +18,9 @@ from database.models import (
     VoiceGuardConfig,
     VoiceIncident,
     AutomationConfig,
+    ServerBackupRecord,
+    SupportTicket,
+    SystemErrorLog,
 )
 
 __all__ = [
@@ -40,6 +43,9 @@ __all__ = [
     "VoiceGuardConfig",
     "VoiceIncident",
     "AutomationConfig",
+    "ServerBackupRecord",
+    "SupportTicket",
+    "SystemErrorLog",
 ]
 
 

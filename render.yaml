@@ -11,6 +11,10 @@ services:
         value: 3.11.9
       - key: DISCORD_TOKEN
         sync: false
+      - key: MUSIC_BOT_TOKEN
+        sync: false
+      - key: NEKO_SONGS_BOT_TOKEN
+        sync: false
       - key: APPLICATION_ID
         value: 1554732669072445532
       - key: BOT_NAME

@@ -42,6 +42,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("SentinelBot")
 
+import asyncio
+
 # Import modular SentinelBot from core
 from core.bot import SentinelBot, COGS_LIST
 
@@ -49,11 +51,12 @@ __all__ = ["SentinelBot", "COGS_LIST"]
 
 
 def main():
-    print("=" * 50)
-    print("             RAI DISCORD BOT              ")
-    print("=" * 50)
+    print("=" * 60)
+    print("          🛡️ RAI DISCORD BOT & MUSICMAID ECOSYSTEM 🎵         ")
+    print("      Autonomous Security Sentinel + 24/7 Hi-Fi Music Engine   ")
+    print("=" * 60)
 
-    # Validate token
+    # Validate primary security token
     if not is_token_valid():
         print("\n[ERROR] DISCORD_TOKEN is missing or invalid in your .env file!")
         print(f"Current Token State: {get_masked_token()}")
@@ -65,7 +68,7 @@ def main():
         sys.exit(2)
 
     # Ensure single instance lock to prevent duplicate gateway listeners and message spam
-    from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError
+    from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError, MUSIC_LOCK_PORT
 
     instance_lock = SingleInstanceLock()
     try:
@@ -75,20 +78,67 @@ def main():
         print("Startup aborted to prevent duplicate bot instances and message spam.\n")
         sys.exit(0)
 
+    # Detect and prepare Independent Music Bot (Neko Songs / MusicMaid)
+    music_bot = None
+    music_token = None
+    music_lock = None
+    try:
+        from music_bot.config import (
+            MUSIC_BOT_TOKEN,
+            get_masked_music_token,
+            is_music_token_valid,
+        )
+        if is_music_token_valid():
+            from music_bot.bot import NekoSongsBot
+            music_token = MUSIC_BOT_TOKEN
+            music_lock_file = config.ROOT_DIR / ".neko_songs.lock"
+            music_lock = SingleInstanceLock(port=MUSIC_LOCK_PORT, lock_file=music_lock_file)
+            try:
+                music_lock.acquire()
+                music_bot = NekoSongsBot()
+                print(f"[ECOSYSTEM] Music Bot configured ({get_masked_music_token()}). Running alongside Rai Sentinel 24/7.")
+            except InstanceAlreadyRunningError:
+                print("[WARNING] Another standalone Neko Songs process is already running. Proceeding with Rai Sentinel only.")
+                music_lock = None
+                music_bot = None
+        else:
+            print("[INFO] Music Bot token not configured. Running Rai Sentinel in standalone mode.")
+    except Exception as e:
+        logger.warning(f"Could not initialize Music Bot for ecosystem launcher: {e}")
+
     bot = SentinelBot()
+    if music_bot and hasattr(bot, "keep_alive"):
+        bot.keep_alive.music_bot = music_bot
+
+    async def run_ecosystem():
+        async with bot:
+            if music_bot and music_token:
+                async with music_bot:
+                    logger.info("Starting Rai Sentinel and Neko Songs concurrently...")
+                    await asyncio.gather(
+                        bot.start(DISCORD_TOKEN),
+                        music_bot.start(music_token),
+                    )
+            else:
+                await bot.start(DISCORD_TOKEN)
 
     try:
-        bot.run(DISCORD_TOKEN, log_handler=None)
+        asyncio.run(run_ecosystem())
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received. Stopping bot.")
+        logger.info("Keyboard interrupt received. Stopping ecosystem.")
     except Exception as e:
         if "LoginFailure" in type(e).__name__:
-            print("\n[ERROR] Discord rejected the bot token! Please check your DISCORD_TOKEN in .env.")
+            print("\n[ERROR] Discord rejected one of the bot tokens! Please check your DISCORD_TOKEN / MUSIC_BOT_TOKEN in .env or Render.")
             sys.exit(2)
         logger.critical(f"Critical startup failure: {e}", exc_info=True)
         sys.exit(1)
     finally:
         instance_lock.release()
+        if music_lock:
+            try:
+                music_lock.release()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

@@ -25,6 +25,9 @@ from database.models import (
     LoggingConfig,
     TicketConfig,
     TicketRecord,
+    SupportTicket,
+    ServerBackupRecord,
+    SystemErrorLog,
     AutoModConfig,
     SuggestionConfig,
     SuggestionRecord,
@@ -4519,7 +4522,7 @@ class Database:
         await self._db.commit()
 
     # ==========================================
-    # LOGGING CONFIG
+    # LOGGING CONFIG (15 CENTRALIZED CHANNELS)
     # ==========================================
 
     async def get_logging_config(self, guild_id: int) -> LoggingConfig:
@@ -4532,23 +4535,38 @@ class Database:
         if not row:
             return LoggingConfig(guild_id=guild_id)
 
+        d = dict(row)
         return LoggingConfig(
-            guild_id=row["guild_id"],
-            general_channel_id=row["general_channel_id"],
-            moderation_channel_id=row["moderation_channel_id"],
-            security_channel_id=row["security_channel_id"],
-            automod_channel_id=row["automod_channel_id"],
-            member_channel_id=row["member_channel_id"],
-            message_channel_id=row["message_channel_id"],
-            voice_channel_id=row["voice_channel_id"],
-            updated_at=row["updated_at"],
+            guild_id=d["guild_id"],
+            general_channel_id=d.get("general_channel_id"),
+            moderation_channel_id=d.get("moderation_channel_id"),
+            security_channel_id=d.get("security_channel_id"),
+            automod_channel_id=d.get("automod_channel_id"),
+            member_channel_id=d.get("member_channel_id"),
+            message_channel_id=d.get("message_channel_id"),
+            voice_channel_id=d.get("voice_channel_id"),
+            channel_logs_channel_id=d.get("channel_logs_channel_id"),
+            role_logs_channel_id=d.get("role_logs_channel_id"),
+            server_audit_channel_id=d.get("server_audit_channel_id"),
+            backup_logs_channel_id=d.get("backup_logs_channel_id"),
+            report_logs_channel_id=d.get("report_logs_channel_id"),
+            ticket_logs_channel_id=d.get("ticket_logs_channel_id"),
+            staff_logs_channel_id=d.get("staff_logs_channel_id"),
+            bot_logs_channel_id=d.get("bot_logs_channel_id"),
+            error_logs_channel_id=d.get("error_logs_channel_id"),
+            system_status_channel_id=d.get("system_status_channel_id"),
+            updated_at=d.get("updated_at", ""),
         )
 
     async def update_logging_config(self, guild_id: int, **kwargs: Any) -> None:
         await self.get_or_create_guild_config(guild_id)
         valid = {
             "general_channel_id", "moderation_channel_id", "security_channel_id",
-            "automod_channel_id", "member_channel_id", "message_channel_id", "voice_channel_id"
+            "automod_channel_id", "member_channel_id", "message_channel_id", "voice_channel_id",
+            "channel_logs_channel_id", "role_logs_channel_id", "server_audit_channel_id",
+            "backup_logs_channel_id", "report_logs_channel_id", "ticket_logs_channel_id",
+            "staff_logs_channel_id", "bot_logs_channel_id", "error_logs_channel_id",
+            "system_status_channel_id"
         }
         updates = {k: v for k, v in kwargs.items() if k in valid}
         if not updates:
@@ -4561,6 +4579,322 @@ class Database:
         sql = f"UPDATE logging_config SET {', '.join(set_clauses)} WHERE guild_id = ?"
         await self._db.execute(sql, params)
         await self._db.commit()
+
+    # ==========================================
+    # SERVER CONFIGURATION BACKUPS & DISASTER RECOVERY
+    # ==========================================
+
+    async def create_server_backup(
+        self,
+        backup_id: str,
+        guild_id: int,
+        created_by: int,
+        backup_type: str,
+        file_path: str,
+        file_size: int,
+        checksum: str,
+        categories_count: int = 0,
+        channels_count: int = 0,
+        roles_count: int = 0,
+        verified: bool = True,
+        metadata_json: Optional[str] = None,
+    ) -> ServerBackupRecord:
+        now_str = utcnow_iso()
+        sql = """
+            INSERT INTO server_backups (
+                backup_id, guild_id, created_by, backup_type, file_path, file_size,
+                checksum, categories_count, channels_count, roles_count, verified,
+                created_at, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        await self._db.execute(
+            sql,
+            (
+                backup_id, guild_id, created_by, backup_type, file_path, file_size,
+                checksum, categories_count, channels_count, roles_count, 1 if verified else 0,
+                now_str, metadata_json
+            )
+        )
+        await self._db.commit()
+        return ServerBackupRecord(
+            backup_id=backup_id,
+            guild_id=guild_id,
+            created_by=created_by,
+            backup_type=backup_type,
+            file_path=file_path,
+            file_size=file_size,
+            checksum=checksum,
+            categories_count=categories_count,
+            channels_count=channels_count,
+            roles_count=roles_count,
+            verified=verified,
+            created_at=now_str,
+            metadata_json=metadata_json,
+        )
+
+    async def get_server_backups(self, guild_id: int, limit: int = 20) -> List[ServerBackupRecord]:
+        sql = "SELECT * FROM server_backups WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?"
+        async with self._db.execute(sql, (guild_id, limit)) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            ServerBackupRecord(
+                backup_id=r["backup_id"],
+                guild_id=r["guild_id"],
+                created_by=r["created_by"],
+                backup_type=r["backup_type"],
+                file_path=r["file_path"],
+                file_size=r["file_size"],
+                checksum=r["checksum"],
+                categories_count=r["categories_count"],
+                channels_count=r["channels_count"],
+                roles_count=r["roles_count"],
+                verified=bool(r["verified"]),
+                created_at=r["created_at"],
+                metadata_json=r["metadata_json"],
+            )
+            for r in rows
+        ]
+
+    async def get_server_backup(self, backup_id: str) -> Optional[ServerBackupRecord]:
+        sql = "SELECT * FROM server_backups WHERE backup_id = ?"
+        async with self._db.execute(sql, (backup_id,)) as cursor:
+            r = await cursor.fetchone()
+        if not r:
+            return None
+        return ServerBackupRecord(
+            backup_id=r["backup_id"],
+            guild_id=r["guild_id"],
+            created_by=r["created_by"],
+            backup_type=r["backup_type"],
+            file_path=r["file_path"],
+            file_size=r["file_size"],
+            checksum=r["checksum"],
+            categories_count=r["categories_count"],
+            channels_count=r["channels_count"],
+            roles_count=r["roles_count"],
+            verified=bool(r["verified"]),
+            created_at=r["created_at"],
+            metadata_json=r["metadata_json"],
+        )
+
+    async def delete_server_backup(self, backup_id: str) -> bool:
+        await self._db.execute("DELETE FROM server_backups WHERE backup_id = ?", (backup_id,))
+        await self._db.commit()
+        return True
+
+    # ==========================================
+    # SUPPORT TICKETS & EXTENDED REPORT ENGINE
+    # ==========================================
+
+    async def create_support_ticket(
+        self,
+        ticket_id: str,
+        numeric_id: int,
+        guild_id: int,
+        channel_id: int,
+        creator_id: int,
+        category: str,
+        title: str = "",
+        status: str = "open",
+    ) -> SupportTicket:
+        now_str = utcnow_iso()
+        sql = """
+            INSERT INTO support_tickets (
+                ticket_id, numeric_id, guild_id, channel_id, creator_id,
+                category, status, title, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        await self._db.execute(
+            sql,
+            (ticket_id, numeric_id, guild_id, channel_id, creator_id, category, status, title, now_str, now_str)
+        )
+        await self._db.commit()
+        return SupportTicket(
+            ticket_id=ticket_id,
+            numeric_id=numeric_id,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            creator_id=creator_id,
+            category=category,
+            status=status,
+            title=title,
+            created_at=now_str,
+            updated_at=now_str,
+        )
+
+    async def get_support_ticket(self, ticket_id: str) -> Optional[SupportTicket]:
+        sql = "SELECT * FROM support_tickets WHERE ticket_id = ?"
+        async with self._db.execute(sql, (ticket_id,)) as cursor:
+            r = await cursor.fetchone()
+        if not r:
+            return None
+        return SupportTicket(
+            ticket_id=r["ticket_id"],
+            numeric_id=r["numeric_id"],
+            guild_id=r["guild_id"],
+            channel_id=r["channel_id"],
+            creator_id=r["creator_id"],
+            category=r["category"],
+            status=r["status"],
+            title=r["title"] or "",
+            claimed_by=r["claimed_by"],
+            closed_by=r["closed_by"],
+            closed_at=r["closed_at"],
+            transcript_path=r["transcript_path"],
+            created_at=r["created_at"],
+            updated_at=r["updated_at"],
+        )
+
+    async def get_support_ticket_by_channel(self, channel_id: int) -> Optional[SupportTicket]:
+        sql = "SELECT * FROM support_tickets WHERE channel_id = ?"
+        async with self._db.execute(sql, (channel_id,)) as cursor:
+            r = await cursor.fetchone()
+        if not r:
+            return None
+        return SupportTicket(
+            ticket_id=r["ticket_id"],
+            numeric_id=r["numeric_id"],
+            guild_id=r["guild_id"],
+            channel_id=r["channel_id"],
+            creator_id=r["creator_id"],
+            category=r["category"],
+            status=r["status"],
+            title=r["title"] or "",
+            claimed_by=r["claimed_by"],
+            closed_by=r["closed_by"],
+            closed_at=r["closed_at"],
+            transcript_path=r["transcript_path"],
+            created_at=r["created_at"],
+            updated_at=r["updated_at"],
+        )
+
+    async def get_open_support_tickets_for_user(self, guild_id: int, creator_id: int) -> List[SupportTicket]:
+        sql = "SELECT * FROM support_tickets WHERE guild_id = ? AND creator_id = ? AND status IN ('open', 'claimed')"
+        async with self._db.execute(sql, (guild_id, creator_id)) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            SupportTicket(
+                ticket_id=r["ticket_id"],
+                numeric_id=r["numeric_id"],
+                guild_id=r["guild_id"],
+                channel_id=r["channel_id"],
+                creator_id=r["creator_id"],
+                category=r["category"],
+                status=r["status"],
+                title=r["title"] or "",
+                claimed_by=r["claimed_by"],
+                closed_by=r["closed_by"],
+                closed_at=r["closed_at"],
+                transcript_path=r["transcript_path"],
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+            for r in rows
+        ]
+
+    async def update_support_ticket(self, ticket_id: str, **kwargs: Any) -> None:
+        valid = {"status", "claimed_by", "closed_by", "closed_at", "transcript_path", "title"}
+        updates = {k: v for k, v in kwargs.items() if k in valid}
+        if not updates:
+            return
+        updates["updated_at"] = utcnow_iso()
+        set_clauses = [f"{k} = ?" for k in updates]
+        params = list(updates.values()) + [ticket_id]
+        sql = f"UPDATE support_tickets SET {', '.join(set_clauses)} WHERE ticket_id = ?"
+        await self._db.execute(sql, params)
+        await self._db.commit()
+
+    async def list_support_tickets(self, guild_id: int, status: Optional[str] = None, limit: int = 50) -> List[SupportTicket]:
+        if status:
+            sql = "SELECT * FROM support_tickets WHERE guild_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?"
+            params = (guild_id, status, limit)
+        else:
+            sql = "SELECT * FROM support_tickets WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?"
+            params = (guild_id, limit)
+        async with self._db.execute(sql, params) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            SupportTicket(
+                ticket_id=r["ticket_id"],
+                numeric_id=r["numeric_id"],
+                guild_id=r["guild_id"],
+                channel_id=r["channel_id"],
+                creator_id=r["creator_id"],
+                category=r["category"],
+                status=r["status"],
+                title=r["title"] or "",
+                claimed_by=r["claimed_by"],
+                closed_by=r["closed_by"],
+                closed_at=r["closed_at"],
+                transcript_path=r["transcript_path"],
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+            for r in rows
+        ]
+
+    # ==========================================
+    # SYSTEM ERROR LOGGING & SUBSYSTEM HEALTH
+    # ==========================================
+
+    async def record_system_error(
+        self,
+        error_id: str,
+        guild_id: Optional[int],
+        subsystem: str,
+        error_type: str,
+        error_message: str,
+        stack_trace: Optional[str] = None,
+        retry_count: int = 0,
+        resolved: bool = False,
+    ) -> SystemErrorLog:
+        now_str = utcnow_iso()
+        sql = """
+            INSERT INTO system_error_logs (
+                error_id, guild_id, subsystem, error_type, error_message,
+                stack_trace, retry_count, resolved, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        await self._db.execute(
+            sql,
+            (error_id, guild_id, subsystem, error_type, error_message, stack_trace, retry_count, 1 if resolved else 0, now_str)
+        )
+        await self._db.commit()
+        return SystemErrorLog(
+            error_id=error_id,
+            guild_id=guild_id,
+            subsystem=subsystem,
+            error_type=error_type,
+            error_message=error_message,
+            stack_trace=stack_trace,
+            retry_count=retry_count,
+            resolved=resolved,
+            created_at=now_str,
+        )
+
+    async def get_recent_system_errors(self, limit: int = 20) -> List[SystemErrorLog]:
+        sql = "SELECT * FROM system_error_logs ORDER BY created_at DESC LIMIT ?"
+        async with self._db.execute(sql, (limit,)) as cursor:
+            rows = await cursor.fetchall()
+        return [
+            SystemErrorLog(
+                error_id=r["error_id"],
+                guild_id=r["guild_id"],
+                subsystem=r["subsystem"],
+                error_type=r["error_type"],
+                error_message=r["error_message"],
+                stack_trace=r["stack_trace"],
+                retry_count=r["retry_count"],
+                resolved=bool(r["resolved"]),
+                created_at=r["created_at"],
+            )
+            for r in rows
+        ]
+
+    async def resolve_system_error(self, error_id: str) -> bool:
+        await self._db.execute("UPDATE system_error_logs SET resolved = 1 WHERE error_id = ?", (error_id,))
+        await self._db.commit()
+        return True
 
     # ==========================================
     # TICKET CONFIG & TICKETS
@@ -8246,3 +8580,321 @@ class Database:
             "peak_raid_score": peak_score,
             "verifications": verif_count,
         }
+
+    # ==========================================
+    # SERVER BACKUPS & DISASTER RECOVERY
+    # ==========================================
+
+    async def create_server_backup(self, record: ServerBackupRecord) -> ServerBackupRecord:
+        query = """
+        INSERT INTO server_backups (
+            backup_id, guild_id, created_by, backup_type, file_path, file_size,
+            checksum, categories_count, channels_count, roles_count, verified,
+            created_at, metadata_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(backup_id) DO UPDATE SET
+            file_path = excluded.file_path,
+            file_size = excluded.file_size,
+            checksum = excluded.checksum,
+            verified = excluded.verified,
+            created_at = excluded.created_at
+        """
+        await self._db.execute(
+            query,
+            (
+                record.backup_id,
+                record.guild_id,
+                record.created_by,
+                record.backup_type,
+                record.file_path,
+                record.file_size,
+                record.checksum,
+                record.categories_count,
+                record.channels_count,
+                record.roles_count,
+                1 if record.verified else 0,
+                record.created_at,
+                record.metadata_json,
+            ),
+        )
+        await self._db.commit()
+        return record
+
+    async def get_server_backups(self, guild_id: int, limit: int = 20) -> List[ServerBackupRecord]:
+        async with self._db.execute(
+            "SELECT * FROM server_backups WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?",
+            (guild_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                ServerBackupRecord(
+                    backup_id=r["backup_id"],
+                    guild_id=r["guild_id"],
+                    created_by=r["created_by"],
+                    backup_type=r["backup_type"],
+                    file_path=r["file_path"],
+                    file_size=r["file_size"],
+                    checksum=r["checksum"],
+                    categories_count=r["categories_count"],
+                    channels_count=r["channels_count"],
+                    roles_count=r["roles_count"],
+                    verified=bool(r["verified"]),
+                    created_at=r["created_at"],
+                    metadata_json=r["metadata_json"],
+                )
+                for r in rows
+            ]
+
+    async def get_server_backup(self, backup_id: str) -> Optional[ServerBackupRecord]:
+        async with self._db.execute(
+            "SELECT * FROM server_backups WHERE backup_id = ?",
+            (backup_id,),
+        ) as cursor:
+            r = await cursor.fetchone()
+            if not r:
+                return None
+            return ServerBackupRecord(
+                backup_id=r["backup_id"],
+                guild_id=r["guild_id"],
+                created_by=r["created_by"],
+                backup_type=r["backup_type"],
+                file_path=r["file_path"],
+                file_size=r["file_size"],
+                checksum=r["checksum"],
+                categories_count=r["categories_count"],
+                channels_count=r["channels_count"],
+                roles_count=r["roles_count"],
+                verified=bool(r["verified"]),
+                created_at=r["created_at"],
+                metadata_json=r["metadata_json"],
+            )
+
+    async def delete_server_backup(self, backup_id: str) -> bool:
+        cur = await self._db.execute(
+            "DELETE FROM server_backups WHERE backup_id = ?",
+            (backup_id,),
+        )
+        await self._db.commit()
+        return (cur.rowcount or 0) > 0
+
+    # ==========================================
+    # SUPPORT TICKETS & REPORTS
+    # ==========================================
+
+    async def create_support_ticket(self, ticket: SupportTicket) -> SupportTicket:
+        query = """
+        INSERT INTO support_tickets (
+            ticket_id, numeric_id, guild_id, channel_id, creator_id, category,
+            status, title, claimed_by, closed_by, closed_at, transcript_path,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(ticket_id) DO UPDATE SET
+            status = excluded.status,
+            title = excluded.title,
+            claimed_by = excluded.claimed_by,
+            closed_by = excluded.closed_by,
+            closed_at = excluded.closed_at,
+            transcript_path = excluded.transcript_path,
+            updated_at = excluded.updated_at
+        """
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        await self._db.execute(
+            query,
+            (
+                ticket.ticket_id,
+                ticket.numeric_id,
+                ticket.guild_id,
+                ticket.channel_id,
+                ticket.creator_id,
+                ticket.category,
+                ticket.status,
+                ticket.title,
+                ticket.claimed_by,
+                ticket.closed_by,
+                ticket.closed_at,
+                ticket.transcript_path,
+                ticket.created_at or now,
+                ticket.updated_at or now,
+            ),
+        )
+        await self._db.commit()
+        return ticket
+
+    async def get_support_ticket(self, ticket_id: str) -> Optional[SupportTicket]:
+        async with self._db.execute(
+            "SELECT * FROM support_tickets WHERE ticket_id = ?",
+            (ticket_id,),
+        ) as cursor:
+            r = await cursor.fetchone()
+            if not r:
+                return None
+            return SupportTicket(
+                ticket_id=r["ticket_id"],
+                numeric_id=r["numeric_id"] or 0,
+                guild_id=r["guild_id"],
+                channel_id=r["channel_id"],
+                creator_id=r["creator_id"],
+                category=r["category"],
+                status=r["status"],
+                title=r["title"] or "",
+                claimed_by=r["claimed_by"],
+                closed_by=r["closed_by"],
+                closed_at=r["closed_at"],
+                transcript_path=r["transcript_path"],
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+
+    async def get_support_ticket_by_channel(self, channel_id: int) -> Optional[SupportTicket]:
+        async with self._db.execute(
+            "SELECT * FROM support_tickets WHERE channel_id = ?",
+            (channel_id,),
+        ) as cursor:
+            r = await cursor.fetchone()
+            if not r:
+                return None
+            return SupportTicket(
+                ticket_id=r["ticket_id"],
+                numeric_id=r["numeric_id"] or 0,
+                guild_id=r["guild_id"],
+                channel_id=r["channel_id"],
+                creator_id=r["creator_id"],
+                category=r["category"],
+                status=r["status"],
+                title=r["title"] or "",
+                claimed_by=r["claimed_by"],
+                closed_by=r["closed_by"],
+                closed_at=r["closed_at"],
+                transcript_path=r["transcript_path"],
+                created_at=r["created_at"],
+                updated_at=r["updated_at"],
+            )
+
+    async def get_open_support_tickets_for_user(self, guild_id: int, creator_id: int) -> List[SupportTicket]:
+        async with self._db.execute(
+            "SELECT * FROM support_tickets WHERE guild_id = ? AND creator_id = ? AND status IN ('open', 'claimed')",
+            (guild_id, creator_id),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                SupportTicket(
+                    ticket_id=r["ticket_id"],
+                    numeric_id=r["numeric_id"] or 0,
+                    guild_id=r["guild_id"],
+                    channel_id=r["channel_id"],
+                    creator_id=r["creator_id"],
+                    category=r["category"],
+                    status=r["status"],
+                    title=r["title"] or "",
+                    claimed_by=r["claimed_by"],
+                    closed_by=r["closed_by"],
+                    closed_at=r["closed_at"],
+                    transcript_path=r["transcript_path"],
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                )
+                for r in rows
+            ]
+
+    async def update_support_ticket(self, ticket_id: str, **kwargs: Any) -> bool:
+        if not kwargs:
+            return False
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        kwargs["updated_at"] = now
+        set_clause = ", ".join(f"{k} = ?" for k in kwargs.keys())
+        values = list(kwargs.values()) + [ticket_id]
+        cur = await self._db.execute(
+            f"UPDATE support_tickets SET {set_clause} WHERE ticket_id = ?",
+            tuple(values),
+        )
+        await self._db.commit()
+        return (cur.rowcount or 0) > 0
+
+    async def list_support_tickets(self, guild_id: int, status: Optional[str] = None, limit: int = 25) -> List[SupportTicket]:
+        if status:
+            query = "SELECT * FROM support_tickets WHERE guild_id = ? AND status = ? ORDER BY created_at DESC LIMIT ?"
+            params = (guild_id, status, limit)
+        else:
+            query = "SELECT * FROM support_tickets WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?"
+            params = (guild_id, limit)
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                SupportTicket(
+                    ticket_id=r["ticket_id"],
+                    numeric_id=r["numeric_id"] or 0,
+                    guild_id=r["guild_id"],
+                    channel_id=r["channel_id"],
+                    creator_id=r["creator_id"],
+                    category=r["category"],
+                    status=r["status"],
+                    title=r["title"] or "",
+                    claimed_by=r["claimed_by"],
+                    closed_by=r["closed_by"],
+                    closed_at=r["closed_at"],
+                    transcript_path=r["transcript_path"],
+                    created_at=r["created_at"],
+                    updated_at=r["updated_at"],
+                )
+                for r in rows
+            ]
+
+    # ==========================================
+    # SYSTEM ERROR LOGGING & HEALTH
+    # ==========================================
+
+    async def record_system_error(self, log: SystemErrorLog) -> None:
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        await self._db.execute(
+            """
+            INSERT INTO system_error_logs (
+                error_id, guild_id, subsystem, error_type, error_message,
+                stack_trace, retry_count, resolved, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(error_id) DO UPDATE SET
+                retry_count = system_error_logs.retry_count + 1,
+                error_message = excluded.error_message,
+                stack_trace = excluded.stack_trace
+            """,
+            (
+                log.error_id,
+                log.guild_id,
+                log.subsystem,
+                log.error_type,
+                log.error_message,
+                log.stack_trace,
+                log.retry_count,
+                1 if log.resolved else 0,
+                log.created_at or now,
+            ),
+        )
+        await self._db.commit()
+
+    async def get_recent_system_errors(self, limit: int = 20) -> List[SystemErrorLog]:
+        async with self._db.execute(
+            "SELECT * FROM system_error_logs ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                SystemErrorLog(
+                    error_id=r["error_id"],
+                    guild_id=r["guild_id"],
+                    subsystem=r["subsystem"],
+                    error_type=r["error_type"],
+                    error_message=r["error_message"],
+                    stack_trace=r["stack_trace"],
+                    retry_count=r["retry_count"],
+                    resolved=bool(r["resolved"]),
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def resolve_system_error(self, error_id: str) -> bool:
+        cur = await self._db.execute(
+            "UPDATE system_error_logs SET resolved = 1 WHERE error_id = ?",
+            (error_id,),
+        )
+        await self._db.commit()
+        return (cur.rowcount or 0) > 0

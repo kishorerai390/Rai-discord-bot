@@ -89,21 +89,21 @@ class AIWatchdogCog(commands.Cog, name="AI Watchdog"):
 
                     has_everyone_ping = any("mention" in c.lower() for c in criticals)
                     # 1. Zero-Touch Auto-Remediation: Fix dangerous @everyone permission immediately if permitted
-                        try:
-                            new_perms = guild.default_role.permissions
-                            new_perms.mention_everyone = False
-                            new_perms.administrator = False
-                            await guild.default_role.edit(
-                                permissions=new_perms,
-                                reason="Rai Autonomous Security Sentinel: Auto-repaired @everyone mention permission",
-                            )
-                            score, findings = self.brain.calculate_server_security_score(guild)
-                            criticals = [f for f in findings if "CRITICAL" in f or "HIGH" in f]
-                            logger.info(f"[AI Watchdog] Auto-repaired @everyone permissions on {guild.name}! New score: {score}/100")
-                            if not criticals or score >= 75:
-                                continue
-                        except Exception as ah_err:
-                            logger.debug(f"[AI Watchdog] Could not auto-heal @everyone on {guild.name}: {ah_err}")
+                    try:
+                        new_perms = guild.default_role.permissions
+                        new_perms.mention_everyone = False
+                        new_perms.administrator = False
+                        await guild.default_role.edit(
+                            permissions=new_perms,
+                            reason="Rai Autonomous Security Sentinel: Auto-repaired @everyone mention permission",
+                        )
+                        score, findings = self.brain.calculate_server_security_score(guild)
+                        criticals = [f for f in findings if "CRITICAL" in f or "HIGH" in f]
+                        logger.info(f"[AI Watchdog] Auto-repaired @everyone permissions on {guild.name}! New score: {score}/100")
+                        if not criticals or score >= 75:
+                            continue
+                    except Exception as ah_err:
+                        logger.debug(f"[AI Watchdog] Could not auto-heal @everyone on {guild.name}: {ah_err}")
 
                     action_guidance = (
                         "Click '⚡ Auto-Fix Permission' below to automatically remove @everyone mention permissions, "

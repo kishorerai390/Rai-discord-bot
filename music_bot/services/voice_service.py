@@ -32,6 +32,11 @@ class VoiceManager:
 
         target_channel = member.voice.channel
 
+        # Feature 135: AFK Channel Anti-Join Sentry
+        if member.guild and member.guild.afk_channel and target_channel.id == member.guild.afk_channel.id:
+            logger.warning(f"Prevented joining AFK voice channel in guild {member.guild.id}")
+            return None
+
         # Cancel any pending auto-leave timer
         if session.auto_leave_task and not session.auto_leave_task.done():
             session.auto_leave_task.cancel()
@@ -39,25 +44,57 @@ class VoiceManager:
 
         session.text_channel = text_channel
 
-        if session.voice_client and session.voice_client.is_connected():
-            if session.voice_client.channel.id != target_channel.id:
-                await session.voice_client.move_to(target_channel)
-            return session.voice_client
+        # Pre-flight channel permission check
+        if member.guild and member.guild.me:
+            perms = target_channel.permissions_for(member.guild.me)
+            if not perms.connect:
+                logger.warning(
+                    f"Cannot join voice channel '{target_channel.name}' ({target_channel.id}) "
+                    f"in guild '{member.guild.name}': Missing CONNECT permission."
+                )
+                session.last_error = f"Missing **Connect** permission in {target_channel.mention if hasattr(target_channel, 'mention') else target_channel.name}"
+                return None
+            if not perms.speak:
+                logger.warning(
+                    f"Cannot join voice channel '{target_channel.name}' ({target_channel.id}) "
+                    f"in guild '{member.guild.name}': Missing SPEAK permission."
+                )
+                session.last_error = f"Missing **Speak** permission in {target_channel.mention if hasattr(target_channel, 'mention') else target_channel.name}"
+                return None
+
+        # Reuse or clean up existing voice client in the guild
+        existing_vc = member.guild.voice_client if member.guild else None
+        if existing_vc and existing_vc.is_connected():
+            session.voice_client = existing_vc
+            if existing_vc.channel.id != target_channel.id:
+                await existing_vc.move_to(target_channel)
+            return existing_vc
+        elif existing_vc:
+            try:
+                await existing_vc.disconnect(force=True)
+            except Exception:
+                pass
 
         try:
             session.state = PlaybackState.CONNECTING
-            vc = await target_channel.connect(timeout=15.0, reconnect=True)
+            vc = await target_channel.connect(timeout=15.0, reconnect=True, self_deaf=True)
             session.voice_client = vc
             session.state = PlaybackState.CONNECTED
+            session.last_error = None
             return vc
         except Exception as e:
             logger.error(f"Failed to connect to voice channel {target_channel.id}: {e}")
             session.state = PlaybackState.ERROR
+            session.last_error = f"Voice connection failed: {e}"
             return None
 
     @classmethod
     def schedule_auto_leave(cls, bot: RaiMusicBot, session: GuildMusicSession, timeout: int = AUTO_LEAVE_TIMEOUT_SECONDS) -> None:
         """Schedule automatic disconnection if voice channel remains empty."""
+        if session.twenty_four_seven:
+            logger.debug(f"24/7 mode enabled in guild {session.guild_id}: auto-leave bypassed.")
+            return
+
         if session.auto_leave_task and not session.auto_leave_task.done():
             session.auto_leave_task.cancel()
 
@@ -73,6 +110,10 @@ class VoiceManager:
             await asyncio.sleep(timeout)
 
             async with session.lock:
+                if session.twenty_four_seven:
+                    logger.info(f"Auto-leave skipped in guild {session.guild_id} (24/7 mode active).")
+                    return
+
                 if not session.voice_client or not session.voice_client.is_connected():
                     return
 
@@ -81,12 +122,24 @@ class VoiceManager:
                 human_members = [m for m in channel.members if not m.bot]
                 if not human_members:
                     logger.info(f"Auto-leaving empty voice channel in guild {session.guild_id}")
+                    # Feature 112: Inactivity Sleep Fade-Out Timer (Smooth volume decay to avoid popping)
+                    if session.voice_client.is_playing() and hasattr(session.voice_client.source, "volume"):
+                        try:
+                            start_vol = session.voice_client.source.volume
+                            for factor in (0.75, 0.5, 0.25, 0.05):
+                                session.voice_client.source.volume = start_vol * factor
+                                await asyncio.sleep(0.4)
+                        except Exception:
+                            pass
+
                     session.queue.clear()
                     if session.voice_client.is_playing():
                         session.voice_client.stop()
                     await session.voice_client.disconnect()
                     session.voice_client = None
                     session.reset()
+                    if getattr(bot, "db", None):
+                        asyncio.create_task(bot.db.delete_session(session.guild_id))
 
                     if session.text_channel:
                         embed = discord.Embed(

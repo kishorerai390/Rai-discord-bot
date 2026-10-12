@@ -519,8 +519,31 @@ class UtilityCog(commands.Cog, name="Utility"):
         embed.add_field(name="Python", value=f"`v{platform.python_version()}`", inline=True)
         embed.add_field(name="Operating System", value=f"`{platform.system()} {platform.release()}`", inline=True)
         embed.add_field(name="Guilds Cached", value=str(len(self.bot.guilds)), inline=True)
+        from config import SUPPORT_INVITE_URL
+        embed.add_field(name="💬 Official Support Server", value=f"[Join MRL GAMING Support]({SUPPORT_INVITE_URL})", inline=False)
 
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="support", description="Get Rai Bot support, join the official support server, or open a ticket")
+    async def support_command(self, interaction: discord.Interaction):
+        from config import SUPPORT_INVITE_URL
+        embed = create_embed(
+            title="💬 Rai Official Support & Help Desk",
+            description=(
+                "Need assistance, want to suggest new features, or report an incident?\n\n"
+                f"🌐 **Official Support Community:**\n"
+                f"👉 **[Join MRL GAMING Support Server]({SUPPORT_INVITE_URL})**\n\n"
+                "🛠️ **Local Server Assistance:**\n"
+                "• Click **Open Local Ticket** below to chat with this server's staff.\n"
+                "• Use `/report` to privately report bugs, member misconduct, or security issues.\n"
+                "• Use `/ticket create` for categorized inquiries."
+            ),
+            color=Colors.PRIMARY,
+        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Join Official Support", url=SUPPORT_INVITE_URL, emoji="💬"))
+        view.add_item(discord.ui.Button(label="Open Local Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="sentinel_ticket_create"))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @app_commands.command(name="nickstyle", description="Style your server nickname with aesthetic fonts and symbols")
     @app_commands.describe(
@@ -659,6 +682,46 @@ class UtilityCog(commands.Cog, name="Utility"):
 
         embed.set_footer(text="✦ ʀᴀɪ Autonomous Ecosystem • Real-Time Pulse ✦")
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="invite", description="Get official invite links for The Raivora (Security) and MusicMaid (Music)")
+    async def invite_command(self, interaction: discord.Interaction) -> None:
+        """Provide official invite links and descriptions with interactive buttons."""
+        neko_user = self.bot.get_user(1556676516274905218)
+        music_name = neko_user.name if neko_user else "MusicMaid"
+
+        view = discord.ui.View()
+        view.add_item(
+            discord.ui.Button(
+                label="Invite SentinelBot (Security)",
+                style=discord.ButtonStyle.link,
+                url="https://discord.com/oauth2/authorize?client_id=1554732669072445532&permissions=8&integration_type=0&scope=bot+applications.commands",
+                emoji="🛡️",
+            )
+        )
+        view.add_item(
+            discord.ui.Button(
+                label=f"Invite {music_name} (Music)",
+                style=discord.ButtonStyle.link,
+                url="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=36768832&integration_type=0&scope=bot+applications.commands",
+                emoji="🎵",
+            )
+        )
+
+        embed = discord.Embed(
+            title="🔗 Invite Rai Ecosystem Bots to Your Server",
+            description=(
+                "Bring autonomous server security and futuristic high-fidelity music to any community!\n\n"
+                "🛡️ **The Raivora (SentinelBot)**\n"
+                "• Autonomous Anti-Nuke, AutoMod, Anti-Raid & Security Plugins\n"
+                "• Dynamic Voice Hubs & Smart Moderation Engine\n\n"
+                f"🎵 **{music_name}**\n"
+                "• 24/7 Radio, Smart Loudness Normalizer, Stage Ducking\n"
+                "• Gapless Audio, Circadian Mood Rotation & Zero-Clutter UI\n"
+            ),
+            color=0x00E5FF,
+        )
+        embed.set_footer(text="Click the buttons below to authorize and add to your server!")
+        await interaction.response.send_message(embed=embed, view=view)
 
 
 async def setup(bot: SentinelBot):

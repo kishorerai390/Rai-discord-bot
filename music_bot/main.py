@@ -65,16 +65,20 @@ def main():
         print("3. Rerun: npm run start:neko  OR  python music_main.py\n")
         sys.exit(2)
 
-    # Acquire instance lock for Neko Songs bot
-    from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError, MUSIC_LOCK_PORT
-    lock_file = Path(__file__).resolve().parent.parent / ".neko_songs.lock"
-    lock = SingleInstanceLock(port=MUSIC_LOCK_PORT, lock_file=lock_file)
+    # Acquire instance lock for Neko Songs bot (if utils available)
+    lock = None
     try:
+        from utils.instance_lock import SingleInstanceLock, InstanceAlreadyRunningError, MUSIC_LOCK_PORT
+        lock_file = Path(__file__).resolve().parent.parent / ".neko_songs.lock"
+        lock = SingleInstanceLock(port=MUSIC_LOCK_PORT, lock_file=lock_file)
         lock.acquire()
-    except InstanceAlreadyRunningError as e:
-        print(f"\n[WARNING] {e}")
-        print("Startup aborted to prevent duplicate Neko Songs instances.\n")
-        sys.exit(0)
+    except ImportError:
+        pass  # Standalone mode: running outside Sentinel ecosystem
+    except Exception as e:
+        if "InstanceAlreadyRunningError" in type(e).__name__:
+            print(f"\n[WARNING] {e}")
+            print("Startup aborted to prevent duplicate Neko Songs instances.\n")
+            sys.exit(0)
 
     bot = NekoSongsBot()
 
@@ -89,7 +93,11 @@ def main():
         logger.critical(f"Critical Neko Songs failure: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        lock.release()
+        if lock:
+            try:
+                lock.release()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

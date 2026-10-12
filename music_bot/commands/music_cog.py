@@ -33,7 +33,7 @@ from music_bot.database.models import QueuedTrack
 from music_bot.services.diagnostics_service import MusicDiagnosticsService
 from music_bot.services.dj_service import NekoDJService
 from music_bot.services.lyrics_service import LyricsService
-from music_bot.services.player_service import MusicPlayerService, format_duration
+from music_bot.services.player_service import AudioEqualizerView, MusicPlayerService, format_duration
 from music_bot.services.recommendation_service import (
     RECOMMENDATION_MODES,
     MusicRecommendationService,
@@ -223,7 +223,8 @@ class NekoSetupDashboardView(discord.ui.View):
         session = await self.bot.session_manager.get_session(self.guild.id)
         vc = await VoiceManager.join_voice_channel(interaction.user, interaction.channel, session)  # type: ignore
         if not vc:
-            await interaction.followup.send("❌ Could not connect to your voice channel.", ephemeral=True)
+            err = session.last_error or "Could not connect to your voice channel."
+            await interaction.followup.send(f"❌ **{err}**", ephemeral=True)
             return
 
         track = await AudioResolver.resolve_track("lofi hip hop test", interaction.user.id, str(interaction.user))
@@ -232,6 +233,399 @@ class NekoSetupDashboardView(discord.ui.View):
             await interaction.followup.send("🎵 Playing test track! Check your audio.", ephemeral=True)
         else:
             await interaction.followup.send("❌ Failed to resolve test audio.", ephemeral=True)
+
+
+# =============================================================================
+# MASTER CONTROL PANEL VIEW (/c)
+# =============================================================================
+
+class MusicControlSelect(discord.ui.Select):
+    """Dropdown selector for the /c master control panel."""
+
+    def __init__(self, panel_view: "MusicControlPanelView"):
+        self.panel_view = panel_view
+        options = [
+            discord.SelectOption(
+                label="🌟 Master Overview",
+                value="overview",
+                description="Live system status, active voice channel, and full command guide",
+                emoji="🐾",
+                default=True,
+            ),
+            discord.SelectOption(
+                label="🎵 Playback & Queue",
+                value="playback",
+                description="Play, skip, pause, resume, seek, queue, volume, loop, shuffle",
+                emoji="🎶",
+            ),
+            discord.SelectOption(
+                label="🎛️ Audio Filters (DSP)",
+                value="filters",
+                description="Bass boost, nightcore, 8D audio, vaporwave, vocal enhancer",
+                emoji="🎚️",
+            ),
+            discord.SelectOption(
+                label="📻 24/7 & Radio Modes",
+                value="247_radio",
+                description="Stay in voice 24/7 and continuous 24/7 vibe radio stations",
+                emoji="📻",
+            ),
+            discord.SelectOption(
+                label="🌙 Bedtime Sleep Timer",
+                value="sleeptimer",
+                description="Automatic countdown with smooth 30s volume fade-out",
+                emoji="💤",
+            ),
+            discord.SelectOption(
+                label="📂 Custom Playlists",
+                value="playlists",
+                description="Save queues to database, load, list, and delete custom playlists",
+                emoji="💾",
+            ),
+            discord.SelectOption(
+                label="🤖 Smart DJ & Maintenance",
+                value="smart_dj",
+                description="DJ recommendations, synced lyrics, yt-dlp autoupdate, hot reload",
+                emoji="⚡",
+            ),
+            discord.SelectOption(
+                label="⚙️ Prefix & Shortcuts",
+                value="prefix_settings",
+                description="Custom server prefix, text commands (,play, ,c, etc.), and shortcuts",
+                emoji="⚙️",
+            ),
+        ]
+        super().__init__(placeholder="Select a category to view detailed commands...", min_values=1, max_values=1, options=options, row=0)
+
+    async def callback(self, interaction: discord.Interaction):
+        selected = self.values[0]
+        self.panel_view.current_page = selected
+        for opt in self.options:
+            opt.default = (opt.value == selected)
+        embed = self.panel_view.build_embed()
+        await interaction.response.edit_message(embed=embed, view=self.panel_view)
+
+
+class MusicControlPanelView(discord.ui.View):
+    """Interactive master control panel and feature guide for MusicMaid (/c)."""
+
+    def __init__(self, bot: RaiMusicBot, guild: discord.Guild, session: GuildMusicSession):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.guild = guild
+        self.session = session
+        self.current_page = "overview"
+
+        # Row 0: Category Select
+        self.add_item(MusicControlSelect(self))
+
+        # Dynamic Button Labels
+        btn_247_label = "24/7: ON" if session.twenty_four_seven else "Toggle 24/7"
+        btn_247_style = discord.ButtonStyle.success if session.twenty_four_seven else discord.ButtonStyle.primary
+
+        # Row 1: Direct Actions
+        self.toggle_247_btn.label = btn_247_label
+        self.toggle_247_btn.style = btn_247_style
+
+        # Row 2: Invite Bot link button
+        bot_user_id = bot.user.id if bot.user else 1556676516274905218
+        invite_url = f"https://discord.com/oauth2/authorize?client_id={bot_user_id}&permissions=36768832&integration_type=0&scope=bot+applications.commands"
+        self.add_item(discord.ui.Button(label="Invite MusicMaid", style=discord.ButtonStyle.link, url=invite_url, emoji="📩", row=2))
+
+    def build_embed(self) -> discord.Embed:
+        bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        is_247 = self.session.twenty_four_seven
+        vc_connected = self.session.voice_client and self.session.voice_client.is_connected()
+        vc_name = self.session.voice_client.channel.name if vc_connected else "Not Connected"
+        status_dot = "🟢" if vc_connected else "⚪"
+        active_filter = self.session.audio_filter or "None (Flat EQ)"
+        radio_mode = (getattr(self.session, "radio_station", None) or "Off").capitalize()
+
+        if self.current_page == "overview":
+            embed = discord.Embed(
+                title=f"🐾 {bot_name} • Master Control Panel",
+                description=(
+                    f"**Welcome to {bot_name}!** High-performance, 24/7 independent audio companion.\n"
+                    f"Select any category from the menu below or use the quick-action buttons.\n\n"
+                    f"**Live Engine Status:**\n"
+                    f"• **Voice Channel:** {status_dot} `{vc_name}`\n"
+                    f"• **24/7 Mode:** {'`✅ ACTIVE`' if is_247 else '`❌ INACTIVE`'} *(Use `/247` or `/stay`)*\n"
+                    f"• **Continuous Radio:** `{radio_mode}` *(Use `/radio`)*\n"
+                    f"• **DSP Filter:** `{active_filter[:35]}` *(Use `/filter`)*\n"
+                    f"• **Volume:** `{self.session.volume}%` • **State:** `{self.session.state.name}`\n"
+                    f"• **Current Track:** {('`' + self.session.current_track.title[:35] + '`') if self.session.current_track else '`Idle`'}"
+                ),
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            embed.add_field(
+                name="🎵 Core Playback",
+                value="`/music play` • `/skip` • `/pause` • `/resume` • `/queue` • `/volume` • `/np` • `/seek` • `/stop` • `/clear` • `/loop` • `/shuffle`",
+                inline=False,
+            )
+            embed.add_field(
+                name="🎛️ Audio Filters (DSP)",
+                value="`/filter preset:bassboost` • `nightcore` • `8d` • `vaporwave` • `vocal` • `reset`",
+                inline=False,
+            )
+            embed.add_field(
+                name="📻 24/7 & Bedtime",
+                value="`/247` or `/stay` *(24/7 Voice)* • `/radio <mood>` *(Continuous Radio)* • `/sleeptimer <mins>` *(Fade-out sleep timer)*",
+                inline=False,
+            )
+            embed.add_field(
+                name="📂 Playlists & Favorites",
+                value="`/playlist save` • `/playlist load` • `/playlist list` • `/playlist delete` • `/music favorite` • `/music favorites`",
+                inline=False,
+            )
+            embed.add_field(
+                name="🤖 Smart DJ & Auto-Updater",
+                value="`/music dj` • `/music lyrics` • `/music recommend` • `/autoupdate` • `/reload` • `/c`",
+                inline=False,
+            )
+            embed.set_footer(text=f"{bot_name} v{MUSIC_BOT_VERSION} • Tap buttons below for instant actions")
+
+        elif self.current_page == "playback":
+            embed = discord.Embed(
+                title="🎵 Playback & Queue Commands",
+                description="Precision streaming audio controls for crystal clear sound:",
+                color=COLOR_NEON_BLUE,
+            )
+            embed.add_field(name="`/music play <query>`", value="Streams audio from YouTube, Spotify links, Soundcloud, or direct search.", inline=False)
+            embed.add_field(name="`/skip` (or `/music skip`)", value="Skips the current song to the next queued track.", inline=True)
+            embed.add_field(name="`/pause` & `/resume`", value="Pause or resume audio playback on demand.", inline=True)
+            embed.add_field(name="`/queue` (or `/music queue`)", value="View paginated list of upcoming tracks with durations.", inline=True)
+            embed.add_field(name="`/volume <0-100>`", value="Set real-time software audio output volume.", inline=True)
+            embed.add_field(name="`/np` (or `/music np`)", value="Show currently playing track with interactive 9-button player bar.", inline=True)
+            embed.add_field(name="`/seek <seconds>`", value="Jump to a specific timestamp in the current song.", inline=True)
+            embed.add_field(name="`/loop <mode>`", value="Loop modes: `off`, `track` (repeat current), or `queue` (repeat all).", inline=True)
+            embed.add_field(name="`/shuffle`", value="Shuffles all songs currently queued.", inline=True)
+            embed.add_field(name="`/clear`", value="Empties all upcoming songs from queue.", inline=True)
+            embed.add_field(name="`/stop`", value="Stops playback, clears queue, and leaves voice channel.", inline=True)
+
+        elif self.current_page == "filters":
+            embed = discord.Embed(
+                title="🎛️ Real-Time DSP Audio Filters (`/filter`)",
+                description="Live sample-rate linear audio processing applied directly via FFmpeg without stutter:",
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            embed.add_field(name="🔊 `/filter preset:bassboost`", value="Deep sub-bass equalizer boost (+10dB at 60Hz) for heavy punch.", inline=False)
+            embed.add_field(name="⚡ `/filter preset:nightcore`", value="1.25x tempo acceleration with high-pitched anime vocals.", inline=False)
+            embed.add_field(name="🎧 `/filter preset:8d`", value="Dynamic 360° rotating stereo audio moving around your ears (use headphones!).", inline=False)
+            embed.add_field(name="🌊 `/filter preset:vaporwave`", value="Relaxed, slowed-down 0.85x playback with vintage deep pitch.", inline=False)
+            embed.add_field(name="🎤 `/filter preset:vocal`", value="Crystal-clear vocal clarity with mid-frequency boost & bass cutoff.", inline=False)
+            embed.add_field(name="🔄 `/filter preset:reset`", value="Clears all active filters and returns to studio-flat EQ.", inline=False)
+
+        elif self.current_page == "247_radio":
+            embed = discord.Embed(
+                title="📻 24/7 Mode & Continuous Radio",
+                description="Keep your server alive around the clock without sudden silence:",
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            embed.add_field(
+                name="🛡️ `/247` or `/stay` (24/7 Persistence)",
+                value=(
+                    "Locks the bot into your voice channel 24/7.\n"
+                    "• **Disables auto-disconnect** when listeners leave\n"
+                    "• **Auto-reconnects** across bot updates and server restarts\n"
+                    "• Saved per-guild in persistent database"
+                ),
+                inline=False,
+            )
+            embed.add_field(
+                name="📻 `/radio preset:<mood>` (Continuous Vibe Radio)",
+                value=(
+                    "When your song queue ends, the bot streams uninterrupted curated vibe music!\n"
+                    "• Presets: `chill` ☕, `gaming` 🎮, `night` 🌙, `anime` 🌸, `party` 🎉, `sleep` 💤, `hits` 🔥\n"
+                    "• Turn off anytime with `/radio preset:off`"
+                ),
+                inline=False,
+            )
+
+        elif self.current_page == "sleeptimer":
+            embed = discord.Embed(
+                title="🌙 Bedtime Sleep Timer (`/sleeptimer`)",
+                description="Wind down and fall asleep to music without the bot playing all night:",
+                color=COLOR_NEON_BLUE,
+            )
+            embed.add_field(
+                name="💤 `/sleeptimer minutes:<mins>`",
+                value=(
+                    "Choose from: `15`, `30`, `45`, `60`, `90`, `120` minutes or `Cancel`.\n"
+                    "• **Smooth 30-Second Volume Decay**: When time expires, volume gently steps down `100% ➔ 75% ➔ 50% ➔ 25% ➔ 5%` before peacefully disconnecting.\n"
+                    "• Zero abrupt audio cuts."
+                ),
+                inline=False,
+            )
+
+        elif self.current_page == "playlists":
+            embed = discord.Embed(
+                title="📂 Custom Server Playlists & Favorites",
+                description="Save queues to persistent storage and reload them instantly:",
+                color=COLOR_NEON_BLUE,
+            )
+            embed.add_field(name="💾 `/playlist save name:<name>`", value="Saves all currently queued songs under a custom playlist name.", inline=False)
+            embed.add_field(name="▶️ `/playlist load name:<name>`", value="Loads and appends all tracks from your saved playlist into queue.", inline=False)
+            embed.add_field(name="📜 `/playlist list`", value="Lists all saved playlists created in this server.", inline=False)
+            embed.add_field(name="🗑️ `/playlist delete name:<name>`", value="Deletes a saved playlist from the database.", inline=False)
+            embed.add_field(name="⭐ `/music favorite` & `/music favorites`", value="Bookmark personal favorites and replay them with one click.", inline=False)
+
+        elif self.current_page == "smart_dj":
+            embed = discord.Embed(
+                title="🤖 Smart AI DJ, Lyrics & Maintenance",
+                description="Autonomous intelligence and zero-downtime maintenance:",
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            embed.add_field(name="🎧 `/music dj`", value="Interactive DJ Card providing automated recommendations based on queue history.", inline=False)
+            embed.add_field(name="📜 `/music lyrics`", value="Real-time synchronized lyrics with instant in-memory LRU caching.", inline=False)
+            embed.add_field(name="🔄 `/autoupdate`", value="Checks and upgrades yt-dlp automatically in background to avoid YouTube blocks.", inline=False)
+            embed.add_field(name="⚡ `/reload`", value="Zero-downtime hot reload of audio modules without disconnecting voice clients.", inline=False)
+            embed.add_field(name="📊 `/c` or `/control`", value="Opens this interactive Master Control Panel anytime.", inline=False)
+
+        elif self.current_page == "prefix_settings":
+            embed = discord.Embed(
+                title="⚙️ Server Prefix & Text Shortcuts",
+                description="Use traditional text commands without needing the slash `/` menu:",
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            embed.add_field(
+                name="🔧 Custom Prefix Configuration",
+                value=(
+                    "• **Current Prefix:** `,` *(or custom configured symbol)*\n"
+                    "• **Change Prefix:** `,prefix <symbol>` *(e.g. `,prefix !` or `,prefix .`)*\n"
+                    "• **Slash Command:** `/prefix symbol:<symbol>`\n"
+                    "• *(Requires Manage Server or Administrator)*"
+                ),
+                inline=False,
+            )
+            embed.add_field(
+                name="🎵 Text Playback Shortcuts",
+                value=(
+                    "• `,play <song>` or `,p <song>` — Play track or URL\n"
+                    "• `,skip` or `,s` — Skip track\n"
+                    "• `,pause` & `,resume` — Pause/resume\n"
+                    "• `,stop` — Stop playback & clear queue\n"
+                    "• `,queue` or `,q` — Show queue\n"
+                    "• `,np` — Now playing track info\n"
+                    "• `,volume <0-150>` or `,v` — Set volume"
+                ),
+                inline=False,
+            )
+            embed.add_field(
+                name="🎛️ Advanced Shortcuts",
+                value=(
+                    "• `,c` or `,panel` — Open Master Control Panel\n"
+                    "• `,247` or `,stay` — Toggle 24/7 Voice persistence\n"
+                    "• `,loop` — Toggle loop (track/queue/off)\n"
+                    "• `,shuffle` — Shuffle queue\n"
+                    "• `,clear` — Clear queue\n"
+                    "• `,filter <preset>` — Set EQ (bassboost, nightcore, 8d)\n"
+                    "• `,help` — List all text commands"
+                ),
+                inline=False,
+            )
+
+        return embed
+
+    @discord.ui.button(label="Toggle 24/7", style=discord.ButtonStyle.primary, row=1, emoji="📻")
+    async def toggle_247_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("❌ Must be used in a server.", ephemeral=True)
+            return
+
+        settings = await self.bot.db.get_guild_settings(self.guild.id)
+        new_state = not settings.twenty_four_seven_enabled
+
+        if new_state:
+            target_vc = None
+            if self.session.voice_client and self.session.voice_client.is_connected():
+                target_vc = self.session.voice_client.channel
+            elif interaction.user.voice and interaction.user.voice.channel:
+                target_vc = interaction.user.voice.channel
+                async with self.session.lock:
+                    vc = await VoiceManager.join_voice_channel(interaction.user, interaction.channel, self.session)  # type: ignore
+                    if not vc:
+                        err = self.session.last_error or "Could not connect to your voice channel."
+                        await interaction.response.send_message(
+                            f"❌ **{err}**\n\n"
+                            f"💡 **How to fix:** Please grant **MusicMaid** the **Connect** and **Speak** permissions in this channel.",
+                            ephemeral=True,
+                        )
+                        return
+            else:
+                await interaction.response.send_message(
+                    "⚠️ **Please join a voice channel first** so MusicMaid knows which channel to stay in 24/7!",
+                    ephemeral=True,
+                )
+                return
+
+            settings.twenty_four_seven_enabled = True
+            self.session.twenty_four_seven = True
+            if target_vc:
+                settings.twenty_four_seven_channel_id = target_vc.id
+
+            if self.session.auto_leave_task and not self.session.auto_leave_task.done():
+                self.session.auto_leave_task.cancel()
+                self.session.auto_leave_task = None
+
+            await self.bot.db.update_guild_settings(settings)
+            button.style = discord.ButtonStyle.success
+            button.label = "24/7: ON"
+        else:
+            settings.twenty_four_seven_enabled = False
+            self.session.twenty_four_seven = False
+            settings.twenty_four_seven_channel_id = None
+            await self.bot.db.update_guild_settings(settings)
+
+            if self.session.voice_client and self.session.voice_client.is_connected():
+                humans = [m for m in self.session.voice_client.channel.members if not m.bot]
+                if not humans:
+                    VoiceManager.schedule_auto_leave(self.bot, self.session)
+
+            button.style = discord.ButtonStyle.primary
+            button.label = "Toggle 24/7"
+
+        embed = self.build_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Now Playing", style=discord.ButtonStyle.secondary, row=1, emoji="🎵")
+    async def np_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.session.current_track:
+            await interaction.response.send_message("🐱 Nothing is currently playing!", ephemeral=True)
+            return
+        track = self.session.current_track
+        embed = discord.Embed(
+            title="🎶 Currently Playing",
+            description=f"**[{track.title}]({track.url})**\nby **{track.artist}**",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        embed.add_field(name="Duration", value=f"`{format_duration(track.duration)}`", inline=True)
+        embed.add_field(name="Requested By", value=f"<@{track.requester_id}>", inline=True)
+        embed.add_field(name="Volume", value=f"`{self.session.volume}%`", inline=True)
+        if track.thumbnail:
+            embed.set_thumbnail(url=track.thumbnail)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="View Queue", style=discord.ButtonStyle.secondary, row=1, emoji="📜")
+    async def queue_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.session.queue:
+            await interaction.response.send_message("🐱 The queue is currently empty!", ephemeral=True)
+            return
+        lines = []
+        for i, t in enumerate(self.session.queue[:10], start=1):
+            lines.append(f"`{i}.` **{t.title[:45]}** (`{format_duration(t.duration)}`)")
+        total_sec = sum(t.duration for t in self.session.queue)
+        embed = discord.Embed(
+            title=f"📜 Upcoming Queue ({len(self.session.queue)} tracks)",
+            description="\n".join(lines),
+            color=COLOR_NEON_BLUE,
+        )
+        embed.set_footer(text=f"Total Queue Time: {format_duration(total_sec)}")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary, row=1, emoji="🔄")
+    async def refresh_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        embed = self.build_embed()
+        await interaction.response.edit_message(embed=embed, view=self)
 
 
 # =============================================================================
@@ -288,8 +682,12 @@ class MusicCog(commands.Cog, name="Music"):
         async with session.lock:
             vc = await VoiceManager.join_voice_channel(member, text_channel, session)
             if not vc:
+                err_detail = getattr(session, "last_error", None) or "Bot lacks Connect or Speak permissions in this channel."
+                ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
                 await interaction.followup.send(
-                    "❌ Could not connect to your voice channel. Check bot permissions.",
+                    f"❌ **Could not connect to {ch_name}!**\n"
+                    f"• **Reason:** {err_detail}\n\n"
+                    f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions (or grant the bot Administrator role)!",
                     ephemeral=True,
                 )
                 return
@@ -324,6 +722,17 @@ class MusicCog(commands.Cog, name="Music"):
             )
             return
 
+        # Feature 113: Audio Track Duration Ceiling Limiter (> 3 hours rejected for non-admins)
+        if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
+            await interaction.edit_original_response(
+                embed=discord.Embed(
+                    title="⚠️ TRACK DURATION EXCEEDED",
+                    description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
+                    color=0xED4245,
+                )
+            )
+            return
+
         # 3. Add to Queue or Start Playback
         async with session.lock:
             if session.is_playing:
@@ -342,21 +751,22 @@ class MusicCog(commands.Cog, name="Music"):
             else:
                 success = await MusicPlayerService.start_playback(self.bot, session, track)
                 if success:
-                    embed_started = discord.Embed(
-                        title="🎶 NOW PLAYING",
-                        description=f"### [{track.title}]({track.url})\n**Artist:** `{track.artist}`\n\n*{DIALOGUE_START}*",
-                        color=COLOR_ELECTRIC_CYAN,
-                    )
-                    if track.thumbnail:
-                        embed_started.set_thumbnail(url=track.thumbnail)
-                    await interaction.edit_original_response(embed=embed_started)
+                    try:
+                        await interaction.edit_original_response(
+                            content=f"🎶 Started playing **{track.title}**!",
+                            embed=None,
+                            view=None,
+                        )
+                    except Exception:
+                        pass
                 else:
                     await interaction.edit_original_response(
                         embed=discord.Embed(
                             title="❌ PLAYBACK FAILED",
                             description="Encountered an internal error while starting audio stream.",
                             color=0xED4245,
-                        )
+                        ),
+                        view=None,
                     )
 
     # =========================================================================
@@ -420,7 +830,7 @@ class MusicCog(commands.Cog, name="Music"):
         session.state = PlaybackState.PLAYING
         await interaction.followup.send("▶️ Playback resumed.")
 
-    @music_group.command(name="skip", description="Skip the currently playing song")
+    @music_group.command(name="skip", description="Skip the currently playing song (or vote-to-skip)")
     async def music_skip(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
@@ -429,8 +839,41 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         track_title = session.current_track.title if session.current_track else "Song"
-        session.voice_client.stop()
-        await interaction.followup.send(f"⏭️ Skipped **{track_title}**.")
+
+        # Determine if caller has DJ, admin, or requester bypass authority
+        is_dj = False
+        if interaction.guild:
+            dj_settings = await self.bot.db.get_dj_settings(interaction.guild.id)
+            if not dj_settings.enabled or (dj_settings.role_id and any(r.id == dj_settings.role_id for r in getattr(interaction.user, "roles", []))) or getattr(interaction.user.guild_permissions, "administrator", False):
+                is_dj = True
+            elif session.current_track and session.current_track.requester_id == interaction.user.id:
+                is_dj = True
+
+        vc_channel = session.voice_client.channel
+        # Feature 136: Dynamic active listener consensus (filter out bots and self-deafened members)
+        non_bot_listeners = [
+            m for m in getattr(vc_channel, "members", [])
+            if not m.bot and not getattr(getattr(m, "voice", None), "self_deaf", False)
+        ] if vc_channel else []
+
+        if is_dj or len(non_bot_listeners) <= 1:
+            session.skip_votes.clear()
+            session.voice_client.stop()
+            await interaction.followup.send(f"⏭️ Skipped **{track_title}**.")
+            return
+
+        # Scaled vote consensus: 40% for larger groups >= 5, 50% for smaller groups
+        threshold_ratio = 0.4 if len(non_bot_listeners) >= 5 else 0.5
+        required_votes = max(2, math.ceil(len(non_bot_listeners) * threshold_ratio))
+        session.skip_votes.add(interaction.user.id)
+        current_votes = len(session.skip_votes)
+
+        if current_votes >= required_votes:
+            session.skip_votes.clear()
+            session.voice_client.stop()
+            await interaction.followup.send(f"⏭️ **Vote-to-Skip Passed!** ({current_votes}/{required_votes} votes) Skipped **{track_title}**.")
+        else:
+            await interaction.followup.send(f"🗳️ **Vote to Skip:** {current_votes}/{required_votes} listeners voted to skip **{track_title}**.")
 
     @music_group.command(name="previous", description="Return to the previous song in history")
     async def music_previous(self, interaction: discord.Interaction) -> None:
@@ -495,9 +938,17 @@ class MusicCog(commands.Cog, name="Music"):
         else:
             embed.description = ""
 
+        # Feature 131: Queue Timeline ETA relative timestamp calculation
         lines = []
-        for i, t in enumerate(page_tracks, start=start_idx + 1):
-            lines.append(f"`{i}.` [{t.title}]({t.url}) (`{format_duration(t.duration)}`) • <@{t.requester_id}>")
+        now_ts = int(discord.utils.utcnow().timestamp())
+        current_remaining = max(0, (session.current_track.duration - session.elapsed_seconds)) if session.current_track else 0
+        cumulative_sec = current_remaining
+
+        for i, t in enumerate(tracks):
+            if start_idx <= i < start_idx + per_page:
+                eta_ts = now_ts + cumulative_sec
+                lines.append(f"`{i+1}.` [{t.title}]({t.url}) (`{format_duration(t.duration)}`) • <t:{eta_ts}:R>")
+            cumulative_sec += t.duration
 
         embed.description += "\n".join(lines) if lines else "*Queue is empty.*"
         embed.set_footer(text=f"Total: {len(tracks)} tracks • Neko Songs")
@@ -529,9 +980,8 @@ class MusicCog(commands.Cog, name="Music"):
             await interaction.followup.send(f"❌ Timestamp must be between 0 and {session.current_track.duration}s.", ephemeral=True)
             return
 
-        # FFmpeg seek restarts audio at timestamp
-        session.paused_duration = 0.0
-        session.track_start_time = discord.utils.utcnow().timestamp() - seconds
+        # Execute seamless FFmpeg seek
+        await MusicPlayerService.seek(self.bot, session, seconds)
         await interaction.followup.send(f"⏩ Seeked to `{format_duration(seconds)}`.", ephemeral=True)
 
     @music_group.command(name="shuffle", description="Shuffle songs in the current queue")
@@ -636,6 +1086,121 @@ class MusicCog(commands.Cog, name="Music"):
         session.autoplay = state.value == "on"
         await interaction.followup.send(f"🔄 Autoplay is now **{'ON' if session.autoplay else 'OFF'}**.")
 
+    @app_commands.command(name="eq", description="Select an Audio Equalizer preset")
+    async def music_eq(self, interaction: discord.Interaction) -> None:
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        view = AudioEqualizerView(session, self.bot)
+        await interaction.response.send_message(
+            f"🎛️ **Audio Equalizer Presets** (Current: `{getattr(session, 'eq_preset', 'Flat')}`):",
+            view=view,
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="radio", description="Toggle continuous 24/7 Vibe Radio auto-fill mode")
+    @app_commands.describe(vibe="Musical mood / vibe for radio auto-fill")
+    @app_commands.choices(vibe=[
+        app_commands.Choice(name="Lo-Fi Chill & Relax ☕", value="chill"),
+        app_commands.Choice(name="Gaming Focus 🎮", value="gaming"),
+        app_commands.Choice(name="Synthwave & Night Drive 🌌", value="night"),
+        app_commands.Choice(name="Anime & Japanese Pop 🌸", value="anime"),
+        app_commands.Choice(name="Party Vibes ⚡", value="party"),
+        app_commands.Choice(name="Deep Sleep & Meditation 💤", value="sleep"),
+        app_commands.Choice(name="Global Top Hits 📈", value="hits"),
+        app_commands.Choice(name="Off (Disable Radio) ⏹️", value="off"),
+    ])
+    async def music_radio(self, interaction: discord.Interaction, vibe: app_commands.Choice[str]) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+
+        if vibe.value == "off":
+            session.autoplay = False
+            session.radio_station = None
+            await interaction.followup.send("📻 24/7 Vibe Radio auto-fill **DISABLED**.")
+            return
+
+        session.autoplay = True
+        session.twenty_four_seven = True
+        session.radio_station = vibe.value
+        setattr(session, "radio_vibe", vibe.value)
+
+        # Connect if not connected
+        if not session.is_active and isinstance(member, discord.Member) and member.voice and member.voice.channel:
+            async with session.lock:
+                await VoiceManager.join_voice_channel(member, interaction.channel, session)  # type: ignore
+
+        if guild:
+            settings = await self.bot.db.get_guild_settings(guild.id)
+            settings.twenty_four_seven_enabled = True
+            if session.voice_client:
+                settings.twenty_four_seven_channel_id = session.voice_client.channel.id
+            await self.bot.db.update_guild_settings(settings)
+
+        embed = discord.Embed(
+            title="📻 24/7 VIBE RADIO ACTIVATED",
+            description=(
+                f"Now streaming **{vibe.name}**!\n\n"
+                f"• Continuous non-stop background playback is **ENABLED**\n"
+                f"• 24/7 Voice persistence is **ACTIVATED**\n"
+                f"• When the queue ends, Neko automatically plays matching tracks without stopping."
+            ),
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        await interaction.followup.send(embed=embed)
+
+        if not session.is_playing:
+            radio_map = {
+                "chill": "chill morning lofi coffee beats study relax",
+                "gaming": "gaming edm bass boost high energy workout",
+                "night": "synthwave retrowave cyberpunk gaming night drive",
+                "anime": "anime japanese pop cute aesthetic lofi",
+                "party": "party edm dance festival hits remix",
+                "sleep": "deep sleep ambient meditation lofi space calm",
+                "hits": "top hits popular pop music billboard",
+            }
+            query = radio_map.get(vibe.value, "chill lofi beats")
+            track = await AudioResolver.resolve_track(query, 0, f"Neko {vibe.name}")
+            if track:
+                await MusicPlayerService.start_playback(self.bot, session, track)
+
+    @app_commands.command(name="ducking", description="Toggle Smart Voice Audio Ducking")
+    @app_commands.describe(state="Enable or disable auto-ducking volume during voice activity")
+    @app_commands.choices(state=[
+        app_commands.Choice(name="Enabled (Auto-lower 35% on speaking)", value="on"),
+        app_commands.Choice(name="Disabled (Consistent volume)", value="off"),
+    ])
+    async def music_ducking(self, interaction: discord.Interaction, state: app_commands.Choice[str]) -> None:
+        await interaction.response.defer(ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.ducking_enabled = state.value == "on"
+        await interaction.followup.send(f"🔊 Smart Audio Ducking is now **{'ENABLED' if session.ducking_enabled else 'DISABLED'}**.")
+
+    @app_commands.command(name="watch", description="Launch Discord Watch Together / YouTube activity in voice")
+    async def music_watch(self, interaction: discord.Interaction) -> None:
+        if not interaction.user or not getattr(interaction.user, "voice", None) or not interaction.user.voice.channel:
+            await interaction.response.send_message("❌ You must be connected to a voice channel to start Watch Together.", ephemeral=True)
+            return
+
+        vc = interaction.user.voice.channel
+        try:
+            invite = await vc.create_invite(
+                max_age=3600,
+                max_uses=0,
+                reason="Neko Songs: YouTube Watch Together Activity",
+                target_type=discord.InviteTarget.embedded_application,
+                target_application_id=880218394199220274,  # YouTube Watch Together App ID
+            )
+            embed = discord.Embed(
+                title="📺 WATCH TOGETHER • YOUTUBE ACTIVITY",
+                description=f"Click the link below to launch synchronized YouTube Watch Together inside **#{vc.name}**:\n\n👉 **[Click Here to Launch Watch Together]({invite.url})**",
+                color=0xFF0000,
+            )
+            embed.set_footer(text="Neko Songs • Native Discord Voice Activity")
+            await interaction.response.send_message(embed=embed)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Could not create Watch Together activity invite: {e}", ephemeral=True)
+
     @music_group.command(name="join", description="Connect Neko Songs to your voice channel")
     async def music_join(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
@@ -689,21 +1254,67 @@ class MusicCog(commands.Cog, name="Music"):
     # Subcommand group: /music dj ...
     dj_group = app_commands.Group(name="dj", description="Neko DJ Automated Queue Management", parent=music_group)
 
-    @dj_group.command(name="enable", description="Enable Neko DJ mode to automatically queue songs")
+    @dj_group.command(name="enable", description="Enable Neko DJ mode to continuously play non-stop matching music")
     async def dj_enable(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
         settings = await self.bot.db.get_dj_settings(interaction.guild_id)  # type: ignore
         settings.enabled = True
+        settings.auto_queue = True
         await self.bot.db.update_dj_settings(settings)
-        await interaction.followup.send("🎧 **Neko DJ Mode ENABLED!** When the queue finishes, Neko will pick matching songs.")
+
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.dj_enabled = True
+
+        # If nothing is currently playing and user is in a voice channel, immediately start non-stop playback!
+        member = interaction.user
+        started_now = False
+        if isinstance(member, discord.Member) and member.voice and member.voice.channel and not session.is_playing:
+            from music_bot.services.voice_service import VoiceManager
+            text_channel = interaction.channel if isinstance(interaction.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
+            vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+            if vc:
+                from music_bot.services.dj_service import NekoDJService
+                rec = await NekoDJService.get_recommendation(self.bot, session)
+                if rec:
+                    track, rationale = rec
+                    started = await MusicPlayerService.start_playback(self.bot, session, track)
+                    if started:
+                        started_now = True
+                        from music_bot.services.player_service import NowPlayingControlView
+                        embed = MusicPlayerService.build_now_playing_embed(session)
+                        view = NowPlayingControlView(session)
+                        if text_channel:
+                            msg = await text_channel.send(
+                                f"🎧 **Neko DJ Non-Stop Mode ACTIVE!** Connected to **#{member.voice.channel.name}** and spinning continuous non-stop music for you!\n*{rationale}*",
+                                embed=embed,
+                                view=view,
+                            )
+                            session.now_playing_message = msg
+
+        if started_now:
+            await interaction.followup.send(
+                "🎧 **Neko DJ Non-Stop Mode ACTIVE!**\n"
+                "• Connected to your voice channel and spinning non-stop music.\n"
+                "• Continuous infinite playback is now active with zero silence! 🐾",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                "🎧 **Neko DJ Non-Stop Mode ACTIVE!**\n"
+                "• When songs end, Neko will pick and play matching tracks non-stop without silence!\n"
+                "• Continuous infinite playback is now active. 🐾",
+                ephemeral=True,
+            )
 
     @dj_group.command(name="disable", description="Disable Neko DJ mode")
     async def dj_disable(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
         settings = await self.bot.db.get_dj_settings(interaction.guild_id)  # type: ignore
         settings.enabled = False
         await self.bot.db.update_dj_settings(settings)
-        await interaction.followup.send("⏹️ **Neko DJ Mode DISABLED.**")
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.dj_enabled = False
+        await interaction.followup.send("⏹️ **Neko DJ Non-Stop Mode DISABLED.** Playback will conclude when the queue finishes.", ephemeral=True)
 
     @dj_group.command(name="settings", description="Inspect and configure Neko DJ parameters")
     async def dj_settings(self, interaction: discord.Interaction) -> None:
@@ -799,7 +1410,8 @@ class MusicCog(commands.Cog, name="Music"):
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         vc = await VoiceManager.join_voice_channel(interaction.user, interaction.channel, session)  # type: ignore
         if not vc:
-            await interaction.followup.send("❌ Could not connect to your voice channel.", ephemeral=True)
+            err = session.last_error or "Could not connect to your voice channel."
+            await interaction.followup.send(f"❌ **{err}**", ephemeral=True)
             return
 
         # Queue first track immediately
@@ -1071,6 +1683,505 @@ class MusicCog(commands.Cog, name="Music"):
         await interaction.followup.send(embed=embed)
 
     # =========================================================================
+    # 24/7 & AUTONOMOUS MAINTENANCE ROOT COMMANDS
+    # =========================================================================
+
+    @app_commands.command(name="247", description="Toggle 24/7 mode to keep the bot in voice channel indefinitely")
+    async def cmd_247(self, interaction: discord.Interaction) -> None:
+        """Toggles 24/7 persistence mode for the guild."""
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        settings = await self.bot.db.get_guild_settings(guild.id)
+        session = await self.session_manager.get_session(guild.id)
+
+        # Toggle 24/7 state
+        new_state = not settings.twenty_four_seven_enabled
+        settings.twenty_four_seven_enabled = new_state
+        session.twenty_four_seven = new_state
+
+        if new_state:
+            target_vc = None
+            if session.voice_client and session.voice_client.is_connected():
+                target_vc = session.voice_client.channel
+            elif member.voice and member.voice.channel:
+                target_vc = member.voice.channel
+                async with session.lock:
+                    vc = await VoiceManager.join_voice_channel(member, interaction.channel, session)  # type: ignore
+                    if not vc:
+                        err = session.last_error or "Could not connect to your voice channel."
+                        await interaction.followup.send(
+                            f"❌ **{err}**\n\n"
+                            f"💡 **How to fix:** Please edit the voice channel permissions for **{target_vc.name}** "
+                            f"and grant **MusicMaid** the **Connect** and **Speak** permissions (or move to a public voice channel).",
+                            ephemeral=True,
+                        )
+                        return
+            else:
+                settings.twenty_four_seven_enabled = False
+                session.twenty_four_seven = False
+                await self.bot.db.update_guild_settings(settings)
+                await interaction.followup.send(
+                    "⚠️ **Please join a voice channel first** so MusicMaid knows which channel to stay in 24/7!\n"
+                    "*(Or play a song first with `/music play`)*",
+                    ephemeral=True,
+                )
+                return
+
+            if target_vc:
+                settings.twenty_four_seven_channel_id = target_vc.id
+
+            if session.auto_leave_task and not session.auto_leave_task.done():
+                session.auto_leave_task.cancel()
+                session.auto_leave_task = None
+
+            await self.bot.db.update_guild_settings(settings)
+
+            embed = discord.Embed(
+                title="📻 24/7 MODE ACTIVATED",
+                description=(
+                    f"**{self.bot.user.name if self.bot.user else 'MusicMaid'}** will now stay in "
+                    f"**{target_vc.name if target_vc else 'the voice channel'}** 24/7!\n\n"
+                    "• Auto-disconnection is **disabled**\n"
+                    "• The bot will remain in voice even when all listeners leave\n"
+                    "• Automatically reconnects across bot updates & restarts\n\n"
+                    "💡 *Tip: Open the full feature panel anytime with `/c`*"
+                ),
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            embed.set_footer(text="Use /247 or /stay again to toggle off")
+            await interaction.followup.send(embed=embed)
+        else:
+            settings.twenty_four_seven_channel_id = None
+            await self.bot.db.update_guild_settings(settings)
+
+            if session.voice_client and session.voice_client.is_connected():
+                humans = [m for m in session.voice_client.channel.members if not m.bot]
+                if not humans:
+                    VoiceManager.schedule_auto_leave(self.bot, session)
+
+            embed = discord.Embed(
+                title="📻 24/7 MODE DEACTIVATED",
+                description="24/7 mode has been **disabled**. Normal auto-leave timeout rules now apply.",
+                color=COLOR_NEON_BLUE,
+            )
+            await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="stay", description="Keep the bot in voice channel 24/7 (Shortcut for /247)")
+    async def cmd_stay(self, interaction: discord.Interaction) -> None:
+        """Alias for /247."""
+        await self.cmd_247.callback(self, interaction)
+
+    @app_commands.command(name="c", description="Interactive Master Control Panel showing all music bot features")
+    async def cmd_c(self, interaction: discord.Interaction) -> None:
+        """Interactive control panel & command center displaying all music features."""
+        if not interaction.guild:
+            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            return
+
+        session = await self.session_manager.get_session(interaction.guild.id)
+        view = MusicControlPanelView(self.bot, interaction.guild, session)
+        embed = view.build_embed()
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @app_commands.command(name="control", description="Interactive Master Control Panel (Shortcut for /c)")
+    async def cmd_control(self, interaction: discord.Interaction) -> None:
+        """Alias for /c."""
+        await self.cmd_c.callback(self, interaction)
+
+    @app_commands.command(name="autoupdate", description="Check or update yt-dlp extractor, git commits, and audio health")
+    @app_commands.describe(action="Maintenance action to perform")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Check Status & Health", value="check"),
+        app_commands.Choice(name="Update yt-dlp Now", value="update"),
+        app_commands.Choice(name="Git Pull Code & Hot Reload", value="git_pull"),
+        app_commands.Choice(name="Hot-Reload Changed Files & Resume", value="reload"),
+        app_commands.Choice(name="Full Autonomous Self-Heal", value="self_heal"),
+    ])
+    async def cmd_autoupdate(self, interaction: discord.Interaction, action: Optional[app_commands.Choice[str]] = None) -> None:
+        """Manages autonomous yt-dlp dependency, git sync, and extractor updates."""
+        await interaction.response.defer(ephemeral=False)
+        from music_bot.services.updater_service import MusicAutoUpdater
+
+        act = action.value if action else "check"
+        is_admin = getattr(interaction.user.guild_permissions, "administrator", False) if interaction.guild else False
+        is_owner = str(interaction.user.id) in ("1457380609641938981",)
+
+        if act == "update":
+            if not is_admin and not is_owner:
+                await interaction.followup.send("❌ Administrator permissions required to trigger dependency updates.", ephemeral=True)
+                return
+
+            embed_progress = discord.Embed(
+                title="🔄 UPDATING AUDIO EXTRACTOR",
+                description="Upgrading `yt-dlp` to latest release in background...\nPlayback will continue uninterrupted.",
+                color=COLOR_NEON_BLUE,
+            )
+            await interaction.followup.send(embed=embed_progress)
+            success, msg = await MusicAutoUpdater.update_ytdl(force=True, bot=self.bot)
+            embed_result = discord.Embed(
+                title="✅ AUDIO EXTRACTOR UPDATED" if success else "❌ UPDATE FAILED",
+                description=msg,
+                color=COLOR_ELECTRIC_CYAN if success else 0xED4245,
+            )
+            await interaction.edit_original_response(embed=embed_result)
+
+        elif act == "git_pull":
+            if not is_admin and not is_owner:
+                await interaction.followup.send("❌ Administrator permissions required to trigger Git updates.", ephemeral=True)
+                return
+
+            embed_progress = discord.Embed(
+                title="⚡ PULLING GIT COMMITS",
+                description="Checking remote repository and applying hot-reload...\nVoice connections and songs will resume where left off.",
+                color=COLOR_NEON_BLUE,
+            )
+            await interaction.followup.send(embed=embed_progress)
+            success, msg = await MusicAutoUpdater.pull_git_updates(bot=self.bot)
+            embed_result = discord.Embed(
+                title="✅ GIT SYNC COMPLETE" if success else "❌ GIT SYNC FAILED",
+                description=msg,
+                color=COLOR_ELECTRIC_CYAN if success else 0xED4245,
+            )
+            await interaction.edit_original_response(embed=embed_result)
+
+        elif act == "reload":
+            if not is_admin and not is_owner:
+                await interaction.followup.send("❌ Administrator permissions required to hot-reload code.", ephemeral=True)
+                return
+
+            embed_progress = discord.Embed(
+                title="⚙️ HOT-RELOADING CODE CHANGES",
+                description="Applying modified code without stopping the bot...\nPlayback will resume right where it left off!",
+                color=COLOR_NEON_BLUE,
+            )
+            await interaction.followup.send(embed=embed_progress)
+            success, msg = await MusicAutoUpdater.hot_reload_services(bot=self.bot)
+            embed_result = discord.Embed(
+                title="✅ HOT-RELOAD COMPLETE" if success else "❌ HOT-RELOAD FAILED",
+                description=msg,
+                color=COLOR_ELECTRIC_CYAN if success else 0xED4245,
+            )
+            await interaction.edit_original_response(embed=embed_result)
+
+        elif act == "self_heal":
+            health = await MusicAutoUpdater.check_extractor_health(bot=self.bot)
+            is_ok = health.get("operational", False)
+            embed_result = discord.Embed(
+                title="🩺 EXTRACTOR HEALTH & SELF-HEAL",
+                description=(
+                    f"• **Extractor Probe:** {'🟢 Operational' if is_ok else '🔴 Issue Detected'}\n"
+                    f"• **Diagnostics:** `{health.get('message', 'OK')[:150]}`\n"
+                    f"• **Auto-Recovery:** Active (Android/iOS/Web client rotation)"
+                ),
+                color=COLOR_ELECTRIC_CYAN if is_ok else 0xED4245,
+            )
+            await interaction.followup.send(embed=embed_result)
+
+        else:
+            check = await MusicAutoUpdater.check_ytdl_version()
+            curr = check.get("current", "unknown")
+            latest = check.get("latest", "unknown")
+            has_update = check.get("update_available", False)
+            git_info = await MusicAutoUpdater.check_git_updates()
+
+            status_text = "🟢 **Up-To-Date** (Optimal)" if not has_update else f"🟡 **Update Available** (`v{latest}` available on PyPI)"
+            git_text = f"🟢 Commit `{git_info.get('current_commit', 'main')}`" if not git_info.get("has_updates") else f"🟡 `{git_info.get('pending_commits')}` new commits available"
+
+            embed = discord.Embed(
+                title="🤖 MUSIC BOT AUTO-UPDATER & SYNC STATUS",
+                description=(
+                    f"• **Current yt-dlp:** `v{curr}`\n"
+                    f"• **Latest PyPI:** `v{latest}`\n"
+                    f"• **Extractor Health:** {status_text}\n"
+                    f"• **Git Repository:** {git_text}\n\n"
+                    f"• **Autonomous Schedule:** Runs every **6 hours** in the background\n"
+                    f"• **Self-Healing:** Client rotation (`android`, `ios`, `web`) & automatic stream recovery\n"
+                    f"• **Zero-Interrupt:** In-memory hot reloads without dropping voice connections"
+                ),
+                color=COLOR_ELECTRIC_CYAN if not has_update else 0xFEE75C,
+            )
+            embed.set_footer(text="Use /autoupdate action:Git Pull Code to sync newest commits")
+            await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="reload", description="Zero-downtime hot reload: update bot modules while music keeps playing")
+    async def cmd_reload(self, interaction: discord.Interaction) -> None:
+        """Hot reloads bot modules and cogs without dropping voice connections."""
+        if str(interaction.user.id) not in ("1457380609641938981",):
+            if not getattr(interaction.user, "guild_permissions", None) or not interaction.user.guild_permissions.administrator:  # type: ignore
+                await interaction.response.send_message("❌ Administrator permissions required to hot-reload bot.", ephemeral=True)
+                return
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            active_count = self.session_manager.get_active_sessions_count()
+            import importlib
+            import music_bot.services.player_service as m_player
+            import music_bot.services.resolver_service as m_resolver
+            import music_bot.services.updater_service as m_updater
+            import music_bot.services.lyrics_service as m_lyrics
+            importlib.reload(m_player)
+            importlib.reload(m_resolver)
+            importlib.reload(m_updater)
+            importlib.reload(m_lyrics)
+
+            embed = discord.Embed(
+                title="⚡ ZERO-DOWNTIME HOT RELOAD COMPLETE",
+                description=(
+                    f"Successfully hot-reloaded audio and resolver modules.\n\n"
+                    f"• **Preserved Active Voice Sessions:** `{active_count}`\n"
+                    f"• **Playback Status:** Uninterrupted 🟢\n"
+                    f"• **Updated Binaries & Extractors:** Synchronized"
+                ),
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Hot-reload failed: `{e}`", ephemeral=True)
+
+    # =========================================================================
+    # AUDIO FILTERS & DSP ENGINE
+    # =========================================================================
+
+    @app_commands.command(name="filter", description="Apply real-time audio filters and audio effects")
+    @app_commands.describe(effect="Audio effect preset to apply")
+    @app_commands.choices(effect=[
+        app_commands.Choice(name="🔊 Bass Boost (+10dB Sub-bass)", value="bassboost"),
+        app_commands.Choice(name="⚡ Nightcore (Speed 1.25x & High Pitch)", value="nightcore"),
+        app_commands.Choice(name="🎧 8D Audio (Surround Pulsator)", value="8d"),
+        app_commands.Choice(name="🌴 Vaporwave (Slowed 0.85x & Deep Pitch)", value="vaporwave"),
+        app_commands.Choice(name="🎤 Vocal Boost (Mid-frequency clarity)", value="vocal"),
+        app_commands.Choice(name="⏹️ Reset (Clean Flat Audio)", value="reset"),
+    ])
+    async def cmd_filter(self, interaction: discord.Interaction, effect: app_commands.Choice[str]) -> None:
+        """Applies dynamic audio effects in real-time."""
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if not session.current_track or not session.is_playing:
+            await interaction.followup.send("❌ Nothing is currently playing. Start a track first!", ephemeral=True)
+            return
+
+        filter_chains = {
+            "bassboost": "-af equalizer=f=60:width_type=h:width=50:g=10",
+            "nightcore": "-af atempo=1.25,asetrate=48000*1.25",
+            "8d": "-af apulsator=hz=0.125",
+            "vaporwave": "-af atempo=0.85,asetrate=48000*0.85",
+            "vocal": "-af equalizer=f=1000:width_type=h:width=200:g=6",
+            "reset": "",
+        }
+
+        session.audio_filter = filter_chains.get(effect.value, "")
+        current_pos = session.elapsed_seconds
+        await MusicPlayerService.start_playback(self.bot, session, session.current_track)
+        session.paused_duration = 0.0
+        session.track_start_time = time.time() - current_pos
+
+        embed = discord.Embed(
+            title="🎛️ AUDIO FILTER APPLIED",
+            description=f"Applied audio effect: **{effect.name}**\n*Playback refreshed with real-time DSP filter.*",
+            color=COLOR_ELECTRIC_CYAN if effect.value != "reset" else COLOR_NEON_BLUE,
+        )
+        await interaction.followup.send(embed=embed)
+
+    # =========================================================================
+    # BEDTIME SLEEP TIMER
+    # =========================================================================
+
+    @app_commands.command(name="sleeptimer", description="Set a countdown timer to gently fade out and stop music")
+    @app_commands.describe(duration="Sleep duration in minutes (or 'cancel')")
+    @app_commands.choices(duration=[
+        app_commands.Choice(name="15 Minutes", value=15),
+        app_commands.Choice(name="30 Minutes", value=30),
+        app_commands.Choice(name="45 Minutes", value=45),
+        app_commands.Choice(name="60 Minutes (1 Hour)", value=60),
+        app_commands.Choice(name="90 Minutes (1.5 Hours)", value=90),
+        app_commands.Choice(name="120 Minutes (2 Hours)", value=120),
+        app_commands.Choice(name="Cancel Sleep Timer ⏹️", value=0),
+    ])
+    async def cmd_sleeptimer(self, interaction: discord.Interaction, duration: app_commands.Choice[int]) -> None:
+        """Sets a bedtime sleep timer with gentle volume fade out."""
+        if not interaction.guild:
+            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            return
+
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if duration.value == 0:
+            if session.sleep_timer_task and not session.sleep_timer_task.done():
+                session.sleep_timer_task.cancel()
+                session.sleep_timer_task = None
+            session.sleep_timer_end = 0.0
+            await interaction.response.send_message("⏰ Sleep timer has been **cancelled**.")
+            return
+
+        if session.sleep_timer_task and not session.sleep_timer_task.done():
+            session.sleep_timer_task.cancel()
+
+        total_seconds = duration.value * 60
+        end_timestamp = int(time.time() + total_seconds)
+        session.sleep_timer_end = end_timestamp
+
+        async def _sleep_worker():
+            try:
+                fade_start = max(0, total_seconds - 30)
+                await asyncio.sleep(fade_start)
+                if session.voice_client and session.voice_client.is_playing() and hasattr(session.voice_client.source, "volume"):
+                    orig_vol = session.voice_client.source.volume
+                    for step in (0.75, 0.50, 0.25, 0.05):
+                        try:
+                            session.voice_client.source.volume = orig_vol * step
+                        except Exception:
+                            pass
+                        await asyncio.sleep(7.5)
+                if session.voice_client and session.voice_client.is_connected():
+                    session.queue.clear()
+                    session.voice_client.stop()
+                    session.reset()
+                if session.text_channel:
+                    try:
+                        await session.text_channel.send("🌙 **Sleep Timer Finished:** Music gently stopped. Goodnight! 💤")
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                pass
+
+        session.sleep_timer_task = asyncio.create_task(_sleep_worker())
+        embed = discord.Embed(
+            title="🌙 SLEEP TIMER ACTIVATED",
+            description=(
+                f"Music will gently fade out and stop in **{duration.name}** (<t:{end_timestamp}:R>).\n\n"
+                f"• Fall asleep peacefully to 24/7 radio or your queue\n"
+                f"• Music volume smoothly decays during the final 30 seconds"
+            ),
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        embed.set_footer(text="Use /sleeptimer duration:Cancel to stop early")
+        await interaction.response.send_message(embed=embed)
+
+    # =========================================================================
+    # SAVED PLAYLIST MANAGEMENT
+    # =========================================================================
+
+    playlist_group = app_commands.Group(name="playlist", description="Manage personal and server music playlists")
+
+    @playlist_group.command(name="save", description="Save the currently playing song and queue into a named playlist")
+    @app_commands.describe(name="Playlist name")
+    async def playlist_save(self, interaction: discord.Interaction, name: str) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        if not guild:
+            return
+        session = await self.session_manager.get_session(guild.id)
+        tracks_to_save = []
+        if session.current_track:
+            tracks_to_save.append(session.current_track)
+        tracks_to_save.extend(session.queue)
+
+        if not tracks_to_save:
+            await interaction.followup.send("❌ Nothing is currently playing or queued to save.", ephemeral=True)
+            return
+
+        clean_name = name.strip()[:40]
+        pl_id = await self.bot.db.create_playlist(guild.id, member.id, clean_name)
+        if not pl_id:
+            await self.bot.db.delete_playlist(guild.id, member.id, clean_name)
+            pl_id = await self.bot.db.create_playlist(guild.id, member.id, clean_name)
+
+        saved_count = 0
+        for t in tracks_to_save:
+            ok = await self.bot.db.add_playlist_track(pl_id, t)
+            if ok:
+                saved_count += 1
+
+        embed = discord.Embed(
+            title="💾 PLAYLIST SAVED",
+            description=f"Saved **{saved_count}** tracks into playlist **\"{clean_name}\"**!\n\nUse `/playlist load name:{clean_name}` to load anytime.",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        await interaction.followup.send(embed=embed)
+
+    @playlist_group.command(name="load", description="Load a saved playlist into the queue")
+    @app_commands.describe(name="Playlist name")
+    async def playlist_load(self, interaction: discord.Interaction, name: str) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        if not guild or not isinstance(member, discord.Member):
+            return
+        if not member.voice or not member.voice.channel:
+            await interaction.followup.send("❌ Join a voice channel first to load playlists.", ephemeral=True)
+            return
+
+        pl = await self.bot.db.get_playlist(guild.id, name.strip(), user_id=member.id)
+        if not pl or not pl.tracks:
+            pl = await self.bot.db.get_playlist(guild.id, name.strip())
+        if not pl or not pl.tracks:
+            await interaction.followup.send(f"❌ Playlist **\"{name}\"** was not found or is empty.", ephemeral=True)
+            return
+
+        session = await self.session_manager.get_session(guild.id)
+        async with session.lock:
+            vc = await VoiceManager.join_voice_channel(member, interaction.channel, session)  # type: ignore
+            if not vc:
+                err = session.last_error or "Could not connect to your voice channel."
+                await interaction.followup.send(f"❌ **{err}**", ephemeral=True)
+                return
+
+        loaded_count = len(pl.tracks)
+        for t in pl.tracks:
+            session.queue.append(t)
+
+        embed = discord.Embed(
+            title="📂 PLAYLIST LOADED",
+            description=f"Added **{loaded_count}** tracks from **\"{pl.name}\"** to the queue!",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        await interaction.followup.send(embed=embed)
+
+        if not session.is_playing and session.queue:
+            first_track = session.queue.popleft()
+            await MusicPlayerService.start_playback(self.bot, session, first_track)
+
+    @playlist_group.command(name="list", description="List all saved playlists for this server")
+    async def playlist_list(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer(ephemeral=False)
+        if not interaction.guild:
+            return
+        playlists = await self.bot.db.get_playlists(interaction.guild.id)
+        if not playlists:
+            await interaction.followup.send("🐾 No playlists saved yet. Use `/playlist save name:...` while playing music!", ephemeral=True)
+            return
+
+        lines = [f"• **{p.name}** (`{len(p.tracks)}` tracks) • Created by <@{p.creator_id}>" for p in playlists]
+        embed = discord.Embed(
+            title="📜 SAVED PLAYLISTS",
+            description="\n".join(lines[:20]),
+            color=COLOR_NEON_BLUE,
+        )
+        embed.set_footer(text="Use /playlist load name:<name> to play")
+        await interaction.followup.send(embed=embed)
+
+    @playlist_group.command(name="delete", description="Delete a saved playlist")
+    @app_commands.describe(name="Playlist name to delete")
+    async def playlist_delete(self, interaction: discord.Interaction, name: str) -> None:
+        await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            return
+        ok = await self.bot.db.delete_playlist(interaction.guild.id, interaction.user.id, name.strip())
+        if ok:
+            await interaction.followup.send(f"🗑️ Deleted playlist **\"{name}\"**.", ephemeral=True)
+        else:
+            await interaction.followup.send(f"❌ Could not delete playlist **\"{name}\"** (not found or not created by you).", ephemeral=True)
+
+    # =========================================================================
     # COMPATIBILITY ALIASES (SECTION 3)
     # =========================================================================
 
@@ -1158,7 +2269,8 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         query = message.content.strip()
-        if query.startswith(self.bot.command_prefix):  # type: ignore
+        guild_pref = await self.bot.get_guild_prefix(message.guild.id)
+        if query.startswith(guild_pref) or query.startswith("m!") or query.startswith(","):
             return
 
         if not message.author.voice or not message.author.voice.channel:  # type: ignore
@@ -1192,11 +2304,547 @@ class MusicCog(commands.Cog, name="Music"):
                 else:
                     success = await MusicPlayerService.start_playback(self.bot, session, track)
                     if success:
-                        await status_msg.edit(content=f"🎶 **Now Playing:** **{track.title}**\n*{DIALOGUE_START}*")
+                        try:
+                            await status_msg.delete()
+                        except Exception:
+                            pass
                     else:
                         await status_msg.edit(content="😿 Failed to start playback.")
         except Exception as e:
             logger.error(f"Natural request error: {e}")
+
+    @app_commands.command(name="invite", description="Get official invite link for MusicMaid and SentinelBot")
+    async def invite(self, interaction: discord.Interaction) -> None:
+        """Provide official invite links for MusicMaid with interactive buttons."""
+        bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        view = discord.ui.View()
+        view.add_item(
+            discord.ui.Button(
+                label=f"Invite {bot_name} (Music)",
+                style=discord.ButtonStyle.link,
+                url="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=36768832&integration_type=0&scope=bot+applications.commands",
+                emoji="🎵",
+            )
+        )
+        view.add_item(
+            discord.ui.Button(
+                label="Invite The Raivora (Security)",
+                style=discord.ButtonStyle.link,
+                url="https://discord.com/oauth2/authorize?client_id=1554732669072445532&permissions=8&integration_type=0&scope=bot+applications.commands",
+                emoji="🛡️",
+            )
+        )
+        embed = discord.Embed(
+            title=f"🐾 Invite {bot_name} & The Raivora",
+            description=(
+                f"Bring cute, futuristic 24/7 audio and autonomous security protection to your server!\n\n"
+                f"🎵 **{bot_name}** — Hi-Fi Audio, 24/7 Radio, Smart Loudness & Stage Ducking\n"
+                f"🛡️ **The Raivora** — Autonomous Anti-Nuke, AutoMod & Incident Radar"
+            ),
+            color=0x00E5FF,
+        )
+        embed.set_footer(text=f"{bot_name} • Cute & Futuristic Audio Companion")
+        await interaction.response.send_message(embed=embed, view=view)
+
+
+    # =========================================================================
+    # PREFIX CUSTOMIZATION & PREFIX COMMAND SUITE
+    # =========================================================================
+
+    @app_commands.command(name="prefix", description="View or customize the server's prefix symbol (e.g. , or ! or ?)")
+    @app_commands.describe(symbol="New prefix symbol (leave empty to view current prefix)")
+    async def cmd_prefix(self, interaction: discord.Interaction, symbol: Optional[str] = None) -> None:
+        """View or configure server custom prefix."""
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            return
+
+        current_pref = await self.bot.get_guild_prefix(interaction.guild.id)
+        if not symbol:
+            embed = discord.Embed(
+                title="⚙️ SERVER PREFIX CONFIGURATION",
+                description=(
+                    f"The current prefix for **{interaction.guild.name}** is: `{current_pref}`\n\n"
+                    f"**How to change it:**\n"
+                    f"• Run `/prefix symbol:<new_symbol>` (e.g. `/prefix symbol:!` or `/prefix symbol:,`)\n"
+                    f"• Or type `{current_pref}prefix <new_symbol>`\n\n"
+                    f"*(Requires Administrator or Manage Server permission)*"
+                ),
+                color=COLOR_NEON_BLUE,
+            )
+            embed.set_footer(text=f"You can also mention the bot: @MusicMaid help")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        if not interaction.user.guild_permissions.manage_guild and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ You need the **Manage Server** permission to change the prefix.", ephemeral=True)
+            return
+
+        new_sym = symbol.strip()
+        if not (1 <= len(new_sym) <= 5):
+            await interaction.response.send_message("❌ Prefix must be between 1 and 5 characters long.", ephemeral=True)
+            return
+
+        settings = await self.bot.db.get_guild_settings(interaction.guild.id)
+        settings.prefix = new_sym
+        await self.bot.db.update_guild_settings(settings)
+        self.bot.set_cached_prefix(interaction.guild.id, new_sym)
+
+        embed = discord.Embed(
+            title="✅ PREFIX CUSTOMIZED",
+            description=f"Server prefix updated to: `{new_sym}`\n\nTry running `{new_sym}play lofi` or `{new_sym}c`!",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        await interaction.response.send_message(embed=embed)
+
+    @commands.command(name="prefix")
+    async def pfx_prefix(self, ctx: commands.Context, new_symbol: Optional[str] = None) -> None:
+        """View or customize the server prefix."""
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            return
+
+        current_pref = await self.bot.get_guild_prefix(ctx.guild.id)
+        if not new_symbol:
+            embed = discord.Embed(
+                title="⚙️ SERVER PREFIX CONFIGURATION",
+                description=(
+                    f"Current prefix for **{ctx.guild.name}**: `{current_pref}`\n\n"
+                    f"**To change it:**\n"
+                    f"`{current_pref}prefix <new_symbol>` (e.g. `{current_pref}prefix !`)\n\n"
+                    f"*(Requires Manage Server or Administrator)*"
+                ),
+                color=COLOR_NEON_BLUE,
+            )
+            await ctx.reply(embed=embed, mention_author=False)
+            return
+
+        if not ctx.author.guild_permissions.manage_guild and not ctx.author.guild_permissions.administrator:
+            await ctx.reply("❌ You need the **Manage Server** permission to change the prefix.", mention_author=False)
+            return
+
+        new_sym = new_symbol.strip()
+        if not (1 <= len(new_sym) <= 5):
+            await ctx.reply("❌ Prefix must be between 1 and 5 characters long.", mention_author=False)
+            return
+
+        settings = await self.bot.db.get_guild_settings(ctx.guild.id)
+        settings.prefix = new_sym
+        await self.bot.db.update_guild_settings(settings)
+        self.bot.set_cached_prefix(ctx.guild.id, new_sym)
+
+        embed = discord.Embed(
+            title="✅ PREFIX CUSTOMIZED",
+            description=f"Server prefix updated to: `{new_sym}`\n\nTry running `{new_sym}play lofi` or `{new_sym}c`!",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        await ctx.reply(embed=embed, mention_author=False)
+
+    @commands.command(name="play", aliases=["p"])
+    async def pfx_play(self, ctx: commands.Context, *, query: str = "") -> None:
+        """Plays audio from YouTube, Spotify, or SoundCloud via prefix command."""
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            return
+
+        pref = await self.bot.get_guild_prefix(ctx.guild.id)
+        if not query.strip():
+            await ctx.reply(f"🎵 **Usage:** `{pref}play <song title or URL>` (or `{pref}p <song>`)", mention_author=False)
+            return
+
+        if not ctx.author.voice or not ctx.author.voice.channel:
+            await ctx.reply("❌ Join a voice channel first to play music!", mention_author=False)
+            return
+
+        session = await self.session_manager.get_session(ctx.guild.id)
+        async with session.lock:
+            vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)  # type: ignore
+            if not vc:
+                err = getattr(session, "last_error", None) or "Could not connect to voice channel."
+                await ctx.reply(f"❌ {err}\n💡 Please check voice channel permissions for MusicMaid.", mention_author=False)
+                return
+
+        status_msg = await ctx.reply(f"🔍 Searching for `{query[:60]}`... 🐾", mention_author=False)
+        track = await AudioResolver.resolve_track(query, ctx.author.id, str(ctx.author))
+        if not track:
+            await status_msg.edit(content=f"😿 Could not find playable audio for: `{query[:60]}`")
+            return
+
+        async with session.lock:
+            if session.is_playing:
+                session.queue.append(track)
+                embed = discord.Embed(
+                    title="🎵 ADDED TO QUEUE",
+                    description=f"**[{track.title}]({track.url})**\nDuration: `{format_duration(track.duration)}` • Position: `#{len(session.queue)}`",
+                    color=COLOR_NEON_BLUE,
+                )
+                if track.thumbnail:
+                    embed.set_thumbnail(url=track.thumbnail)
+                await status_msg.edit(content=None, embed=embed)
+            else:
+                success = await MusicPlayerService.start_playback(self.bot, session, track)
+                if success:
+                    try:
+                        await status_msg.delete()
+                    except Exception:
+                        pass
+                else:
+                    await status_msg.edit(content="😿 Failed to start playback.")
+
+    @commands.command(name="skip", aliases=["s"])
+    async def pfx_skip(self, ctx: commands.Context) -> None:
+        """Skips the currently playing track."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.is_playing or not session.current_track:
+            await ctx.reply("❌ Nothing is currently playing.", mention_author=False)
+            return
+        skipped_name = session.current_track.title
+        await MusicPlayerService.skip_current(session)
+        await ctx.reply(f"⏭️ Skipped: **{skipped_name[:50]}**", mention_author=False)
+
+    @commands.command(name="pause")
+    async def pfx_pause(self, ctx: commands.Context) -> None:
+        """Pauses audio playback."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.voice_client or not session.is_playing:
+            await ctx.reply("❌ Nothing is playing to pause.", mention_author=False)
+            return
+        session.voice_client.pause()
+        session.is_paused = True
+        await ctx.reply("⏸️ Playback paused.", mention_author=False)
+
+    @commands.command(name="resume", aliases=["unpause"])
+    async def pfx_resume(self, ctx: commands.Context) -> None:
+        """Resumes paused playback."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.voice_client or not session.is_paused:
+            await ctx.reply("❌ Playback is not paused.", mention_author=False)
+            return
+        session.voice_client.resume()
+        session.is_paused = False
+        await ctx.reply("▶️ Playback resumed.", mention_author=False)
+
+    @commands.command(name="stop")
+    async def pfx_stop(self, ctx: commands.Context) -> None:
+        """Stops playback and clears the queue."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        async with session.lock:
+            session.queue.clear()
+            session.current_track = None
+            session.is_playing = False
+            session.is_paused = False
+            if session.voice_client and session.voice_client.is_playing():
+                session.voice_client.stop()
+        await ctx.reply("⏹️ Stopped playback and cleared queue.", mention_author=False)
+
+    @commands.command(name="queue", aliases=["q"])
+    async def pfx_queue(self, ctx: commands.Context) -> None:
+        """Views upcoming songs in queue."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.queue:
+            now_playing = f"Now Playing: **{session.current_track.title}**\n\n" if session.current_track else ""
+            await ctx.reply(f"{now_playing}📜 The queue is empty.", mention_author=False)
+            return
+        lines = []
+        for i, t in enumerate(session.queue[:10], start=1):
+            lines.append(f"`{i}.` **{t.title[:45]}** (`{format_duration(t.duration)}`)")
+        total_sec = sum(t.duration for t in session.queue)
+        embed = discord.Embed(
+            title=f"📜 Queue ({len(session.queue)} tracks)",
+            description="\n".join(lines),
+            color=COLOR_NEON_BLUE,
+        )
+        embed.set_footer(text=f"Total Queue Time: {format_duration(total_sec)}")
+        await ctx.reply(embed=embed, mention_author=False)
+
+    @commands.command(name="np", aliases=["nowplaying"])
+    async def pfx_np(self, ctx: commands.Context) -> None:
+        """Displays currently playing track information."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.current_track:
+            await ctx.reply("❌ Nothing is currently playing.", mention_author=False)
+            return
+        from music_bot.services.player_service import NowPlayingControlView
+        embed = MusicPlayerService.build_now_playing_embed(session)
+        view = NowPlayingControlView(session)
+        msg = await ctx.reply(embed=embed, view=view, mention_author=False)
+        session.now_playing_message = msg
+
+    @commands.command(name="volume", aliases=["vol", "v"])
+    async def pfx_volume(self, ctx: commands.Context, level: Optional[int] = None) -> None:
+        """Adjusts playback volume (0 to 150)."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if level is None:
+            await ctx.reply(f"🔊 Current volume: **{session.volume}%**", mention_author=False)
+            return
+        if not (0 <= level <= 150):
+            await ctx.reply("❌ Volume must be between 0 and 150%.", mention_author=False)
+            return
+        session.volume = level
+        if session.voice_client and session.voice_client.source:
+            if hasattr(session.voice_client.source, "volume"):
+                session.voice_client.source.volume = level / 100.0  # type: ignore
+        await ctx.reply(f"🔊 Volume set to **{level}%**.", mention_author=False)
+
+    @commands.command(name="c", aliases=["control", "panel"])
+    async def pfx_control_panel(self, ctx: commands.Context) -> None:
+        """Opens the interactive Master Control Panel."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        view = MasterControlPanelView(self.bot, ctx.guild, session)
+        embed = view.build_embed()
+        await ctx.reply(embed=embed, view=view, mention_author=False)
+
+    @commands.command(name="247", aliases=["stay"])
+    async def pfx_247(self, ctx: commands.Context) -> None:
+        """Toggles 24/7 mode in current voice channel."""
+        if not ctx.guild or not isinstance(ctx.author, discord.Member):
+            return
+        settings = await self.bot.db.get_guild_settings(ctx.guild.id)
+        session = await self.session_manager.get_session(ctx.guild.id)
+        new_state = not settings.twenty_four_seven_enabled
+        settings.twenty_four_seven_enabled = new_state
+        session.twenty_four_seven = new_state
+
+        if new_state:
+            target_vc = None
+            if session.voice_client and session.voice_client.is_connected():
+                target_vc = session.voice_client.channel
+            elif ctx.author.voice and ctx.author.voice.channel:
+                target_vc = ctx.author.voice.channel
+                async with session.lock:
+                    vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)  # type: ignore
+                    if not vc:
+                        err = getattr(session, "last_error", None) or "Could not connect to voice channel."
+                        await ctx.reply(f"❌ {err}\n💡 Please check voice channel permissions for MusicMaid.", mention_author=False)
+                        return
+            else:
+                settings.twenty_four_seven_enabled = False
+                session.twenty_four_seven = False
+                await self.bot.db.update_guild_settings(settings)
+                await ctx.reply("⚠️ Please join a voice channel first so MusicMaid knows where to stay!", mention_author=False)
+                return
+
+            if target_vc:
+                settings.twenty_four_seven_channel_id = target_vc.id
+            if session.auto_leave_task and not session.auto_leave_task.done():
+                session.auto_leave_task.cancel()
+                session.auto_leave_task = None
+            await self.bot.db.update_guild_settings(settings)
+            await ctx.reply(f"📻 **24/7 Mode ACTIVATED** in **{target_vc.name if target_vc else 'voice'}**! MusicMaid will stay connected indefinitely.", mention_author=False)
+        else:
+            settings.twenty_four_seven_channel_id = None
+            await self.bot.db.update_guild_settings(settings)
+            await ctx.reply("📻 **24/7 Mode DEACTIVATED**.", mention_author=False)
+
+    @commands.command(name="loop")
+    async def pfx_loop(self, ctx: commands.Context, mode: str = "") -> None:
+        """Toggles loop mode: off, track, queue."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        mode = mode.lower().strip()
+        if mode in ("track", "song", "single"):
+            session.loop_mode = "track"
+        elif mode in ("queue", "all"):
+            session.loop_mode = "queue"
+        elif mode in ("off", "none", "disable"):
+            session.loop_mode = "off"
+        else:
+            cycle = {"off": "track", "track": "queue", "queue": "off"}
+            session.loop_mode = cycle.get(session.loop_mode, "off")
+        await ctx.reply(f"🔁 Loop mode is now: **{session.loop_mode.upper()}**", mention_author=False)
+
+    @commands.command(name="shuffle")
+    async def pfx_shuffle(self, ctx: commands.Context) -> None:
+        """Shuffles upcoming songs in queue."""
+        if not ctx.guild:
+            return
+        import random
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if len(session.queue) < 2:
+            await ctx.reply("❌ Need at least 2 tracks in queue to shuffle.", mention_author=False)
+            return
+        random.shuffle(session.queue)
+        await ctx.reply(f"🔀 Shuffled **{len(session.queue)}** tracks in queue!", mention_author=False)
+
+    @commands.command(name="clear")
+    async def pfx_clear(self, ctx: commands.Context) -> None:
+        """Clears all upcoming songs from queue."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        count = len(session.queue)
+        session.queue.clear()
+        await ctx.reply(f"🗑️ Cleared **{count}** tracks from queue.", mention_author=False)
+
+    @commands.command(name="filter", aliases=["eq"])
+    async def pfx_filter(self, ctx: commands.Context, preset: str = "") -> None:
+        """Applies audio DSP preset (bassboost, nightcore, 8d, vaporwave, vocal, reset)."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        preset = preset.lower().strip()
+        valid = ["bassboost", "nightcore", "8d", "vaporwave", "vocal", "reset"]
+        if preset not in valid:
+            pref = await self.bot.get_guild_prefix(ctx.guild.id)
+            await ctx.reply(f"🎛️ **Available presets:** `{'`, `'.join(valid)}`\nUsage: `{pref}filter bassboost` (or `{pref}eq nightcore`)", mention_author=False)
+            return
+        session.active_preset = "none" if preset == "reset" else preset
+        await ctx.reply(f"🎛️ Audio filter preset set to: **{preset.upper()}** (applies on next song/seek)", mention_author=False)
+
+    @commands.command(name="commands", aliases=["help", "cmds"])
+    async def pfx_help(self, ctx: commands.Context) -> None:
+        """Displays all available prefix and slash commands."""
+        if not ctx.guild:
+            return
+        pref = await self.bot.get_guild_prefix(ctx.guild.id)
+        embed = discord.Embed(
+            title="🐾 MusicMaid • Commands & Prefix Guide",
+            description=(
+                f"**Current Server Prefix:** `{pref}` *(Customizable!)*\n"
+                f"You can also use Discord **Slash Commands** (`/`) for all features!\n\n"
+                f"🎵 **Playback:** `{pref}play <song>` (`{pref}p`), `{pref}skip` (`{pref}s`), `{pref}pause`, `{pref}resume`, `{pref}stop`\n"
+                f"📜 **Queue:** `{pref}queue` (`{pref}q`), `{pref}np`, `{pref}volume <0-150>` (`{pref}v`), `{pref}loop`, `{pref}shuffle`, `{pref}clear`\n"
+                f"🎛️ **Audio & Filters:** `{pref}filter <preset>` (`{pref}eq`), `{pref}c` *(Master Control Panel)*\n"
+                f"📻 **24/7 Voice:** `{pref}247` or `{pref}stay` *(Keep bot in voice channel 24/7)*\n"
+                f"⚙️ **Prefix Customization:** `{pref}prefix <symbol>` *(e.g. `{pref}prefix !`)*"
+            ),
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        embed.set_footer(text=f"Change prefix anytime with: {pref}prefix <symbol> or /prefix symbol:<symbol>")
+        await ctx.reply(embed=embed, mention_author=False)
+
+    @commands.command(name="reload", aliases=["hotreload"])
+    async def pfx_reload(self, ctx: commands.Context) -> None:
+        """Hot-reloads bot code and preserves playback without restarting from the beginning."""
+        if not ctx.guild:
+            return
+        is_admin = getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False
+        is_owner = str(ctx.author.id) in ("1457380609641938981",)
+        if not is_admin and not is_owner:
+            await ctx.reply("❌ Administrator permissions required to hot-reload code.", mention_author=False)
+            return
+
+        status_msg = await ctx.reply("⚙️ **Hot-reloading code changes...** Playback will resume right where it left off!", mention_author=False)
+        from music_bot.services.updater_service import MusicAutoUpdater
+        success, msg = await MusicAutoUpdater.hot_reload_services(bot=self.bot)
+        embed = discord.Embed(
+            title="✅ HOT-RELOAD COMPLETE" if success else "❌ HOT-RELOAD FAILED",
+            description=msg,
+            color=COLOR_ELECTRIC_CYAN if success else 0xED4245,
+        )
+        await status_msg.edit(content=None, embed=embed)
+
+    @commands.command(name="update")
+    async def pfx_update(self, ctx: commands.Context) -> None:
+        """Updates yt-dlp extractor in background."""
+        if not ctx.guild:
+            return
+        is_admin = getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False
+        is_owner = str(ctx.author.id) in ("1457380609641938981",)
+        if not is_admin and not is_owner:
+            await ctx.reply("❌ Administrator permissions required to update dependencies.", mention_author=False)
+            return
+
+        status_msg = await ctx.reply("🔄 **Checking & updating audio extractor...**", mention_author=False)
+        from music_bot.services.updater_service import MusicAutoUpdater
+        success, msg = await MusicAutoUpdater.update_ytdl(force=True, bot=self.bot)
+        embed = discord.Embed(
+            title="✅ AUDIO EXTRACTOR UPDATED" if success else "❌ UPDATE FAILED",
+            description=msg,
+            color=COLOR_ELECTRIC_CYAN if success else 0xED4245,
+        )
+        await status_msg.edit(content=None, embed=embed)
+
+    @commands.command(name="dj", aliases=["autoplay", "nonstop"])
+    async def pfx_dj(self, ctx: commands.Context, mode: Optional[str] = None) -> None:
+        """Toggle non-stop Neko DJ continuous playback (,dj, ,dj on, ,dj off)."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        settings = await self.bot.db.get_dj_settings(ctx.guild.id)
+
+        target_state = not settings.enabled if mode is None else mode.lower() in ("on", "enable", "true", "start", "1")
+        settings.enabled = target_state
+        settings.auto_queue = True
+        await self.bot.db.update_dj_settings(settings)
+        session.dj_enabled = target_state
+
+        if target_state:
+            started_now = False
+            if isinstance(ctx.author, discord.Member) and ctx.author.voice and ctx.author.voice.channel and not session.is_playing:
+                from music_bot.services.voice_service import VoiceManager
+                vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)
+                if vc:
+                    from music_bot.services.dj_service import NekoDJService
+                    rec = await NekoDJService.get_recommendation(self.bot, session)
+                    if rec:
+                        track, rationale = rec
+                        started = await MusicPlayerService.start_playback(self.bot, session, track)
+                        if started:
+                            started_now = True
+                            from music_bot.services.player_service import NowPlayingControlView
+                            embed = MusicPlayerService.build_now_playing_embed(session)
+                            view = NowPlayingControlView(session)
+                            msg = await ctx.reply(
+                                f"🎧 **Neko DJ Non-Stop Mode ACTIVE!** Connected to **#{ctx.author.voice.channel.name}**!\n*{rationale}*",
+                                embed=embed,
+                                view=view,
+                                mention_author=False,
+                            )
+                            session.now_playing_message = msg
+
+            if not started_now:
+                await ctx.reply("🎧 **Neko DJ Non-Stop Mode ACTIVE!** Music will play continuously non-stop without silence. 🐾", mention_author=False)
+        else:
+            await ctx.reply("⏹️ **Neko DJ Non-Stop Mode DISABLED.** Playback will stop when the queue finishes.", mention_author=False)
+
+    @app_commands.command(name="support", description="Official Support Server for MusicMaid and Rai bots (MRL GAMING)")
+    async def music_support(self, interaction: discord.Interaction) -> None:
+        from config import SUPPORT_INVITE_URL
+        embed = discord.Embed(
+            title="💬 MusicMaid Official Support Server",
+            description=(
+                "Need help, have feature suggestions, or want to report an issue?\n\n"
+                f"👉 **[Click Here to Join MRL GAMING Support Server]({SUPPORT_INVITE_URL})**\n\n"
+                "• 24/7 Audio Bot Assistance & Live Help\n"
+                "• Feature Requests & Changelogs\n"
+                "• Community & Music Discussions"
+            ),
+            color=0x5865F2,
+        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Join Support Server", url=SUPPORT_INVITE_URL, emoji="💬"))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @commands.command(name="support")
+    async def pfx_support(self, ctx: commands.Context) -> None:
+        from config import SUPPORT_INVITE_URL
+        embed = discord.Embed(
+            title="💬 Official Support Server",
+            description=(
+                "Need help? Join our official support server:\n\n"
+                f"👉 **[Join MRL GAMING Support Server]({SUPPORT_INVITE_URL})**"
+            ),
+            color=0x5865F2,
+        )
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Join Support Server", url=SUPPORT_INVITE_URL, emoji="💬"))
+        await ctx.send(embed=embed, view=view)
 
 
 async def setup(bot: RaiMusicBot) -> None:
