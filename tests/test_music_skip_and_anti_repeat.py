@@ -1,0 +1,237 @@
+import asyncio
+from collections import deque
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from music_bot.database.models import LoopMode, PlaybackState, QueuedTrack
+from music_bot.services.player_service import MusicPlayerService, NowPlayingControlView
+from music_bot.services.session_service import GuildMusicSession
+
+
+def make_track(title: str, url: str = "https://youtube.com/watch?v=mock", duration: int = 180) -> QueuedTrack:
+    return QueuedTrack(
+        title=title,
+        url=url,
+        webpage_url=url,
+        stream_url="https://mock.stream/audio.mp3",
+        duration=duration,
+        artist="Mock Artist",
+        thumbnail_url="https://mock/thumb.jpg",
+        requester_id=12345,
+        requester_name="TestUser",
+    )
+
+
+@pytest.fixture
+def mock_bot():
+    bot = MagicMock()
+    bot.loop = asyncio.get_event_loop()
+    bot.db = AsyncMock()
+    bot.db.get_dj_settings = AsyncMock(return_value=MagicMock(enabled=False))
+    bot.db.delete_session = AsyncMock()
+    bot.db.record_history = AsyncMock()
+    bot.db.save_session = AsyncMock()
+    return bot
+
+
+@pytest.fixture
+def mock_session():
+    session = GuildMusicSession(guild_id=999)
+    mock_vc = MagicMock()
+    mock_vc.is_connected.return_value = True
+    mock_vc.is_playing.return_value = True
+    mock_vc.is_paused.return_value = False
+    mock_vc.stop = MagicMock()
+    session.voice_client = mock_vc
+
+    mock_channel = AsyncMock()
+    mock_msg = AsyncMock()
+    session.text_channel = mock_channel
+    session.now_playing_message = mock_msg
+    return session
+
+
+@pytest.mark.asyncio
+async def test_skip_with_two_queued_tracks(mock_bot, mock_session):
+    """1. Skip with two queued tracks: advances queue exactly once and plays next."""
+    t1 = make_track("Song 1", "https://yt/1")
+    t2 = make_track("Song 2", "https://yt/2")
+    t3 = make_track("Song 3", "https://yt/3")
+
+    mock_session.current_track = t1
+    mock_session.queue = deque([t2, t3])
+
+    with patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        mock_start.return_value = True
+
+        success, msg, next_t = await MusicPlayerService.skip(mock_bot, mock_session)
+
+        assert success is True
+        assert next_t == t2
+        assert len(mock_session.queue) == 1
+        assert mock_session.queue[0] == t3
+        assert t1 in mock_session.history
+        assert t1.url in mock_session.recent_skipped_urls
+        mock_session.voice_client.stop.assert_called_once()
+        mock_start.assert_called_once_with(mock_bot, mock_session, t2)
+
+
+@pytest.mark.asyncio
+async def test_skip_with_empty_queue(mock_bot, mock_session):
+    """2. Skip with empty queue: transitions to IDLE and edits Now Playing embed."""
+    t1 = make_track("Only Song", "https://yt/only")
+    mock_session.current_track = t1
+    mock_session.queue = deque()
+
+    success, msg, next_t = await MusicPlayerService.skip(mock_bot, mock_session)
+
+    assert success is True
+    assert next_t is None
+    assert mock_session.state == PlaybackState.IDLE
+    assert mock_session.current_track is None
+    assert mock_bot.db.delete_session.called
+    assert mock_session.now_playing_message.edit.called
+
+
+@pytest.mark.asyncio
+async def test_rapid_double_click_skip(mock_bot, mock_session):
+    """3. Rapid double-click on Skip: debounces and skips only one track."""
+    t1 = make_track("Song 1", "https://yt/1")
+    t2 = make_track("Song 2", "https://yt/2")
+    t3 = make_track("Song 3", "https://yt/3")
+
+    mock_session.current_track = t1
+    mock_session.queue = deque([t2, t3])
+
+    with patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        mock_start.return_value = True
+
+        # Simulate concurrent second click while _is_skipping is True
+        mock_session._is_skipping = True
+        success2, msg2, next_t2 = await MusicPlayerService.skip(mock_bot, mock_session)
+
+        assert success2 is False
+        assert "already processing" in msg2
+        assert len(mock_session.queue) == 2
+        mock_start.assert_not_called()
+
+        # Reset flag and perform genuine skip
+        mock_session._is_skipping = False
+        success1, msg1, next_t1 = await MusicPlayerService.skip(mock_bot, mock_session)
+        assert success1 is True
+        assert next_t1 == t2
+        assert len(mock_session.queue) == 1
+
+
+@pytest.mark.asyncio
+async def test_natural_track_completion_loop_off_vs_track_vs_queue(mock_bot, mock_session):
+    """4 & 5. Loop Off vs Loop Track vs Loop Queue on track completion."""
+    t1 = make_track("Track A", "https://yt/a")
+    t2 = make_track("Track B", "https://yt/b")
+
+    # CASE A: Loop Off
+    mock_session.loop_mode = LoopMode.OFF
+    mock_session.current_track = t1
+    mock_session.queue = deque([t2])
+    with patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        await MusicPlayerService.handle_track_finished(mock_bot, mock_session)
+        assert t1 in mock_session.history
+        assert t1 not in mock_session.queue
+        mock_start.assert_called_once_with(mock_bot, mock_session, t2)
+
+    # CASE B: Loop Track
+    mock_session.loop_mode = LoopMode.TRACK
+    mock_session.current_track = t1
+    mock_session.queue = deque([t2])
+    with patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        await MusicPlayerService.handle_track_finished(mock_bot, mock_session)
+        # Replays t1
+        mock_start.assert_called_once_with(mock_bot, mock_session, t1)
+
+    # CASE C: Loop Queue
+    mock_session.loop_mode = LoopMode.QUEUE
+    mock_session.current_track = t1
+    mock_session.queue = deque([t2])
+    with patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        await MusicPlayerService.handle_track_finished(mock_bot, mock_session)
+        # t1 appended to queue, t2 popped and played
+        assert t1 in mock_session.queue
+        mock_start.assert_called_once_with(mock_bot, mock_session, t2)
+
+
+@pytest.mark.asyncio
+async def test_autodj_after_manual_queue_empty(mock_bot, mock_session):
+    """6. Auto-DJ activates only when manual queue is empty and avoids repeating skipped song."""
+    t1 = make_track("Party Song", "https://yt/party")
+    rec_track = make_track("New Discovery", "https://yt/discovery")
+
+    mock_session.current_track = t1
+    mock_session.queue = deque()
+    mock_session.dj_enabled = True
+
+    with patch("music_bot.services.dj_service.NekoDJService.get_recommendation", new_callable=AsyncMock) as mock_rec, \
+         patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        mock_rec.return_value = (rec_track, "Vibe match")
+        mock_start.return_value = True
+
+        success, msg, next_t = await MusicPlayerService.skip(mock_bot, mock_session)
+
+        assert success is True
+        assert next_t == rec_track
+        assert t1.url in mock_session.recent_skipped_urls
+        mock_start.assert_called_once_with(mock_bot, mock_session, rec_track)
+
+
+@pytest.mark.asyncio
+async def test_paused_playback_followed_by_skip(mock_bot, mock_session):
+    """8. Paused playback followed by Skip cleanly advances and resets paused state."""
+    t1 = make_track("Paused Song", "https://yt/paused")
+    t2 = make_track("Next Song", "https://yt/next")
+
+    mock_session.current_track = t1
+    mock_session.queue = deque([t2])
+    mock_session.voice_client.is_playing.return_value = False
+    mock_session.voice_client.is_paused.return_value = True
+    mock_session.state = PlaybackState.PAUSED
+    mock_session.pause_time = 100.0
+
+    with patch.object(MusicPlayerService, "start_playback", new_callable=AsyncMock) as mock_start:
+        mock_start.return_value = True
+
+        success, msg, next_t = await MusicPlayerService.skip(mock_bot, mock_session)
+
+        assert success is True
+        assert next_t == t2
+        mock_session.voice_client.stop.assert_called_once()
+        mock_start.assert_called_once_with(mock_bot, mock_session, t2)
+
+
+@pytest.mark.asyncio
+async def test_skip_button_interaction_defer_and_authorization(mock_bot, mock_session):
+    """9. Skip button interaction handles permissions, defers immediately, and calls skip."""
+    view = NowPlayingControlView(mock_session)
+
+    mock_interaction = AsyncMock()
+    mock_interaction.response.is_done.return_value = False
+    mock_interaction.guild.id = mock_session.guild_id
+    mock_interaction.client = mock_bot
+
+    # Case A: User in different VC
+    mock_user = MagicMock()
+    mock_user.voice.channel.id = 11111  # different from bot
+    mock_interaction.user = mock_user
+    mock_session.voice_client.channel.id = 22222
+
+    await view.skip_button(mock_interaction, MagicMock())
+    mock_interaction.response.defer.assert_called_once()
+    mock_interaction.followup.send.assert_called_once()
+    assert "same voice channel" in mock_interaction.followup.send.call_args[0][0]
+
+    # Case B: User in same VC
+    mock_user.voice.channel.id = mock_session.voice_client.channel.id
+    mock_interaction.followup.send.reset_mock()
+    with patch.object(MusicPlayerService, "skip", new_callable=AsyncMock) as mock_skip:
+        mock_skip.return_value = (True, "⏭ Skipped **Song**.", None)
+        await view.skip_button(mock_interaction, MagicMock())
+        mock_skip.assert_called_once_with(mock_bot, mock_session)
+        mock_interaction.followup.send.assert_called_once_with("⏭ Skipped **Song**.", ephemeral=True)

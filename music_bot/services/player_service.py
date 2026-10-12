@@ -61,9 +61,20 @@ class MusicPlayerService:
             return False
 
         try:
-            # Stop existing playback if any
+            session._is_skipping = False
+            session.playback_generation += 1
+            current_generation = session.playback_generation
+
+            # Stop existing playback if any cleanly before starting new source
             if session.voice_client.is_playing() or session.voice_client.is_paused():
-                session.voice_client.stop()
+                try:
+                    session.voice_client.stop()
+                except Exception:
+                    pass
+                for _ in range(10):
+                    if not session.voice_client.is_playing() and not session.voice_client.is_paused():
+                        break
+                    await asyncio.sleep(0.02)
 
             # Feature 106: Smart Loudness Normalization & Volume Clamping
             norm_vol = max(0.05, min(1.0, session.volume / 100.0))
@@ -83,12 +94,14 @@ class MusicPlayerService:
             session._dj_prequeued = False
             session.state = PlaybackState.PLAYING
 
-            session.playback_generation += 1
-            current_generation = session.playback_generation
             loop = bot.loop
 
             def after_playback(error: Optional[Exception]):
-                if getattr(session, "_is_seeking", False) or getattr(session, "_is_reencoding", False):
+                if (
+                    getattr(session, "_is_seeking", False)
+                    or getattr(session, "_is_reencoding", False)
+                    or getattr(session, "_is_skipping", False)
+                ):
                     return
                 if session.playback_generation != current_generation:
                     logger.debug(f"Ignoring superseded playback callback (gen {current_generation} vs {session.playback_generation})")
@@ -100,7 +113,13 @@ class MusicPlayerService:
                 elapsed = session.progress_seconds
                 duration = track.duration if track else 0
                 retries = getattr(track, "_retry_count", 0)
-                if error and duration > 30 and elapsed < duration - 15 and retries < 2:
+                if (
+                    not getattr(session, "_is_skipping", False)
+                    and error
+                    and duration > 30
+                    and elapsed < duration - 15
+                    and retries < 2
+                ):
                     logger.warning(
                         f"Detected unexpected stream termination for '{track.title}' at {int(elapsed)}s / {duration}s. "
                         f"Attempting zero-interrupt stream recovery (attempt {retries + 1}/2)..."
@@ -252,7 +271,11 @@ class MusicPlayerService:
             loop = bot.loop
 
             def after_resumed(error: Optional[Exception]):
-                if getattr(session, "_is_seeking", False) or getattr(session, "_is_reencoding", False):
+                if (
+                    getattr(session, "_is_seeking", False)
+                    or getattr(session, "_is_reencoding", False)
+                    or getattr(session, "_is_skipping", False)
+                ):
                     return
                 if session.playback_generation != current_generation:
                     logger.debug(f"Ignoring superseded resume callback (gen {current_generation} vs {session.playback_generation})")
@@ -282,7 +305,14 @@ class MusicPlayerService:
             session.progress_updater_task.cancel()
             session.progress_updater_task = None
 
+        if getattr(session, "_is_skipping", False):
+            logger.debug(f"Bypassing handle_track_finished for guild {session.guild_id} as skip is currently active.")
+            return
+
         async with session.lock:
+            if getattr(session, "_is_skipping", False):
+                return
+
             # Check loop modes
             if session.loop_mode == LoopMode.TRACK and session.current_track:
                 # Replay current track
@@ -371,14 +401,26 @@ class MusicPlayerService:
                 except Exception as e:
                     logger.warning(f"Autoplay candidate fetch failed: {e}")
 
-            # Queue empty and no autoplay -> transition to IDLE
+            # Queue empty and no autoplay -> transition to IDLE cleanly
             session.reset()
-            if session.text_channel:
-                embed = discord.Embed(
-                    title="🐾 QUEUE FINISHED",
-                    description="The queue is empty. Give Neko another song? 🐱\nUse `/music play` or `/play` to continue.",
-                    color=0x00B0FF,
-                )
+            if bot.db:
+                try:
+                    await bot.db.delete_session(session.guild_id)
+                except Exception:
+                    pass
+
+            embed = discord.Embed(
+                title="🐾 QUEUE FINISHED",
+                description="The queue is empty. Give Neko another song? 🐱\nUse `/music play` or `/play` to continue.",
+                color=0x00B0FF,
+            )
+            if session.now_playing_message:
+                try:
+                    view = NowPlayingControlView(session)
+                    await session.now_playing_message.edit(embed=embed, view=view)
+                except Exception:
+                    session.now_playing_message = None
+            elif session.text_channel:
                 try:
                     await session.text_channel.send(embed=embed)
                 except Exception:
@@ -647,10 +689,130 @@ class MusicPlayerService:
             return True
 
     @classmethod
-    async def skip_current(cls, session: GuildMusicSession) -> bool:
+    async def skip(
+        cls,
+        bot: RaiMusicBot,
+        session: GuildMusicSession,
+    ) -> Tuple[bool, str, Optional[QueuedTrack]]:
+        """
+        Authoritatively skip the currently active track.
+        - Validates voice client and playing state.
+        - Debounces rapid concurrent clicks using _is_skipping.
+        - Bumps playback_generation so after_playback callbacks are ignored.
+        - Safely stops audio source.
+        - Adds skipped track to history and recent_skipped_urls (anti-repeat).
+        - Advances queue exactly once or triggers Auto-DJ if queue is empty.
+        - If queue empty and no Auto-DJ, sets IDLE, cleans up DB session, and updates Now Playing panel.
+        - Returns (success, message, next_track).
+        """
+        if not session.voice_client or not session.voice_client.is_connected():
+            return False, "❌ Bot is not connected to a voice channel.", None
+
+        if not session.current_track and not session.has_active_track and not (
+            session.voice_client.is_playing() or session.voice_client.is_paused()
+        ):
+            return False, "❌ Nothing is currently playing.", None
+
+        # Debounce rapid clicks
+        if getattr(session, "_is_skipping", False):
+            return False, "⏳ Skip is already processing...", None
+
+        session._is_skipping = True
+        session.playback_generation += 1
+
+        try:
+            skipped_track = session.current_track
+            track_title = skipped_track.title if skipped_track else "Track"
+
+            # Anti-repeat record: record url in recent_skipped_urls and history
+            if skipped_track:
+                session.recent_skipped_urls.add(skipped_track.url)
+                if len(session.recent_skipped_urls) > 50:
+                    try:
+                        session.recent_skipped_urls.pop()
+                    except Exception:
+                        pass
+                session.history.append(skipped_track)
+                if len(session.history) > 50:
+                    session.history.pop(0)
+
+            # Stop audio source safely
+            if session.voice_client.is_playing() or session.voice_client.is_paused():
+                try:
+                    session.voice_client.stop()
+                except Exception as e:
+                    logger.debug(f"Error stopping voice client on skip: {e}")
+
+                for _ in range(10):
+                    if not session.voice_client.is_playing() and not session.voice_client.is_paused():
+                        break
+                    await asyncio.sleep(0.02)
+
+            if session.progress_updater_task and not session.progress_updater_task.done():
+                session.progress_updater_task.cancel()
+                session.progress_updater_task = None
+
+            # Advance queue under lock
+            async with session.lock:
+                if session.queue:
+                    next_track = session.queue.popleft()
+                    session._is_skipping = False
+                    await cls.start_playback(bot, session, next_track)
+                    return True, f"⏭ Skipped **{track_title}**.", next_track
+
+                # Manual queue is empty -> Check Auto-DJ
+                rec = None
+                try:
+                    dj_settings = await bot.db.get_dj_settings(session.guild_id) if bot and bot.db else None
+                    if (dj_settings and dj_settings.enabled) or getattr(session, "dj_enabled", False) or session.autoplay:
+                        from music_bot.services.dj_service import NekoDJService
+                        rec = await NekoDJService.get_recommendation(bot, session)
+                except Exception as dj_err:
+                    logger.warning(f"Auto-DJ recommendation on skip error: {dj_err}")
+
+                if rec:
+                    next_track, rationale = rec
+                    session._is_skipping = False
+                    await cls.start_playback(bot, session, next_track)
+                    return True, f"⏭ Skipped **{track_title}**.\n🎧 Auto-DJ: **{next_track.title}** ({rationale})", next_track
+
+                # Queue is completely empty and no Auto-DJ recommendation
+                session._is_skipping = False
+                session.reset()
+                if bot and bot.db:
+                    try:
+                        await bot.db.delete_session(session.guild_id)
+                    except Exception:
+                        pass
+
+                # Update Now Playing panel to idle / finished
+                embed = discord.Embed(
+                    title="🐾 QUEUE FINISHED",
+                    description="The queue is empty. Give Neko another song? 🐱\nUse `/music play` or `/play` to continue.",
+                    color=0x00B0FF,
+                )
+                if session.now_playing_message:
+                    try:
+                        view = NowPlayingControlView(session)
+                        await session.now_playing_message.edit(embed=embed, view=view)
+                    except Exception:
+                        session.now_playing_message = None
+
+                return True, f"⏭ Skipped **{track_title}**. The queue is now empty.", None
+
+        finally:
+            session._is_skipping = False
+
+    @classmethod
+    async def skip_current(cls, session: GuildMusicSession, bot: Optional[RaiMusicBot] = None) -> bool:
         """Skip currently active track cleanly under session lock."""
         if not session.voice_client:
             return False
+        if not bot and hasattr(session.voice_client, "client"):
+            bot = session.voice_client.client  # type: ignore
+        if bot:
+            success, _, _ = await cls.skip(bot, session)
+            return success
         if session.voice_client.is_playing() or session.voice_client.is_paused():
             session.voice_client.stop()
             return True
@@ -1016,10 +1178,11 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
-        track_title = session.current_track.title if session.current_track else "Track"
-        session.voice_client.stop()  # Triggers after_playback -> handle_track_finished
+        bot: RaiMusicBot = interaction.client  # type: ignore
+        success, msg, next_track = await MusicPlayerService.skip(bot, session)
+        self._update_button_states(session)
         try:
-            await interaction.followup.send(f"⏭ Skipped **{track_title}**.", ephemeral=True)
+            await interaction.followup.send(msg, ephemeral=True)
         except Exception:
             pass
 

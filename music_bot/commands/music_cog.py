@@ -954,8 +954,8 @@ class MusicCog(commands.Cog, name="Music"):
 
         if is_dj or len(non_bot_listeners) <= 1:
             session.skip_votes.clear()
-            session.voice_client.stop()
-            await interaction.followup.send(f"⏭️ Skipped **{track_title}**.")
+            success, msg, next_track = await MusicPlayerService.skip(self.bot, session)
+            await interaction.followup.send(msg)
             return
 
         # Scaled vote consensus: 40% for larger groups >= 5, 50% for smaller groups
@@ -966,8 +966,8 @@ class MusicCog(commands.Cog, name="Music"):
 
         if current_votes >= required_votes:
             session.skip_votes.clear()
-            session.voice_client.stop()
-            await interaction.followup.send(f"⏭️ **Vote-to-Skip Passed!** ({current_votes}/{required_votes} votes) Skipped **{track_title}**.")
+            success, msg, next_track = await MusicPlayerService.skip(self.bot, session)
+            await interaction.followup.send(f"⏭️ **Vote-to-Skip Passed!** ({current_votes}/{required_votes} votes)\n{msg}")
         else:
             await interaction.followup.send(f"🗳️ **Vote to Skip:** {current_votes}/{required_votes} listeners voted to skip **{track_title}**.")
 
@@ -2764,9 +2764,8 @@ class MusicCog(commands.Cog, name="Music"):
         if not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
             await ctx.reply("❌ Nothing is currently playing.", mention_author=False)
             return
-        skipped_name = session.current_track.title
-        await MusicPlayerService.skip_current(session)
-        await ctx.reply(f"⏭️ Skipped: **{skipped_name[:50]}**", mention_author=False)
+        success, msg, _ = await MusicPlayerService.skip(self.bot, session)
+        await ctx.reply(msg, mention_author=False)
 
     @commands.command(name="pause")
     async def pfx_pause(self, ctx: commands.Context) -> None:

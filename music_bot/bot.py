@@ -346,7 +346,17 @@ class NekoSongsBot(commands.Bot):
                                 track = QueuedTrack.from_dict(saved["current_track"])
                                 from music_bot.services.player_service import MusicPlayerService
                                 start_pos = saved.get("position_seconds") or 0
-                                if start_pos and start_pos > 3:
+                                dur = track.duration or 0
+                                if dur > 10 and start_pos >= dur - 5:
+                                    if session.queue:
+                                        next_t = session.queue.popleft()
+                                        await MusicPlayerService.start_playback(self, session, next_t)
+                                        logger.info(f"Auto-resumed next queued track '{next_t.title}' in guild {guild.id} (previous completed before restart).")
+                                    else:
+                                        session.reset()
+                                        await self.db.delete_session(guild.id)
+                                        logger.info(f"Saved session in guild {guild.id} had finished playback; cleaned up.")
+                                elif start_pos and start_pos > 3:
                                     await MusicPlayerService.resume_track_stream(self, session, track, start_pos)
                                     logger.info(f"Auto-resumed playback in guild {guild.id} on #{vc_channel.name} at {start_pos}s (where it left off) with {len(session.queue)} in queue, {len(session.history)} in history!")
                                 else:

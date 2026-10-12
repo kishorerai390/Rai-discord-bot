@@ -114,11 +114,27 @@ class NekoDJService:
         if not base_track and session.history:
             base_track = session.history[-1]
 
-        recent_titles = {h.title.lower() for h in session.history[-15:]}
+        def _clean_title(t: str) -> str:
+            t = re.sub(r"[\(\[\{].*?[\)\]\}]", "", t.lower())
+            return re.sub(r"[^\w\s]", "", t).strip()
+
+        recent_history = session.history[-30:]
+        recent_titles = {h.title.lower() for h in recent_history}
+        clean_recent_titles = {_clean_title(h.title) for h in recent_history}
+        recent_urls = {h.url for h in recent_history} | set(getattr(session, "recent_skipped_urls", set()))
+
         if session.current_track:
             recent_titles.add(session.current_track.title.lower())
+            clean_recent_titles.add(_clean_title(session.current_track.title))
+            recent_urls.add(session.current_track.url)
+        if base_track:
+            recent_titles.add(base_track.title.lower())
+            clean_recent_titles.add(_clean_title(base_track.title))
+            recent_urls.add(base_track.url)
         for q in session.queue:
             recent_titles.add(q.title.lower())
+            clean_recent_titles.add(_clean_title(q.title))
+            recent_urls.add(q.url)
 
         artist = (base_track.artist if base_track and base_track.artist != "Unknown Artist" else None)
         title = base_track.title if base_track else ""
@@ -129,8 +145,9 @@ class NekoDJService:
             queries_to_try.append((f"{artist} top tracks songs", f"More top hits by **{artist}**."))
             queries_to_try.append((f"{artist} mix playlist", f"Related artists & styles matching **{artist}**."))
         if title:
-            queries_to_try.append((f"{title} radio mix", f"Songs with matching tempo & vibe to **{title[:30]}**."))
-            queries_to_try.append((f"{title} style similar songs", f"Curated vibe matching **{title[:30]}**."))
+            clean_t = _clean_title(title)[:30]
+            queries_to_try.append((f"{clean_t} radio mix", f"Songs with matching tempo & vibe to **{title[:30]}**."))
+            queries_to_try.append((f"{clean_t} style similar songs", f"Curated vibe matching **{title[:30]}**."))
 
         # Global trending & circadian fallbacks if specific track queries are exhausted
         queries_to_try.append(("trending top viral hits playlist songs", "Trending global hit recommended by Neko DJ."))
@@ -141,32 +158,49 @@ class NekoDJService:
         for query, rationale in queries_to_try:
             try:
                 candidates = await AudioResolver.search(query, limit=8)
-                # First pass: strictly exclude recently played songs
+                # First pass: strictly exclude recently played songs and skipped URLs
                 for c in candidates:
-                    if c["title"].lower() in recent_titles:
+                    cand_title = c.get("title", "")
+                    cand_url = c.get("url", "")
+                    if cand_url in recent_urls or cand_title.lower() in recent_titles or _clean_title(cand_title) in clean_recent_titles:
                         continue
-                    resolved = await AudioResolver.resolve_track(c["url"], 0, "Neko DJ Non-Stop")
+                    resolved = await AudioResolver.resolve_track(cand_url, 0, "Neko DJ Non-Stop")
                     if resolved:
                         return resolved, rationale
 
-                # Second pass: if user exhausted all new songs, allow songs not played in last 3 tracks
-                strict_recent = {h.title.lower() for h in session.history[-3:]}
+                # Second pass: if user exhausted all new songs, allow songs not played in last 5 tracks, but NEVER the just-finished or just-skipped track
+                strict_recent = {h.title.lower() for h in session.history[-5:]}
+                strict_clean = {_clean_title(h.title) for h in session.history[-5:]}
                 for c in candidates:
-                    if c["title"].lower() in strict_recent:
+                    cand_title = c.get("title", "")
+                    cand_url = c.get("url", "")
+                    if cand_url in getattr(session, "recent_skipped_urls", set()) or (base_track and cand_url == base_track.url):
                         continue
-                    resolved = await AudioResolver.resolve_track(c["url"], 0, "Neko DJ Non-Stop")
+                    if cand_title.lower() in strict_recent or _clean_title(cand_title) in strict_clean:
+                        continue
+                    resolved = await AudioResolver.resolve_track(cand_url, 0, "Neko DJ Non-Stop")
                     if resolved:
                         return resolved, rationale
             except Exception as e:
                 logger.debug(f"Neko DJ candidate probe notice for '{query}': {e}")
 
-        # Ultimate failsafe: resolve dependable stream
-        try:
-            resolved = await AudioResolver.resolve_track("lofi hip hop radio beats to relax study to", 0, "Neko DJ Non-Stop")
-            if resolved:
-                return resolved, "Continuous 24/7 Neko DJ radio stream."
-        except Exception:
-            pass
+        # Diverse radio fallbacks that avoid repeating recent selections
+        fallback_streams = [
+            ("chill morning lofi coffee beats study relax", "Continuous 24/7 Neko DJ Morning Lofi radio."),
+            ("synthwave retrowave cyberpunk gaming night drive", "Continuous 24/7 Neko DJ Synthwave radio."),
+            ("deep sleep ambient meditation lofi space calm", "Continuous 24/7 Neko DJ Ambient radio."),
+            ("gaming edm bass boost high energy workout", "Continuous 24/7 Neko DJ EDM radio."),
+        ]
+        for fb_query, fb_rationale in fallback_streams:
+            try:
+                fb_clean = _clean_title(fb_query)
+                if fb_clean in clean_recent_titles or any(fb_clean in cr for cr in clean_recent_titles):
+                    continue
+                resolved = await AudioResolver.resolve_track(fb_query, 0, "Neko DJ Non-Stop")
+                if resolved and resolved.url not in recent_urls:
+                    return resolved, fb_rationale
+            except Exception:
+                continue
 
         return None
 
