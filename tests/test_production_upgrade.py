@@ -66,7 +66,7 @@ class TestProductionUpgrade(unittest.IsolatedAsyncioTestCase):
         self.bot_member.top_role = MagicMock()
         self.bot_member.top_role.position = 50
         self.bot_member.top_role.name = "Sentinel"
-        self.bot_member.guild_permissions = discord.Permissions(administrator=True)
+        self.bot_member.guild_permissions = discord.Permissions.all()
         self.guild.me = self.bot_member
 
         # Target Member
@@ -99,7 +99,7 @@ class TestProductionUpgrade(unittest.IsolatedAsyncioTestCase):
         self.staff_member.guild = self.guild
         self.staff_member.top_role = MagicMock()
         self.staff_member.top_role.position = 100
-        self.staff_member.guild_permissions = discord.Permissions(administrator=True)
+        self.staff_member.guild_permissions = discord.Permissions.all()
         self.staff_member.roles = [self.staff_member.top_role]
 
         # Initialize Cogs

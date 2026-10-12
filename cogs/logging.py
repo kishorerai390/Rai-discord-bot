@@ -1281,7 +1281,7 @@ class LoggingCog(commands.Cog, name="Logging"):
         guild = interaction.guild
         await interaction.response.defer(ephemeral=True)
 
-        if not guild.me.guild_permissions.manage_channels:
+        if not (guild.me.guild_permissions.manage_channels or guild.me.guild_permissions.administrator):
             await interaction.followup.send(
                 embed=error_embed("Missing Permissions", "Bot requires `Manage Channels` permission to auto-setup logging channels."),
                 ephemeral=True,
