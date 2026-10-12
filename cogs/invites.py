@@ -232,7 +232,7 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
         embed.set_footer(text="THOR APEX • Apex Invite Architecture")
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="invite-leaderboard", description="Show the top inviters in the server.")
+    @invites_group.command(name="leaderboard", description="Show the top inviters in the server.")
     async def cmd_invite_leaderboard(self, interaction: discord.Interaction) -> None:
         guild = interaction.guild
         if not guild:
@@ -252,7 +252,7 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
         embed = await view.get_page_embed()
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.command(name="invite-info", description="Display detailed invite metrics and conversion statistics.")
+    @invites_group.command(name="info", description="Display detailed invite metrics and conversion statistics.")
     @app_commands.describe(member="The member to inspect (defaults to you).")
     async def cmd_invite_info(
         self, interaction: discord.Interaction, member: Optional[discord.Member] = None
@@ -316,7 +316,7 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
         embed.set_footer(text="THOR APEX • Apex Invite Architecture")
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="invite-history", description="Show recent invite activity for a member.")
+    @invites_group.command(name="history", description="Show recent invite activity for a member.")
     @app_commands.describe(member="The member whose recent invite activity to view.")
     async def cmd_invite_history(
         self, interaction: discord.Interaction, member: Optional[discord.Member] = None
@@ -369,7 +369,7 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
     # ADMINISTRATIVE COMMANDS
     # ==========================================
 
-    @app_commands.command(name="invites-reset", description="Reset invite statistics with administrator confirmation.")
+    @invites_group.command(name="reset", description="Reset invite statistics with administrator confirmation.")
     @app_commands.describe(member="The member to reset (leave blank to reset ALL server invite statistics).")
     @app_commands.default_permissions(administrator=True)
     async def cmd_invites_reset(
@@ -406,7 +406,7 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
             )
             await interaction.followup.send(embed=success_embed, ephemeral=True)
 
-    @app_commands.command(name="invites-sync", description="Synchronize invite caches with live Discord server data.")
+    @invites_group.command(name="sync", description="Synchronize invite caches with live Discord server data.")
     @app_commands.default_permissions(administrator=True)
     async def cmd_invites_sync(self, interaction: discord.Interaction) -> None:
         guild = interaction.guild
@@ -446,7 +446,7 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
         embed.set_footer(text="THOR APEX • Apex Invite Architecture")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="invites-config", description="View or configure invite-tracking settings.")
+    @invites_group.command(name="config", description="View or configure invite-tracking settings.")
     @app_commands.describe(
         log_channel="Channel where invite joins and departures are logged.",
         welcome_channel="Channel for welcome messages containing inviter placeholders.",
