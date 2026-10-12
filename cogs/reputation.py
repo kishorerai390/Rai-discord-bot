@@ -198,7 +198,7 @@ class ReputationCog(commands.Cog, name="Reputation"):
         embed.set_footer(text="Earn XP by chatting in text channels and chilling in voice lounges!")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="rank", description="Check your activity level and rank")
+    @rep_group.command(name="rank", description="Check your activity level and rank")
     @app_commands.describe(member="Member to inspect (defaults to yourself)")
     async def rank_cmd(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         await self.level_cmd(interaction, member)

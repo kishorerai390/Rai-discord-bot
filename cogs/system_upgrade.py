@@ -217,10 +217,12 @@ class SystemUpgradeCog(commands.Cog, name="SystemUpgrade"):
             pass
 
     # ==========================================
-    # SLASH COMMAND: /system_diagnostics
+    # SLASH COMMANDS: /system
     # ==========================================
 
-    @app_commands.command(name="system_diagnostics", description="High-tech real-time diagnostics HUD for bot memory, latency, and DB")
+    sys_group = app_commands.Group(name="system", description="Bot system diagnostics, optimization, and upgrades")
+
+    @sys_group.command(name="diagnostics", description="High-tech real-time diagnostics HUD for bot memory, latency, and DB")
     async def system_diagnostics(self, interaction: discord.Interaction):
         if not is_admin_or_owner(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
@@ -317,9 +319,7 @@ class SystemUpgradeCog(commands.Cog, name="SystemUpgrade"):
 
     # ==========================================
     # SLASH COMMAND: /system_optimize
-    # ==========================================
-
-    @app_commands.command(name="system_optimize", description="Execute active garbage collection and SQLite storage defragmentation")
+    @sys_group.command(name="optimize", description="Execute active garbage collection and SQLite storage defragmentation")
     async def system_optimize(self, interaction: discord.Interaction):
         if not is_admin_or_owner(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)
@@ -378,11 +378,7 @@ class SystemUpgradeCog(commands.Cog, name="SystemUpgrade"):
 
         await interaction.followup.send(embed=embed)
 
-    # ==========================================
-    # SLASH COMMAND: /bot_upgrade
-    # ==========================================
-
-    @app_commands.command(name="bot_upgrade", description="View bot version manifest, installed upgrades, and system status")
+    @sys_group.command(name="upgrade", description="View bot version manifest, installed upgrades, and system status")
     async def upgrade_manifest(self, interaction: discord.Interaction):
         if not is_admin_or_owner(interaction.user):
             await interaction.response.send_message("❌ Administrator permissions required.", ephemeral=True)

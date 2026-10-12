@@ -427,18 +427,6 @@ class ModerationCog(commands.Cog, name="Moderation"):
         except Exception as e:
             await interaction.followup.send(embed=error_embed("Purge Failed", str(e)), ephemeral=True)
 
-    @app_commands.command(name="purge", description="Purge messages in the channel (alias for /clear)")
-    @app_commands.guild_only()
-    @app_commands.default_permissions(manage_messages=True)
-    @app_commands.describe(amount="Number of messages to delete (1-100)", member="Filter messages from a specific user")
-    async def purge(
-        self,
-        interaction: discord.Interaction,
-        amount: int,
-        member: Optional[discord.Member] = None,
-    ):
-        await self.clear(interaction, amount, member)
-
     @app_commands.command(name="slowmode", description="Set channel message slowmode delay")
     @app_commands.default_permissions(manage_channels=True)
     @app_commands.describe(seconds="Slowmode in seconds (0 to 21600)")

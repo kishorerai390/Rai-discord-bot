@@ -76,10 +76,12 @@ class CasinoCog(commands.Cog, name="Casino"):
         self._wheel_cooldowns: dict[tuple[int, int], float] = {}
 
     # ==========================================
-    # SLOTS
+    # CASINO GROUP
     # ==========================================
 
-    @app_commands.command(name="slots", description="🎰 Play the Cyberpunk Slot Machine with up to 50x multipliers!")
+    casino_group = app_commands.Group(name="casino", description="Cyberpunk Casino & Mini-games")
+
+    @casino_group.command(name="slots", description="🎰 Play the Cyberpunk Slot Machine with up to 50x multipliers!")
     @app_commands.describe(bet="Amount of Rai Coins to wager (Min: 10, Max: 100,000)")
     async def slots_command(self, interaction: discord.Interaction, bet: int):
         await self.execute_slots(interaction, bet)
@@ -173,9 +175,7 @@ class CasinoCog(commands.Cog, name="Casino"):
 
     # ==========================================
     # COINFLIP
-    # ==========================================
-
-    @app_commands.command(name="coinflip", description="🪙 Double-or-nothing coin toss with 2x payout!")
+    @casino_group.command(name="coinflip", description="🪙 Double-or-nothing coin toss with 2x payout!")
     @app_commands.describe(
         choice="Heads or Tails",
         bet="Amount of Rai Coins to wager (Min: 10, Max: 50,000)",
@@ -245,9 +245,7 @@ class CasinoCog(commands.Cog, name="Casino"):
 
     # ==========================================
     # DICE DUEL
-    # ==========================================
-
-    @app_commands.command(name="dice", description="🎲 Roll against the house or predict the exact number for 5x!")
+    @casino_group.command(name="dice", description="🎲 Roll against the house or predict the exact number for 5x!")
     @app_commands.describe(
         bet="Amount of Rai Coins to wager (Min: 10, Max: 50,000)",
         guess="Optional: Predict exact dice number 1-6 for a huge 5x payout!",
@@ -341,9 +339,7 @@ class CasinoCog(commands.Cog, name="Casino"):
 
     # ==========================================
     # DAILY FORTUNE WHEEL
-    # ==========================================
-
-    @app_commands.command(name="wheel", description="🎡 Spin the Daily Fortune Wheel for prizes up to 5,000 Rai Coins!")
+    @casino_group.command(name="wheel", description="🎡 Spin the Daily Fortune Wheel for prizes up to 5,000 Rai Coins!")
     async def wheel_command(self, interaction: discord.Interaction):
         guild = interaction.guild
         user = interaction.user

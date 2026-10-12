@@ -1662,7 +1662,13 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
 
         await DynamicVCControlManager._dispatch_template_action(self.bot, interaction, room, vc, preset.value)
 
-    @app_commands.command(name="stream", description="Voice stream tools and audio bitrate optimizer")
+    # ==========================================
+    # STREAM TOOLS GROUP
+    # ==========================================
+
+    stream_group = app_commands.Group(name="stream", description="Voice stream tools, bitrate optimizer, and screen stats")
+
+    @stream_group.command(name="optimize", description="Voice stream tools and audio bitrate optimizer")
     @app_commands.describe(action="Optimize audio for screen sharing stability, restore normal bitrate, or engage Cinema Mode")
     @app_commands.choices(
         action=[
@@ -1730,7 +1736,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="stream_stats", description="View voice screen sharing statistics and rank badges")
+    @stream_group.command(name="stats", description="View voice screen sharing statistics and rank badges")
     @app_commands.describe(member="Member to view stream statistics for (defaults to yourself)")
     async def stream_stats_command(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         target = member or interaction.user
@@ -1773,7 +1779,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         embed.set_footer(text="✦ ʀᴀɪ ʀᴀᴍ Stream Hours Tracker • Zero Clutter ✦")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="stream_top", description="Top screen streamers leaderboard in the server")
+    @stream_group.command(name="top", description="Top screen streamers leaderboard in the server")
     async def stream_top_command(self, interaction: discord.Interaction):
         guild = interaction.guild
         if not guild:
@@ -1809,7 +1815,13 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         embed.set_footer(text="✦ ʀᴀɪ ʀᴀᴍ Screen Sharing Champions ✦")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="vc_sleep", description="Set an automatic voice disconnect sleep timer")
+    # ==========================================
+    # VOICE SLEEP GROUP
+    # ==========================================
+
+    vcsleep_group = app_commands.Group(name="vcsleep", description="Voice channel disconnect sleep timers")
+
+    @vcsleep_group.command(name="set", description="Set an automatic voice disconnect sleep timer")
     @app_commands.describe(minutes="Minutes after which to automatically disconnect you (1-360)")
     async def vc_sleep_command(self, interaction: discord.Interaction, minutes: int = 30):
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
@@ -1863,7 +1875,7 @@ class TempVoiceCog(commands.Cog, name="TempVoice"):
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="vc_sleep_cancel", description="Cancel your active voice sleep timer")
+    @vcsleep_group.command(name="cancel", description="Cancel your active voice sleep timer")
     async def vc_sleep_cancel_command(self, interaction: discord.Interaction):
         key = (interaction.guild.id, interaction.user.id)
         existing = self._sleep_timers.pop(key, None)
