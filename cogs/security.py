@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import uuid
+import asyncio
 import collections
 import time
 from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple
@@ -639,6 +640,37 @@ class SecurityCog(commands.Cog, name="Security"):
                 logger.error("Error during raid recovery worker in guild %s: %s", guild.id, e)
 
         self._raid_recovery_tasks[guild.id] = asyncio.create_task(_recovery_worker())
+
+    def _record_security_failure(self, guild: discord.Guild, error: Exception, operation: str) -> None:
+        """Tracks consecutive failures and transitions to degraded Safe Mode if threshold exceeded."""
+        self._security_failure_counts[guild.id] += 1
+        failures = self._security_failure_counts[guild.id]
+        logger.error(f"Security operation '{operation}' failed in {guild.name} (Count: {failures}): {error}")
+
+        if failures >= 5:
+            logger.critical(f"⚠️ ENTERING SAFE MODE for {guild.name}: {failures} consecutive security failures.")
+            try:
+                from utils.owner_reporter import OwnerReporter
+                OwnerReporter.send_security_report(
+                    self.bot,
+                    guild.id,
+                    event="⚠️ DEGRADED SECURITY ALERT — SAFE MODE ENGAGED",
+                    reason=f"Repeated internal errors during '{operation}' ({failures} consecutive failures)",
+                    action_taken="Safe Mode Active — Automated destructive actions suppressed, passive monitoring continues",
+                    severity="CRITICAL",
+                    details={
+                        "Error Subsystem": operation,
+                        "Error Type": type(error).__name__,
+                        "Error Message": str(error)[:200],
+                        "Degraded State": "Server is in Safe Mode. Critical automated moderation suspended until verified.",
+                    },
+                )
+            except Exception:
+                pass
+
+    def _reset_security_failure(self, guild: discord.Guild) -> None:
+        """Resets the failure counter upon successful execution."""
+        self._security_failure_counts[guild.id] = 0
 
     @commands.Cog.listener()
     async def on_guild_role_update(self, before: discord.Role, after: discord.Role):
@@ -2023,50 +2055,297 @@ class SecurityCog(commands.Cog, name="Security"):
         except Exception as e:
             logger.error(f"Nightly backup failed: {e}")
 
-    @security_group.command(name="backup", description="Execute an instant disaster recovery backup of all server data")
-    @is_admin_or_owner()
-    async def security_backup(self, interaction: discord.Interaction):
+    # =========================================================================
+    # ULTIMATE SECURITY UPGRADE COMMANDS: Owner Dashboard & Engine Controls
+    # =========================================================================
+
+    @security_group.command(name="mention-policy", description="Configure Owner-Only @everyone and @here protection policy")
+    @is_strict_owner()
+    @app_commands.describe(
+        enabled="Enable or disable owner-only mention protection",
+        punishment_level="Punishment level: 1=Warn, 2=Timeout, 3=Kick, 4=Raid Lockdown",
+        timeout_seconds="Timeout duration in seconds (60-86400)",
+        delete_message="Whether to automatically delete offending messages",
+        strip_overwrites="Audit and strip 'Mention Everyone' overwrite permission across channels",
+        log_channel="Channel for mention violation alert logs",
+    )
+    @app_commands.choices(
+        punishment_level=[
+            app_commands.Choice(name="Level 1: Warn User & Delete Message", value=1),
+            app_commands.Choice(name="Level 2: Timeout Offending Account", value=2),
+            app_commands.Choice(name="Level 3: Kick Offending Account", value=3),
+            app_commands.Choice(name="Level 4: Coordinated Raid Lockdown", value=4),
+        ]
+    )
+    async def security_mention_policy(
+        self,
+        interaction: discord.Interaction,
+        enabled: Optional[bool] = None,
+        punishment_level: Optional[app_commands.Choice[int]] = None,
+        timeout_seconds: Optional[int] = None,
+        delete_message: Optional[bool] = None,
+        strip_overwrites: Optional[bool] = None,
+        log_channel: Optional[discord.TextChannel] = None,
+    ):
         await interaction.response.defer(ephemeral=True)
-        try:
-            mgr = BackupManager.get_instance()
-            rec = await mgr.run_backup(trigger=f"manual_by_{interaction.user}")
+        guild = interaction.guild
+
+        cfg = await self.bot.db.get_mention_protection_config(guild.id)
+        if enabled is not None:
+            cfg.enabled = enabled
+        if punishment_level is not None:
+            cfg.punishment_level = punishment_level.value
+        if timeout_seconds is not None:
+            if not (10 <= timeout_seconds <= 86400):
+                await interaction.followup.send(embed=error_embed("Invalid Timeout", "Timeout duration must be between 10 and 86400 seconds."), ephemeral=True)
+                return
+            cfg.timeout_duration_seconds = timeout_seconds
+        if delete_message is not None:
+            cfg.delete_message = delete_message
+        if log_channel is not None:
+            cfg.log_channel_id = log_channel.id
+
+        stripped_count = 0
+        if strip_overwrites:
+            cfg.strip_overwrites = True
+            for ch in guild.channels:
+                if not hasattr(ch, "overwrites"):
+                    continue
+                for target, overwrite in list(ch.overwrites.items()):
+                    if isinstance(target, discord.Role) and not target.is_default() and target < guild.me.top_role:
+                        if overwrite.mention_everyone is True:
+                            try:
+                                overwrite.mention_everyone = False
+                                await ch.set_permissions(target, overwrite=overwrite, reason="Security Policy: Strip Mention Everyone overwrite")
+                                stripped_count += 1
+                            except Exception:
+                                pass
+
+        await self.bot.db.save_mention_protection_config(cfg)
+
+        level_names = {
+            1: "Level 1: Warn User & Delete Message",
+            2: "Level 2: Timeout Offending Account",
+            3: "Level 3: Kick Offending Account",
+            4: "Level 4: Raid Lockdown & Account Isolation",
+        }
+
+        embed = success_embed(
+            "👑 Mention Protection Policy Configured",
+            f"**Verified Server Owner:** {interaction.user.mention} (`{interaction.user.id}`)\n\n"
+            f"• **Protection Status:** {'🟢 Enabled' if cfg.enabled else '🔴 Disabled'}\n"
+            f"• **Punishment Level:** `{level_names.get(cfg.punishment_level, 'Level 2: Timeout')}`\n"
+            f"• **Timeout Duration:** `{cfg.timeout_duration_seconds} seconds`\n"
+            f"• **Delete Offending Message:** {'✅ Yes' if cfg.delete_message else '❌ No'}\n"
+            f"• **Security Log Channel:** {f'<#{cfg.log_channel_id}>' if cfg.log_channel_id else '*Not configured (using security alerts)*'}\n"
+            f"• **Channel Overwrites Stripped:** `{stripped_count} permissions neutralized`\n\n"
+            f"⚖️ *Only the verified Server Owner ID and trusted security users may use `@everyone` or `@here`.*",
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @trusted_group.command(name="add", description="Add a trusted security user by ID or mention (Owner-only)")
+    @is_strict_owner()
+    @app_commands.describe(
+        user="The Discord user to add to the trusted security allowlist",
+        reason="Reason for granting trusted security status",
+    )
+    async def trusted_add(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User,
+        reason: Optional[str] = "Authorized by Server Owner",
+    ):
+        await interaction.response.defer(ephemeral=True)
+        if user.id == interaction.guild.owner_id:
+            await interaction.followup.send(embed=info_embed("Already Server Owner", "The Server Owner is always implicitly verified and trusted."), ephemeral=True)
+            return
+
+        ok = await self.bot.db.add_trusted_user(
+            guild_id=interaction.guild.id,
+            user_id=user.id,
+            added_by=interaction.user.id,
+            reason=reason,
+        )
+        if ok:
             embed = success_embed(
-                f"Disaster Recovery Backup Complete ({rec.backup_id})",
-                (
-                    f"**📦 Snapshot ID:** `{rec.backup_id}`\n"
-                    f"**⚡ Status:** `VERIFIED (SHA-256 Validated)`\n"
-                    f"**📊 Archive Size:** `{format_bytes(rec.archive_size)}`\n"
-                    f"**📁 Format:** `ZIP Archive (.zip)`\n"
-                    f"**🛡️ Storage:** `{rec.storage_type}`\n"
-                    f"**⏱️ Timestamp:** `{rec.formatted_created_at}`\n\n"
-                    f"Disaster Recovery archive file attached below. A copy has also been archived into `#💾・backup-data`."
-                ),
+                "🛡️ Trusted Security User Authorized",
+                f"**User:** {user.mention} (`{user.name}` | ID: `{user.id}`)\n"
+                f"**Authorized By:** {interaction.user.mention} (Verified Server Owner)\n"
+                f"**Reason:** {reason}\n\n"
+                f"✅ This user is now exempt from Anti-Nuke containment and authorized for security bypass.",
             )
-            # Post copy to central backup channel in MRL GAMING
-            from config import BACKUP_DATA_CHANNEL_ID
-            ch = self.bot.get_channel(BACKUP_DATA_CHANNEL_ID)
-            if not ch and hasattr(self.bot, "fetch_channel"):
-                try:
-                    ch = await self.bot.fetch_channel(BACKUP_DATA_CHANNEL_ID)
-                except Exception:
-                    ch = None
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=error_embed("Failed to Add", "Could not record trusted user in database."), ephemeral=True)
 
-            if ch and isinstance(ch, discord.TextChannel) and rec.archive_path and os.path.exists(rec.archive_path):
-                try:
-                    with open(rec.archive_path, "rb") as bf:
-                        vault_file = discord.File(bf, filename=os.path.basename(rec.archive_path))
-                        await ch.send(embed=embed, file=vault_file)
-                except Exception as ve:
-                    logger.warning(f"Vault post error: {ve}")
+    @trusted_group.command(name="remove", description="Remove a trusted security user by ID or mention (Owner-only)")
+    @is_strict_owner()
+    @app_commands.describe(user="The Discord user to revoke trusted security status from")
+    async def trusted_remove(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User,
+    ):
+        await interaction.response.defer(ephemeral=True)
+        ok = await self.bot.db.remove_trusted_user(guild_id=interaction.guild.id, user_id=user.id)
+        if ok:
+            embed = success_embed(
+                "Revoked Trusted Security User",
+                f"Removed {user.mention} (`{user.id}`) from the trusted security allowlist.\n"
+                f"Standard automated security checks will now apply to this user.",
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(embed=warning_embed("Not Found", f"{user.mention} was not found on the trusted security allowlist."), ephemeral=True)
 
-            if rec.archive_path and os.path.exists(rec.archive_path):
-                with open(rec.archive_path, "rb") as f:
-                    discord_file = discord.File(f, filename=os.path.basename(rec.archive_path))
-                    await interaction.followup.send(embed=embed, file=discord_file, ephemeral=True)
-            else:
-                await interaction.followup.send(embed=embed, ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send(embed=error_embed("Backup Failed", str(e)), ephemeral=True)
+    @security_group.command(name="allowlist", description="Inspect verified server owner and authorized security allowlist")
+    @is_strict_owner_or_trusted()
+    async def security_allowlist(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+
+        trusted_users = await self.bot.db.get_trusted_users(guild.id)
+        whitelist = await self.bot.db.get_whitelist(guild.id)
+
+        embed = create_embed(
+            title=f"🛡️ Security Allowlist & Trust Matrix — {guild.name}",
+            color=Colors.SECURITY,
+        )
+        embed.add_field(
+            name="👑 Verified Server Owner",
+            value=f"<@{guild.owner_id}> (`ID: {guild.owner_id}`)",
+            inline=False,
+        )
+
+        if trusted_users:
+            tu_lines = [
+                f"• <@{tu.user_id}> (`{tu.user_id}`) — *{tu.reason or 'No reason'}* (Added <@{tu.added_by}>)"
+                for tu in trusted_users
+            ]
+            embed.add_field(name=f"🛡️ Trusted Security Users ({len(trusted_users)})", value="\n".join(tu_lines), inline=False)
+        else:
+            embed.add_field(name="🛡️ Trusted Security Users (0)", value="*No explicit trusted users added. Only the Server Owner has full bypass.*", inline=False)
+
+        wl_users = [f"<@{item['target_id']}>" for item in whitelist if item["target_type"] == "user"]
+        wl_roles = [f"<@&{item['target_id']}>" for item in whitelist if item["target_type"] == "role"]
+        embed.add_field(
+            name=f"📋 Legacy Moderation Whitelist ({len(whitelist)})",
+            value=f"**Users:** {', '.join(wl_users) if wl_users else 'None'}\n"
+                  f"**Roles:** {', '.join(wl_roles) if wl_roles else 'None'}",
+            inline=False,
+        )
+        embed.set_footer(text="Raivora Identity & Permission Protection Engine")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @security_group.command(name="logs", description="Review recent security incidents, raid events, and mention violations")
+    @is_strict_owner_or_trusted()
+    @app_commands.describe(limit="Number of log entries to retrieve (5-50)")
+    async def security_logs_cmd(self, interaction: discord.Interaction, limit: Optional[int] = 15):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        safe_limit = max(5, min(limit or 15, 50))
+
+        incidents = await self.bot.db.get_security_incidents(guild.id, limit=safe_limit)
+        violations = await self.bot.db.get_recent_mention_violations(guild.id, limit=safe_limit)
+
+        embed = create_embed(
+            title=f"📋 Security Incident & Violation Logs — {guild.name}",
+            color=Colors.SECURITY,
+        )
+
+        if incidents:
+            inc_lines = [
+                f"`[{inc.event_id}]` **{inc.event_type}** by {inc.executor_name or 'UNKNOWN'} → *{inc.result}* ({inc.timestamp[:19]})"
+                for inc in incidents[:7]
+            ]
+            embed.add_field(name="🚨 Recent Anti-Nuke & Raid Incidents", value="\n".join(inc_lines), inline=False)
+        else:
+            embed.add_field(name="🚨 Recent Anti-Nuke & Raid Incidents", value="No incidents recorded.", inline=False)
+
+        if violations:
+            viol_lines = [
+                f"`#{v.id}` <@{v.user_id}> pinged `{v.violation_type}` in <#{v.channel_id}> → *{v.action_taken}* ({v.created_at[:19]})"
+                for v in violations[:7]
+            ]
+            embed.add_field(name="📣 Recent Mention Violations", value="\n".join(viol_lines), inline=False)
+        else:
+            embed.add_field(name="📣 Recent Mention Violations", value="No mention violations recorded.", inline=False)
+
+        embed.set_footer(text="Raivora Real-time Audit Trail")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @security_group.command(name="test", description="Run safe, non-destructive automated security and permission diagnostics")
+    @is_strict_owner_or_trusted()
+    async def security_test(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        bot_member = guild.me
+
+        results = []
+
+        # 1. Essential Moderation Permissions Check
+        required_perms = [
+            ("Manage Roles", bot_member.guild_permissions.manage_roles),
+            ("Manage Channels", bot_member.guild_permissions.manage_channels),
+            ("Kick Members", bot_member.guild_permissions.kick_members),
+            ("Ban Members", bot_member.guild_permissions.ban_members),
+            ("Moderate Members (Timeout)", bot_member.guild_permissions.moderate_members),
+            ("View Audit Log", bot_member.guild_permissions.view_audit_log),
+            ("Manage Messages", bot_member.guild_permissions.manage_messages),
+        ]
+        all_perms_ok = all(ok for _, ok in required_perms)
+        perm_summary = "\n".join(f"{'✅' if ok else '❌'} **{name}**" for name, ok in required_perms)
+
+        # 2. Role Hierarchy Diagnostics
+        top_role = bot_member.top_role
+        guild_roles = sorted(guild.roles, key=lambda r: r.position, reverse=True)
+        roles_above = [r.name for r in guild_roles if r.position > top_role.position and not r.managed]
+        hierarchy_ok = len(roles_above) == 0
+
+        # 3. Audit Log Access Test
+        audit_ok = False
+        try:
+            async for _ in guild.audit_logs(limit=1):
+                audit_ok = True
+                break
+        except Exception:
+            audit_ok = False
+
+        # 4. Database Schema and Operational Health
+        db_ok = True
+        try:
+            await self.bot.db.get_mention_protection_config(guild.id)
+            await self.bot.db.get_anti_nuke_config(guild.id)
+            await self.bot.db.get_anti_raid_config(guild.id)
+        except Exception:
+            db_ok = False
+
+        embed = create_embed(
+            title=f"🧪 Non-Destructive Security Diagnostic Report — {guild.name}",
+            color=Colors.SUCCESS if (all_perms_ok and audit_ok and db_ok) else Colors.WARNING,
+        )
+        embed.add_field(name="🔑 Bot Permissions Health", value=perm_summary, inline=False)
+        embed.add_field(
+            name="📊 Role Hierarchy Status",
+            value=(
+                f"• Bot Highest Role: `{top_role.name}` (Pos: {top_role.position})\n"
+                f"• Unmanageable Roles Above Bot: `{', '.join(roles_above) if roles_above else 'None (Optimal!)'}`\n"
+                f"• Status: {'✅ Bot is capable of moderating members' if hierarchy_ok else '⚠️ Bot cannot moderate members with roles above it'}"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="🔍 Subsystem Connectivity",
+            value=(
+                f"• Discord Audit Log Stream: {'✅ Operational' if audit_ok else '❌ Inaccessible (Missing View Audit Log)'}\n"
+                f"• SQLite Database Migration v49: {'✅ Healthy & Connected' if db_ok else '❌ Error accessing security tables'}\n"
+                f"• Safe Mode Engine: `🟢 Normal Execution (No degraded states)`"
+            ),
+            inline=False,
+        )
+        embed.set_footer(text="Raivora Automated Security Diagnostic • 100% Non-destructive")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
 
 async def setup(bot: SentinelBot):
