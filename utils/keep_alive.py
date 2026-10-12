@@ -404,18 +404,15 @@ class KeepAliveServer:
 
     async def start(self) -> None:
         try:
+            from web.server import RaiCommunityOSServer
+            community_server = RaiCommunityOSServer(bot=self.bot, db=getattr(self.bot, "db", None), port=self.port)
             app = web.Application()
-            app.router.add_get("/", self.handle_root)
-            app.router.add_get("/dashboard", self.handle_root)
-            app.router.add_get("/api/stats", self.handle_stats)
-            app.router.add_get("/api/leaderboard", self.handle_leaderboard)
-            app.router.add_get("/health", self.handle_health)
-            app.router.add_get("/healthz", self.handle_health)
+            community_server.setup_routes(app)
             self.runner = web.AppRunner(app)
             await self.runner.setup()
             self.site = web.TCPSite(self.runner, "0.0.0.0", self.port)
             await self.site.start()
-            logger.info(f"Rai Midnight Web Dashboard online at http://0.0.0.0:{self.port}")
+            logger.info(f"✦ Rai Master Platform & Keep-Alive online at http://0.0.0.0:{self.port} (Music: /music, Health: /health) ✦")
         except Exception as e:
             logger.warning(f"Could not start Web Dashboard on port {self.port}: {e}")
 

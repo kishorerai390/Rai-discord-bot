@@ -25,3 +25,7 @@ services:
         value: INFO
       - key: DATABASE_PATH
         value: data/bot.db
+      - key: MUSIC_DATABASE_PATH
+        value: data/music.db
+      - key: COMMAND_SYNC_MODE
+        value: global
