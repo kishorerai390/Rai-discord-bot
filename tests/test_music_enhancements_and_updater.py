@@ -94,7 +94,7 @@ class TestMusicEnhancementsAndUpdater(unittest.IsolatedAsyncioTestCase):
 
     async def test_priority_bump_queue_order(self):
         """Verify priority bump moves item to position #1 in queue."""
-        session = GuildMusicSession(guild_id=111, session_manager=SessionManager(None))
+        session = GuildMusicSession(guild_id=111, session_manager=SessionManager())
         t1 = QueuedTrack(title="Song 1", url="http://1", stream_url="http://s1", duration=100, requester_id=1, requester_name="A")
         t2 = QueuedTrack(title="Song 2", url="http://2", stream_url="http://s2", duration=100, requester_id=1, requester_name="A")
         t3 = QueuedTrack(title="Song 3", url="http://3", stream_url="http://s3", duration=100, requester_id=1, requester_name="A")
