@@ -478,18 +478,49 @@ class MusicDatabase:
                     for r in rows
                 ]
 
-    async def add_favorite(self, user_id: int, track: QueuedTrack) -> bool:
-        """Add a track to user's favorites list."""
+    async def add_favorite(
+        self,
+        user_id: int,
+        track_or_title: Any,
+        url: Optional[str] = None,
+        duration: int = 0,
+        artist: Optional[str] = None,
+        thumbnail: Optional[str] = None,
+    ) -> bool:
+        """Add a track to user's favorites list (supports QueuedTrack or direct parameters)."""
+        if isinstance(track_or_title, QueuedTrack):
+            title = track_or_title.title
+            track_url = track_or_title.url
+            dur = track_or_title.duration or 0
+            art = track_or_title.artist or "Unknown Artist"
+            thumb = track_or_title.thumbnail
+        else:
+            title = str(track_or_title)
+            track_url = url or ""
+            dur = duration
+            art = artist or "Unknown Artist"
+            thumb = thumbnail
+
         now = datetime.now(timezone.utc).isoformat()
         async with self._lock:
+            async with self._db.execute(
+                "SELECT id FROM music_favorites WHERE user_id = ? AND url = ?",
+                (user_id, track_url)
+            ) as cursor:
+                if await cursor.fetchone():
+                    return False
+
             try:
                 await self._db.execute("""
                     INSERT INTO music_favorites (user_id, title, url, duration, artist, thumbnail, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (user_id, track.title, track.url, track.duration, track.artist, track.thumbnail, now))
+                """, (user_id, title, track_url, dur, art, thumb, now))
                 await self._db.commit()
                 return True
             except aiosqlite.IntegrityError:
+                return False
+            except Exception as e:
+                logger.warning(f"Failed to add favorite for user {user_id}: {e}")
                 return False
 
     async def remove_favorite(self, user_id: int, identifier: str) -> bool:
@@ -1099,28 +1130,6 @@ class MusicDatabase:
                 "top_requesters": top_requesters,
             }
 
-    async def add_favorite(
-        self,
-        user_id: int,
-        title: str,
-        url: str,
-        duration: int = 0,
-        artist: Optional[str] = None,
-        thumbnail: Optional[str] = None,
-    ) -> bool:
-        """Add a track to user's personal favorites."""
-        now_iso = datetime.now(timezone.utc).isoformat()
-        async with self._lock:
-            try:
-                await self._db.execute("""
-                    INSERT OR REPLACE INTO music_favorites (user_id, title, url, duration, artist, thumbnail, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (user_id, title, url, duration, artist or "Unknown Artist", thumbnail, now_iso))
-                await self._db.commit()
-                return True
-            except Exception as e:
-                logger.warning(f"Failed to add favorite for user {user_id}: {e}")
-                return False
 
     async def get_user_favorites(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
         """Retrieve user's favorite tracks ordered by most recently added."""

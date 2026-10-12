@@ -98,6 +98,8 @@ class MusicAutoUpdater:
             ejs_update = (current_ejs == "not installed") or (_ver_tuple(latest_ejs) > _ver_tuple(current_ejs))
 
             return {
+                "current": current_ytdl,
+                "latest": latest_ytdl,
                 "current_ytdl": current_ytdl,
                 "latest_ytdl": latest_ytdl,
                 "current_ejs": current_ejs,
@@ -113,6 +115,8 @@ class MusicAutoUpdater:
         except Exception as e:
             logger.warning(f"Failed to query PyPI for yt-dlp release: {e}")
             return {
+                "current": current_ytdl,
+                "latest": current_ytdl,
                 "current_ytdl": current_ytdl,
                 "latest_ytdl": current_ytdl,
                 "current_ejs": current_ejs,

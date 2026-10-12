@@ -135,20 +135,31 @@ class VoiceManager:
                         except Exception:
                             pass
 
-                    session.is_intentional_stop = True
-                    session.queue.clear()
-                    if session.voice_client.is_playing():
+                    # Checkpoint session before disconnecting so users can restore when returning
+                    try:
+                        from music_bot.services.session_memory_service import MusicSessionMemoryService
+                        await MusicSessionMemoryService.checkpoint_session(
+                            bot, session, reason="auto_leave_empty_channel"
+                        )
+                    except Exception as cp_err:
+                        logger.warning(f"Failed to checkpoint session on auto-leave: {cp_err}")
+
+                    session.is_intentional_stop = False
+                    if session.voice_client.is_playing() or session.voice_client.is_paused():
                         session.voice_client.stop()
                     await session.voice_client.disconnect()
                     session.voice_client = None
-                    session.reset()
-                    if getattr(bot, "db", None):
-                        asyncio.create_task(bot.db.delete_session(session.guild_id))
+                    session.state = PlaybackState.IDLE
+                    session.recovery_status = "Saved on empty channel (Ready to resume)"
 
                     if session.text_channel:
                         embed = discord.Embed(
                             title="👋 AUTO DISCONNECTED",
-                            description=f"Left voice channel because it remained empty for `{timeout // 60}` minutes.",
+                            description=(
+                                f"Left voice channel because it remained empty for `{max(1, timeout // 60)}` minutes.\n"
+                                f"💾 **Session Preserved:** Your queue and playback position were saved!\n"
+                                f"Use `/music-session restore` or `/play` when you return to pick up where you left off. 🐾"
+                            ),
                             color=0xED4245,
                         )
                         try:

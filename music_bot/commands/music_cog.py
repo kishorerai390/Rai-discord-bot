@@ -876,32 +876,60 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_pause(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.voice_client or not session.voice_client.is_playing():
+        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
             await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            return
+
+        if session.is_paused or session.voice_client.is_paused():
+            await interaction.followup.send("⏸️ Playback is already paused.", ephemeral=True)
             return
 
         session.voice_client.pause()
         session.pause_time = discord.utils.utcnow().timestamp()
         session.state = PlaybackState.PAUSED
+        if session.now_playing_message:
+            try:
+                await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+            except Exception:
+                pass
         await interaction.followup.send("⏸️ Playback paused.")
 
     @music_group.command(name="resume", description="Resume paused music playback")
     async def music_resume(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.voice_client or not session.voice_client.is_paused():
-            await interaction.followup.send("❌ Music is not currently paused.", ephemeral=True)
+        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
+            await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             return
 
-        session.voice_client.resume()
+        if session.is_playing and not session.voice_client.is_paused():
+            await interaction.followup.send("▶️ Music is already playing.", ephemeral=True)
+            return
+
+        if session.voice_client.is_paused():
+            session.voice_client.resume()
+        elif session.state == PlaybackState.PAUSED and session.current_track:
+            cur_pos = session.progress_seconds
+            await MusicPlayerService.resume_track_stream(self.bot, session, session.current_track, cur_pos)
+
+        if session.pause_time > 0:
+            session.paused_duration += time.time() - session.pause_time
+            session.pause_time = 0.0
         session.state = PlaybackState.PLAYING
+        if not session.progress_updater_task or session.progress_updater_task.done():
+            session.progress_updater_task = asyncio.create_task(MusicPlayerService._progress_updater_loop(session))
+        if session.now_playing_message:
+            try:
+                await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+            except Exception:
+                pass
         await interaction.followup.send("▶️ Playback resumed.")
 
     @music_group.command(name="skip", description="Skip the currently playing song (or vote-to-skip)")
     async def music_skip(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.voice_client or not session.voice_client.is_playing():
+        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
             await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             return
 
@@ -1040,7 +1068,7 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_seek(self, interaction: discord.Interaction, seconds: int) -> None:
         await interaction.response.defer(ephemeral=True)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.current_track or not session.is_playing:
+        if not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
             await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             return
 
@@ -2624,7 +2652,7 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        if not session.is_playing or not session.current_track:
+        if not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
             await ctx.reply("❌ Nothing is currently playing.", mention_author=False)
             return
         skipped_name = session.current_track.title
@@ -2637,11 +2665,12 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        if not session.voice_client or not session.is_playing:
+        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing()):
             await ctx.reply("❌ Nothing is playing to pause.", mention_author=False)
             return
         session.voice_client.pause()
-        session.is_paused = True
+        session.pause_time = time.time()
+        session.state = PlaybackState.PAUSED
         await ctx.reply("⏸️ Playback paused.", mention_author=False)
 
     @commands.command(name="resume", aliases=["unpause"])
@@ -2650,11 +2679,14 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        if not session.voice_client or not session.is_paused:
+        if not session.voice_client or not (session.is_paused or session.voice_client.is_paused()):
             await ctx.reply("❌ Playback is not paused.", mention_author=False)
             return
         session.voice_client.resume()
-        session.is_paused = False
+        if session.pause_time > 0:
+            session.paused_duration += time.time() - session.pause_time
+            session.pause_time = 0.0
+        session.state = PlaybackState.PLAYING
         await ctx.reply("▶️ Playback resumed.", mention_author=False)
 
     @commands.command(name="stop")
@@ -2664,11 +2696,11 @@ class MusicCog(commands.Cog, name="Music"):
             return
         session = await self.session_manager.get_session(ctx.guild.id)
         async with session.lock:
+            session.is_intentional_stop = True
             session.queue.clear()
             session.current_track = None
-            session.is_playing = False
-            session.is_paused = False
-            if session.voice_client and session.voice_client.is_playing():
+            session.state = PlaybackState.STOPPED
+            if session.voice_client and (session.voice_client.is_playing() or session.voice_client.is_paused()):
                 session.voice_client.stop()
         await ctx.reply("⏹️ Stopped playback and cleared queue.", mention_author=False)
 

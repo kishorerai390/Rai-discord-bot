@@ -1166,7 +1166,17 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
-        # 2. State cleanup & stop voice
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        # 2. State cleanup & stop voice atomically
+        session.is_intentional_stop = True
+        session.state = PlaybackState.STOPPED
         session.queue.clear()
         if session.voice_client:
             session.voice_client.stop()
@@ -1194,8 +1204,10 @@ class NowPlayingControlView(discord.ui.View):
         session.reset()
 
         bot_client = getattr(interaction, "client", None)
-        if bot_client and getattr(bot_client, "db", None):
-            asyncio.create_task(bot_client.db.delete_session(session.guild_id))
+        if bot_client and getattr(bot_client, "db", None) and hasattr(bot_client.db, "delete_session"):
+            coro = bot_client.db.delete_session(session.guild_id)
+            if asyncio.iscoroutine(coro):
+                asyncio.create_task(coro)
 
         try:
             await interaction.followup.send("⏹ Stopped music playback and disconnected. 🐾", ephemeral=True)
