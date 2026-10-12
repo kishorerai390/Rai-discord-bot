@@ -54,6 +54,17 @@ class ValidatedAudioSource(discord.AudioSource):
         self.original = original
         self.first_frame: Optional[bytes] = first_frame
 
+    @property
+    def volume(self) -> float:
+        if hasattr(self.original, "volume"):
+            return self.original.volume  # type: ignore
+        return 1.0
+
+    @volume.setter
+    def volume(self, value: float) -> None:
+        if hasattr(self.original, "volume"):
+            self.original.volume = value  # type: ignore
+
     def read(self) -> bytes:
         if self.first_frame is not None:
             frame = self.first_frame
@@ -66,6 +77,9 @@ class ValidatedAudioSource(discord.AudioSource):
 
     def cleanup(self) -> None:
         self.original.cleanup()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.original, name)
 
 
 class MusicPlayerService:
@@ -594,7 +608,12 @@ class MusicPlayerService:
 
         elapsed = session.elapsed_seconds
         total = track.duration or 0
-        is_active_play = session.is_playing
+
+        if session.voice_client is not None:
+            is_active_play = session.voice_client.is_playing()
+        else:
+            is_active_play = session.state == PlaybackState.PLAYING
+
         if total > 0:
             remaining = max(0, total - elapsed)
             end_ts = int(time.time() + remaining)
@@ -611,7 +630,7 @@ class MusicPlayerService:
             if me.voice and getattr(me.voice, "mute", False):
                 is_server_muted = True
 
-        if session.is_playing:
+        if is_active_play:
             status_text = "🟢 Playing"
         elif session.is_paused or session.state == PlaybackState.PAUSED:
             status_text = "⏸️ Paused"

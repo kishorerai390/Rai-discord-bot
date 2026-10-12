@@ -307,3 +307,28 @@ class TestSkipAndAntiRepeat:
         assert "🟢 Playing" not in embed.description
         assert "⏹️ Idle" in embed.description
 
+    async def test_validated_audio_source_volume_pass_through(self, mock_session):
+        """14. ValidatedAudioSource passes through volume changes to underlying volume transformer."""
+        from music_bot.services.player_service import ValidatedAudioSource, VolumeAdjustView
+
+        mock_inner = MagicMock()
+        mock_inner.volume = 0.8
+        wrapped = ValidatedAudioSource(mock_inner, b"test_frame")
+
+        assert wrapped.volume == 0.8
+        wrapped.volume = 0.5
+        assert mock_inner.volume == 0.5
+
+        # Test VolumeAdjustView._set_vol
+        mock_session.voice_client.source = wrapped
+        view = VolumeAdjustView(mock_session)
+        mock_interaction = AsyncMock()
+        mock_interaction.response.is_done.return_value = False
+        with patch.object(MusicPlayerService, "send_now_playing_panel", new_callable=AsyncMock):
+            await view._set_vol(mock_interaction, 50)
+
+        assert mock_session.volume == 50
+        assert mock_inner.volume == 0.5
+        mock_interaction.followup.send.assert_called_once_with("🔊 Volume set to `50%`.", ephemeral=True)
+
+
