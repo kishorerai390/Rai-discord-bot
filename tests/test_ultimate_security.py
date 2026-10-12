@@ -15,6 +15,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 
+from config import Colors
 from cogs.security import SecurityCog
 from database.models import (
     MentionProtectionConfig,
@@ -88,6 +89,10 @@ class TestUltimateSecurity(unittest.IsolatedAsyncioTestCase):
         self.bot.db.is_user_trusted = AsyncMock(return_value=False)
         self.bot.db.is_whitelisted = AsyncMock(return_value=False)
         self.bot.db.record_permission_audit = AsyncMock()
+        self.bot.db.set_lockdown = AsyncMock()
+        self.bot.db.get_anti_nuke_config = AsyncMock(return_value=AntiNukeConfig(guild_id=1457382179981099090))
+        self.bot.db.get_anti_raid_config = AsyncMock(return_value=AntiRaidConfig(guild_id=1457382179981099090))
+        self.bot.db.get_mention_protection_config = AsyncMock(return_value=MentionProtectionConfig(guild_id=1457382179981099090))
 
         self.guild = MagicMock(spec=discord.Guild)
         self.guild.id = 1457382179981099090
@@ -468,7 +473,7 @@ class TestUltimateSecurity(unittest.IsolatedAsyncioTestCase):
         interaction.followup.send.assert_awaited_once()
         embed = interaction.followup.send.call_args[1]["embed"]
         self.assertIn("Diagnostic Report", embed.title)
-        self.assertEqual(embed.color, Colors.SUCCESS)
+        self.assertEqual(embed.color.value, Colors.SUCCESS)
 
 
 if __name__ == "__main__":

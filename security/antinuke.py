@@ -143,7 +143,16 @@ class AntiNukeEngine:
 
         # Fetch configured anti-nuke threshold if not passed
         if threshold is None:
-            cfg = await self.bot.db.get_anti_nuke_config(guild.id)
+            try:
+                cfg = self.bot.db.get_anti_nuke_config(guild.id)
+                if hasattr(cfg, "__await__"):
+                    cfg = await cfg
+            except Exception:
+                cfg = None
+            if not cfg or not hasattr(cfg, "max_channel_deletions"):
+                from database.models import AntiNukeConfig
+                cfg = AntiNukeConfig(guild_id=guild.id)
+
             threshold_map = {
                 "channel_delete": cfg.max_channel_deletions,
                 "channel_create": cfg.max_channel_creations,
@@ -162,12 +171,13 @@ class AntiNukeEngine:
             corr_dq.popleft()
         corr_dq.append((now, action_type, weight))
 
-        # Calculate cumulative severity score
+        # Calculate cumulative severity score across distinct actions
         total_severity = sum(item[2] for item in corr_dq)
+        distinct_actions = len(set(item[1] for item in corr_dq))
 
-        # Trigger condition: single action exceeded threshold OR correlated severity >= 50
+        # Trigger condition: single action exceeded threshold OR distinct multi-action severity >= 50
         action_breached = len(dq) >= threshold
-        severity_breached = total_severity >= 50 and len(corr_dq) >= 2
+        severity_breached = total_severity >= 50 and distinct_actions >= 2
 
         if action_breached or severity_breached:
             # Check duplicate alert suppression (60s)
@@ -179,7 +189,7 @@ class AntiNukeEngine:
             reason = (
                 f"Anti-Nuke Triggered: Exceeded {action_type} limit ({len(dq)}/{threshold})"
                 if action_breached
-                else f"Correlated Attack Pattern: Severity Score {total_severity}/100 across {len(corr_dq)} actions"
+                else f"Correlated Attack Pattern: Severity Score {total_severity}/100 across {distinct_actions} vectors"
             )
 
             logger.critical(
@@ -213,7 +223,16 @@ class AntiNukeEngine:
         self._contained_users.add(contained_key)
 
         can_mod, mod_reason = check_bot_hierarchy(actor, guild.me)
-        cfg = await self.bot.db.get_anti_nuke_config(guild.id)
+        try:
+            cfg = self.bot.db.get_anti_nuke_config(guild.id)
+            if hasattr(cfg, "__await__"):
+                cfg = await cfg
+        except Exception:
+            cfg = None
+        if not cfg or not hasattr(cfg, "auto_quarantine_action"):
+            from database.models import AntiNukeConfig
+            cfg = AntiNukeConfig(guild_id=guild.id)
+
         action_outcomes: List[str] = []
 
         if not can_mod:
@@ -292,16 +311,21 @@ class AntiNukeEngine:
                 reason=reason,
                 severity="CRITICAL",
             )
-            await self.bot.db.record_security_incident(inc)
-            await self.bot.db.record_permission_audit(
-                guild_id=guild.id,
-                actor_id=actor.id,
-                target_type="user",
-                action="anti_nuke_containment",
-                target_id=actor.id,
-                permissions_changed="; ".join(action_outcomes),
-                status="contained" if can_mod else "hierarchy_blocked",
-            )
+            res_inc = self.bot.db.record_security_incident(inc)
+            if hasattr(res_inc, "__await__"):
+                await res_inc
+            if hasattr(self.bot.db, "record_permission_audit"):
+                res_pa = self.bot.db.record_permission_audit(
+                    guild_id=guild.id,
+                    actor_id=actor.id,
+                    target_type="user",
+                    action="anti_nuke_containment",
+                    target_id=actor.id,
+                    permissions_changed="; ".join(action_outcomes),
+                    status="contained" if can_mod else "hierarchy_blocked",
+                )
+                if hasattr(res_pa, "__await__"):
+                    await res_pa
         except Exception as e:
             logger.error("Failed to record incident in database: %s", e)
 
