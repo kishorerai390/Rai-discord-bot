@@ -782,20 +782,7 @@ class UtilityCog(commands.Cog, name="Utility"):
         embed.set_footer(text="24/7 Always-On Discord Supervisor")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="botinfo", description="Display bot diagnostics, versions, and system health")
-    async def botinfo_standalone(self, interaction: discord.Interaction):
-        await self.botinfo(interaction)
-
-    @app_commands.command(name="serverinfo", description="Display detailed server statistics, population, and channels")
-    async def serverinfo_standalone(self, interaction: discord.Interaction):
-        await self.serverinfo(interaction)
-
-    @app_commands.command(name="userinfo", description="Display profile, join timestamp, and roles of a member")
-    @app_commands.describe(user="The member to inspect (defaults to yourself)")
-    async def userinfo_standalone(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
-        await self.userinfo(interaction, user)
-
-    @app_commands.command(name="permissions", description="Check key server and channel permissions for a member or the bot")
+    @info_group.command(name="permissions", description="Check key server and channel permissions for a member or the bot")
     @app_commands.guild_only()
     @app_commands.describe(
         member="The member whose permissions to evaluate (defaults to you)",

@@ -35,10 +35,6 @@ class AnalyticsCog(commands.Cog, name="Analytics"):
     async def stats_cmd(self, interaction: discord.Interaction):
         await self._render_overview_stats(interaction)
 
-    @app_commands.command(name="communitystats", description="Display detailed server membership, channels, and activity")
-    async def communitystats_cmd(self, interaction: discord.Interaction):
-        await self._render_overview_stats(interaction)
-
     async def _render_overview_stats(self, interaction: discord.Interaction):
         await interaction.response.defer()
         guild = interaction.guild
@@ -97,7 +93,7 @@ class AnalyticsCog(commands.Cog, name="Analytics"):
         embed.set_footer(text="Privacy Notice: Hidden private rooms are strictly excluded from public metrics.")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="musicstats", description="Display server music streaming analytics")
+    @analytics_group.command(name="music_details", description="Display server music streaming analytics")
     async def musicstats_cmd(self, interaction: discord.Interaction):
         await interaction.response.defer()
         guild = interaction.guild
@@ -128,7 +124,7 @@ class AnalyticsCog(commands.Cog, name="Analytics"):
         embed.set_footer(text="Data persistently maintained via SQLite WAL.")
         await interaction.followup.send(embed=embed)
 
-    @app_commands.command(name="securitystats", description="Display server security incidents and posture")
+    @analytics_group.command(name="security_details", description="Display server security incidents and posture")
     async def securitystats_cmd(self, interaction: discord.Interaction):
         await interaction.response.defer()
         guild = interaction.guild

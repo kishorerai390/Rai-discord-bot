@@ -180,6 +180,19 @@ class Database:
         )
         await self._db.execute(
             """
+            CREATE TABLE IF NOT EXISTS server_stats_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER DEFAULT 0,
+                category_id INTEGER,
+                all_members_channel_id INTEGER,
+                members_channel_id INTEGER,
+                bots_channel_id INTEGER,
+                updated_at TEXT
+            );
+            """
+        )
+        await self._db.execute(
+            """
             CREATE TABLE IF NOT EXISTS autopilot_configs (
                 guild_id INTEGER PRIMARY KEY,
                 enabled INTEGER DEFAULT 1,

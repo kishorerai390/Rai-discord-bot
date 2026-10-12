@@ -171,10 +171,12 @@ class InviteTrackerCog(commands.Cog, name="InviteTracker"):
         await self.tracker.process_member_remove(member)
 
     # ==========================================
-    # USER SLASH COMMANDS
+    # USER SLASH COMMANDS (/INVITES)
     # ==========================================
 
-    @app_commands.command(name="invites", description="Display a member's total, successful, fake, and left invites.")
+    invites_group = app_commands.Group(name="invites", description="Display and manage server invite metrics and statistics")
+
+    @invites_group.command(name="check", description="Display a member's total, successful, fake, and left invites.")
     @app_commands.describe(member="The member whose invite counts to inspect (defaults to you).")
     async def cmd_invites(
         self, interaction: discord.Interaction, member: Optional[discord.Member] = None

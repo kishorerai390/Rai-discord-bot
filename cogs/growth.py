@@ -97,10 +97,10 @@ class GrowthCog(commands.Cog, name="Growth"):
             logger.debug(f"Failed to process join invite for {member}: {e}")
 
     # ==========================================
-    # SLASH COMMANDS: /INVITES
+    # SLASH COMMANDS: /GROWTH
     # ==========================================
 
-    invites_group = app_commands.Group(name="invites", description="Inspect member invites and server growth stats")
+    invites_group = app_commands.Group(name="growth", description="Inspect member invites and server growth stats")
 
     @invites_group.command(name="check", description="Check invite metrics for yourself or another member")
     @app_commands.describe(member="Member whose invites to inspect")
