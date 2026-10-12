@@ -346,6 +346,11 @@ class WelcomeConfig:
     autorole_id: Optional[int] = None
     dm_enabled: bool = False
     embed_enabled: bool = True
+    goodbye_enabled: bool = True
+    welcome_title: str = "Welcome to {server}!"
+    goodbye_title: str = "Goodbye from {server}"
+    welcome_color: int = 3066993
+    goodbye_color: int = 2895667
     updated_at: str = ""
 
 
@@ -369,6 +374,11 @@ class LoggingConfig:
     bot_logs_channel_id: Optional[int] = None
     error_logs_channel_id: Optional[int] = None
     system_status_channel_id: Optional[int] = None
+    anti_nuke_channel_id: Optional[int] = None
+    invite_logs_channel_id: Optional[int] = None
+    webhook_logs_channel_id: Optional[int] = None
+    welcome_logs_channel_id: Optional[int] = None
+    server_settings_channel_id: Optional[int] = None
     updated_at: str = ""
 
 

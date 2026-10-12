@@ -2097,6 +2097,22 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             """,
             "CREATE INDEX IF NOT EXISTS idx_invite_rewards_guild ON invite_rewards(guild_id);"
         ]
+    ),
+    (
+        51,
+        "Separate 14 logging channels and extended welcome/goodbye configuration",
+        [
+            "ALTER TABLE logging_config ADD COLUMN anti_nuke_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN invite_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN webhook_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN welcome_logs_channel_id INTEGER;",
+            "ALTER TABLE logging_config ADD COLUMN server_settings_channel_id INTEGER;",
+            "ALTER TABLE welcome_config ADD COLUMN goodbye_enabled INTEGER NOT NULL DEFAULT 1;",
+            "ALTER TABLE welcome_config ADD COLUMN welcome_title TEXT DEFAULT 'Welcome to {server}!';",
+            "ALTER TABLE welcome_config ADD COLUMN goodbye_title TEXT DEFAULT 'Goodbye from {server}';",
+            "ALTER TABLE welcome_config ADD COLUMN welcome_color INTEGER DEFAULT 3066993;",
+            "ALTER TABLE welcome_config ADD COLUMN goodbye_color INTEGER DEFAULT 2895667;"
+        ]
     )
 ]
 

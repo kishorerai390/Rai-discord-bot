@@ -577,6 +577,163 @@ class AutoModCog(commands.Cog, name="AutoMod"):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @automod_group.command(name="config", description="Display full active AutoMod rules, thresholds, and filters")
+    @is_admin_or_owner()
+    async def automod_config(self, interaction: discord.Interaction):
+        await self.automod_status(interaction)
+
+    @automod_group.command(name="whitelist", description="Manage members, roles, or channels exempt from AutoMod filters")
+    @is_admin_or_owner()
+    @app_commands.describe(
+        action="Whitelist action to perform",
+        user="Member to exempt",
+        role="Role to exempt",
+        channel="Channel to exempt",
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="Add Exemption", value="add"),
+            app_commands.Choice(name="Remove Exemption", value="remove"),
+            app_commands.Choice(name="List Exemptions", value="list"),
+        ]
+    )
+    async def automod_whitelist(
+        self,
+        interaction: discord.Interaction,
+        action: app_commands.Choice[str],
+        user: Optional[discord.Member] = None,
+        role: Optional[discord.Role] = None,
+        channel: Optional[discord.TextChannel] = None,
+    ):
+        guild_id = interaction.guild.id
+
+        if action.value == "list":
+            wl = await self.bot.db.get_whitelist(guild_id)
+            users = [f"<@{item['target_id']}>" for item in wl if item["target_type"] == "user"]
+            roles = [f"<@&{item['target_id']}>" for item in wl if item["target_type"] == "role"]
+            channels = [f"<#{item['target_id']}>" for item in wl if item["target_type"] == "channel"]
+
+            embed = create_embed(
+                title=f"🛡️ AutoMod Whitelist & Exemptions — {interaction.guild.name}",
+                color=Colors.INFO,
+            )
+            embed.add_field(name=f"Exempt Members ({len(users)})", value=", ".join(users) if users else "*None*", inline=False)
+            embed.add_field(name=f"Exempt Roles ({len(roles)})", value=", ".join(roles) if roles else "*None*", inline=False)
+            embed.add_field(name=f"Exempt Channels ({len(channels)})", value=", ".join(channels) if channels else "*None*", inline=False)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        if not user and not role and not channel:
+            await interaction.response.send_message(embed=error_embed("Missing Target", "Please specify a user, role, or channel to exempt."), ephemeral=True)
+            return
+
+        target_id = user.id if user else role.id if role else channel.id
+        target_type = "user" if user else "role" if role else "channel"
+        mention = user.mention if user else role.mention if role else channel.mention
+
+        if action.value == "add":
+            await self.bot.db.add_whitelist(guild_id, target_id, target_type, interaction.user.id)
+            await interaction.response.send_message(embed=success_embed("Exemption Added", f"Added {mention} to the AutoMod exemption list."), ephemeral=True)
+        else:
+            removed = await self.bot.db.remove_whitelist(guild_id, target_id, target_type)
+            if removed:
+                await interaction.response.send_message(embed=success_embed("Exemption Removed", f"Removed {mention} from the AutoMod exemption list."), ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=warning_embed("Not Found", f"{mention} was not found on the exemption list."), ephemeral=True)
+
+    @automod_group.command(name="blacklist", description="Add or remove keywords and phrases from content filters")
+    @is_admin_or_owner()
+    @app_commands.describe(
+        action="Blacklist operation to perform",
+        words="Comma-separated keywords or phrases",
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="Add Keywords", value="add"),
+            app_commands.Choice(name="Remove Keywords", value="remove"),
+            app_commands.Choice(name="List Keywords", value="list"),
+            app_commands.Choice(name="Clear All", value="clear"),
+        ]
+    )
+    async def automod_blacklist(
+        self,
+        interaction: discord.Interaction,
+        action: app_commands.Choice[str],
+        words: Optional[str] = None,
+    ):
+        await self.automod_words(interaction, action, words)
+
+    @automod_group.command(name="test", description="Safely evaluate a sample message against active AutoMod rules")
+    @is_admin_or_owner()
+    @app_commands.describe(message="Sample message text to evaluate against filters")
+    async def automod_test(self, interaction: discord.Interaction, message: str):
+        auto_cfg = await self.bot.db.get_automod_config(interaction.guild.id)
+        results = []
+        triggered = []
+
+        # 1. Invite Link Filter
+        has_invite = bool(INVITE_REGEX.search(message))
+        if auto_cfg.invite_links_block:
+            if has_invite:
+                results.append("🚨 **Invite Filter:** `TRIGGERED` (Discord invite link detected)")
+                triggered.append("Invite Links")
+            else:
+                results.append("✅ **Invite Filter:** `PASS` (No invite link)")
+        else:
+            results.append("⚪ **Invite Filter:** `DISABLED`")
+
+        # 2. Suspicious & Phishing Links
+        has_suspicious = bool(SUSPICIOUS_REGEX.search(message))
+        if auto_cfg.suspicious_links_block:
+            if has_suspicious:
+                results.append("🚨 **Scam/Phishing Filter:** `TRIGGERED` (Malicious domain pattern matched)")
+                triggered.append("Phishing Link")
+            else:
+                results.append("✅ **Scam/Phishing Filter:** `PASS` (No known scam domain)")
+        else:
+            results.append("⚪ **Scam/Phishing Filter:** `DISABLED`")
+
+        # 3. Banned Words
+        banned = [w.strip().lower() for w in auto_cfg.banned_words.split(",") if w.strip()]
+        matched_words = [w for w in banned if re.search(r"\b" + re.escape(w) + r"\b", message, re.IGNORECASE)]
+        if matched_words:
+            results.append(f"🚨 **Keyword Filter:** `TRIGGERED` (Matched: `{', '.join(matched_words)}`)")
+            triggered.append("Banned Word")
+        else:
+            results.append(f"✅ **Keyword Filter:** `PASS` ({len(banned)} active keywords checked)")
+
+        # 4. Caps Filter
+        letters = [c for c in message if c.isalpha()]
+        if auto_cfg.excessive_caps_block and len(letters) >= 8:
+            caps_pct = (sum(1 for c in letters if c.isupper()) / len(letters)) * 100
+            if caps_pct >= auto_cfg.caps_percentage:
+                results.append(f"🚨 **Caps Filter:** `TRIGGERED` ({round(caps_pct)}% caps vs {auto_cfg.caps_percentage}% limit)")
+                triggered.append("Excessive Caps")
+            else:
+                results.append(f"✅ **Caps Filter:** `PASS` ({round(caps_pct)}% uppercase)")
+        else:
+            results.append("✅ **Caps Filter:** `PASS`")
+
+        embed = create_embed(
+            title="🧪 AutoMod Rule Evaluation Diagnostic",
+            description=f"**Sample Message:**\n```{message[:300]}```\n" + "\n".join(results),
+            color=Colors.ERROR if triggered else Colors.SUCCESS,
+        )
+        if triggered:
+            embed.add_field(
+                name="Automated Response Simulation",
+                value=f"This message would be intercepted with action: **`{auto_cfg.action.upper()}`** due to: {', '.join(triggered)}.",
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="Automated Response Simulation",
+                value="✅ This message passed all active AutoMod filters without any violations.",
+                inline=False,
+            )
+        embed.set_footer(text="100% Non-destructive test simulation")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 async def setup(bot: SentinelBot):
     await bot.add_cog(AutoModCog(bot))

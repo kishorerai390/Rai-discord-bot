@@ -53,6 +53,11 @@ class LoggingCog(commands.Cog, name="Logging"):
         description="Configure server audit logging channels",
         default_permissions=discord.Permissions(administrator=True),
     )
+    logs_group = app_commands.Group(
+        name="logs",
+        description="Configure server audit logging channels and separate category",
+        default_permissions=discord.Permissions(administrator=True),
+    )
 
     async def _dispatch_founder_activity_dm(
         self,
@@ -223,7 +228,19 @@ class LoggingCog(commands.Cog, name="Logging"):
     ) -> None:
         """Helper to send log embed to channel specified in logging_config, and to Founder in DM."""
         cfg = await self.bot.db.get_logging_config(guild.id)
-        channel_id = getattr(cfg, channel_attr, None) or cfg.general_channel_id
+        fallback_map = {
+            "anti_nuke_channel_id": "security_channel_id",
+            "server_settings_channel_id": "server_audit_channel_id",
+            "invite_logs_channel_id": "member_channel_id",
+            "webhook_logs_channel_id": "channel_logs_channel_id",
+            "welcome_logs_channel_id": "member_channel_id",
+        }
+        channel_id = getattr(cfg, channel_attr, None)
+        if not channel_id and channel_attr in fallback_map:
+            channel_id = getattr(cfg, fallback_map[channel_attr], None)
+        if not channel_id:
+            channel_id = cfg.general_channel_id
+
         if channel_id:
             channel = guild.get_channel(channel_id)
             if channel and isinstance(channel, discord.TextChannel):
@@ -253,6 +270,27 @@ class LoggingCog(commands.Cog, name="Logging"):
         embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
         embed.add_field(name="Server Member Count", value=str(member.guild.member_count), inline=True)
         await self._send_log(member.guild, "member_channel_id", embed)
+
+        if member.bot:
+            bot_embed = create_embed(
+                title="🤖 Bot Added to Server",
+                description=f"{member.mention} (`{member.id}`)",
+                color=Colors.INFO,
+                thumbnail_url=member.display_avatar.url,
+            )
+            bot_embed.add_field(name="Bot Name", value=f"`{member.name}`", inline=True)
+            bot_embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
+            await self._send_log(guild, "bot_logs_channel_id", bot_embed)
+        else:
+            welcome_embed = create_embed(
+                title="👋 Welcome Gateway Arrival",
+                description=f"{member.mention} entered the server gateway.",
+                color=Colors.SUCCESS,
+                thumbnail_url=member.display_avatar.url,
+            )
+            welcome_embed.add_field(name="Member ID", value=f"`{member.id}`", inline=True)
+            welcome_embed.add_field(name="Member Count", value=str(guild.member_count), inline=True)
+            await self._send_log(guild, "welcome_logs_channel_id", welcome_embed)
 
         # Suspicious Alt Account Detection (Accounts under 7 days old)
         account_age_days = (discord.utils.utcnow() - member.created_at).days
@@ -948,7 +986,7 @@ class LoggingCog(commands.Cog, name="Logging"):
             value=f"{executor.mention} (`{executor.name}`)" if executor else "Uncertain Attribution",
             inline=True,
         )
-        await self._send_log(guild, "server_audit_channel_id", embed)
+        await self._send_log(guild, "webhook_logs_channel_id", embed)
 
     @commands.Cog.listener()
     async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
@@ -979,7 +1017,42 @@ class LoggingCog(commands.Cog, name="Logging"):
         )
         if executor:
             embed.add_field(name="Modified By", value=f"{executor.mention} (`{executor.name}`)", inline=True)
-        await self._send_log(after, "server_audit_channel_id", embed)
+        await self._send_log(after, "server_settings_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_invite_create(self, invite: discord.Invite):
+        if not invite.guild or not isinstance(invite.guild, discord.Guild):
+            return
+        inviter_str = f"{invite.inviter.mention} (`{invite.inviter.name}`)" if invite.inviter else "Unknown Inviter"
+        channel_str = invite.channel.mention if hasattr(invite, "channel") and invite.channel else "Unknown"
+        max_uses_str = str(invite.max_uses) if invite.max_uses else "Unlimited"
+        expires_str = discord.utils.format_dt(discord.utils.utcnow() + datetime.timedelta(seconds=invite.max_age), "R") if invite.max_age else "Never"
+
+        embed = create_embed(
+            title="🎟️ Invite Created",
+            description=f"New invite link generated: **`{invite.code}`**",
+            color=Colors.SUCCESS,
+        )
+        embed.add_field(name="Creator", value=inviter_str, inline=True)
+        embed.add_field(name="Channel", value=channel_str, inline=True)
+        embed.add_field(name="Max Uses", value=max_uses_str, inline=True)
+        embed.add_field(name="Expires", value=expires_str, inline=True)
+        if invite.temporary:
+            embed.add_field(name="Temporary Membership", value="Yes", inline=True)
+        await self._send_log(invite.guild, "invite_logs_channel_id", embed)
+
+    @commands.Cog.listener()
+    async def on_invite_delete(self, invite: discord.Invite):
+        if not invite.guild or not isinstance(invite.guild, discord.Guild):
+            return
+        channel_str = invite.channel.mention if hasattr(invite, "channel") and invite.channel else "Unknown"
+        embed = create_embed(
+            title="🎟️ Invite Deleted / Revoked",
+            description=f"Invite link removed: **`{invite.code}`**",
+            color=Colors.WARNING,
+        )
+        embed.add_field(name="Target Channel", value=channel_str, inline=True)
+        await self._send_log(invite.guild, "invite_logs_channel_id", embed)
 
 
     # ==========================================
@@ -987,21 +1060,20 @@ class LoggingCog(commands.Cog, name="Logging"):
     # ==========================================
 
     LOG_CHANNEL_SPECS = [
-        ("mod-logs", "moderation_channel_id", "Moderation actions, bans, kicks, timeouts"),
-        ("security-logs", "security_channel_id", "Security alerts, anti-raid, and anti-nuke detections"),
-        ("message-logs", "message_channel_id", "Message edits, deletions, and bulk purges"),
         ("member-logs", "member_channel_id", "Member joins, leaves, and nickname updates"),
-        ("voice-logs", "voice_channel_id", "Voice connections, disconnections, and state changes"),
-        ("channel-logs", "channel_logs_channel_id", "Channel creation, deletion, and permission updates"),
+        ("message-logs", "message_channel_id", "Message edits, deletions, and bulk purges"),
+        ("moderation-logs", "moderation_channel_id", "Moderation actions, bans, kicks, timeouts"),
+        ("security-logs", "security_channel_id", "Security alerts and threat analysis"),
+        ("anti-nuke-logs", "anti_nuke_channel_id", "High-speed anti-nuke detections and automated containment"),
+        ("automod-logs", "automod_channel_id", "AutoMod link, spam, mention, and keyword interceptions"),
         ("role-logs", "role_logs_channel_id", "Role creation, deletion, and role permission updates"),
-        ("server-audit-logs", "server_audit_channel_id", "Server setting adjustments and webhook modifications"),
-        ("backup-logs", "backup_logs_channel_id", "Automated backups and disaster recovery logs"),
-        ("report-logs", "report_logs_channel_id", "Member reports, incident submissions, and appeals"),
-        ("ticket-logs", "ticket_logs_channel_id", "Ticket creation, claiming, transcripts, and closures"),
-        ("staff-logs", "staff_logs_channel_id", "Internal staff escalations and management logs"),
-        ("bot-logs", "bot_logs_channel_id", "Bot commands, configuration changes, and background tasks"),
-        ("error-logs", "error_logs_channel_id", "Operational errors, exceptions, and recovery diagnostics"),
-        ("system-status", "system_status_channel_id", "Bot connectivity, heartbeats, and cluster health status"),
+        ("channel-logs", "channel_logs_channel_id", "Channel creation, deletion, and permission updates"),
+        ("voice-logs", "voice_channel_id", "Voice connections, disconnections, and state changes"),
+        ("server-settings-logs", "server_settings_channel_id", "Server setting adjustments and configuration changes"),
+        ("invite-logs", "invite_logs_channel_id", "Invite creations, deletions, and vanity URL changes"),
+        ("webhook-logs", "webhook_logs_channel_id", "Webhook creations, deletions, and payload abuse"),
+        ("bot-logs", "bot_logs_channel_id", "Bot additions, integration modifications, and commands"),
+        ("welcome-logs", "welcome_logs_channel_id", "Welcome gateway arrivals, screening, and onboarding"),
     ]
 
     @logging_group.command(name="setup", description="Configure general audit logging channel")
@@ -1197,6 +1269,236 @@ class LoggingCog(commands.Cog, name="Logging"):
         )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # ==========================================
+    # /LOGS COMMAND GROUP (MODULE 4)
+    # ==========================================
+
+    @logs_group.command(name="setup", description="Provision or link 📁 SERVER LOGS category and all 14 separate channels")
+    @is_admin_or_owner()
+    @app_commands.describe(category_name="Optional custom category name (defaults to 📁 SERVER LOGS)")
+    async def logs_setup(self, interaction: discord.Interaction, category_name: Optional[str] = "📁 SERVER LOGS"):
+        guild = interaction.guild
+        await interaction.response.defer(ephemeral=True)
+
+        if not guild.me.guild_permissions.manage_channels:
+            await interaction.followup.send(
+                embed=error_embed("Missing Permissions", "Bot requires `Manage Channels` permission to auto-setup logging channels."),
+                ephemeral=True,
+            )
+            return
+
+        cat_target_name = (category_name or "📁 SERVER LOGS").strip()
+        category = discord.utils.get(guild.categories, name=cat_target_name)
+        if not category:
+            for cat in guild.categories:
+                if "server logs" in cat.name.lower() or "server-logs" in cat.name.lower():
+                    category = cat
+                    break
+
+        if not category:
+            try:
+                overwrites = {
+                    guild.default_role: discord.PermissionOverwrite(read_messages=False, send_messages=False),
+                    guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True, attach_files=True),
+                }
+                category = await guild.create_category(name=cat_target_name, overwrites=overwrites)
+            except Exception as e:
+                await interaction.followup.send(
+                    embed=error_embed("Category Creation Failed", f"Could not create category `{cat_target_name}`: {e}"),
+                    ephemeral=True,
+                )
+                return
+
+        updates = {}
+        report_lines = []
+        cfg = await self.bot.db.get_logging_config(guild.id)
+
+        for c_name, attr_name, desc in self.LOG_CHANNEL_SPECS:
+            existing_id = getattr(cfg, attr_name, None)
+            target_ch = guild.get_channel(existing_id) if existing_id else None
+
+            # Fallback 1: check inside category
+            if not target_ch and category:
+                target_ch = discord.utils.get(category.text_channels, name=c_name)
+
+            # Fallback 2: check whole guild by name
+            if not target_ch:
+                target_ch = discord.utils.get(guild.text_channels, name=c_name)
+
+            if target_ch:
+                updates[attr_name] = target_ch.id
+                report_lines.append(f"• **#{c_name}**: {target_ch.mention} *(Linked existing)*")
+            else:
+                try:
+                    overwrites = {
+                        guild.default_role: discord.PermissionOverwrite(read_messages=False, send_messages=False),
+                        guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, embed_links=True, attach_files=True),
+                    }
+                    new_ch = await guild.create_text_channel(
+                        name=c_name,
+                        category=category,
+                        overwrites=overwrites,
+                        topic=f"Rai Centralized Audit • {desc}",
+                    )
+                    updates[attr_name] = new_ch.id
+                    report_lines.append(f"• **#{c_name}**: {new_ch.mention} *(Created)*")
+                    await asyncio.sleep(0.35)
+                except Exception as ce:
+                    report_lines.append(f"• **#{c_name}**: ⚠️ Creation error ({ce})")
+
+        if updates:
+            await self.bot.db.update_logging_config(guild.id, **updates)
+
+        embed = create_embed(
+            title=f"📁 SERVER LOGS Initialized — {guild.name}",
+            description=(
+                f"Configured **{len(updates)}** dedicated audit channels under **{category.name}** without duplicates.\n\n"
+                + "\n".join(report_lines)
+            ),
+            color=Colors.SUCCESS,
+        )
+        embed.set_footer(text="Idempotent Setup Verified • All 14 log categories armed")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @logs_group.command(name="status", description="Display full status of all 14 dedicated log channels")
+    @is_admin_or_owner()
+    async def logs_status(self, interaction: discord.Interaction):
+        await self.logging_status(interaction)
+
+    @logs_group.command(name="configure", description="Assign or redirect a specific log category to a channel")
+    @is_admin_or_owner()
+    @app_commands.describe(
+        category="Log category to redirect",
+        channel="Destination channel",
+    )
+    @app_commands.choices(
+        category=[
+            app_commands.Choice(name="#member-logs (Joins, leaves, profiles)", value="member_channel_id"),
+            app_commands.Choice(name="#message-logs (Edits, deletes, purges)", value="message_channel_id"),
+            app_commands.Choice(name="#moderation-logs (Bans, kicks, timeouts)", value="moderation_channel_id"),
+            app_commands.Choice(name="#security-logs (Threats, alerts)", value="security_channel_id"),
+            app_commands.Choice(name="#anti-nuke-logs (Anti-nuke containment)", value="anti_nuke_channel_id"),
+            app_commands.Choice(name="#automod-logs (Chat filter triggers)", value="automod_channel_id"),
+            app_commands.Choice(name="#role-logs (Role modifications)", value="role_logs_channel_id"),
+            app_commands.Choice(name="#channel-logs (Channel updates)", value="channel_logs_channel_id"),
+            app_commands.Choice(name="#voice-logs (Voice connections/moves)", value="voice_channel_id"),
+            app_commands.Choice(name="#server-settings-logs (Guild updates)", value="server_settings_channel_id"),
+            app_commands.Choice(name="#invite-logs (Invite creates/deletes)", value="invite_logs_channel_id"),
+            app_commands.Choice(name="#webhook-logs (Webhook activity)", value="webhook_logs_channel_id"),
+            app_commands.Choice(name="#bot-logs (Bot additions/commands)", value="bot_logs_channel_id"),
+            app_commands.Choice(name="#welcome-logs (Gateway arrivals)", value="welcome_logs_channel_id"),
+        ]
+    )
+    async def logs_configure(
+        self,
+        interaction: discord.Interaction,
+        category: app_commands.Choice[str],
+        channel: discord.TextChannel,
+    ):
+        updates = {category.value: channel.id}
+        await self.bot.db.update_logging_config(interaction.guild.id, **updates)
+        await interaction.response.send_message(
+            embed=success_embed(f"{category.name} Assigned", f"Successfully redirected log destination to {channel.mention}."),
+            ephemeral=True,
+        )
+
+    @logs_group.command(name="test", description="Send test diagnostics to configured log channels")
+    @is_admin_or_owner()
+    @app_commands.describe(category="Optionally test a single category, or leave blank to test all")
+    @app_commands.choices(
+        category=[
+            app_commands.Choice(name="#member-logs", value="member_channel_id"),
+            app_commands.Choice(name="#message-logs", value="message_channel_id"),
+            app_commands.Choice(name="#moderation-logs", value="moderation_channel_id"),
+            app_commands.Choice(name="#security-logs", value="security_channel_id"),
+            app_commands.Choice(name="#anti-nuke-logs", value="anti_nuke_channel_id"),
+            app_commands.Choice(name="#automod-logs", value="automod_channel_id"),
+            app_commands.Choice(name="#role-logs", value="role_logs_channel_id"),
+            app_commands.Choice(name="#channel-logs", value="channel_logs_channel_id"),
+            app_commands.Choice(name="#voice-logs", value="voice_channel_id"),
+            app_commands.Choice(name="#server-settings-logs", value="server_settings_channel_id"),
+            app_commands.Choice(name="#invite-logs", value="invite_logs_channel_id"),
+            app_commands.Choice(name="#webhook-logs", value="webhook_logs_channel_id"),
+            app_commands.Choice(name="#bot-logs", value="bot_logs_channel_id"),
+            app_commands.Choice(name="#welcome-logs", value="welcome_logs_channel_id"),
+        ]
+    )
+    async def logs_test(self, interaction: discord.Interaction, category: Optional[app_commands.Choice[str]] = None):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        cfg = await self.bot.db.get_logging_config(guild.id)
+
+        targets = [(category.name, category.value)] if category else [
+            (c_name, attr) for c_name, attr, _ in self.LOG_CHANNEL_SPECS
+        ]
+
+        success_count = 0
+        failure_count = 0
+        results = []
+
+        for name, attr in targets:
+            cid = getattr(cfg, attr, None)
+            ch = guild.get_channel(cid) if cid else None
+            if not ch or not isinstance(ch, discord.TextChannel):
+                results.append(f"• **{name}**: ⚠️ *Channel not configured or deleted*")
+                failure_count += 1
+                continue
+
+            test_embed = create_embed(
+                title=f"🧪 Logging Diagnostic Test — {name}",
+                description=f"This is an automated verification test initiated by {interaction.user.mention}.",
+                color=Colors.SUCCESS,
+            )
+            test_embed.add_field(name="Channel Verified", value=ch.mention, inline=True)
+            test_embed.add_field(name="Timestamp", value=discord.utils.format_dt(discord.utils.utcnow(), "T"), inline=True)
+            test_embed.set_footer(text="Rai Diagnostic Self-Test • Channel Health Operational")
+
+            try:
+                await ch.send(embed=test_embed)
+                results.append(f"• **{name}**: ✅ {ch.mention} *(Sent successfully)*")
+                success_count += 1
+            except Exception as e:
+                results.append(f"• **{name}**: ❌ {ch.mention} *(Failed: {e})*")
+                failure_count += 1
+
+        embed = create_embed(
+            title=f"🧪 Logging Diagnostics Results ({success_count}/{len(targets)} OK)",
+            description="\n".join(results[:15]),
+            color=Colors.SUCCESS if failure_count == 0 else Colors.WARNING,
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @logs_group.command(name="disable", description="Disable logging for a specific category or all categories")
+    @is_admin_or_owner()
+    @app_commands.describe(category="Category to disable (leave blank to disable all)")
+    @app_commands.choices(
+        category=[
+            app_commands.Choice(name="#member-logs", value="member_channel_id"),
+            app_commands.Choice(name="#message-logs", value="message_channel_id"),
+            app_commands.Choice(name="#moderation-logs", value="moderation_channel_id"),
+            app_commands.Choice(name="#security-logs", value="security_channel_id"),
+            app_commands.Choice(name="#anti-nuke-logs", value="anti_nuke_channel_id"),
+            app_commands.Choice(name="#automod-logs", value="automod_channel_id"),
+            app_commands.Choice(name="#role-logs", value="role_logs_channel_id"),
+            app_commands.Choice(name="#channel-logs", value="channel_logs_channel_id"),
+            app_commands.Choice(name="#voice-logs", value="voice_channel_id"),
+            app_commands.Choice(name="#server-settings-logs", value="server_settings_channel_id"),
+            app_commands.Choice(name="#invite-logs", value="invite_logs_channel_id"),
+            app_commands.Choice(name="#webhook-logs", value="webhook_logs_channel_id"),
+            app_commands.Choice(name="#bot-logs", value="bot_logs_channel_id"),
+            app_commands.Choice(name="#welcome-logs", value="welcome_logs_channel_id"),
+        ]
+    )
+    async def logs_disable(self, interaction: discord.Interaction, category: Optional[app_commands.Choice[str]] = None):
+        if category:
+            updates = {category.value: None}
+            await self.bot.db.update_logging_config(interaction.guild.id, **updates)
+            await interaction.response.send_message(embed=success_embed(f"Disabled {category.name}", "This log category has been unassigned."), ephemeral=True)
+        else:
+            all_attrs = {attr: None for _, attr, _ in self.LOG_CHANNEL_SPECS}
+            await self.bot.db.update_logging_config(interaction.guild.id, **all_attrs)
+            await interaction.response.send_message(embed=success_embed("All Logging Disabled", "All 14 log channel destinations have been unassigned."), ephemeral=True)
 
 
 async def setup(bot: SentinelBot):

@@ -245,7 +245,12 @@ class UtilityCog(commands.Cog, name="Utility"):
     @tasks.loop(minutes=3)
     async def _rotate_presence(self):
         """Auto-Rotating Bot Rich Presence."""
-        await self.bot.wait_until_ready()
+        try:
+            ready_call = self.bot.wait_until_ready()
+            if inspect.isawaitable(ready_call):
+                await ready_call
+        except Exception:
+            pass
         total_members = sum(g.member_count or len(g.members) for g in self.bot.guilds)
         statuses = [
             discord.Activity(type=discord.ActivityType.watching, name="✦ ʀᴀɪ ʀᴀᴍ ✦"),
@@ -722,6 +727,122 @@ class UtilityCog(commands.Cog, name="Utility"):
         )
         embed.set_footer(text="Click the buttons below to authorize and add to your server!")
         await interaction.response.send_message(embed=embed, view=view)
+
+    @app_commands.command(name="ping", description="Check Discord WebSocket latency and API round-trip responsiveness")
+    async def ping_cmd(self, interaction: discord.Interaction):
+        t0 = time.perf_counter()
+        await interaction.response.defer(ephemeral=True)
+        t1 = time.perf_counter()
+
+        ws_latency = round(self.bot.latency * 1000, 1)
+        api_latency = round((t1 - t0) * 1000, 1)
+
+        health_indicator = "🟢 Optimal" if ws_latency < 120 else "🟡 Moderate" if ws_latency < 250 else "🔴 High"
+
+        embed = create_embed(
+            title="⚡ Pong! Network Latency",
+            color=Colors.SUCCESS if ws_latency < 120 else Colors.WARNING,
+        )
+        embed.add_field(name="WebSocket Heartbeat", value=f"`{ws_latency} ms`", inline=True)
+        embed.add_field(name="REST API Roundtrip", value=f"`{api_latency} ms`", inline=True)
+        embed.add_field(name="Gateway Health", value=health_indicator, inline=True)
+        embed.set_footer(text="Rai High-Speed Infrastructure")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="uptime", description="Display bot process uptime and launch timestamp")
+    async def uptime_cmd(self, interaction: discord.Interaction):
+        uptime_sec = int(time.time() - self.start_time)
+        days, rem = divmod(uptime_sec, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, seconds = divmod(rem, 60)
+
+        parts = []
+        if days:
+            parts.append(f"{days}d")
+        if hours or days:
+            parts.append(f"{hours}h")
+        if minutes or hours or days:
+            parts.append(f"{minutes}m")
+        parts.append(f"{seconds}s")
+        uptime_str = " ".join(parts)
+
+        start_dt = datetime.datetime.fromtimestamp(self.start_time, tz=datetime.timezone.utc)
+
+        embed = create_embed(
+            title="⏱️ Process Uptime Status",
+            color=Colors.PRIMARY,
+        )
+        embed.add_field(name="Elapsed Runtime", value=f"**`{uptime_str}`**", inline=True)
+        embed.add_field(name="Online Since", value=discord.utils.format_dt(start_dt, "F"), inline=True)
+        embed.add_field(name="Relative Start", value=discord.utils.format_dt(start_dt, "R"), inline=True)
+        embed.set_footer(text="24/7 Always-On Discord Supervisor")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="botinfo", description="Display bot diagnostics, versions, and system health")
+    async def botinfo_standalone(self, interaction: discord.Interaction):
+        await self.botinfo(interaction)
+
+    @app_commands.command(name="serverinfo", description="Display detailed server statistics, population, and channels")
+    async def serverinfo_standalone(self, interaction: discord.Interaction):
+        await self.serverinfo(interaction)
+
+    @app_commands.command(name="userinfo", description="Display profile, join timestamp, and roles of a member")
+    @app_commands.describe(user="The member to inspect (defaults to yourself)")
+    async def userinfo_standalone(self, interaction: discord.Interaction, user: Optional[discord.Member] = None):
+        await self.userinfo(interaction, user)
+
+    @app_commands.command(name="permissions", description="Check key server and channel permissions for a member or the bot")
+    @app_commands.guild_only()
+    @app_commands.describe(
+        member="The member whose permissions to evaluate (defaults to you)",
+        channel="The channel to evaluate permissions in (defaults to current)",
+    )
+    async def permissions_cmd(
+        self,
+        interaction: discord.Interaction,
+        member: Optional[discord.Member] = None,
+        channel: Optional[discord.abc.GuildChannel] = None,
+    ):
+        target_member = member or interaction.user
+        if not isinstance(target_member, discord.Member) and interaction.guild:
+            target_member = interaction.guild.get_member(target_member.id) or target_member
+
+        target_channel = channel or interaction.channel
+        guild = interaction.guild
+
+        if not isinstance(target_member, discord.Member):
+            await interaction.response.send_message(embed=error_embed("Invalid Target", "Could not resolve member in this server."), ephemeral=True)
+            return
+
+        perms = target_channel.permissions_for(target_member) if target_channel else target_member.guild_permissions
+
+        checks = [
+            ("Administrator", perms.administrator),
+            ("Manage Server", perms.manage_guild),
+            ("Manage Roles", perms.manage_roles),
+            ("Manage Channels", perms.manage_channels),
+            ("Ban Members", perms.ban_members),
+            ("Kick Members", perms.kick_members),
+            ("Moderate Members (Timeout)", perms.moderate_members),
+            ("View Audit Log", perms.view_audit_log),
+            ("Manage Messages", perms.manage_messages),
+            ("Mention @everyone / @here", perms.mention_everyone),
+            ("Send Messages", perms.send_messages),
+            ("Embed Links", perms.embed_links),
+            ("Attach Files", perms.attach_files),
+            ("Manage Webhooks", perms.manage_webhooks),
+        ]
+
+        lines = [f"{'✅' if val else '❌'} **{name}**" for name, val in checks]
+
+        embed = create_embed(
+            title=f"🔑 Effective Permissions: {target_member.display_name}",
+            description=f"📍 **Evaluated in:** {target_channel.mention if target_channel else 'Server Wide'}\n\n" + "\n".join(lines),
+            color=Colors.SUCCESS if perms.administrator else Colors.PRIMARY,
+            thumbnail_url=target_member.display_avatar.url,
+        )
+        embed.set_footer(text=f"Highest Role: {target_member.top_role.name} (Position: {target_member.top_role.position})")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot: SentinelBot):

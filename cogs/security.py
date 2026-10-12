@@ -123,6 +123,16 @@ class SecurityCog(commands.Cog, name="Security"):
         description="Manage verified trusted security users (Owner-only)",
         parent=security_group,
     )
+    antinuke_group = app_commands.Group(
+        name="antinuke",
+        description="High-speed anti-nuke server protection system",
+        default_permissions=discord.Permissions(administrator=True),
+    )
+    antinuke_trust_group = app_commands.Group(
+        name="trust",
+        description="Manage verified trusted security users (Owner-only)",
+        parent=antinuke_group,
+    )
 
     # ==========================================
     # AUDIT-LOG VERIFICATION & ACTION HANDLER
@@ -1522,6 +1532,83 @@ class SecurityCog(commands.Cog, name="Security"):
         except Exception:
             pass
 
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        """High-Speed Unauthorized Bot Addition Protection."""
+        if not member.bot or not member.guild:
+            return
+        guild = member.guild
+        guild_cfg = await self.bot.db.get_or_create_guild_config(guild.id)
+        if not guild_cfg.security_enabled:
+            return
+
+        executor = None
+        audit_entry = None
+        try:
+            async for entry in guild.audit_logs(limit=3, action=discord.AuditLogAction.bot_add):
+                if entry.target and entry.target.id == member.id:
+                    now_utc = discord.utils.utcnow()
+                    if (now_utc - entry.created_at).total_seconds() < 45.0:
+                        executor = entry.user
+                        audit_entry = entry
+                        break
+        except Exception:
+            pass
+
+        is_authorized = False
+        if executor:
+            if executor.id == guild.owner_id or executor.id == self.bot.user.id:
+                is_authorized = True
+            elif await is_verified_owner_or_trusted(self.bot, guild, executor.id):
+                is_authorized = True
+
+        if not is_authorized:
+            logger.critical("🚨 UNAUTHORIZED BOT ADDED: Bot %s (%s) by actor %s in %s", member.name, member.id, executor, guild.name)
+            event_id = generate_event_id()
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            kicked = False
+            if guild.me.guild_permissions.kick_members and member < guild.me.top_role:
+                try:
+                    await member.kick(reason=f"Security Anti-Nuke: Unauthorized bot addition (Event {event_id})")
+                    kicked = True
+                except Exception as e:
+                    logger.warning(f"Could not kick unauthorized bot: {e}")
+
+            contain_msg = "Actor inconclusive"
+            if executor and isinstance(executor, discord.Member):
+                can_mod, mod_reason = can_moderate(guild.me, executor, guild.me)
+                if can_mod:
+                    try:
+                        until = discord.utils.utcnow() + datetime.timedelta(hours=2)
+                        await executor.timeout(until, reason=f"Security Anti-Nuke: Added unauthorized bot {member.name}")
+                        contain_msg = f"Timed out {executor.name} for 2 hours"
+                    except Exception as e:
+                        contain_msg = f"Containment error: {e}"
+                else:
+                    contain_msg = f"Hierarchy prevents actor punishment: {mod_reason}"
+
+            incident = SecurityIncident(
+                event_id=event_id,
+                guild_id=guild.id,
+                timestamp=now_iso,
+                event_type="UNAUTHORIZED_BOT_ADD",
+                executor_id=executor.id if executor else None,
+                executor_name=executor.name if executor else "UNKNOWN",
+                target_id=member.id,
+                target_name=f"{member.name} (Bot)",
+                action="bot_add",
+                detected_count=1,
+                threshold=1,
+                audit_log_id=audit_entry.id if audit_entry else None,
+                reason=f"Unauthorized bot {member.name} ({member.id}) joined server",
+                automated_action=f"Kicked rogue bot: {'Yes' if kicked else 'No'}; {contain_msg}",
+                result="Contained",
+                severity="critical",
+                audit_verified=executor is not None,
+            )
+            await self.bot.db.record_security_incident(incident)
+            await self._notify_security_channel(guild, incident)
+
     # ==========================================
     # SLASH COMMANDS
     # ==========================================
@@ -2344,6 +2431,165 @@ class SecurityCog(commands.Cog, name="Security"):
             inline=False,
         )
         embed.set_footer(text="Raivora Automated Security Diagnostic • 100% Non-destructive")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    # ==========================================
+    # ANTINUKE COMMAND GROUP
+    # ==========================================
+
+    @antinuke_group.command(name="enable", description="Enable high-speed anti-nuke protection")
+    @is_admin_or_owner()
+    async def antinuke_enable_cmd(self, interaction: discord.Interaction):
+        await self.security_enable(interaction)
+
+    @antinuke_group.command(name="disable", description="Disable high-speed anti-nuke protection")
+    @is_admin_or_owner()
+    async def antinuke_disable_cmd(self, interaction: discord.Interaction):
+        await self.security_disable(interaction)
+
+    @antinuke_group.command(name="status", description="Inspect anti-nuke module status and active thresholds")
+    @is_admin_or_owner()
+    async def antinuke_status_cmd(self, interaction: discord.Interaction):
+        await self.security_status(interaction)
+
+    @antinuke_group.command(name="config", description="Display current anti-nuke configurations and limits")
+    @is_admin_or_owner()
+    async def antinuke_config_cmd(self, interaction: discord.Interaction):
+        await self.security_config_cmd(interaction)
+
+    @antinuke_group.command(name="threshold", description="Configure specific anti-nuke action thresholds and detection windows")
+    @is_admin_or_owner()
+    @app_commands.describe(
+        action="Which protection threshold to adjust",
+        limit="Maximum actions allowed before containment (1-50)",
+        window="Detection window in seconds (5-120s)",
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="Channel Deletion", value="channel_delete"),
+            app_commands.Choice(name="Channel Creation", value="channel_create"),
+            app_commands.Choice(name="Role Deletion", value="role_delete"),
+            app_commands.Choice(name="Role Creation", value="role_create"),
+            app_commands.Choice(name="Member Bans", value="ban"),
+            app_commands.Choice(name="Member Kicks", value="kick"),
+            app_commands.Choice(name="Webhook Creation", value="webhook"),
+        ]
+    )
+    async def antinuke_threshold_cmd(
+        self,
+        interaction: discord.Interaction,
+        action: app_commands.Choice[str],
+        limit: int,
+        window: Optional[int] = None,
+    ):
+        if not (1 <= limit <= 50):
+            await interaction.response.send_message(embed=error_embed("Invalid Limit", "Limit must be between 1 and 50."), ephemeral=True)
+            return
+        if window is not None and not (5 <= window <= 120):
+            await interaction.response.send_message(embed=error_embed("Invalid Window", "Window must be between 5 and 120 seconds."), ephemeral=True)
+            return
+
+        updates = {}
+        act = action.value
+        if act == "channel_delete":
+            updates["channel_delete_limit"] = limit
+            if window: updates["channel_delete_window"] = window
+        elif act == "channel_create":
+            updates["channel_create_limit"] = limit
+            if window: updates["channel_create_window"] = window
+        elif act == "role_delete":
+            updates["role_delete_limit"] = limit
+            if window: updates["role_delete_window"] = window
+        elif act == "role_create":
+            updates["role_create_limit"] = limit
+            if window: updates["role_create_window"] = window
+        elif act == "ban":
+            updates["ban_limit"] = limit
+            if window: updates["ban_window"] = window
+        elif act == "kick":
+            updates["kick_limit"] = limit
+            if window: updates["kick_window"] = window
+        elif act == "webhook":
+            updates["webhook_limit"] = limit
+            if window: updates["webhook_window"] = window
+
+        await self.bot.db.update_security_config(interaction.guild.id, **updates)
+        embed = success_embed(
+            "Anti-Nuke Threshold Configured",
+            f"**Action:** `{action.name}`\n"
+            f"**Limit:** `{limit}` actions\n"
+            f"**Window:** `{window or 'Default'}s`"
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @antinuke_trust_group.command(name="add", description="Add user to anti-nuke trusted allowlist (Owner-only)")
+    @is_strict_owner()
+    @app_commands.describe(user="User to add to trusted allowlist", reason="Reason for trust")
+    async def antinuke_trust_add(self, interaction: discord.Interaction, user: discord.User, reason: Optional[str] = "Authorized by Server Owner"):
+        await self.trusted_add(interaction, user, reason)
+
+    @antinuke_trust_group.command(name="remove", description="Remove user from anti-nuke trusted allowlist (Owner-only)")
+    @is_strict_owner()
+    @app_commands.describe(user="User to remove from trusted allowlist")
+    async def antinuke_trust_remove(self, interaction: discord.Interaction, user: discord.User):
+        await self.trusted_remove(interaction, user)
+
+    @antinuke_trust_group.command(name="list", description="List all anti-nuke trusted users and server owner")
+    @is_strict_owner_or_trusted()
+    async def antinuke_trust_list(self, interaction: discord.Interaction):
+        await self.security_allowlist(interaction)
+
+    @antinuke_group.command(name="lockdown", description="Initiate emergency lockdown on all channels")
+    @is_admin_or_owner()
+    async def antinuke_lockdown_cmd(self, interaction: discord.Interaction):
+        await self.security_lockdown(interaction)
+
+    @antinuke_group.command(name="unlock", description="Lift lockdown and restore channel permissions")
+    @is_admin_or_owner()
+    async def antinuke_unlock_cmd(self, interaction: discord.Interaction):
+        await self.security_unlock(interaction)
+
+    @security_group.command(name="audit", description="Run comprehensive server security and permission audit")
+    @is_admin_or_owner()
+    async def security_audit_cmd(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        sec_cfg = await self.bot.db.get_security_config(guild.id)
+        sec_state = await self.bot.db.get_security_state(guild.id)
+        trusted = await self.bot.db.get_trusted_users(guild.id)
+        incidents = await self.bot.db.get_security_incidents(guild.id, limit=5)
+
+        dangerous_roles = []
+        for r in guild.roles:
+            if r.permissions.administrator or r.permissions.manage_guild or r.permissions.ban_members:
+                dangerous_roles.append(f"`@{r.name}` ({len(r.members)} members)")
+
+        embed = create_embed(
+            title=f"🛡️ Comprehensive Security Audit — {guild.name}",
+            color=Colors.SECURITY,
+        )
+        embed.add_field(
+            name="Shield Standing",
+            value=(
+                f"• Anti-Nuke Status: `{'🟢 Armed' if not sec_state.emergency_stop else '🚨 Emergency Stop Active'}`\n"
+                f"• Configured Action: `{sec_cfg.punishment.upper()}`\n"
+                f"• Trusted Security Users: `{len(trusted)} accounts`\n"
+                f"• Emergency Lockdown: `{'🔒 Active' if sec_state.lockdown_enabled else '🟢 Normal'}`"
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name=f"High-Privilege Roles ({len(dangerous_roles)})",
+            value="\n".join(dangerous_roles[:8]) if dangerous_roles else "None",
+            inline=False,
+        )
+        if incidents:
+            inc_txt = "\n".join(f"`[{inc.event_id}]` **{inc.event_type}** by {inc.executor_name or 'UNKNOWN'} ({inc.result})" for inc in incidents[:3])
+            embed.add_field(name="Recent Security Incidents", value=inc_txt, inline=False)
+        else:
+            embed.add_field(name="Recent Security Incidents", value="Clean record (0 recent incidents).", inline=False)
+
+        embed.set_footer(text="Raivora Real-Time Threat Analysis")
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 

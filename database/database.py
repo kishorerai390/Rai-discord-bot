@@ -4501,23 +4501,30 @@ class Database:
         if not row:
             return WelcomeConfig(guild_id=guild_id)
 
+        d = dict(row)
         return WelcomeConfig(
-            guild_id=row["guild_id"],
-            welcome_channel_id=row["welcome_channel_id"],
-            goodbye_channel_id=row["goodbye_channel_id"],
-            welcome_message=row["welcome_message"],
-            goodbye_message=row["goodbye_message"],
-            autorole_id=row["autorole_id"],
-            dm_enabled=bool(row["dm_enabled"]),
-            embed_enabled=bool(row["embed_enabled"]),
-            updated_at=row["updated_at"],
+            guild_id=d["guild_id"],
+            welcome_channel_id=d.get("welcome_channel_id"),
+            goodbye_channel_id=d.get("goodbye_channel_id"),
+            welcome_message=d.get("welcome_message"),
+            goodbye_message=d.get("goodbye_message"),
+            autorole_id=d.get("autorole_id"),
+            dm_enabled=bool(d.get("dm_enabled", 0)),
+            embed_enabled=bool(d.get("embed_enabled", 1)),
+            goodbye_enabled=bool(d.get("goodbye_enabled", 1)),
+            welcome_title=d.get("welcome_title") or "Welcome to {server}!",
+            goodbye_title=d.get("goodbye_title") or "Goodbye from {server}",
+            welcome_color=d.get("welcome_color") or 3066993,
+            goodbye_color=d.get("goodbye_color") or 2895667,
+            updated_at=d.get("updated_at", ""),
         )
 
     async def update_welcome_config(self, guild_id: int, **kwargs: Any) -> None:
         await self.get_or_create_guild_config(guild_id)
         valid = {
             "welcome_channel_id", "goodbye_channel_id", "welcome_message",
-            "goodbye_message", "autorole_id", "dm_enabled", "embed_enabled"
+            "goodbye_message", "autorole_id", "dm_enabled", "embed_enabled",
+            "goodbye_enabled", "welcome_title", "goodbye_title", "welcome_color", "goodbye_color"
         }
         updates = {k: v for k, v in kwargs.items() if k in valid}
         if not updates:
@@ -4565,6 +4572,11 @@ class Database:
             bot_logs_channel_id=d.get("bot_logs_channel_id"),
             error_logs_channel_id=d.get("error_logs_channel_id"),
             system_status_channel_id=d.get("system_status_channel_id"),
+            anti_nuke_channel_id=d.get("anti_nuke_channel_id"),
+            invite_logs_channel_id=d.get("invite_logs_channel_id"),
+            webhook_logs_channel_id=d.get("webhook_logs_channel_id"),
+            welcome_logs_channel_id=d.get("welcome_logs_channel_id"),
+            server_settings_channel_id=d.get("server_settings_channel_id") or d.get("server_audit_channel_id"),
             updated_at=d.get("updated_at", ""),
         )
 
@@ -4576,7 +4588,8 @@ class Database:
             "channel_logs_channel_id", "role_logs_channel_id", "server_audit_channel_id",
             "backup_logs_channel_id", "report_logs_channel_id", "ticket_logs_channel_id",
             "staff_logs_channel_id", "bot_logs_channel_id", "error_logs_channel_id",
-            "system_status_channel_id"
+            "system_status_channel_id", "anti_nuke_channel_id", "invite_logs_channel_id",
+            "webhook_logs_channel_id", "welcome_logs_channel_id", "server_settings_channel_id"
         }
         updates = {k: v for k, v in kwargs.items() if k in valid}
         if not updates:

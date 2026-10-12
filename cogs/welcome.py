@@ -22,14 +22,29 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def format_template(text: str, member: discord.Member) -> str:
-    """Replaces placeholders: {user}, {username}, {server}, {member_count}."""
-    return (
-        text.replace("{user}", member.mention)
-        .replace("{username}", member.name)
-        .replace("{server}", member.guild.name)
-        .replace("{member_count}", str(member.guild.member_count))
-    )
+def format_template(text: str, member: discord.Member | discord.User, guild: Optional[discord.Guild] = None) -> str:
+    """Bulletproof placeholder formatter supporting {user}, {username}, {server}, {membercount}, {userid}, {created_at}, {joined_at}."""
+    if not text:
+        return ""
+    g = getattr(member, "guild", None) or guild
+    server_name = g.name if g else "the server"
+    member_cnt = str(g.member_count) if g and g.member_count else "1"
+    user_mention = member.mention if hasattr(member, "mention") else f"<@{member.id}>"
+    user_name = getattr(member, "name", str(member))
+    user_id = str(getattr(member, "id", "0"))
+    created_str = discord.utils.format_dt(member.created_at, "F") if hasattr(member, "created_at") and member.created_at else "Recently"
+    joined_dt = getattr(member, "joined_at", None)
+    joined_str = discord.utils.format_dt(joined_dt, "F") if joined_dt else "Just now"
+
+    res = text.replace("{user}", user_mention)
+    res = res.replace("{username}", user_name)
+    res = res.replace("{server}", server_name)
+    res = res.replace("{membercount}", member_cnt)
+    res = res.replace("{member_count}", member_cnt)
+    res = res.replace("{userid}", user_id)
+    res = res.replace("{created_at}", created_str)
+    res = res.replace("{joined_at}", joined_str)
+    return res
 
 
 def build_sticky_banner(guild: discord.Guild) -> tuple[discord.Embed, discord.ui.View]:
@@ -71,7 +86,13 @@ class WelcomeCog(commands.Cog, name="Welcome"):
 
     welcome_group = app_commands.Group(
         name="welcome",
-        description="Configure welcome and goodbye system",
+        description="Configure welcome greeting system",
+        default_permissions=discord.Permissions(administrator=True),
+    )
+
+    goodbye_group = app_commands.Group(
+        name="goodbye",
+        description="Configure departure announcements and goodbye embeds",
         default_permissions=discord.Permissions(administrator=True),
     )
 
@@ -103,34 +124,60 @@ class WelcomeCog(commands.Cog, name="Welcome"):
                 except (discord.Forbidden, discord.HTTPException) as e:
                     logger.warning(f"Failed to apply autorole to {member.id}: {e}")
 
-        # 2. Welcome Channel Message
+        # 2. Welcome Channel Message with Bounded Retries & Permission Verification
         if w_cfg.welcome_channel_id:
             channel = guild.get_channel(w_cfg.welcome_channel_id)
-            if channel and isinstance(channel, discord.TextChannel):
-                raw_msg = w_cfg.welcome_message or "Welcome to **{server}**, {user}! We now have **{member_count}** members."
-                formatted_msg = format_template(raw_msg, member)
+            if not channel and hasattr(self.bot, "fetch_channel"):
+                try:
+                    channel = await self.bot.fetch_channel(w_cfg.welcome_channel_id)
+                except Exception:
+                    channel = None
 
-                if w_cfg.embed_enabled:
-                    embed = create_embed(
-                        title=f"Welcome to {guild.name}!",
-                        description=formatted_msg,
-                        color=Colors.SUCCESS,
-                        thumbnail_url=member.display_avatar.url,
-                    )
-                    embed.add_field(name="Member #", value=str(guild.member_count), inline=True)
-                    embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
-                    if guild.icon:
-                        embed.set_author(name=guild.name, icon_url=guild.icon.url)
-                    try:
-                        from utils.role_manager import OnboardingRoleView
-                        await channel.send(content=member.mention, embed=embed, view=OnboardingRoleView())
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
+            if not channel and guild.system_channel:
+                channel = guild.system_channel
+
+            if channel and isinstance(channel, discord.TextChannel):
+                perms = channel.permissions_for(guild.me)
+                if not perms.send_messages:
+                    logger.warning(f"Cannot send welcome in #{channel.name}: Missing 'Send Messages' permission.")
                 else:
-                    try:
-                        await channel.send(formatted_msg)
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
+                    raw_msg = w_cfg.welcome_message or "Welcome to **{server}**, {user}! You are our **{membercount}**th member."
+                    formatted_msg = format_template(raw_msg, member, guild)
+
+                    if w_cfg.embed_enabled and perms.embed_links:
+                        embed = create_embed(
+                            title=format_template(getattr(w_cfg, "welcome_title", None) or "✦ Welcome to {server}! ✦", member, guild),
+                            description=formatted_msg,
+                            color=getattr(w_cfg, "welcome_color", None) or Colors.SUCCESS,
+                            thumbnail_url=member.display_avatar.url,
+                        )
+                        embed.add_field(name="👤 Username", value=f"`{member.name}`", inline=True)
+                        embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+                        embed.add_field(name="👥 Member Count", value=f"**#{guild.member_count or len(guild.members):,}**", inline=True)
+                        embed.add_field(name="🗓️ Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
+                        embed.add_field(name="⚡ Joined Server", value=discord.utils.format_dt(discord.utils.utcnow(), "R"), inline=True)
+                        if guild.icon:
+                            embed.set_author(name=guild.name, icon_url=guild.icon.url)
+                        embed.set_footer(text=f"Welcome to {guild.name} • Enjoy your stay!")
+
+                        for attempt in range(2):
+                            try:
+                                from utils.role_manager import OnboardingRoleView
+                                await channel.send(content=member.mention, embed=embed, view=OnboardingRoleView())
+                                break
+                            except (discord.Forbidden, discord.HTTPException) as e:
+                                if attempt == 1:
+                                    logger.warning(f"Failed to dispatch welcome embed after retries: {e}")
+                                await asyncio.sleep(0.5)
+                    else:
+                        for attempt in range(2):
+                            try:
+                                await channel.send(formatted_msg)
+                                break
+                            except (discord.Forbidden, discord.HTTPException) as e:
+                                if attempt == 1:
+                                    logger.warning(f"Failed to dispatch welcome message: {e}")
+                                await asyncio.sleep(0.5)
 
         # 3. Welcome DM
         if w_cfg.dm_enabled and not member.bot:
@@ -138,6 +185,7 @@ class WelcomeCog(commands.Cog, name="Welcome"):
                 dm_text = format_template(
                     w_cfg.welcome_message or f"Welcome to **{guild.name}**, {member.name}! Glad to have you here.",
                     member,
+                    guild,
                 )
                 await member.send(dm_text)
             except (discord.Forbidden, discord.HTTPException):
@@ -165,35 +213,64 @@ class WelcomeCog(commands.Cog, name="Welcome"):
                     pass
 
     @commands.Cog.listener()
-    async def on_member_remove(self, member: discord.Member):
-        guild = member.guild
-        guild_cfg = await self.bot.db.get_or_create_guild_config(guild.id)
-        if not guild_cfg.welcome_enabled:
+    async def on_member_remove(self, member: discord.Member | discord.User):
+        guild = getattr(member, "guild", None)
+        if not guild:
             return
 
         w_cfg = await self.bot.db.get_welcome_config(guild.id)
+        if not getattr(w_cfg, "goodbye_enabled", True):
+            return
+
         if w_cfg.goodbye_channel_id:
             channel = guild.get_channel(w_cfg.goodbye_channel_id)
-            if channel and isinstance(channel, discord.TextChannel):
-                raw_msg = w_cfg.goodbye_message or "**{username}** has left the server. We now have **{member_count}** members."
-                formatted_msg = format_template(raw_msg, member)
+            if not channel and hasattr(self.bot, "fetch_channel"):
+                try:
+                    channel = await self.bot.fetch_channel(w_cfg.goodbye_channel_id)
+                except Exception:
+                    channel = None
 
-                if w_cfg.embed_enabled:
-                    embed = create_embed(
-                        title="Goodbye!",
-                        description=formatted_msg,
-                        color=Colors.DARK,
-                        thumbnail_url=member.display_avatar.url,
-                    )
-                    try:
-                        await channel.send(embed=embed)
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
+            if not channel and guild.system_channel:
+                channel = guild.system_channel
+
+            if channel and isinstance(channel, discord.TextChannel):
+                perms = channel.permissions_for(guild.me)
+                if not perms.send_messages:
+                    logger.warning(f"Cannot send goodbye in #{channel.name}: Missing 'Send Messages' permission.")
                 else:
-                    try:
-                        await channel.send(formatted_msg)
-                    except (discord.Forbidden, discord.HTTPException):
-                        pass
+                    raw_msg = w_cfg.goodbye_message or "**{username}** has left {server}. We now have **{membercount}** members."
+                    formatted_msg = format_template(raw_msg, member, guild)
+
+                    if w_cfg.embed_enabled and perms.embed_links:
+                        embed = create_embed(
+                            title=format_template(getattr(w_cfg, "goodbye_title", None) or "✦ Farewell from {server} ✦", member, guild),
+                            description=formatted_msg,
+                            color=getattr(w_cfg, "goodbye_color", None) or Colors.DARK,
+                            thumbnail_url=member.display_avatar.url if hasattr(member, "display_avatar") else None,
+                        )
+                        embed.add_field(name="👤 Username", value=f"`{getattr(member, 'name', str(member))}`", inline=True)
+                        embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+                        embed.add_field(name="👥 Remaining Members", value=f"**{guild.member_count or len(guild.members):,}**", inline=True)
+                        embed.add_field(name="⏱️ Departure Time", value=discord.utils.format_dt(discord.utils.utcnow(), "F"), inline=True)
+                        embed.set_footer(text=f"{guild.name} • Member Departure Record")
+
+                        for attempt in range(2):
+                            try:
+                                await channel.send(embed=embed)
+                                break
+                            except (discord.Forbidden, discord.HTTPException) as e:
+                                if attempt == 1:
+                                    logger.warning(f"Failed to dispatch goodbye embed: {e}")
+                                await asyncio.sleep(0.5)
+                    else:
+                        for attempt in range(2):
+                            try:
+                                await channel.send(formatted_msg)
+                                break
+                            except (discord.Forbidden, discord.HTTPException) as e:
+                                if attempt == 1:
+                                    logger.warning(f"Failed to dispatch goodbye message: {e}")
+                                await asyncio.sleep(0.5)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
@@ -486,25 +563,6 @@ class WelcomeCog(commands.Cog, name="Welcome"):
                 ephemeral=True,
             )
 
-    @welcome_group.command(name="test", description="Send a preview test of welcome and goodbye messages")
-    @is_admin_or_owner()
-    async def welcome_test(self, interaction: discord.Interaction):
-        w_cfg = await self.bot.db.get_welcome_config(interaction.guild.id)
-        member = interaction.user
-
-        raw_welcome = w_cfg.welcome_message or "Welcome to **{server}**, {user}! We now have **{member_count}** members."
-        welcome_text = format_template(raw_welcome, member)
-
-        embed = create_embed(
-            title=f"Welcome to {interaction.guild.name}! (TEST PREVIEW)",
-            description=welcome_text,
-            color=Colors.SUCCESS,
-            thumbnail_url=member.display_avatar.url,
-        )
-        embed.add_field(name="Member #", value=str(interaction.guild.member_count), inline=True)
-        embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
-
-        await interaction.response.send_message(content=f"**[Preview]** Mention: {member.mention}", embed=embed, ephemeral=True)
 
     @welcome_group.command(name="testboost", description="Preview the luxury server booster celebration announcement")
     @is_admin_or_owner()
@@ -516,14 +574,196 @@ class WelcomeCog(commands.Cog, name="Welcome"):
         else:
             await interaction.followup.send("Must be executed inside a server.", ephemeral=True)
 
-    @welcome_group.command(name="disable", description="Disable welcome and goodbye messages")
+    @welcome_group.command(name="enable", description="Enable welcome arrival announcements")
+    @is_admin_or_owner()
+    async def welcome_enable(self, interaction: discord.Interaction):
+        await self.bot.db.update_guild_config(interaction.guild.id, welcome_enabled=True)
+        await interaction.response.send_message(
+            embed=success_embed("Welcome System Enabled", "Join announcements and autorole are now active."),
+            ephemeral=True,
+        )
+
+    @welcome_group.command(name="disable", description="Disable welcome messages")
     @is_admin_or_owner()
     async def welcome_disable(self, interaction: discord.Interaction):
         await self.bot.db.update_guild_config(interaction.guild.id, welcome_enabled=False)
         await interaction.response.send_message(
-            embed=info_embed("Welcome System Disabled", "Join and leave announcements are now disabled."),
+            embed=info_embed("Welcome System Disabled", "Join announcements are now disabled."),
             ephemeral=True,
         )
+
+    @welcome_group.command(name="config", description="Display current welcome configuration and channel health")
+    @is_admin_or_owner()
+    async def welcome_config_cmd(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        g_cfg = await self.bot.db.get_or_create_guild_config(guild.id)
+        w_cfg = await self.bot.db.get_welcome_config(guild.id)
+
+        wch = guild.get_channel(w_cfg.welcome_channel_id) if w_cfg.welcome_channel_id else None
+        role = guild.get_role(w_cfg.autorole_id) if w_cfg.autorole_id else None
+
+        embed = create_embed(
+            title=f"👋 Welcome Configuration — {guild.name}",
+            color=Colors.PRIMARY,
+        )
+        embed.add_field(name="Module Standing", value="🟢 Enabled" if g_cfg.welcome_enabled else "🔴 Disabled", inline=True)
+        embed.add_field(name="Welcome Channel", value=wch.mention if wch else "*Not Configured*", inline=True)
+        embed.add_field(name="Autorole", value=role.mention if role else "*None*", inline=True)
+        embed.add_field(name="Embed Mode", value="Enabled" if w_cfg.embed_enabled else "Plain Text", inline=True)
+        embed.add_field(name="DM On Join", value="Enabled" if w_cfg.dm_enabled else "Disabled", inline=True)
+        embed.add_field(
+            name="Message Template",
+            value=f"```{w_cfg.welcome_message or 'Default Template'}```",
+            inline=False,
+        )
+        embed.set_footer(text="Placeholders: {user}, {username}, {server}, {membercount}, {userid}, {created_at}, {joined_at}")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @welcome_group.command(name="test", description="Send a preview test of welcome message with channel diagnostics")
+    @is_admin_or_owner()
+    async def welcome_test(self, interaction: discord.Interaction):
+        w_cfg = await self.bot.db.get_welcome_config(interaction.guild.id)
+        member = interaction.user
+
+        raw_welcome = w_cfg.welcome_message or "Welcome to **{server}**, {user}! You are our **{membercount}**th member."
+        welcome_text = format_template(raw_welcome, member, interaction.guild)
+
+        channel_ok = False
+        perms_ok = False
+        if w_cfg.welcome_channel_id:
+            target_ch = interaction.guild.get_channel(w_cfg.welcome_channel_id)
+            if target_ch and isinstance(target_ch, discord.TextChannel):
+                channel_ok = True
+                p = target_ch.permissions_for(interaction.guild.me)
+                perms_ok = p.send_messages and p.embed_links
+
+        embed = create_embed(
+            title=f"✦ Welcome to {interaction.guild.name}! (TEST PREVIEW) ✦",
+            description=welcome_text,
+            color=Colors.SUCCESS,
+            thumbnail_url=member.display_avatar.url,
+        )
+        embed.add_field(name="👤 Username", value=f"`{member.name}`", inline=True)
+        embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(name="👥 Member Count", value=f"**#{interaction.guild.member_count:,}**", inline=True)
+        embed.add_field(name="🗓️ Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
+        embed.add_field(name="⚡ Joined Server", value=discord.utils.format_dt(discord.utils.utcnow(), "R"), inline=True)
+        embed.add_field(
+            name="🩺 Channel Diagnostics",
+            value=(
+                f"• Target Channel: {f'<#{w_cfg.welcome_channel_id}>' if channel_ok else '⚠️ Not Set or Deleted'}\n"
+                f"• Permissions: {'✅ Send & Embed OK' if perms_ok else '⚠️ Bot lacks Send Messages or Embed Links'}"
+            ),
+            inline=False,
+        )
+        await interaction.response.send_message(content=f"**[Preview]** Mention: {member.mention}", embed=embed, ephemeral=True)
+
+    # ==========================================
+    # /GOODBYE COMMAND GROUP (MODULES 5 & 7)
+    # ==========================================
+
+    @goodbye_group.command(name="setup", description="Configure departure goodbye channel and embed format")
+    @is_admin_or_owner()
+    @app_commands.describe(
+        channel="Channel to receive goodbye departure messages",
+        message="Custom template ({username}, {server}, {membercount}, {userid}, {created_at})",
+        use_embeds="Format goodbye message inside a sleek embed",
+    )
+    async def goodbye_setup(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel,
+        message: Optional[str] = None,
+        use_embeds: Optional[bool] = True,
+    ):
+        updates = {
+            "goodbye_channel_id": channel.id,
+            "goodbye_enabled": 1,
+            "embed_enabled": int(use_embeds) if use_embeds is not None else 1,
+        }
+        if message:
+            updates["goodbye_message"] = message
+
+        await self.bot.db.update_welcome_config(interaction.guild.id, **updates)
+        embed = success_embed(
+            "Goodbye System Configured",
+            f"**Channel:** {channel.mention}\n"
+            f"**Embed Mode:** {'Enabled' if use_embeds else 'Plain Text'}\n"
+            f"**Template:**\n> {message or 'Default Template'}"
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @goodbye_group.command(name="config", description="Display current goodbye settings and channel diagnostics")
+    @is_admin_or_owner()
+    async def goodbye_config_cmd(self, interaction: discord.Interaction):
+        guild = interaction.guild
+        w_cfg = await self.bot.db.get_welcome_config(guild.id)
+        gch = guild.get_channel(w_cfg.goodbye_channel_id) if w_cfg.goodbye_channel_id else None
+
+        embed = create_embed(
+            title=f"👋 Goodbye Configuration — {guild.name}",
+            color=Colors.DARK,
+        )
+        embed.add_field(name="Module Status", value="🟢 Enabled" if getattr(w_cfg, "goodbye_enabled", True) else "🔴 Disabled", inline=True)
+        embed.add_field(name="Goodbye Channel", value=gch.mention if gch else "*Not Configured*", inline=True)
+        embed.add_field(name="Embed Mode", value="Enabled" if w_cfg.embed_enabled else "Plain Text", inline=True)
+        embed.add_field(
+            name="Departure Template",
+            value=f"```{w_cfg.goodbye_message or 'Default Template'}```",
+            inline=False,
+        )
+        embed.set_footer(text="Placeholders: {username}, {server}, {membercount}, {userid}, {created_at}")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @goodbye_group.command(name="test", description="Send preview goodbye test with channel diagnostics")
+    @is_admin_or_owner()
+    async def goodbye_test(self, interaction: discord.Interaction):
+        w_cfg = await self.bot.db.get_welcome_config(interaction.guild.id)
+        member = interaction.user
+
+        raw_goodbye = w_cfg.goodbye_message or "**{username}** has left {server}. We now have **{membercount}** members."
+        goodbye_text = format_template(raw_goodbye, member, interaction.guild)
+
+        channel_ok = False
+        perms_ok = False
+        if w_cfg.goodbye_channel_id:
+            target_ch = interaction.guild.get_channel(w_cfg.goodbye_channel_id)
+            if target_ch and isinstance(target_ch, discord.TextChannel):
+                channel_ok = True
+                p = target_ch.permissions_for(interaction.guild.me)
+                perms_ok = p.send_messages and p.embed_links
+
+        embed = create_embed(
+            title=f"✦ Farewell from {interaction.guild.name} (TEST PREVIEW) ✦",
+            description=goodbye_text,
+            color=Colors.DARK,
+            thumbnail_url=member.display_avatar.url,
+        )
+        embed.add_field(name="👤 Username", value=f"`{member.name}`", inline=True)
+        embed.add_field(name="🆔 User ID", value=f"`{member.id}`", inline=True)
+        embed.add_field(name="👥 Remaining Members", value=f"**{interaction.guild.member_count:,}**", inline=True)
+        embed.add_field(name="⏱️ Departure Time", value=discord.utils.format_dt(discord.utils.utcnow(), "F"), inline=True)
+        embed.add_field(
+            name="🩺 Channel Diagnostics",
+            value=(
+                f"• Target Channel: {f'<#{w_cfg.goodbye_channel_id}>' if channel_ok else '⚠️ Not Set or Deleted'}\n"
+                f"• Permissions: {'✅ Send & Embed OK' if perms_ok else '⚠️ Bot lacks Send Messages or Embed Links'}"
+            ),
+            inline=False,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @goodbye_group.command(name="enable", description="Enable departure goodbye announcements")
+    @is_admin_or_owner()
+    async def goodbye_enable(self, interaction: discord.Interaction):
+        await self.bot.db.update_welcome_config(interaction.guild.id, goodbye_enabled=1)
+        await interaction.response.send_message(embed=success_embed("Goodbye Enabled", "Departure messages are now active."), ephemeral=True)
+
+    @goodbye_group.command(name="disable", description="Disable departure goodbye announcements")
+    @is_admin_or_owner()
+    async def goodbye_disable(self, interaction: discord.Interaction):
+        await self.bot.db.update_welcome_config(interaction.guild.id, goodbye_enabled=0)
+        await interaction.response.send_message(embed=info_embed("Goodbye Disabled", "Departure messages are now disabled."), ephemeral=True)
 
     # ==========================================
     # STICKY BANNER COMMANDS

@@ -20,7 +20,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from config import Colors
-from utils.embeds import create_embed, error_embed, info_embed, success_embed, warning_embed
+from utils.embeds import create_embed, error_embed, info_embed, security_embed, success_embed, warning_embed
 from utils.helpers import ConfirmView, PaginationView, parse_duration
 from utils.permissions import can_moderate, is_admin_or_owner
 from utils.mod_inspector import ModInspectorView, build_mod_view_embed
@@ -153,6 +153,57 @@ class ModerationCog(commands.Cog, name="Moderation"):
             await interaction.response.send_message(embed=error_embed("Not Found", "User is not banned or does not exist."), ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(embed=error_embed("Unban Failed", str(e)), ephemeral=True)
+
+    @app_commands.command(name="softban", description="Ban a member to delete recent messages, then immediately unban them")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(ban_members=True)
+    @is_admin_or_owner()
+    @app_commands.describe(
+        member="The member to softban",
+        reason="Reason for the softban",
+        delete_messages_days="Days of messages to purge (1 to 7)",
+    )
+    async def softban(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        reason: Optional[str] = "No reason provided",
+        delete_messages_days: Optional[int] = 1,
+    ):
+        can_mod, err = can_moderate(interaction.user, member, interaction.guild.me)
+        if not can_mod:
+            await interaction.response.send_message(embed=error_embed("Action Disallowed", err), ephemeral=True)
+            return
+
+        days = min(7, max(1, delete_messages_days or 1))
+        delete_seconds = days * 86400
+        view = ConfirmView(interaction.user.id)
+        await interaction.response.send_message(
+            embed=warning_embed(
+                "Confirm Softban",
+                f"Are you sure you want to softban {member.mention} (`{member.id}`)?\n"
+                f"This will ban the member, purge the last **{days} day(s)** of their messages, and immediately unban them.\n"
+                f"**Reason:** {reason}",
+            ),
+            view=view,
+            ephemeral=True,
+        )
+        await view.wait()
+
+        if view.value is True:
+            try:
+                await member.ban(reason=f"Softban: {reason} (Executed by {interaction.user})", delete_message_seconds=delete_seconds)
+                await interaction.guild.unban(discord.Object(id=member.id), reason=f"Softban unban (Executed by {interaction.user})")
+                await interaction.followup.send(
+                    embed=success_embed(
+                        "Member Softbanned",
+                        f"Successfully softbanned {member.mention} (purged {days} day(s) of messages)."
+                    ),
+                    ephemeral=True,
+                )
+                await self._log_mod_action(interaction.guild, "Softban", member, interaction.user, reason, extra=f"Purged {days} day(s) of messages")
+            except Exception as e:
+                await interaction.followup.send(embed=error_embed("Softban Failed", str(e)), ephemeral=True)
 
     @app_commands.command(name="kick", description="Kick a member from the server")
     @app_commands.guild_only()
@@ -310,6 +361,34 @@ class ModerationCog(commands.Cog, name="Moderation"):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="clearwarnings", description="Clear all recorded warnings for a member")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(moderate_members=True)
+    @is_admin_or_owner()
+    @app_commands.describe(member="The member whose warnings should be cleared", reason="Reason for clearing warnings")
+    async def clearwarnings(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        reason: Optional[str] = "Cleared by staff",
+    ):
+        can_mod, err = can_moderate(interaction.user, member, interaction.guild.me)
+        if not can_mod:
+            await interaction.response.send_message(embed=error_embed("Action Disallowed", err), ephemeral=True)
+            return
+
+        deleted_count = await self.bot.db.clear_warnings(interaction.guild.id, member.id)
+        if deleted_count == 0:
+            await interaction.response.send_message(embed=info_embed("No Warnings", f"{member.mention} has no warnings to clear."), ephemeral=True)
+            return
+
+        embed = success_embed(
+            "Warnings Cleared",
+            f"Cleared **{deleted_count}** warning(s) for {member.mention}.\n**Reason:** {reason}"
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await self._log_mod_action(interaction.guild, "Clear Warnings", member, interaction.user, reason, extra=f"Removed {deleted_count} warnings")
+
     @app_commands.command(name="clear", description="Purge a specified number of messages in the channel")
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_messages=True)
@@ -347,6 +426,18 @@ class ModerationCog(commands.Cog, name="Moderation"):
                 await self._log_mod_action(interaction.guild, "Purge", interaction.user, interaction.user, f"Cleared {len(deleted)} messages in #{channel_name}")
         except Exception as e:
             await interaction.followup.send(embed=error_embed("Purge Failed", str(e)), ephemeral=True)
+
+    @app_commands.command(name="purge", description="Purge messages in the channel (alias for /clear)")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_messages=True)
+    @app_commands.describe(amount="Number of messages to delete (1-100)", member="Filter messages from a specific user")
+    async def purge(
+        self,
+        interaction: discord.Interaction,
+        amount: int,
+        member: Optional[discord.Member] = None,
+    ):
+        await self.clear(interaction, amount, member)
 
     @app_commands.command(name="slowmode", description="Set channel message slowmode delay")
     @app_commands.default_permissions(manage_channels=True)
@@ -396,6 +487,82 @@ class ModerationCog(commands.Cog, name="Moderation"):
         embed = await build_mod_view_embed(self.bot, member, interaction.user)
         view = ModInspectorView(member, self.bot)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @app_commands.command(name="nick", description="Change or reset a member's server nickname")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_nicknames=True)
+    @app_commands.describe(member="The member whose nickname to change", nickname="New nickname (leave blank to reset)", reason="Reason for nickname change")
+    async def nick(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        nickname: Optional[str] = None,
+        reason: Optional[str] = "Nickname updated by staff",
+    ):
+        can_mod, err = can_moderate(interaction.user, member, interaction.guild.me)
+        if not can_mod:
+            await interaction.response.send_message(embed=error_embed("Action Disallowed", err), ephemeral=True)
+            return
+
+        target_nick = nickname.strip() if nickname else None
+        if target_nick and len(target_nick) > 32:
+            await interaction.response.send_message(embed=error_embed("Invalid Nickname", "Nickname must be 32 characters or fewer."), ephemeral=True)
+            return
+
+        try:
+            old_nick = member.display_name
+            await member.edit(nick=target_nick, reason=f"{reason} (Modified by {interaction.user})")
+            desc = f"Changed {member.mention}'s nickname to **{target_nick}** (was `{old_nick}`)." if target_nick else f"Reset {member.mention}'s nickname back to `{member.name}`."
+            await interaction.response.send_message(embed=success_embed("Nickname Updated", desc), ephemeral=True)
+            await self._log_mod_action(interaction.guild, "Nickname Change", member, interaction.user, reason, extra=f"Old: {old_nick} -> New: {target_nick or '[Reset]'}")
+        except Exception as e:
+            await interaction.response.send_message(embed=error_embed("Nickname Update Failed", str(e)), ephemeral=True)
+
+    @app_commands.command(name="modlogs", description="Inspect comprehensive moderation history and warnings for a member")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(moderate_members=True)
+    @app_commands.describe(member="The member whose moderation logs to inspect")
+    async def modlogs(self, interaction: discord.Interaction, member: discord.Member):
+        warns = await self.bot.db.get_warnings(interaction.guild.id, member.id)
+        violations = await self.bot.db.get_recent_mention_violations(interaction.guild.id, limit=20)
+        user_viols = [v for v in violations if getattr(v, "user_id", None) == member.id]
+
+        embed = create_embed(
+            title=f"📋 Moderation Dossier — {member.name}",
+            color=Colors.WARNING if warns or user_viols else Colors.SUCCESS,
+            thumbnail_url=member.display_avatar.url,
+        )
+        embed.add_field(name="Target", value=f"{member.mention} (`{member.id}`)", inline=True)
+        embed.add_field(name="Account Created", value=discord.utils.format_dt(member.created_at, "R"), inline=True)
+        if member.joined_at:
+            embed.add_field(name="Joined Server", value=discord.utils.format_dt(member.joined_at, "R"), inline=True)
+
+        is_timed_out = member.timed_out_until is not None and member.timed_out_until > discord.utils.utcnow()
+        embed.add_field(
+            name="Current Timeout Standing",
+            value=f"⏳ Timed out until {discord.utils.format_dt(member.timed_out_until, 'R')}" if is_timed_out else "🟢 Clean (Not Timed Out)",
+            inline=False,
+        )
+
+        now_iso = discord.utils.utcnow().isoformat()
+        active_warns = [w for w in warns if not w.expires_at or w.expires_at > now_iso]
+        expired_warns = [w for w in warns if w.expires_at and w.expires_at <= now_iso]
+
+        if active_warns:
+            lines = [f"`#{w.id}` **{w.reason}** (by <@{w.moderator_id}> on {w.created_at[:10]})" for w in active_warns[:5]]
+            embed.add_field(name=f"🔴 Active Warnings ({len(active_warns)})", value="\n".join(lines), inline=False)
+        else:
+            embed.add_field(name="Warnings", value="No active warnings.", inline=False)
+
+        if expired_warns:
+            lines = [f"`#{w.id}` **{w.reason}** ({w.created_at[:10]})" for w in expired_warns[:3]]
+            embed.add_field(name=f"⚪ Expired Warnings ({len(expired_warns)})", value="\n".join(lines), inline=False)
+
+        if user_viols:
+            v_lines = [f"`{v.violation_type}` in <#{v.channel_id}>: *{v.action_taken}* ({v.created_at[:10]})" for v in user_viols[:3]]
+            embed.add_field(name=f"⚠️ Security & Mention Violations ({len(user_viols)})", value="\n".join(v_lines), inline=False)
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot: SentinelBot):
