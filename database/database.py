@@ -90,6 +90,10 @@ from database.models import (
     AntiNukeConfig,
     AntiRaidConfig,
     PermissionAuditHistory,
+    InviteTrackerConfig,
+    MemberInvite,
+    InviterStats,
+    InviteReward,
 )
 
 logger = logging.getLogger(__name__)
@@ -9250,4 +9254,402 @@ class Database:
                 )
                 for r in rows
             ]
+
+    # ==========================================
+    # INVITE TRACKER METHODS (APEX INVITE)
+    # ==========================================
+
+    async def get_invite_tracker_config(self, guild_id: int) -> InviteTrackerConfig:
+        async with self._db.execute(
+            "SELECT * FROM invite_tracker_config WHERE guild_id = ?",
+            (guild_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return InviteTrackerConfig(
+                    guild_id=row["guild_id"],
+                    enabled=bool(row["enabled"]),
+                    log_channel_id=row["log_channel_id"],
+                    welcome_channel_id=row["welcome_channel_id"],
+                    welcome_message=row["welcome_message"] or "🎉 Welcome {user} to the server! Invited by **{inviter}** (Total: {inviter_invites} invites).",
+                    send_welcome=bool(row["send_welcome"]),
+                    min_account_age_days=row["min_account_age_days"] if row["min_account_age_days"] is not None else 3,
+                    deduct_on_leave=bool(row["deduct_on_leave"]),
+                    track_vanity=bool(row["track_vanity"]),
+                    leaderboard_visible=bool(row["leaderboard_visible"]),
+                    rewards_enabled=bool(row["rewards_enabled"]),
+                    admin_role_id=row["admin_role_id"],
+                    updated_at=row["updated_at"] or "",
+                )
+            now = utcnow_iso()
+            return InviteTrackerConfig(
+                guild_id=guild_id,
+                enabled=True,
+                log_channel_id=None,
+                welcome_channel_id=None,
+                welcome_message="🎉 Welcome {user} to the server! Invited by **{inviter}** (Total: {inviter_invites} invites).",
+                send_welcome=False,
+                min_account_age_days=3,
+                deduct_on_leave=True,
+                track_vanity=True,
+                leaderboard_visible=True,
+                rewards_enabled=False,
+                admin_role_id=None,
+                updated_at=now,
+            )
+
+    async def upsert_invite_tracker_config(self, config: InviteTrackerConfig) -> None:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO invite_tracker_config (
+                guild_id, enabled, log_channel_id, welcome_channel_id,
+                welcome_message, send_welcome, min_account_age_days,
+                deduct_on_leave, track_vanity, leaderboard_visible,
+                rewards_enabled, admin_role_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                log_channel_id = excluded.log_channel_id,
+                welcome_channel_id = excluded.welcome_channel_id,
+                welcome_message = excluded.welcome_message,
+                send_welcome = excluded.send_welcome,
+                min_account_age_days = excluded.min_account_age_days,
+                deduct_on_leave = excluded.deduct_on_leave,
+                track_vanity = excluded.track_vanity,
+                leaderboard_visible = excluded.leaderboard_visible,
+                rewards_enabled = excluded.rewards_enabled,
+                admin_role_id = excluded.admin_role_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                config.guild_id,
+                1 if config.enabled else 0,
+                config.log_channel_id,
+                config.welcome_channel_id,
+                config.welcome_message,
+                1 if config.send_welcome else 0,
+                config.min_account_age_days,
+                1 if config.deduct_on_leave else 0,
+                1 if config.track_vanity else 0,
+                1 if config.leaderboard_visible else 0,
+                1 if config.rewards_enabled else 0,
+                config.admin_role_id,
+                now,
+            ),
+        )
+        await self._db.commit()
+
+    async def record_member_invite(
+        self,
+        guild_id: int,
+        member_id: int,
+        inviter_id: Optional[int],
+        invite_code: Optional[str],
+        classification: str = "regular",
+        account_age_days: float = 0.0,
+        notes: str = "",
+    ) -> int:
+        now = utcnow_iso()
+        cursor = await self._db.execute(
+            """
+            INSERT INTO member_invites (
+                guild_id, member_id, inviter_id, invite_code,
+                joined_at, left_at, classification, account_age_days,
+                is_cleared, notes
+            ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, 0, ?)
+            """,
+            (
+                guild_id,
+                member_id,
+                inviter_id,
+                invite_code,
+                now,
+                classification,
+                account_age_days,
+                notes,
+            ),
+        )
+        await self._db.commit()
+        return cursor.lastrowid
+
+    async def get_member_invite(
+        self, guild_id: int, member_id: int
+    ) -> Optional[MemberInvite]:
+        async with self._db.execute(
+            """
+            SELECT * FROM member_invites
+            WHERE guild_id = ? AND member_id = ?
+            ORDER BY id DESC LIMIT 1
+            """,
+            (guild_id, member_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return MemberInvite(
+                id=row["id"],
+                guild_id=row["guild_id"],
+                member_id=row["member_id"],
+                inviter_id=row["inviter_id"],
+                invite_code=row["invite_code"],
+                joined_at=row["joined_at"],
+                left_at=row["left_at"],
+                classification=row["classification"],
+                account_age_days=float(row["account_age_days"] or 0.0),
+                is_cleared=bool(row["is_cleared"]),
+                notes=row["notes"] or "",
+            )
+
+    async def mark_member_left(
+        self, guild_id: int, member_id: int
+    ) -> Optional[MemberInvite]:
+        now = utcnow_iso()
+        invite = await self.get_member_invite(guild_id, member_id)
+        if invite:
+            await self._db.execute(
+                "UPDATE member_invites SET left_at = ? WHERE id = ?",
+                (now, invite.id),
+            )
+            await self._db.commit()
+            invite.left_at = now
+        return invite
+
+    async def get_inviter_stats(self, guild_id: int, user_id: int) -> InviterStats:
+        async with self._db.execute(
+            "SELECT * FROM inviter_stats WHERE guild_id = ? AND user_id = ?",
+            (guild_id, user_id),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return InviterStats(
+                    guild_id=row["guild_id"],
+                    user_id=row["user_id"],
+                    regular_invites=row["regular_invites"],
+                    left_invites=row["left_invites"],
+                    fake_invites=row["fake_invites"],
+                    bonus_invites=row["bonus_invites"],
+                    updated_at=row["updated_at"],
+                )
+            return InviterStats(
+                guild_id=guild_id,
+                user_id=user_id,
+                regular_invites=0,
+                left_invites=0,
+                fake_invites=0,
+                bonus_invites=0,
+                updated_at=utcnow_iso(),
+            )
+
+    async def increment_inviter_stats(
+        self,
+        guild_id: int,
+        user_id: int,
+        regular_delta: int = 0,
+        left_delta: int = 0,
+        fake_delta: int = 0,
+        bonus_delta: int = 0,
+    ) -> InviterStats:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO inviter_stats (
+                guild_id, user_id, regular_invites, left_invites,
+                fake_invites, bonus_invites, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                regular_invites = MAX(0, regular_invites + excluded.regular_invites),
+                left_invites = MAX(0, left_invites + excluded.left_invites),
+                fake_invites = MAX(0, fake_invites + excluded.fake_invites),
+                bonus_invites = bonus_invites + excluded.bonus_invites,
+                updated_at = excluded.updated_at
+            """,
+            (
+                guild_id,
+                user_id,
+                regular_delta,
+                left_delta,
+                fake_delta,
+                bonus_delta,
+                now,
+            ),
+        )
+        await self._db.commit()
+        return await self.get_inviter_stats(guild_id, user_id)
+
+    async def reset_inviter_stats(
+        self, guild_id: int, user_id: Optional[int] = None
+    ) -> None:
+        now = utcnow_iso()
+        if user_id is not None:
+            await self._db.execute(
+                """
+                UPDATE inviter_stats
+                SET regular_invites = 0, left_invites = 0, fake_invites = 0, bonus_invites = 0, updated_at = ?
+                WHERE guild_id = ? AND user_id = ?
+                """,
+                (now, guild_id, user_id),
+            )
+            await self._db.execute(
+                "UPDATE member_invites SET is_cleared = 1 WHERE guild_id = ? AND inviter_id = ?",
+                (guild_id, user_id),
+            )
+        else:
+            await self._db.execute(
+                """
+                UPDATE inviter_stats
+                SET regular_invites = 0, left_invites = 0, fake_invites = 0, bonus_invites = 0, updated_at = ?
+                WHERE guild_id = ?
+                """,
+                (now, guild_id),
+            )
+            await self._db.execute(
+                "UPDATE member_invites SET is_cleared = 1 WHERE guild_id = ?",
+                (guild_id,),
+            )
+        await self._db.commit()
+
+    async def get_invite_leaderboard(
+        self, guild_id: int, limit: int = 10, offset: int = 0
+    ) -> List[InviterStats]:
+        async with self._db.execute(
+            """
+            SELECT * FROM inviter_stats
+            WHERE guild_id = ? AND (regular_invites > 0 OR bonus_invites > 0)
+            ORDER BY (regular_invites + bonus_invites - left_invites) DESC, regular_invites DESC
+            LIMIT ? OFFSET ?
+            """,
+            (guild_id, limit, offset),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                InviterStats(
+                    guild_id=r["guild_id"],
+                    user_id=r["user_id"],
+                    regular_invites=r["regular_invites"],
+                    left_invites=r["left_invites"],
+                    fake_invites=r["fake_invites"],
+                    bonus_invites=r["bonus_invites"],
+                    updated_at=r["updated_at"],
+                )
+                for r in rows
+            ]
+
+    async def get_recent_invite_history(
+        self, guild_id: int, user_id: Optional[int] = None, limit: int = 20
+    ) -> List[MemberInvite]:
+        if user_id is not None:
+            query = """
+                SELECT * FROM member_invites
+                WHERE guild_id = ? AND inviter_id = ?
+                ORDER BY joined_at DESC LIMIT ?
+            """
+            params = (guild_id, user_id, limit)
+        else:
+            query = """
+                SELECT * FROM member_invites
+                WHERE guild_id = ?
+                ORDER BY joined_at DESC LIMIT ?
+            """
+            params = (guild_id, limit)
+
+        async with self._db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                MemberInvite(
+                    id=r["id"],
+                    guild_id=r["guild_id"],
+                    member_id=r["member_id"],
+                    inviter_id=r["inviter_id"],
+                    invite_code=r["invite_code"],
+                    joined_at=r["joined_at"],
+                    left_at=r["left_at"],
+                    classification=r["classification"],
+                    account_age_days=float(r["account_age_days"] or 0.0),
+                    is_cleared=bool(r["is_cleared"]),
+                    notes=r["notes"] or "",
+                )
+                for r in rows
+            ]
+
+    async def get_invite_rewards(self, guild_id: int) -> List[InviteReward]:
+        async with self._db.execute(
+            "SELECT * FROM invite_rewards WHERE guild_id = ? ORDER BY required_invites ASC",
+            (guild_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                InviteReward(
+                    id=r["id"],
+                    guild_id=r["guild_id"],
+                    required_invites=r["required_invites"],
+                    role_id=r["role_id"],
+                    created_at=r["created_at"],
+                )
+                for r in rows
+            ]
+
+    async def add_invite_reward(
+        self, guild_id: int, required_invites: int, role_id: int
+    ) -> None:
+        now = utcnow_iso()
+        await self._db.execute(
+            """
+            INSERT INTO invite_rewards (guild_id, required_invites, role_id, created_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(guild_id, required_invites) DO UPDATE SET
+                role_id = excluded.role_id,
+                created_at = excluded.created_at
+            """,
+            (guild_id, required_invites, role_id, now),
+        )
+        await self._db.commit()
+
+    async def remove_invite_reward(self, guild_id: int, required_invites: int) -> bool:
+        cursor = await self._db.execute(
+            "DELETE FROM invite_rewards WHERE guild_id = ? AND required_invites = ?",
+            (guild_id, required_invites),
+        )
+        await self._db.commit()
+        return cursor.rowcount > 0
+
+    async def reclassify_member_invite(
+        self, guild_id: int, member_id: int, new_classification: str, notes: str = ""
+    ) -> Optional[MemberInvite]:
+        invite = await self.get_member_invite(guild_id, member_id)
+        if not invite:
+            return None
+
+        old_class = invite.classification
+        if old_class == new_classification:
+            return invite
+
+        await self._db.execute(
+            "UPDATE member_invites SET classification = ?, notes = ? WHERE id = ?",
+            (new_classification, notes or invite.notes, invite.id),
+        )
+
+        # Reconcile inviter stats if inviter exists
+        if invite.inviter_id:
+            reg_delta = 0
+            fake_delta = 0
+            if old_class == "regular" and new_classification == "fake":
+                reg_delta = -1
+                fake_delta = 1
+            elif old_class == "fake" and new_classification == "regular":
+                fake_delta = -1
+                reg_delta = 1
+
+            if reg_delta != 0 or fake_delta != 0:
+                await self.increment_inviter_stats(
+                    guild_id,
+                    invite.inviter_id,
+                    regular_delta=reg_delta,
+                    fake_delta=fake_delta,
+                )
+
+        await self._db.commit()
+        invite.classification = new_classification
+        return invite
+
 

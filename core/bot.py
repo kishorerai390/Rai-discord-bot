@@ -97,6 +97,7 @@ COGS_LIST: List[str] = [
     "cogs.system_upgrade",
     "cogs.server_setup",
     "cogs.plugins",
+    "cogs.invites",
 ]
 
 
@@ -123,6 +124,7 @@ class SentinelBot(commands.Bot):
         intents.members = True
         intents.message_content = True
         intents.presences = False
+        intents.invites = True
 
         super().__init__(
             command_prefix=BOT_PREFIX,

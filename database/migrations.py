@@ -2041,6 +2041,76 @@ MIGRATIONS: List[Tuple[int, str, List[str]]] = [
             """,
             "CREATE INDEX IF NOT EXISTS idx_perm_audit_guild ON permission_audit_history(guild_id);"
         ]
+    ),
+    (
+        50,
+        "Advanced Invite Tracker System (APEX INVITE)",
+        [
+            """
+            CREATE TABLE IF NOT EXISTS invite_tracker_config (
+                guild_id INTEGER PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                log_channel_id INTEGER DEFAULT NULL,
+                welcome_channel_id INTEGER DEFAULT NULL,
+                welcome_message TEXT DEFAULT '🎉 Welcome {user} to the server! Invited by **{inviter}** (Total: {inviter_invites} invites).',
+                send_welcome INTEGER NOT NULL DEFAULT 0,
+                min_account_age_days INTEGER NOT NULL DEFAULT 3,
+                deduct_on_leave INTEGER NOT NULL DEFAULT 1,
+                track_vanity INTEGER NOT NULL DEFAULT 1,
+                leaderboard_visible INTEGER NOT NULL DEFAULT 1,
+                rewards_enabled INTEGER NOT NULL DEFAULT 0,
+                admin_role_id INTEGER DEFAULT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS member_invites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                member_id INTEGER NOT NULL,
+                inviter_id INTEGER DEFAULT NULL,
+                invite_code TEXT DEFAULT NULL,
+                joined_at TEXT NOT NULL,
+                left_at TEXT DEFAULT NULL,
+                classification TEXT NOT NULL DEFAULT 'regular',
+                account_age_days REAL DEFAULT 0.0,
+                is_cleared INTEGER NOT NULL DEFAULT 0,
+                notes TEXT DEFAULT '',
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_member ON member_invites(guild_id, member_id);",
+            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_inviter ON member_invites(guild_id, inviter_id);",
+            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_code ON member_invites(guild_id, invite_code);",
+            "CREATE INDEX IF NOT EXISTS idx_member_invites_guild_class ON member_invites(guild_id, classification);",
+            """
+            CREATE TABLE IF NOT EXISTS inviter_stats (
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                regular_invites INTEGER NOT NULL DEFAULT 0,
+                left_invites INTEGER NOT NULL DEFAULT 0,
+                fake_invites INTEGER NOT NULL DEFAULT 0,
+                bonus_invites INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (guild_id, user_id),
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_inviter_stats_ranking ON inviter_stats(guild_id, regular_invites DESC);",
+            """
+            CREATE TABLE IF NOT EXISTS invite_rewards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guild_id INTEGER NOT NULL,
+                required_invites INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(guild_id, required_invites),
+                FOREIGN KEY (guild_id) REFERENCES guild_config(guild_id) ON DELETE CASCADE
+            );
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_invite_rewards_guild ON invite_rewards(guild_id);"
+        ]
     )
 ]
 

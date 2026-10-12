@@ -1324,3 +1324,66 @@ class PermissionAuditHistory:
     created_at: str = ""
 
 
+@dataclass
+class InviteTrackerConfig:
+    guild_id: int
+    enabled: bool = True
+    log_channel_id: Optional[int] = None
+    welcome_channel_id: Optional[int] = None
+    welcome_message: str = "🎉 Welcome {user} to the server! Invited by **{inviter}** (Total: {inviter_invites} invites)."
+    send_welcome: bool = False
+    min_account_age_days: int = 3
+    deduct_on_leave: bool = True
+    track_vanity: bool = True
+    leaderboard_visible: bool = True
+    rewards_enabled: bool = False
+    admin_role_id: Optional[int] = None
+    updated_at: str = ""
+
+
+@dataclass
+class MemberInvite:
+    id: int
+    guild_id: int
+    member_id: int
+    inviter_id: Optional[int] = None
+    invite_code: Optional[str] = None
+    joined_at: str = ""
+    left_at: Optional[str] = None
+    classification: str = "regular"  # regular, fake, left, rejoin, vanity, unknown
+    account_age_days: float = 0.0
+    is_cleared: bool = False
+    notes: str = ""
+
+
+@dataclass
+class InviterStats:
+    guild_id: int
+    user_id: int
+    regular_invites: int = 0
+    left_invites: int = 0
+    fake_invites: int = 0
+    bonus_invites: int = 0
+    updated_at: str = ""
+
+    @property
+    def total_invites(self) -> int:
+        """Total raw invitations recorded."""
+        return self.regular_invites + self.fake_invites + self.bonus_invites
+
+    @property
+    def effective_invites(self) -> int:
+        """Net valid invitations (regular + bonus - left). Never below 0."""
+        return max(0, self.regular_invites + self.bonus_invites - self.left_invites)
+
+
+@dataclass
+class InviteReward:
+    id: int
+    guild_id: int
+    required_invites: int
+    role_id: int
+    created_at: str = ""
+
+
+
