@@ -3043,7 +3043,7 @@ class MusicCog(commands.Cog, name="Music"):
         else:
             await ctx.reply(f"⚠️ Failed to apply preset **{d_name}**. Preserved previous audio filter.", mention_author=False)
 
-    @commands.command(name="autodj", aliases=["dj"])
+    @commands.command(name="autodj", aliases=["dj", "autoplay", "nonstop"])
     async def pfx_autodj(self, ctx: commands.Context, action: str = "status") -> None:
         """Control individual-song Auto-DJ mode: on, off, status."""
         if not ctx.guild:
@@ -3165,48 +3165,6 @@ class MusicCog(commands.Cog, name="Music"):
         )
         await status_msg.edit(content=None, embed=embed)
 
-    @commands.command(name="dj", aliases=["autoplay", "nonstop"])
-    async def pfx_dj(self, ctx: commands.Context, mode: Optional[str] = None) -> None:
-        """Toggle non-stop Neko DJ continuous playback (,dj, ,dj on, ,dj off)."""
-        if not ctx.guild:
-            return
-        session = await self.session_manager.get_session(ctx.guild.id)
-        settings = await self.bot.db.get_dj_settings(ctx.guild.id)
-
-        target_state = not settings.enabled if mode is None else mode.lower() in ("on", "enable", "true", "start", "1")
-        settings.enabled = target_state
-        settings.auto_queue = True
-        await self.bot.db.update_dj_settings(settings)
-        session.dj_enabled = target_state
-
-        if target_state:
-            started_now = False
-            if isinstance(ctx.author, discord.Member) and ctx.author.voice and ctx.author.voice.channel and not session.is_playing:
-                from music_bot.services.voice_service import VoiceManager
-                vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)
-                if vc:
-                    from music_bot.services.dj_service import NekoDJService
-                    rec = await NekoDJService.get_recommendation(self.bot, session)
-                    if rec:
-                        track, rationale = rec
-                        started = await MusicPlayerService.start_playback(self.bot, session, track)
-                        if started:
-                            started_now = True
-                            from music_bot.services.player_service import NowPlayingControlView
-                            embed = MusicPlayerService.build_now_playing_embed(session)
-                            view = NowPlayingControlView(session)
-                            msg = await ctx.reply(
-                                f"🎧 **Neko DJ Non-Stop Mode ACTIVE!** Connected to **#{ctx.author.voice.channel.name}**!\n*{rationale}*",
-                                embed=embed,
-                                view=view,
-                                mention_author=False,
-                            )
-                            session.now_playing_message = msg
-
-            if not started_now:
-                await ctx.reply("🎧 **Neko DJ Non-Stop Mode ACTIVE!** Music will play continuously non-stop without silence. 🐾", mention_author=False)
-        else:
-            await ctx.reply("⏹️ **Neko DJ Non-Stop Mode DISABLED.** Playback will stop when the queue finishes.", mention_author=False)
 
     # =========================================================================
     # PRIORITY QUEUE BUMP (/bump)
