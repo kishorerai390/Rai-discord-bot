@@ -481,31 +481,45 @@ class MusicDatabase:
     async def add_favorite(
         self,
         user_id: int,
-        track_or_title: Any,
+        track: Optional[Any] = None,
         url: Optional[str] = None,
         duration: int = 0,
         artist: Optional[str] = None,
         thumbnail: Optional[str] = None,
+        title: Optional[str] = None,
+        **kwargs,
     ) -> bool:
         """Add a track to user's favorites list (supports QueuedTrack or direct parameters)."""
-        if isinstance(track_or_title, QueuedTrack):
-            title = track_or_title.title
-            track_url = track_or_title.url
-            dur = track_or_title.duration or 0
-            art = track_or_title.artist or "Unknown Artist"
-            thumb = track_or_title.thumbnail
+        if isinstance(track, QueuedTrack):
+            fav_title = track.title
+            fav_url = track.url
+            fav_dur = track.duration or 0
+            fav_art = track.artist or "Unknown Artist"
+            fav_thumb = track.thumbnail
+        elif title is not None:
+            fav_title = title
+            fav_url = url or ""
+            fav_dur = duration
+            fav_art = artist or "Unknown Artist"
+            fav_thumb = thumbnail
+        elif isinstance(track, str):
+            fav_title = track
+            fav_url = url or ""
+            fav_dur = duration
+            fav_art = artist or "Unknown Artist"
+            fav_thumb = thumbnail
         else:
-            title = str(track_or_title)
-            track_url = url or ""
-            dur = duration
-            art = artist or "Unknown Artist"
-            thumb = thumbnail
+            fav_title = kwargs.get("title", "")
+            fav_url = url or kwargs.get("url", "")
+            fav_dur = duration or kwargs.get("duration", 0)
+            fav_art = artist or kwargs.get("artist", "Unknown Artist")
+            fav_thumb = thumbnail or kwargs.get("thumbnail")
 
         now = datetime.now(timezone.utc).isoformat()
         async with self._lock:
             async with self._db.execute(
                 "SELECT id FROM music_favorites WHERE user_id = ? AND url = ?",
-                (user_id, track_url)
+                (user_id, fav_url)
             ) as cursor:
                 if await cursor.fetchone():
                     return False
@@ -514,7 +528,7 @@ class MusicDatabase:
                 await self._db.execute("""
                     INSERT INTO music_favorites (user_id, title, url, duration, artist, thumbnail, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (user_id, title, track_url, dur, art, thumb, now))
+                """, (user_id, fav_title, fav_url, fav_dur, fav_art, fav_thumb, now))
                 await self._db.commit()
                 return True
             except aiosqlite.IntegrityError:
@@ -1143,22 +1157,6 @@ class MusicDatabase:
             """, (user_id, limit)) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
-
-    async def remove_favorite(self, user_id: int, url_or_id: str) -> bool:
-        """Remove a track from user's favorites by URL or record ID."""
-        async with self._lock:
-            if url_or_id.isdigit():
-                cur = await self._db.execute(
-                    "DELETE FROM music_favorites WHERE user_id = ? AND id = ?",
-                    (user_id, int(url_or_id))
-                )
-            else:
-                cur = await self._db.execute(
-                    "DELETE FROM music_favorites WHERE user_id = ? AND url = ?",
-                    (user_id, url_or_id)
-                )
-            await self._db.commit()
-            return cur.rowcount > 0
 
     def _row_to_persistent_session(self, row: Dict[str, Any]) -> PersistentMusicSession:
         """Helper to deserialize database row into a structured PersistentMusicSession."""
