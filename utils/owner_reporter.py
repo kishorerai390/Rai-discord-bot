@@ -759,26 +759,29 @@ class OwnerReporter:
         # ==========================================
         channel = None
         try:
-            # Resolve designated Central Report Server (defaults to 1494692962041467005)
+            # Prioritize origin guild for report channel resolution
+            report_guild_obj = guild_obj
+            target_report_gid = guild_id or (getattr(guild_obj, "id", 0) if guild_obj else 0)
+
+            # If origin guild is not available, resolve designated Central Report Server
             import os
             central_gid_raw = (os.getenv("CENTRAL_REPORT_GUILD_ID") or os.getenv("REPORT_SERVER_ID") or "1494692962041467005").strip()
             central_gid = int(central_gid_raw) if central_gid_raw.isdigit() else 1494692962041467005
 
-            report_guild_obj = None
-            if hasattr(bot, "get_guild") and central_gid:
+            if not report_guild_obj and hasattr(bot, "get_guild") and central_gid:
                 report_guild_obj = bot.get_guild(central_gid)
             if not report_guild_obj and hasattr(bot, "fetch_guild") and central_gid:
                 try:
-                    report_guild_obj = await bot.fetch_guild(central_gid)
+                    fetch_res = bot.fetch_guild(central_gid)
+                    if inspect.isawaitable(fetch_res):
+                        report_guild_obj = await fetch_res
+                    else:
+                        report_guild_obj = fetch_res
                 except Exception:
                     report_guild_obj = None
 
-            # Fall back to origin guild if central report server unavailable
-            if not report_guild_obj:
-                report_guild_obj = guild_obj
-                target_report_gid = guild_id
-            else:
-                target_report_gid = report_guild_obj.id
+            if report_guild_obj and target_report_gid == 0:
+                target_report_gid = getattr(report_guild_obj, "id", central_gid)
 
             cfg = None
             if hasattr(bot, "db") and bot.db and hasattr(bot.db, "get_owner_reports_config"):
@@ -1508,7 +1511,8 @@ async def get_owner_report_channel(
     field = key_map.get(category.lower(), f"{category}_report_id")
     import os
     central_gid_raw = (os.getenv("CENTRAL_REPORT_GUILD_ID") or os.getenv("REPORT_SERVER_ID") or "1494692962041467005").strip()
-    target_gid = int(central_gid_raw) if central_gid_raw.isdigit() else guild_id
+    central_gid = int(central_gid_raw) if central_gid_raw.isdigit() else 1494692962041467005
+    target_gid = guild_id or central_gid
     try:
         cfg = None
         if hasattr(bot, "db") and bot.db and hasattr(bot.db, "get_owner_reports_config"):
@@ -1518,7 +1522,11 @@ async def get_owner_report_channel(
         guild = bot.get_guild(target_gid) if hasattr(bot, "get_guild") else None
         if not guild and hasattr(bot, "fetch_guild"):
             try:
-                guild = await bot.fetch_guild(target_gid)
+                fetch_res = bot.fetch_guild(target_gid)
+                if inspect.isawaitable(fetch_res):
+                    guild = await fetch_res
+                else:
+                    guild = fetch_res
             except Exception:
                 guild = None
 
