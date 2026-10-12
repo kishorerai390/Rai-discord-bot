@@ -33,6 +33,7 @@ class PlaybackState(str, Enum):
     STOPPING = "STOPPING"
     DISCONNECTED = "DISCONNECTED"
     RECOVERING = "RECOVERING"
+    STOPPED = "STOPPED"
     ERROR = "ERROR"
 
 
@@ -84,6 +85,19 @@ class GuildMusicSession:
         self.last_checkpoint_pos: int = 0
         self.last_checkpoint_time: float = 0.0
         self.recovery_attempts: int = 0
+        self.recovery_status: Optional[str] = None
+
+    @property
+    def has_active_track(self) -> bool:
+        """True if there is an active, paused, buffering, or recoverable track."""
+        return self.current_track is not None and self.state in (
+            PlaybackState.PLAYING,
+            PlaybackState.PAUSED,
+            PlaybackState.LOADING,
+            PlaybackState.SEARCHING,
+            PlaybackState.RESOLVING,
+            PlaybackState.RECOVERING,
+        )
 
     @property
     def is_playing(self) -> bool:
@@ -124,6 +138,7 @@ class GuildMusicSession:
         self.pause_time = 0.0
         self.paused_duration = 0.0
         self.skip_votes.clear()
+        self.recovery_status = None
 
 
 class SessionManager:

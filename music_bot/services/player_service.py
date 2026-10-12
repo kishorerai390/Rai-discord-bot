@@ -392,13 +392,23 @@ class MusicPlayerService:
             remaining = max(0, total - elapsed)
             end_ts = int(time.time() + remaining)
             time_suffix = f" • Ends <t:{end_ts}:R>" if is_active_play else ""
-            progress_str = f"{format_duration(elapsed, is_position=True)} / {format_duration(total)}{time_suffix}"
+            progress_str = f"{format_duration(elapsed, is_position=True)} / {format_duration(total)} (-{format_duration(remaining)}){time_suffix}"
             progress_bar = create_progress_bar(elapsed, total)
         else:
             progress_str = f"{format_duration(elapsed, is_position=True)} / 🔴 LIVE"
             progress_bar = "🔘──────────────"
 
-        status_text = "🟢 Playing" if is_active_play else ("⏸️ Paused" if session.is_paused else "⏹️ Idle")
+        if session.state == PlaybackState.PLAYING or session.is_playing:
+            status_text = "🟢 Playing"
+        elif session.is_paused or session.state == PlaybackState.PAUSED:
+            status_text = "⏸️ Paused"
+        elif session.state in (PlaybackState.LOADING, PlaybackState.SEARCHING, PlaybackState.RESOLVING):
+            status_text = "⏳ Buffering"
+        elif session.state == PlaybackState.RECOVERING:
+            status_text = "🔄 Recovering"
+        else:
+            status_text = "⏹️ Idle"
+
         requester_str = f"<@{track.requester_id}>" if track.requester_id else track.requester_name
 
         # Feature 94: Cyber Dialogue Morning & Evening Greeting Shifts
@@ -414,6 +424,7 @@ class MusicPlayerService:
 
         preset_name = session.eq_preset if session.eq_preset else "Flat"
         is_247_str = "Active 🛡️" if session.twenty_four_seven else "Off"
+        recovery_line = f"\n• **Recovery:** `{session.recovery_status}`" if getattr(session, "recovery_status", None) else ""
 
         embed = discord.Embed(
             title="🎶 NOW PLAYING",
@@ -424,7 +435,8 @@ class MusicPlayerService:
                 f"**Progress:**\n`{progress_bar}` `{progress_str}`\n\n"
                 f"• **Requested by:** {requester_str}\n"
                 f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
-                f"• **Queue:** `{len(session.queue)} tracks` • **EQ:** `{preset_name}` • **24/7:** `{is_247_str}`"
+                f"• **Queue:** `{len(session.queue)} tracks` • **Loop:** `{session.loop_mode.value.title()}`\n"
+                f"• **Filter:** `{preset_name}` • **24/7:** `{is_247_str}`{recovery_line}"
             ),
             color=0x00E5FF if session.is_playing else 0x9B59B6,
         )
@@ -460,14 +472,14 @@ class MusicPlayerService:
         """Periodically update the active Now Playing embed to advance progress slider and sticky anchor."""
         update_cycle = 0
         while session.is_playing and session.current_track:
-            await asyncio.sleep(10)
+            await asyncio.sleep(15)
             if not session.is_playing or not session.now_playing_message:
                 continue
             update_cycle += 1
             try:
                 embed = cls.build_now_playing_embed(session)
 
-                # Sticky HUD anchor: check every 3 cycles (30s) if new messages pushed player off screen
+                # Sticky HUD anchor: check every 3 cycles (45s) if new messages pushed player off screen
                 if update_cycle % 3 == 0 and session.text_channel and getattr(session, "sticky_hud_enabled", True):
                     try:
                         latest_msgs = [m async for m in session.text_channel.history(limit=5)]
@@ -490,7 +502,7 @@ class MusicPlayerService:
                 break
             except discord.HTTPException as e:
                 if getattr(e, "status", None) == 429:
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(15)
                 else:
                     break
             except Exception:
@@ -531,8 +543,18 @@ class MusicPlayerService:
         return success
 
     @classmethod
+    async def skip_current(cls, session: GuildMusicSession) -> bool:
+        """Skip currently active track cleanly under session lock."""
+        if not session.voice_client:
+            return False
+        if session.voice_client.is_playing() or session.voice_client.is_paused():
+            session.voice_client.stop()
+            return True
+        return False
+
+    @classmethod
     async def send_now_playing_panel(cls, session: GuildMusicSession) -> None:
-        """Send or update the interactive control panel in the text channel."""
+        """Send or update the single persistent interactive control panel in the text channel."""
         if not session.text_channel:
             return
 
@@ -540,7 +562,20 @@ class MusicPlayerService:
         view = NowPlayingControlView(session)
 
         try:
-            # Always post as a fresh new message in the text channel (never edit previous message)
+            # 1. Update existing message if valid (avoids spamming new messages)
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=embed, view=view)
+                    if session.is_playing:
+                        if not session.progress_updater_task or session.progress_updater_task.done():
+                            session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
+                    return
+                except discord.NotFound:
+                    session.now_playing_message = None
+                except Exception:
+                    pass
+
+            # 2. Otherwise post new message and register as persistent panel
             msg = await session.text_channel.send(embed=embed, view=view)
             session.now_playing_message = msg
             if session.is_playing:
@@ -682,6 +717,16 @@ class NowPlayingControlView(discord.ui.View):
                     child.emoji = "▶" if target.is_paused else "⏸"
                     child.style = discord.ButtonStyle.success if target.is_paused else discord.ButtonStyle.secondary
 
+    def _check_user_voice(self, interaction: discord.Interaction, session: Optional[GuildMusicSession]) -> Tuple[bool, Optional[str]]:
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return False, "❌ This command must be used in a server."
+        if not interaction.user.voice or not interaction.user.voice.channel:
+            return False, "❌ You must join a voice channel to interact with music controls."
+        if session and session.voice_client and session.voice_client.channel:
+            if interaction.user.voice.channel.id != session.voice_client.channel.id:
+                return False, f"❌ You must be in the same voice channel ({session.voice_client.channel.mention}) as the bot."
+        return True, None
+
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:
         if isinstance(error, discord.NotFound) and getattr(error, "code", None) == 10062:
             return
@@ -697,6 +742,14 @@ class NowPlayingControlView(discord.ui.View):
             pass
 
         session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
         if not session or not session.history:
             try:
                 await interaction.followup.send("❌ No previous tracks in history.", ephemeral=True)
@@ -724,7 +777,15 @@ class NowPlayingControlView(discord.ui.View):
             pass
 
         session = self._get_session(interaction)
-        if not session or not session.current_track or not session.is_playing:
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session or not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
             try:
                 await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             except Exception:
@@ -749,6 +810,14 @@ class NowPlayingControlView(discord.ui.View):
             pass
 
         session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
         if not session or not session.voice_client:
             try:
                 await interaction.followup.send("❌ Music bot is not connected to voice.", ephemeral=True)
@@ -770,6 +839,11 @@ class NowPlayingControlView(discord.ui.View):
             action_text = "▶ Playback resumed."
             if not session.progress_updater_task or session.progress_updater_task.done():
                 session.progress_updater_task = asyncio.create_task(MusicPlayerService._progress_updater_loop(session))
+        elif session.state == PlaybackState.PAUSED and session.current_track:
+            bot: RaiMusicBot = interaction.client  # type: ignore
+            cur_pos = session.progress_seconds
+            await MusicPlayerService.resume_track_stream(bot, session, session.current_track, cur_pos)
+            action_text = "▶ Playback resumed."
         else:
             action_text = "⏹ No track active."
 
@@ -793,7 +867,15 @@ class NowPlayingControlView(discord.ui.View):
             pass
 
         session = self._get_session(interaction)
-        if not session or not session.current_track or not session.is_playing:
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session or not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
             try:
                 await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             except Exception:
@@ -819,7 +901,15 @@ class NowPlayingControlView(discord.ui.View):
             pass
 
         session = self._get_session(interaction)
-        if not session or not session.voice_client or not session.voice_client.is_playing():
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session or not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
             try:
                 await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             except Exception:
