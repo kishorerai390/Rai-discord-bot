@@ -744,21 +744,34 @@ class MusicCog(commands.Cog, name="Music"):
             pass
 
         search_start = time.time()
+        is_timed_out = False
         try:
             track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=18.0)
         except asyncio.TimeoutError:
             track = None
+            is_timed_out = True
             logger.warning(f"[Playback] Audio resolution timed out for query '{query}'")
         except Exception as e:
             track = None
             logger.error(f"[Playback] Track resolution exception for '{query}': {e}", exc_info=True)
 
         if not track:
-            embed_fail = discord.Embed(
-                title="😿 NO AUDIO TRACK FOUND",
-                description=f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`",
-                color=0xED4245,
-            )
+            if is_timed_out:
+                embed_fail = discord.Embed(
+                    title="⏱️ AUDIO SEARCH TIMED OUT",
+                    description=(
+                        f"The music search for `{query[:100]}` took longer than expected and timed out.\n\n"
+                        f"• Try playing with a direct YouTube or SoundCloud link\n"
+                        f"• Or refine your search terms (artist name + title)"
+                    ),
+                    color=0xED4245,
+                )
+            else:
+                embed_fail = discord.Embed(
+                    title="😿 NO AUDIO TRACK FOUND",
+                    description=f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`",
+                    color=0xED4245,
+                )
             try:
                 await interaction.edit_original_response(embed=embed_fail)
             except Exception:
