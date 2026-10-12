@@ -563,6 +563,89 @@ class MusicPlayerService:
                     pass
         return success
 
+    seek_to_second = seek
+
+    @classmethod
+    async def apply_filter_or_eq(
+        cls,
+        bot: RaiMusicBot,
+        session: GuildMusicSession,
+        preset_key: str,
+        display_name: str,
+    ) -> bool:
+        """Safely apply an Equalizer / DSP filter preset in-place without skipping the song."""
+        FILTER_CHAINS = {
+            "bassboost": "-af equalizer=f=60:width_type=h:width=50:g=10",
+            "nightcore": "-af atempo=1.25,asetrate=48000*1.25",
+            "8d": "-af apulsator=hz=0.125",
+            "vaporwave": "-af atempo=0.85,asetrate=48000*0.85",
+            "vocal": "-af equalizer=f=1000:width_type=h:width=200:g=6",
+            "pop": "-af equalizer=f=1000:width_type=h:width=200:g=3,equalizer=f=8000:width_type=h:width=500:g=4",
+            "rock": "-af equalizer=f=100:width_type=h:width=60:g=5,equalizer=f=3000:width_type=h:width=500:g=4",
+            "flat": "",
+            "reset": "",
+        }
+
+        async with session.lock:
+            old_filter = session.audio_filter
+            old_preset = session.eq_preset
+            new_filter = FILTER_CHAINS.get(preset_key.lower().strip(), "")
+
+            session.eq_preset = display_name
+            session.audio_filter = new_filter
+
+            # In-place hot swap if audio is actively playing or paused
+            if session.current_track and session.voice_client and session.voice_client.is_connected():
+                was_paused = session.is_paused
+                current_pos = max(0, int(session.progress_seconds))
+
+                # Increment generation and set reencoding flag to prevent callback from skipping
+                session.playback_generation += 1
+                session._is_reencoding = True
+
+                try:
+                    if session.voice_client.is_playing() or session.voice_client.is_paused():
+                        session.voice_client.stop()
+                except Exception:
+                    pass
+
+                await asyncio.sleep(0.05)
+                session._is_reencoding = False
+
+                success = await cls.resume_track_stream(bot, session, session.current_track, current_pos)
+                if not success:
+                    logger.warning(f"Failed to apply EQ filter '{display_name}', rolling back to '{old_preset}'")
+                    session.audio_filter = old_filter
+                    session.eq_preset = old_preset
+                    session.playback_generation += 1
+                    session._is_reencoding = True
+                    try:
+                        if session.voice_client.is_playing() or session.voice_client.is_paused():
+                            session.voice_client.stop()
+                    except Exception:
+                        pass
+                    await asyncio.sleep(0.05)
+                    session._is_reencoding = False
+                    await cls.resume_track_stream(bot, session, session.current_track, current_pos)
+                    return False
+
+                if was_paused:
+                    try:
+                        session.voice_client.pause()
+                        session.state = PlaybackState.PAUSED
+                        session.pause_time = time.time()
+                    except Exception:
+                        pass
+
+            # Update Now Playing panel to reflect the newly active EQ preset
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=cls.build_now_playing_embed(session))
+                except Exception:
+                    pass
+
+            return True
+
     @classmethod
     async def skip_current(cls, session: GuildMusicSession) -> bool:
         """Skip currently active track cleanly under session lock."""
