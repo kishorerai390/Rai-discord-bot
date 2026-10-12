@@ -1136,13 +1136,14 @@ class MusicCog(commands.Cog, name="Music"):
 
     @app_commands.command(name="eq", description="Select an Audio Equalizer preset")
     async def music_eq(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         view = AudioEqualizerView(session, self.bot)
-        await interaction.response.send_message(
-            f"🎛️ **Audio Equalizer Presets** (Current: `{getattr(session, 'eq_preset', 'Flat')}`):",
-            view=view,
-            ephemeral=True,
-        )
+        msg_text = f"🎛️ **Audio Equalizer Presets** (Current: `{getattr(session, 'eq_preset', 'Flat')}`):"
+        try:
+            await interaction.edit_original_response(content=msg_text, view=view)
+        except Exception:
+            await interaction.followup.send(msg_text, view=view, ephemeral=True)
 
     @app_commands.command(name="radio", description="Toggle continuous 24/7 Vibe Radio auto-fill mode")
     @app_commands.describe(vibe="Musical mood / vibe for radio auto-fill")
@@ -1226,8 +1227,9 @@ class MusicCog(commands.Cog, name="Music"):
 
     @app_commands.command(name="watch", description="Launch Discord Watch Together / YouTube activity in voice")
     async def music_watch(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         if not interaction.user or not getattr(interaction.user, "voice", None) or not interaction.user.voice.channel:
-            await interaction.response.send_message("❌ You must be connected to a voice channel to start Watch Together.", ephemeral=True)
+            await interaction.followup.send("❌ You must be connected to a voice channel to start Watch Together.", ephemeral=True)
             return
 
         vc = interaction.user.voice.channel
@@ -1245,13 +1247,13 @@ class MusicCog(commands.Cog, name="Music"):
                 color=0xFF0000,
             )
             embed.set_footer(text="Neko Songs • Native Discord Voice Activity")
-            await interaction.response.send_message(embed=embed)
+            await interaction.edit_original_response(embed=embed)
         except Exception as e:
-            await interaction.response.send_message(f"❌ Could not create Watch Together activity invite: {e}", ephemeral=True)
+            await interaction.followup.send(f"❌ Could not create Watch Together activity invite: {e}", ephemeral=True)
 
     @music_group.command(name="join", description="Connect Neko Songs to your voice channel")
     async def music_join(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         if not await self._check_permissions(interaction):
             return
 
@@ -1264,10 +1266,12 @@ class MusicCog(commands.Cog, name="Music"):
 
     @music_group.command(name="leave", description="Disconnect Neko Songs from voice")
     async def music_leave(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_stop.callback(self, interaction)
 
     @app_commands.command(name="disconnect", description="Disconnect Neko Songs from voice")
     async def music_disconnect(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_stop.callback(self, interaction)
 
     # --- 2. RECOMMENDATIONS & NEKO DJ ---
@@ -2061,8 +2065,9 @@ class MusicCog(commands.Cog, name="Music"):
     ])
     async def cmd_sleeptimer(self, interaction: discord.Interaction, duration: app_commands.Choice[int]) -> None:
         """Sets a bedtime sleep timer with gentle volume fade out."""
+        await self.ensure_deferred(interaction, ephemeral=False)
         if not interaction.guild:
-            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            await interaction.edit_original_response(content="❌ This command must be used in a server.")
             return
 
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
@@ -2071,7 +2076,7 @@ class MusicCog(commands.Cog, name="Music"):
                 session.sleep_timer_task.cancel()
                 session.sleep_timer_task = None
             session.sleep_timer_end = 0.0
-            await interaction.response.send_message("⏰ Sleep timer has been **cancelled**.")
+            await interaction.edit_original_response(content="⏰ Sleep timer has been **cancelled**.")
             return
 
         if session.sleep_timer_task and not session.sleep_timer_task.done():
@@ -2116,7 +2121,7 @@ class MusicCog(commands.Cog, name="Music"):
             color=COLOR_ELECTRIC_CYAN,
         )
         embed.set_footer(text="Use /sleeptimer duration:Cancel to stop early")
-        await interaction.response.send_message(embed=embed)
+        await interaction.edit_original_response(embed=embed)
 
     # =========================================================================
     # SAVED PLAYLIST MANAGEMENT
@@ -2383,6 +2388,7 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.command(name="invite", description="Get official invite link for MusicMaid and SentinelBot")
     async def invite(self, interaction: discord.Interaction) -> None:
         """Provide official invite links for MusicMaid with interactive buttons."""
+        await self.ensure_deferred(interaction, ephemeral=False)
         bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
         view = discord.ui.View()
         view.add_item(
@@ -2411,7 +2417,7 @@ class MusicCog(commands.Cog, name="Music"):
             color=0x00E5FF,
         )
         embed.set_footer(text=f"{bot_name} • Cute & Futuristic Audio Companion")
-        await interaction.response.send_message(embed=embed, view=view)
+        await interaction.edit_original_response(embed=embed, view=view)
 
 
     # =========================================================================
@@ -2422,8 +2428,9 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.describe(symbol="New prefix symbol (leave empty to view current prefix)")
     async def cmd_prefix(self, interaction: discord.Interaction, symbol: Optional[str] = None) -> None:
         """View or configure server custom prefix."""
+        await self.ensure_deferred(interaction, ephemeral=True)
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
-            await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
+            await interaction.edit_original_response(content="❌ This command must be used in a server.")
             return
 
         current_pref = await self.bot.get_guild_prefix(interaction.guild.id)
@@ -2440,16 +2447,16 @@ class MusicCog(commands.Cog, name="Music"):
                 color=COLOR_NEON_BLUE,
             )
             embed.set_footer(text=f"You can also mention the bot: @MusicMaid help")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.edit_original_response(embed=embed)
             return
 
         if not interaction.user.guild_permissions.manage_guild and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need the **Manage Server** permission to change the prefix.", ephemeral=True)
+            await interaction.edit_original_response(content="❌ You need the **Manage Server** permission to change the prefix.")
             return
 
         new_sym = symbol.strip()
         if not (1 <= len(new_sym) <= 5):
-            await interaction.response.send_message("❌ Prefix must be between 1 and 5 characters long.", ephemeral=True)
+            await interaction.edit_original_response(content="❌ Prefix must be between 1 and 5 characters long.")
             return
 
         settings = await self.bot.db.get_guild_settings(interaction.guild.id)
@@ -2462,7 +2469,7 @@ class MusicCog(commands.Cog, name="Music"):
             description=f"Server prefix updated to: `{new_sym}`\n\nTry running `{new_sym}play lofi` or `{new_sym}c`!",
             color=COLOR_ELECTRIC_CYAN,
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.edit_original_response(embed=embed)
 
     @commands.command(name="prefix")
     async def pfx_prefix(self, ctx: commands.Context, new_symbol: Optional[str] = None) -> None:
@@ -2882,6 +2889,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @app_commands.command(name="support", description="Official Support Server for MusicMaid and Rai bots (MRL GAMING)")
     async def music_support(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
         from config import SUPPORT_INVITE_URL
         embed = discord.Embed(
             title="💬 MusicMaid Official Support Server",
@@ -2896,7 +2904,7 @@ class MusicCog(commands.Cog, name="Music"):
         )
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Join Support Server", url=SUPPORT_INVITE_URL, emoji="💬"))
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @commands.command(name="support")
     async def pfx_support(self, ctx: commands.Context) -> None:
