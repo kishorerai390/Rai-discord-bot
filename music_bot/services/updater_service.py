@@ -11,6 +11,8 @@ import importlib
 import json
 import logging
 from pathlib import Path
+import re
+import shutil
 import sys
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 import urllib.request
@@ -39,29 +41,69 @@ class MusicAutoUpdater:
             return "unknown"
 
     @classmethod
+    def get_ejs_version(cls) -> str:
+        """Return currently installed yt-dlp-ejs challenge solver version."""
+        try:
+            import yt_dlp_ejs
+            return getattr(yt_dlp_ejs, "__version__", "installed")
+        except Exception:
+            return "not installed"
+
+    @classmethod
+    def get_js_runtime_info(cls) -> Dict[str, Any]:
+        """Inspect system for JavaScript runtimes required by YouTube challenge solver."""
+        node = shutil.which("node") or "C:\\Program Files\\nodejs\\node.exe"
+        node_avail = bool(node and (Path(node).exists() or shutil.which("node")))
+        deno = shutil.which("deno")
+        quickjs = shutil.which("quickjs")
+        active = "Node.js" if node_avail else ("Deno" if deno else ("QuickJS" if quickjs else "None (Embedded Fallback)"))
+        return {
+            "active": active,
+            "node_available": node_avail,
+            "node_path": node if node_avail else None,
+            "deno_available": bool(deno),
+            "quickjs_available": bool(quickjs),
+        }
+
+    @classmethod
     async def check_ytdl_version(cls) -> Dict[str, Any]:
-        """Query PyPI asynchronously to check if a newer yt-dlp version is available."""
-        current = cls.get_current_ytdl_version()
+        """Query PyPI asynchronously to check if a newer yt-dlp or yt-dlp-ejs version is available."""
+        current_ytdl = cls.get_current_ytdl_version()
+        current_ejs = cls.get_ejs_version()
         loop = asyncio.get_running_loop()
 
         def _fetch_pypi() -> Dict[str, Any]:
-            req = urllib.request.Request(
-                "https://pypi.org/pypi/yt-dlp/json",
-                headers={"User-Agent": "MusicMaid-AutoUpdater/1.0"},
-            )
-            with urllib.request.urlopen(req, timeout=8.0) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                latest = data.get("info", {}).get("version", current)
-                def _ver_tuple(v: str):
-                    try:
-                        return tuple(int(x) for x in re.findall(r"\d+", v))
-                    except Exception:
-                        return (0,)
-                return {
-                    "current": current,
-                    "latest": latest,
-                    "update_available": _ver_tuple(latest) > _ver_tuple(current),
-                }
+            def _get_latest(pkg: str, fallback: str) -> str:
+                try:
+                    req = urllib.request.Request(
+                        f"https://pypi.org/pypi/{pkg}/json",
+                        headers={"User-Agent": "MusicMaid-AutoUpdater/1.0"},
+                    )
+                    with urllib.request.urlopen(req, timeout=6.0) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        return data.get("info", {}).get("version", fallback)
+                except Exception:
+                    return fallback
+
+            def _ver_tuple(v: str):
+                try:
+                    return tuple(int(x) for x in re.findall(r"\d+", v))
+                except Exception:
+                    return (0,)
+
+            latest_ytdl = _get_latest("yt-dlp", current_ytdl)
+            latest_ejs = _get_latest("yt-dlp-ejs", current_ejs)
+            ytdl_update = _ver_tuple(latest_ytdl) > _ver_tuple(current_ytdl)
+            ejs_update = (current_ejs == "not installed") or (_ver_tuple(latest_ejs) > _ver_tuple(current_ejs))
+
+            return {
+                "current_ytdl": current_ytdl,
+                "latest_ytdl": latest_ytdl,
+                "current_ejs": current_ejs,
+                "latest_ejs": latest_ejs,
+                "update_available": ytdl_update or ejs_update,
+                "js_runtime": cls.get_js_runtime_info(),
+            }
 
         try:
             res = await loop.run_in_executor(None, _fetch_pypi)
@@ -70,24 +112,27 @@ class MusicAutoUpdater:
         except Exception as e:
             logger.warning(f"Failed to query PyPI for yt-dlp release: {e}")
             return {
-                "current": current,
-                "latest": current,
+                "current_ytdl": current_ytdl,
+                "latest_ytdl": current_ytdl,
+                "current_ejs": current_ejs,
+                "latest_ejs": current_ejs,
                 "update_available": False,
+                "js_runtime": cls.get_js_runtime_info(),
                 "error": str(e),
             }
 
     @classmethod
     async def update_ytdl(cls, force: bool = False, bot: Optional[RaiMusicBot] = None) -> Tuple[bool, str]:
-        """Perform a background upgrade of yt-dlp inside the active virtual environment."""
+        """Perform a background upgrade of yt-dlp and yt-dlp-ejs inside the active virtual environment."""
         check = await cls.check_ytdl_version()
         if not check.get("update_available") and not force:
-            return True, f"yt-dlp is already at the latest release (`v{check.get('current')}`)."
+            return True, f"Extractors are already at the latest release (`yt-dlp v{check.get('current_ytdl')}`, `EJS {check.get('current_ejs')}`)."
 
-        current_ver = check.get("current", "unknown")
-        latest_ver = check.get("latest", "latest")
-        logger.info(f"Initiating background yt-dlp upgrade: {current_ver} -> {latest_ver}...")
+        current_ver = check.get("current_ytdl", "unknown")
+        latest_ver = check.get("latest_ytdl", "latest")
+        logger.info(f"Initiating background yt-dlp & EJS upgrade: {current_ver} -> {latest_ver}...")
 
-        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp"]
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp[default]", "yt-dlp-ejs"]
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -97,24 +142,32 @@ class MusicAutoUpdater:
             stdout, stderr = await proc.communicate()
 
             if proc.returncode == 0:
-                # Reload yt_dlp modules in memory
+                # Reload yt_dlp & resolver in memory
                 try:
                     import yt_dlp
                     importlib.reload(yt_dlp)
                     import yt_dlp.version
                     importlib.reload(yt_dlp.version)
                     new_ver = yt_dlp.version.__version__
+                    import music_bot.services.resolver_service as m_res
+                    importlib.reload(m_res)
                 except Exception:
                     new_ver = latest_ver
 
-                msg = f"Successfully updated yt-dlp: `v{current_ver}` -> `v{new_ver}`"
+                msg = f"Successfully updated yt-dlp + EJS challenge solver: `v{current_ver}` -> `v{new_ver}`"
                 logger.info(f"[AutoUpdater] {msg}")
 
                 if bot:
                     await cls.dispatch_update_alert(
                         bot,
-                        title="🔄 YT-DLP EXTRACTOR AUTO-UPDATED",
-                        description=f"Audio extractor was autonomously patched to prevent playback breakages.\n\n• **Old Version:** `v{current_ver}`\n• **New Version:** `v{new_ver}`\n• **Downtime:** `0.0s (Live streams intact)`",
+                        title="🔄 EXTRACTOR & CHALLENGE SOLVER AUTO-UPDATED",
+                        description=(
+                            f"Audio extractor and JavaScript challenge solver were autonomously patched.\n\n"
+                            f"• **YT-DLP Version:** `v{current_ver}` -> `v{new_ver}`\n"
+                            f"• **EJS Solver:** `v{cls.get_ejs_version()}`\n"
+                            f"• **JS Runtime:** `{cls.get_js_runtime_info().get('active')}`\n"
+                            f"• **Playback Status:** `Continuous 0.0s Downtime`"
+                        ),
                         color=0x00E5FF,
                     )
                 return True, msg
@@ -390,7 +443,7 @@ class MusicAutoUpdater:
                 if iteration % 4 == 0:
                     check = await cls.check_ytdl_version()
                     if check.get("update_available"):
-                        logger.info(f"[AutoUpdater] New yt-dlp detected: v{check.get('latest')}. Applying background patch...")
+                        logger.info(f"[AutoUpdater] New release detected: yt-dlp v{check.get('latest_ytdl')}, EJS v{check.get('latest_ejs')}. Applying background patch...")
                         success, msg = await cls.update_ytdl(bot=bot)
                         if success:
                             logger.info(f"[AutoUpdater] Applied patch: {msg}")

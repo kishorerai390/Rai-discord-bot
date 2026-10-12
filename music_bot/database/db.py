@@ -1033,6 +1033,124 @@ class MusicDatabase:
             await self._db.commit()
             return cursor.rowcount
 
+    async def record_history(
+        self,
+        guild_id: int,
+        title: str,
+        url: str,
+        artist: Optional[str] = None,
+        requester_id: Optional[int] = None,
+    ) -> None:
+        """Record track playback event into music_history."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            await self._db.execute("""
+                INSERT INTO music_history (guild_id, title, url, artist, requester_id, played_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (guild_id, title, url, artist or "Unknown Artist", requester_id, now_iso))
+            await self._db.commit()
+
+    async def get_guild_wrapped_stats(self, guild_id: int, days: int = 30) -> Dict[str, Any]:
+        """Aggregate listening statistics for Server Music Wrapped."""
+        async with self._lock:
+            # Total tracks played
+            async with self._db.execute(
+                "SELECT COUNT(*) FROM music_history WHERE guild_id = ?", (guild_id,)
+            ) as cur:
+                total_tracks = (await cur.fetchone())[0]
+
+            # Top tracks
+            async with self._db.execute("""
+                SELECT title, artist, COUNT(*) as play_count
+                FROM music_history
+                WHERE guild_id = ?
+                GROUP BY title, artist
+                ORDER BY play_count DESC
+                LIMIT 5
+            """, (guild_id,)) as cur:
+                top_tracks = [dict(r) for r in await cur.fetchall()]
+
+            # Top artists
+            async with self._db.execute("""
+                SELECT artist, COUNT(*) as play_count
+                FROM music_history
+                WHERE guild_id = ? AND artist != 'Unknown Artist'
+                GROUP BY artist
+                ORDER BY play_count DESC
+                LIMIT 5
+            """, (guild_id,)) as cur:
+                top_artists = [dict(r) for r in await cur.fetchall()]
+
+            # Top requesters
+            async with self._db.execute("""
+                SELECT requester_id, COUNT(*) as request_count
+                FROM music_history
+                WHERE guild_id = ? AND requester_id IS NOT NULL AND requester_id != 0
+                GROUP BY requester_id
+                ORDER BY request_count DESC
+                LIMIT 5
+            """, (guild_id,)) as cur:
+                top_requesters = [dict(r) for r in await cur.fetchall()]
+
+            return {
+                "total_plays": total_tracks,
+                "top_tracks": top_tracks,
+                "top_artists": top_artists,
+                "top_requesters": top_requesters,
+            }
+
+    async def add_favorite(
+        self,
+        user_id: int,
+        title: str,
+        url: str,
+        duration: int = 0,
+        artist: Optional[str] = None,
+        thumbnail: Optional[str] = None,
+    ) -> bool:
+        """Add a track to user's personal favorites."""
+        now_iso = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            try:
+                await self._db.execute("""
+                    INSERT OR REPLACE INTO music_favorites (user_id, title, url, duration, artist, thumbnail, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user_id, title, url, duration, artist or "Unknown Artist", thumbnail, now_iso))
+                await self._db.commit()
+                return True
+            except Exception as e:
+                logger.warning(f"Failed to add favorite for user {user_id}: {e}")
+                return False
+
+    async def get_user_favorites(self, user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+        """Retrieve user's favorite tracks ordered by most recently added."""
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT id, title, url, duration, artist, thumbnail, created_at
+                FROM music_favorites
+                WHERE user_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+            """, (user_id, limit)) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
+    async def remove_favorite(self, user_id: int, url_or_id: str) -> bool:
+        """Remove a track from user's favorites by URL or record ID."""
+        async with self._lock:
+            if url_or_id.isdigit():
+                cur = await self._db.execute(
+                    "DELETE FROM music_favorites WHERE user_id = ? AND id = ?",
+                    (user_id, int(url_or_id))
+                )
+            else:
+                cur = await self._db.execute(
+                    "DELETE FROM music_favorites WHERE user_id = ? AND url = ?",
+                    (user_id, url_or_id)
+                )
+            await self._db.commit()
+            return cur.rowcount > 0
+
     def _row_to_persistent_session(self, row: Dict[str, Any]) -> PersistentMusicSession:
         """Helper to deserialize database row into a structured PersistentMusicSession."""
         if row.get("current_track_json"):
@@ -1060,4 +1178,5 @@ class MusicDatabase:
             row["history"] = []
 
         return PersistentMusicSession.from_dict(row)
+
 

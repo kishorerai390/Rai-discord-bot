@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import io
+import json
 import logging
 import math
 import random
@@ -16,6 +18,8 @@ from typing import TYPE_CHECKING, List, Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+from music_bot.services.updater_service import MusicAutoUpdater
 
 from music_bot.config import (
     BOT_NAME,
@@ -2020,14 +2024,16 @@ class MusicCog(commands.Cog, name="Music"):
     # AUDIO FILTERS & DSP ENGINE
     # =========================================================================
 
-    @app_commands.command(name="filter", description="Apply real-time audio filters and audio effects")
+    @app_commands.command(name="filter", description="Apply real-time audio filters and DSP effects")
     @app_commands.describe(effect="Audio effect preset to apply")
     @app_commands.choices(effect=[
+        app_commands.Choice(name="🎧 8D Spatial Audio (360° Orbit)", value="8d"),
+        app_commands.Choice(name="🎤 Karaoke (Center Vocal Removal)", value="karaoke"),
+        app_commands.Choice(name="☕ Lo-Fi Vintage (Warm Vinyl Tape EQ)", value="lofi"),
         app_commands.Choice(name="🔊 Bass Boost (+10dB Sub-bass)", value="bassboost"),
         app_commands.Choice(name="⚡ Nightcore (Speed 1.25x & High Pitch)", value="nightcore"),
-        app_commands.Choice(name="🎧 8D Audio (Surround Pulsator)", value="8d"),
         app_commands.Choice(name="🌴 Vaporwave (Slowed 0.85x & Deep Pitch)", value="vaporwave"),
-        app_commands.Choice(name="🎤 Vocal Boost (Mid-frequency clarity)", value="vocal"),
+        app_commands.Choice(name="🎤 Vocal Clarity (Mid-range Presence)", value="vocal"),
         app_commands.Choice(name="⏹️ Reset (Clean Flat Audio)", value="reset"),
     ])
     async def cmd_filter(self, interaction: discord.Interaction, effect: app_commands.Choice[str]) -> None:
@@ -2036,16 +2042,18 @@ class MusicCog(commands.Cog, name="Music"):
             await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
             return
 
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         if not session.current_track or not session.is_playing:
-            await interaction.followup.send("❌ Nothing is currently playing. Start a track first!", ephemeral=True)
+            await interaction.edit_original_response(content="❌ Nothing is currently playing. Start a track first!")
             return
 
         filter_chains = {
+            "8d": "-af apulsator=hz=0.125:amount=1",
+            "karaoke": "-af stereotools=mlev=0.0:slev=1.5",
+            "lofi": "-af lowpass=f=3200,highpass=f=300",
             "bassboost": "-af equalizer=f=60:width_type=h:width=50:g=10",
             "nightcore": "-af atempo=1.25,asetrate=48000*1.25",
-            "8d": "-af apulsator=hz=0.125",
             "vaporwave": "-af atempo=0.85,asetrate=48000*0.85",
             "vocal": "-af equalizer=f=1000:width_type=h:width=200:g=6",
             "reset": "",
@@ -2059,10 +2067,10 @@ class MusicCog(commands.Cog, name="Music"):
 
         embed = discord.Embed(
             title="🎛️ AUDIO FILTER APPLIED",
-            description=f"Applied audio effect: **{effect.name}**\n*Playback refreshed with real-time DSP filter.*",
+            description=f"Applied audio effect: **{effect.name}**\n*Playback refreshed with real-time DSP filter without voice disconnect.*",
             color=COLOR_ELECTRIC_CYAN if effect.value != "reset" else COLOR_NEON_BLUE,
         )
-        await interaction.followup.send(embed=embed)
+        await interaction.edit_original_response(embed=embed)
 
     # =========================================================================
     # BEDTIME SLEEP TIMER
@@ -2902,6 +2910,486 @@ class MusicCog(commands.Cog, name="Music"):
                 await ctx.reply("🎧 **Neko DJ Non-Stop Mode ACTIVE!** Music will play continuously non-stop without silence. 🐾", mention_author=False)
         else:
             await ctx.reply("⏹️ **Neko DJ Non-Stop Mode DISABLED.** Playback will stop when the queue finishes.", mention_author=False)
+
+    # =========================================================================
+    # PRIORITY QUEUE BUMP (/bump)
+    # =========================================================================
+
+    @app_commands.command(name="bump", description="Priority bump a song to play next (position #1 in queue)")
+    @app_commands.describe(target="Queue position number (e.g. 3) or song search query")
+    async def cmd_bump(self, interaction: discord.Interaction, target: str) -> None:
+        """Move a song to the very front of the queue, or resolve and insert immediately."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        if not interaction.guild:
+            await interaction.edit_original_response(content="❌ This command must be used in a server.")
+            return
+
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        async with session.lock:
+            if target.isdigit():
+                idx = int(target) - 1
+                if idx < 0 or idx >= len(session.queue):
+                    await interaction.edit_original_response(
+                        content=f"❌ Invalid queue position. Queue length is **{len(session.queue)}**."
+                    )
+                    return
+                bumped = session.queue[idx]
+                del session.queue[idx]
+                session.queue.appendleft(bumped)
+                embed = discord.Embed(
+                    title="⚡ PRIORITY QUEUE BUMP",
+                    description=f"Bumped **[{bumped.title}]({bumped.url})** to position **#1**!\n*It will play immediately after the current song.*",
+                    color=COLOR_ELECTRIC_CYAN,
+                )
+                await interaction.edit_original_response(embed=embed)
+                return
+
+        resolved = await AudioResolver.resolve_track(target, interaction.user.id, interaction.user.display_name)
+        if not resolved:
+            await interaction.edit_original_response(content=f"❌ Could not resolve track for query: `{target}`")
+            return
+
+        async with session.lock:
+            session.queue.appendleft(resolved)
+
+        embed = discord.Embed(
+            title="⚡ PRIORITY QUEUE BUMP",
+            description=f"Resolved and bumped **[{resolved.title}]({resolved.url})** to position **#1**!\n*It will play immediately after the current song.*",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        if resolved.thumbnail:
+            embed.set_thumbnail(url=resolved.thumbnail)
+        await interaction.edit_original_response(embed=embed)
+
+    # =========================================================================
+    # LIVE LYRICS & KARAOKE VIEWER (/lyrics)
+    # =========================================================================
+
+    @app_commands.command(name="lyrics", description="Display live synchronized or full song lyrics")
+    @app_commands.describe(search="Optional track name (defaults to currently playing track)")
+    async def cmd_lyrics(self, interaction: discord.Interaction, search: Optional[str] = None) -> None:
+        """Fetch and display lyrics in a responsive, clean embed without creating extra channels."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id) if interaction.guild_id else None
+
+        title = search
+        artist = None
+        if not title and session and session.current_track:
+            title = session.current_track.title
+            artist = session.current_track.artist
+
+        if not title:
+            await interaction.edit_original_response(content="❌ No track currently playing. Please specify a song name!")
+            return
+
+        lyrics_text = await LyricsService.fetch_lyrics(title, artist)
+        if not lyrics_text:
+            await interaction.edit_original_response(content=f"❌ No lyrics found for **{title}**.")
+            return
+
+        pages = []
+        lines = lyrics_text.splitlines()
+        cur_page = []
+        cur_len = 0
+        for l in lines:
+            if cur_len + len(l) > 3500:
+                pages.append("\n".join(cur_page))
+                cur_page = [l]
+                cur_len = len(l)
+            else:
+                cur_page.append(l)
+                cur_len += len(l) + 1
+        if cur_page:
+            pages.append("\n".join(cur_page))
+
+        embed = discord.Embed(
+            title=f"🎤 Lyrics: {title[:50]}",
+            description=pages[0],
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        if len(pages) > 1:
+            embed.set_footer(text=f"Page 1 of {len(pages)} • LRCLIB Engine")
+        else:
+            embed.set_footer(text="LRCLIB Synced Lyrics Engine")
+
+        await interaction.edit_original_response(embed=embed)
+
+    # =========================================================================
+    # PERSONAL FAVORITES SUITE (/favorite)
+    # =========================================================================
+
+    favorites_group = app_commands.Group(name="favorite", description="Manage personal favorite music tracks")
+
+    @favorites_group.command(name="add", description="Save currently playing song or search query to your favorites")
+    @app_commands.describe(search="Optional search query (defaults to current track)")
+    async def fav_add(self, interaction: discord.Interaction, search: Optional[str] = None) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        session = await self.session_manager.get_session(interaction.guild_id) if interaction.guild_id else None
+
+        track = None
+        if not search and session and session.current_track:
+            track = session.current_track
+        elif search:
+            track = await AudioResolver.resolve_track(search, interaction.user.id, interaction.user.display_name)
+
+        if not track:
+            await interaction.edit_original_response(content="❌ Nothing is currently playing and no track was specified.")
+            return
+
+        if self.bot.db:
+            ok = await self.bot.db.add_favorite(
+                user_id=interaction.user.id,
+                title=track.title,
+                url=track.url,
+                duration=track.duration or 0,
+                artist=track.artist,
+                thumbnail=track.thumbnail,
+            )
+            if ok:
+                embed = discord.Embed(
+                    title="⭐ ADDED TO FAVORITES",
+                    description=f"Saved **[{track.title}]({track.url})** to your personal favorites library!",
+                    color=0xFFD700,
+                )
+                if track.thumbnail:
+                    embed.set_thumbnail(url=track.thumbnail)
+                await interaction.edit_original_response(embed=embed)
+                return
+        await interaction.edit_original_response(content="❌ Database error saving favorite.")
+
+    @favorites_group.command(name="list", description="View your saved personal favorite tracks")
+    async def fav_list(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        if not self.bot.db:
+            await interaction.edit_original_response(content="❌ Database unavailable.")
+            return
+
+        favs = await self.bot.db.get_user_favorites(interaction.user.id, limit=25)
+        if not favs:
+            await interaction.edit_original_response(content="⭐ You haven't saved any favorites yet! Use `/favorite add` while listening.")
+            return
+
+        desc_lines = []
+        for i, f in enumerate(favs, 1):
+            dur = format_duration(f.get("duration", 0))
+            desc_lines.append(f"`{i:02d}.` **[{f['title']}]({f['url']})** (`{dur}`) — *{f.get('artist', 'Unknown')}*")
+
+        embed = discord.Embed(
+            title=f"⭐ {interaction.user.display_name}'s Saved Favorites",
+            description="\n".join(desc_lines[:20]),
+            color=0xFFD700,
+        )
+        embed.set_footer(text=f"Total: {len(favs)} favorites • Use /favorite play <num> to queue")
+        await interaction.edit_original_response(embed=embed)
+
+    @favorites_group.command(name="play", description="Queue one or all of your saved favorite tracks")
+    @app_commands.describe(index="Favorite number to play, or 'all' to queue your entire favorites list")
+    async def fav_play(self, interaction: discord.Interaction, index: str = "all") -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.edit_original_response(content="❌ Must be in a server voice channel.")
+            return
+
+        if not interaction.user.voice or not interaction.user.voice.channel:
+            await interaction.edit_original_response(content="❌ You must join a voice channel first!")
+            return
+
+        favs = await self.bot.db.get_user_favorites(interaction.user.id, limit=50) if self.bot.db else []
+        if not favs:
+            await interaction.edit_original_response(content="⭐ You have no saved favorites. Use `/favorite add` first!")
+            return
+
+        session = await self.session_manager.get_session(interaction.guild_id)
+        if not session.voice_client or not session.voice_client.is_connected():
+            success = await VoiceManager.join_channel(self.bot, interaction.user.voice.channel, session)
+            if not success:
+                await interaction.edit_original_response(content="❌ Could not join voice channel.")
+                return
+
+        to_queue = []
+        if index.lower() == "all":
+            to_queue = favs
+        elif index.isdigit():
+            idx = int(index) - 1
+            if 0 <= idx < len(favs):
+                to_queue = [favs[idx]]
+            else:
+                await interaction.edit_original_response(content=f"❌ Invalid favorite number. You have {len(favs)} favorites.")
+                return
+
+        queued_count = 0
+        for f in to_queue:
+            resolved = await AudioResolver.resolve_track(f["url"], interaction.user.id, interaction.user.display_name)
+            if resolved:
+                async with session.lock:
+                    session.queue.append(resolved)
+                queued_count += 1
+                if not session.is_playing:
+                    await MusicPlayerService.start_playback(self.bot, session, resolved)
+
+        embed = discord.Embed(
+            title="⭐ FAVORITES QUEUED",
+            description=f"Queued **{queued_count}** track(s) from your personal favorites collection!",
+            color=0xFFD700,
+        )
+        await interaction.edit_original_response(embed=embed)
+
+    @favorites_group.command(name="remove", description="Remove a track from your favorites by number")
+    @app_commands.describe(index="Favorite number from /favorite list to remove")
+    async def fav_remove(self, interaction: discord.Interaction, index: int) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        if not self.bot.db:
+            await interaction.edit_original_response(content="❌ Database unavailable.")
+            return
+
+        favs = await self.bot.db.get_user_favorites(interaction.user.id, limit=50)
+        idx = index - 1
+        if 0 <= idx < len(favs):
+            target = favs[idx]
+            await self.bot.db.remove_favorite(interaction.user.id, str(target["id"]))
+            await interaction.edit_original_response(content=f"🗑️ Removed **{target['title']}** from your favorites.")
+        else:
+            await interaction.edit_original_response(content=f"❌ Invalid favorite index. You have {len(favs)} favorites.")
+
+    # =========================================================================
+    # PLAYLIST EXPORTER (/export) - SENDS DIRECTLY TO DM / EPHEMERAL
+    # =========================================================================
+
+    @app_commands.command(name="export", description="Export queue, favorites, or history directly to your DM")
+    @app_commands.describe(source="Data to export", format="File export format")
+    @app_commands.choices(source=[
+        app_commands.Choice(name="Current Playing Queue", value="queue"),
+        app_commands.Choice(name="Personal Favorites Library", value="favorites"),
+        app_commands.Choice(name="Server Listening History", value="history"),
+    ], format=[
+        app_commands.Choice(name="JSON Format (.json)", value="json"),
+        app_commands.Choice(name="M3U Audio Playlist (.m3u)", value="m3u"),
+        app_commands.Choice(name="Plain Text Track List (.txt)", value="txt"),
+    ])
+    async def cmd_export(
+        self,
+        interaction: discord.Interaction,
+        source: app_commands.Choice[str],
+        format: app_commands.Choice[str],
+    ) -> None:
+        """Exports playlist data directly to user's DM or ephemeral attachment without creating extra channels."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        session = await self.session_manager.get_session(interaction.guild_id) if interaction.guild_id else None
+
+        items: List[Dict[str, Any]] = []
+        if source.value == "queue":
+            if session and session.current_track:
+                items.append({
+                    "title": session.current_track.title,
+                    "url": session.current_track.url,
+                    "artist": session.current_track.artist,
+                    "duration": session.current_track.duration,
+                })
+            if session:
+                for q in session.queue:
+                    items.append({
+                        "title": q.title,
+                        "url": q.url,
+                        "artist": q.artist,
+                        "duration": q.duration,
+                    })
+        elif source.value == "favorites":
+            if self.bot.db:
+                items = await self.bot.db.get_user_favorites(interaction.user.id, limit=100)
+        elif source.value == "history":
+            if session:
+                for h in session.history[-50:]:
+                    items.append({
+                        "title": h.title,
+                        "url": h.url,
+                        "artist": h.artist,
+                        "duration": h.duration,
+                    })
+
+        if not items:
+            await interaction.edit_original_response(content=f"❌ No items found in **{source.name}** to export.")
+            return
+
+        ext = format.value
+        filename = f"{source.value}_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+
+        if ext == "json":
+            content_bytes = json.dumps({"source": source.value, "count": len(items), "tracks": items}, indent=2).encode("utf-8")
+        elif ext == "m3u":
+            lines = ["#EXTM3U"]
+            for it in items:
+                dur = it.get("duration") or 0
+                lines.append(f"#EXTINF:{dur},{it.get('artist', 'Unknown')} - {it.get('title', 'Unknown')}")
+                lines.append(it.get("url", ""))
+            content_bytes = "\n".join(lines).encode("utf-8")
+        else:
+            lines = [f"=== {source.name.upper()} EXPORT ==="]
+            for i, it in enumerate(items, 1):
+                lines.append(f"{i}. {it.get('title')} by {it.get('artist')} ({it.get('url')})")
+            content_bytes = "\n".join(lines).encode("utf-8")
+
+        file_obj = discord.File(io.BytesIO(content_bytes), filename=filename)
+
+        dm_sent = False
+        try:
+            await interaction.user.send(
+                content=f"📦 **Here is your exported {source.name}!** ({len(items)} tracks, `{ext}` format)\n*Enjoy your offline music library!* 🐾",
+                file=discord.File(io.BytesIO(content_bytes), filename=filename),
+            )
+            dm_sent = True
+        except Exception:
+            pass
+
+        if dm_sent:
+            await interaction.edit_original_response(
+                content=f"✅ Exported **{len(items)}** tracks from **{source.name}**! Check your Direct Messages (DMs) for `{filename}`. 📬"
+            )
+        else:
+            await interaction.edit_original_response(
+                content=f"✅ Exported **{len(items)}** tracks from **{source.name}**! (Attached directly below as DMs were closed):",
+                attachments=[file_obj],
+            )
+
+    # =========================================================================
+    # SERVER MUSIC WRAPPED (/wrapped)
+    # =========================================================================
+
+    @app_commands.command(name="wrapped", description="Display Server Music Wrapped listening statistics")
+    @app_commands.describe(days="Number of days to analyze (default: 30)")
+    async def cmd_wrapped(self, interaction: discord.Interaction, days: int = 30) -> None:
+        """Show richest listening statistics for the guild."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        if not interaction.guild or not self.bot.db:
+            await interaction.edit_original_response(content="❌ This command must be used in a server.")
+            return
+
+        stats = await self.bot.db.get_guild_wrapped_stats(interaction.guild_id, days=days)
+        total_plays = stats.get("total_plays", 0)
+
+        if total_plays == 0:
+            await interaction.edit_original_response(
+                content="📊 No playback history recorded yet for this server. Start listening to generate Wrapped stats!"
+            )
+            return
+
+        embed = discord.Embed(
+            title=f"🎧 {interaction.guild.name} • MUSIC WRAPPED",
+            description=f"Server music milestones over the past **{days} days**:\n\n• **Total Songs Played:** `{total_plays}`",
+            color=0x9D00FF,
+        )
+
+        top_tracks = stats.get("top_tracks", [])
+        if top_tracks:
+            t_lines = [f"`{i+1}.` **{t['title']}** (`{t['play_count']} plays`)" for i, t in enumerate(top_tracks)]
+            embed.add_field(name="🔥 Top Songs", value="\n".join(t_lines), inline=False)
+
+        top_artists = stats.get("top_artists", [])
+        if top_artists:
+            a_lines = [f"`{i+1}.` **{a['artist']}** (`{a['play_count']} plays`)" for i, a in enumerate(top_artists)]
+            embed.add_field(name="⭐ Top Artists", value="\n".join(a_lines), inline=True)
+
+        top_requesters = stats.get("top_requesters", [])
+        if top_requesters:
+            r_lines = [f"`{i+1}.` <@{r['requester_id']}> (`{r['request_count']} requests`)" for i, r in enumerate(top_requesters)]
+            embed.add_field(name="👑 Top DJs / Requesters", value="\n".join(r_lines), inline=True)
+
+        embed.set_footer(text="Neko Music Wrapped • Powered by Rai Analytics")
+        await interaction.edit_original_response(embed=embed)
+
+    # =========================================================================
+    # AUTONOMOUS EXTRACTOR SUPERVISOR & AUTO-UPDATER (/autoupdate)
+    # =========================================================================
+
+    autoupdate_group = app_commands.Group(name="autoupdate", description="Extractor self-healing & autonomous update supervisor")
+
+    @autoupdate_group.command(name="status", description="Show yt-dlp, EJS challenge solver, JS runtime, and canary health status")
+    async def au_status(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        ytdl_ver = MusicAutoUpdater.get_current_ytdl_version()
+        ejs_ver = MusicAutoUpdater.get_ejs_version()
+        js_info = MusicAutoUpdater.get_js_runtime_info()
+        profile = AudioResolver.get_current_profile_name()
+
+        health = await AudioResolver.probe_extractor_health()
+        operational_badge = "🟢 Operational (Zero Blocks)" if health.get("operational") else "🔴 Restricted / Auto-Healing"
+
+        embed = discord.Embed(
+            title="🛠️ AUTONOMOUS EXTRACTOR & UPDATER STATUS",
+            description=(
+                f"**System Health:** {operational_badge}\n"
+                f"• **Latency:** `{health.get('latency_ms', 0)}ms`\n"
+                f"• **Active Profile:** `{profile}`\n\n"
+                f"**Engines & Solvers:**\n"
+                f"• **yt-dlp Core:** `v{ytdl_ver}`\n"
+                f"• **EJS Challenge Solver:** `v{ejs_ver}`\n"
+                f"• **Active JS Runtime:** `{js_info.get('active')}`\n"
+                f"• **Node.js Path:** `{js_info.get('node_path') or 'Not Found'}`\n\n"
+                f"**Auto-Healing Policy:**\n"
+                f"• 30-min canary probing active\n"
+                f"• In-memory client profile auto-rotation enabled\n"
+                f"• Zero-downtime hot-reloading enabled"
+            ),
+            color=COLOR_ELECTRIC_CYAN if health.get("operational") else 0xFF0055,
+        )
+        embed.set_footer(text="MusicMaid Autonomous Self-Healing Engine")
+        await interaction.edit_original_response(embed=embed)
+
+    @autoupdate_group.command(name="check", description="Check PyPI for latest yt-dlp and yt-dlp-ejs releases")
+    async def au_check(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        res = await MusicAutoUpdater.check_ytdl_version()
+        upd = res.get("update_available", False)
+        embed = discord.Embed(
+            title="🔍 PYPI EXTRACTOR RELEASE CHECK",
+            description=(
+                f"• **Current yt-dlp:** `v{res.get('current_ytdl')}`\n"
+                f"• **Latest PyPI yt-dlp:** `v{res.get('latest_ytdl')}`\n"
+                f"• **Current EJS Solver:** `v{res.get('current_ejs')}`\n"
+                f"• **Latest PyPI EJS:** `v{res.get('latest_ejs')}`\n\n"
+                f"**Update Status:** `{'⚠️ Update Available!' if upd else '✅ Fully Up-to-Date'}`"
+            ),
+            color=0xFFD700 if upd else COLOR_ELECTRIC_CYAN,
+        )
+        await interaction.edit_original_response(embed=embed)
+
+    @autoupdate_group.command(name="update", description="Instantly update yt-dlp and EJS solver in background with 0 downtime")
+    async def au_update(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        if not interaction.user.guild_permissions.administrator and interaction.user.id != self.bot.owner_id:
+            await interaction.edit_original_response(content="❌ Administrator permission required.")
+            return
+
+        ok, msg = await MusicAutoUpdater.update_ytdl(force=True, bot=self.bot)
+        embed = discord.Embed(
+            title="🔄 BACKGROUND AUTO-UPDATE TRIGGERED",
+            description=f"**Result:** {msg}\n\n*Live playback streams were preserved without interruption.*",
+            color=COLOR_ELECTRIC_CYAN if ok else 0xFF0055,
+        )
+        await interaction.edit_original_response(embed=embed)
+
+    @autoupdate_group.command(name="canary", description="Run immediate canary resolution probe on YouTube")
+    async def au_canary(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        health = await AudioResolver.probe_extractor_health()
+        embed = discord.Embed(
+            title="🐦 EXTRACTOR CANARY PROBE",
+            description=(
+                f"• **Operational:** `{'✅ YES' if health.get('operational') else '❌ NO'}`\n"
+                f"• **Resolution Latency:** `{health.get('latency_ms', 0)}ms`\n"
+                f"• **Active Profile:** `{health.get('profile')}`\n"
+                f"• **Status:** `{health.get('message')}`"
+            ),
+            color=COLOR_ELECTRIC_CYAN if health.get("operational") else 0xFF0055,
+        )
+        await interaction.edit_original_response(embed=embed)
+
+    @autoupdate_group.command(name="rotate", description="Cycle to next yt-dlp client profile in memory")
+    async def au_rotate(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        new_prof = AudioResolver.rotate_client_profile()
+        await interaction.edit_original_response(
+            content=f"🔄 Rotated yt-dlp client profile to: **`{new_prof}`** (0 downtime, live streams intact)."
+        )
 
     @app_commands.command(name="support", description="Official Support Server for MusicMaid and Rai bots (MRL GAMING)")
     async def music_support(self, interaction: discord.Interaction) -> None:
