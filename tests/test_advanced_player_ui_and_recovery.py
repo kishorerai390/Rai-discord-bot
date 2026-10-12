@@ -283,6 +283,46 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result)
         mock_vc.stop.assert_called_once()
 
+    async def test_queue_move_and_remove_operations(self):
+        """6. Verify /move, /remove, and /shuffle commands execute cleanly without deque attribute errors."""
+        from collections import deque
+        from music_bot.commands.music_cog import MusicCog
+
+        t1 = QueuedTrack(title="Track 1", url="http://1", duration=100)
+        t2 = QueuedTrack(title="Track 2", url="http://2", duration=200)
+        t3 = QueuedTrack(title="Track 3", url="http://3", duration=300)
+        self.session.queue = deque([t1, t2, t3])
+
+        mock_bot = MagicMock()
+        cog = MusicCog(mock_bot)
+
+        # Mock interaction for /move
+        mock_interaction = MagicMock(spec=discord.Interaction)
+        mock_interaction.guild_id = self.session.guild_id
+        mock_interaction.response.is_done.return_value = False
+        mock_interaction.response.defer = AsyncMock()
+        mock_interaction.followup.send = AsyncMock()
+
+        with patch.object(cog.session_manager, "get_session", new_callable=AsyncMock) as mock_get_sess:
+            mock_get_sess.return_value = self.session
+
+            # Move Track 3 (pos 3) to pos 1
+            await cog.music_move.callback(cog, mock_interaction, from_pos=3, to_pos=1)
+            self.assertEqual(self.session.queue[0].title, "Track 3")
+            self.assertEqual(self.session.queue[1].title, "Track 1")
+            self.assertEqual(self.session.queue[2].title, "Track 2")
+
+            # Remove Track 2 (pos 3)
+            await cog.music_remove.callback(cog, mock_interaction, position=3)
+            self.assertEqual(len(self.session.queue), 2)
+            self.assertEqual(self.session.queue[0].title, "Track 3")
+            self.assertEqual(self.session.queue[1].title, "Track 1")
+
+            # Shuffle remaining 2 tracks
+            await cog.music_shuffle.callback(cog, mock_interaction)
+            self.assertEqual(len(self.session.queue), 2)
+            self.assertIsInstance(self.session.queue, deque)
+
 
 if __name__ == "__main__":
     unittest.main()

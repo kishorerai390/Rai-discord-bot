@@ -537,15 +537,17 @@ class SentinelBot(commands.Bot):
             ),
             status=discord.Status.online,
         )
-
-        # Directly sync slash commands to all connected guilds for instant visibility (0-second propagation)
-        for guild in self.guilds:
-            try:
-                self.tree.copy_global_to(guild=guild)
-                synced_guild = await self.tree.sync(guild=guild)
-                logger.info(f"Instantly synced {len(synced_guild)} slash commands to guild: {guild.name} ({guild.id})")
-            except Exception as e:
-                logger.warning(f"Direct guild sync note for {guild.id}: {e}")
+        # Clean up any duplicate guild command copies so only canonical global commands show in Discord
+        async def _cleanup_guild_commands():
+            if COMMAND_SYNC_MODE != "guild":
+                for guild in self.guilds:
+                    try:
+                        self.tree.clear_commands(guild=guild)
+                        await self.tree.sync(guild=guild)
+                        logger.info(f"Cleaned duplicate guild command copies in {guild.name} ({guild.id})")
+                    except Exception as e:
+                        logger.debug(f"Guild command cleanup notice for {guild.id}: {e}")
+        asyncio.create_task(_cleanup_guild_commands())
 
         # Dispatch system status heartbeat to #system-status
         for guild in self.guilds:

@@ -713,16 +713,22 @@ class ServerSetupCog(commands.Cog, name="ServerSetup"):
     # =========================================================================
 
     @commands.command(name="sync")
-    async def sync_prefix(self, ctx: commands.Context):
-        """Owner/Admin prefix command (!sync) to instantly sync slash commands to this guild."""
+    async def sync_prefix(self, ctx: commands.Context, mode: Optional[str] = None):
+        """Owner/Admin prefix command (!sync) to synchronize slash commands and purge duplicates."""
         if not check_admin(ctx.author):
             await ctx.reply("❌ Administrator permissions required.")
             return
-        msg = await ctx.reply("🔄 Synchronizing all slash commands directly to this server...")
+        msg = await ctx.reply("🔄 Synchronizing slash commands and purging duplicate guild copies...")
         try:
-            self.bot.tree.copy_global_to(guild=ctx.guild)
-            synced = await self.bot.tree.sync(guild=ctx.guild)
-            await msg.edit(content=f"✅ Instantly synchronized `{len(synced)}` slash commands to **{ctx.guild.name}**!\nYou can now use them directly via `/`.")
+            if mode == "guild":
+                self.bot.tree.copy_global_to(guild=ctx.guild)
+                synced = await self.bot.tree.sync(guild=ctx.guild)
+                await msg.edit(content=f"✅ Synced `{len(synced)}` commands directly to **{ctx.guild.name}**.")
+            else:
+                self.bot.tree.clear_commands(guild=ctx.guild)
+                await self.bot.tree.sync(guild=ctx.guild)
+                synced = await self.bot.tree.sync()
+                await msg.edit(content=f"✅ Purged duplicate guild commands and synchronized `{len(synced)}` canonical global slash commands!\nCommands are now clean with zero duplicates.")
         except Exception as e:
             await msg.edit(content=f"❌ Sync failed: `{e}`")
 
