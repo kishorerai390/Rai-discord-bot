@@ -82,6 +82,8 @@ class GuildMusicSession:
         self.progress_updater_task: Optional[asyncio.Task] = None
         self._is_seeking: bool = False
         self._is_reencoding: bool = False
+        self._is_skipping: bool = False
+        self.recent_skipped_urls: set[str] = set()
         self.playback_generation: int = 0
         self.is_intentional_stop: bool = False
         self.last_checkpoint_pos: int = 0
