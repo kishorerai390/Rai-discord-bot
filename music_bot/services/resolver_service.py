@@ -52,13 +52,27 @@ def _load_po_tokens_and_cookies() -> Dict[str, Any]:
 
 
 import concurrent.futures
+import shutil
 import time
 
 _audio_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="AudioResolver")
 
 
+def _detect_js_runtimes() -> Dict[str, Any]:
+    """Detect available JavaScript runtimes for yt-dlp EJS challenge solver."""
+    node = shutil.which("node") or "C:\\Program Files\\nodejs\\node.exe"
+    if node and (Path(node).exists() or shutil.which("node")):
+        return {"node": {}}
+    deno = shutil.which("deno")
+    if deno:
+        return {"deno": {}}
+    quickjs = shutil.which("quickjs")
+    if quickjs:
+        return {"quickjs": {}}
+    return {}
+
+
 def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str, Any]:
-    clients = player_clients or ["android", "ios", "web_creator", "mweb"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "extractaudio": True,
@@ -73,13 +87,19 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
         "socket_timeout": 8,
+        "remote_components": ["ejs:github"],
         "extractor_args": {
-            "youtube": {
-                "player_client": clients,
-                "skip": ["hls", "dash"],
-            }
+            "youtube": {}
         },
     }
+
+    if player_clients:
+        opts["extractor_args"]["youtube"]["player_client"] = player_clients
+
+    # Automatically attach JavaScript runtime for EJS signature solving
+    js_runtimes = _detect_js_runtimes()
+    if js_runtimes:
+        opts["js_runtimes"] = js_runtimes
 
     # Feature: Inject active YouTube PO-Token / Visitor Data to prevent 403 & SABR blocks
     token_data = _load_po_tokens_and_cookies()
@@ -113,10 +133,10 @@ class AudioResolver:
 
     _search_cache: Dict[str, List[Dict[str, Any]]] = {}
     PROFILE_PRESETS: List[List[str]] = [
-        ["android", "ios", "web_creator", "mweb"],
-        ["ios", "web_creator", "mweb"],
+        ["web_creator", "ios", "mweb"],
+        ["ios", "mweb"],
         ["web_creator", "ios"],
-        ["mweb", "android"],
+        ["ios", "web_creator", "mweb", "android"],
         ["android", "web"],
     ]
     _active_profile_index: int = 0
@@ -212,20 +232,27 @@ class AudioResolver:
 
     @classmethod
     def _parse_entry(cls, data: Any, requester_id: int, requester_name: str) -> Optional[QueuedTrack]:
-        """Parse raw yt-dlp dictionary into a validated QueuedTrack."""
+        """Parse raw yt-dlp dictionary into a validated QueuedTrack, avoiding DRM-restricted formats."""
         if not data:
             return None
         entry = data["entries"][0] if "entries" in data and data["entries"] else data
         if not entry:
             return None
 
-        # Find best playable stream url
+        # Find best playable stream url (filtering out DRM protected streams)
         stream_url = entry.get("url")
         if not stream_url and "formats" in entry:
+            # 1. Best audio non-DRM format
             for fmt in entry["formats"]:
-                if fmt.get("acodec") != "none" and fmt.get("url"):
+                if fmt.get("acodec") != "none" and fmt.get("url") and not fmt.get("has_drm"):
                     stream_url = fmt["url"]
                     break
+            # 2. Any non-DRM format with URL
+            if not stream_url:
+                for fmt in entry["formats"]:
+                    if fmt.get("url") and not fmt.get("has_drm"):
+                        stream_url = fmt["url"]
+                        break
 
         if not stream_url:
             return None
@@ -234,7 +261,7 @@ class AudioResolver:
             title=entry.get("title", "Unknown Title"),
             url=entry.get("webpage_url") or entry.get("url", ""),
             stream_url=stream_url,
-            duration=int(entry.get("duration", 0)),
+            duration=int(entry.get("duration", 0) or 0),
             requester_id=requester_id,
             requester_name=requester_name,
             artist=entry.get("uploader") or entry.get("channel", "Unknown Artist"),
@@ -261,8 +288,10 @@ class AudioResolver:
         except Exception as e:
             logger.warning(f"YouTube search failed for '{query}': {e}. Attempting SoundCloud fallback...")
             try:
-                sc_query = f"scsearch{limit}:{query}"
-                sc_ydl = yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True, "socket_timeout": 8})
+                sc_query = f"scsearch{limit + 3}:{query}"
+                sc_opts = _build_ytdl_options()
+                sc_opts.update({"quiet": True, "noplaylist": True, "socket_timeout": 8})
+                sc_ydl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ydl.extract_info, sc_query, download=False)
@@ -281,14 +310,20 @@ class AudioResolver:
         for entry in entries:
             if not entry:
                 continue
+            # Skip entries tagged as DRM protected
+            if entry.get("has_drm"):
+                continue
             results.append({
                 "title": entry.get("title", "Unknown Track"),
                 "url": entry.get("webpage_url") or entry.get("url", ""),
-                "duration": int(entry.get("duration", 0)),
+                "duration": int(entry.get("duration", 0) or 0),
                 "artist": entry.get("uploader") or entry.get("channel", "Unknown Artist"),
                 "thumbnail": entry.get("thumbnail"),
                 "id": entry.get("id"),
             })
+            if len(results) >= limit:
+                break
+
         cls._search_cache[cache_key] = results
         return results
 
@@ -325,7 +360,7 @@ class AudioResolver:
 
         # Strategy 2: Fallback with mobile/creator client profile
         try:
-            fallback_opts = _build_ytdl_options(["ios", "web_creator", "mweb"])
+            fallback_opts = _build_ytdl_options(["web_creator", "ios", "mweb"])
             fallback_ytdl = yt_dlp.YoutubeDL(fallback_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
@@ -344,9 +379,10 @@ class AudioResolver:
         # Strategy 3: Multi-Source Failover to SoundCloud if it's a search query
         if not cleaned_query.startswith("http"):
             try:
-                sc_target = f"scsearch1:{cleaned_query}"
+                sc_target = f"scsearch5:{cleaned_query}"
                 logger.info(f"Failing over to SoundCloud for '{cleaned_query}'...")
-                sc_opts = {"format": "bestaudio/best", "noplaylist": True, "quiet": True, "socket_timeout": 8}
+                sc_opts = _build_ytdl_options()
+                sc_opts.update({"format": "bestaudio/best", "noplaylist": True, "quiet": True, "socket_timeout": 8})
                 sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
@@ -354,11 +390,16 @@ class AudioResolver:
                     ),
                     timeout=8.0,
                 )
-                track = cls._parse_entry(data, requester_id, requester_name)
-                if track:
-                    dur = time.time() - start_t
-                    logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
-                    return track
+                if data:
+                    entries = data.get("entries") if "entries" in data else [data]
+                    for entry in entries:
+                        if not entry:
+                            continue
+                        track = cls._parse_entry(entry, requester_id, requester_name)
+                        if track and track.stream_url:
+                            dur = time.time() - start_t
+                            logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
+                            return track
             except Exception as sc_err:
                 logger.error(f"SoundCloud fallback failed for '{cleaned_query}': {sc_err}")
 
