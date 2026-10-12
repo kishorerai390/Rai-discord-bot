@@ -117,6 +117,11 @@ class SecurityCog(commands.Cog, name="Security"):
         description="Advanced server security and anti-nuke management",
         default_permissions=discord.Permissions(administrator=True),
     )
+    trusted_group = app_commands.Group(
+        name="trusted",
+        description="Manage verified trusted security users (Owner-only)",
+        parent=security_group,
+    )
 
     # ==========================================
     # AUDIT-LOG VERIFICATION & ACTION HANDLER
@@ -457,18 +462,21 @@ class SecurityCog(commands.Cog, name="Security"):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
-        # Unauthorized bot additions check
+        guild = member.guild
+
+        # 1. Unauthorized bot additions check
         if member.bot:
             executor, audit_entry = await find_audit_executor(
-                member.guild, discord.AuditLogAction.bot_add, target_id=member.id
+                guild, discord.AuditLogAction.bot_add, target_id=member.id
             )
             if executor:
-                if executor.id != member.guild.owner_id and executor.id != self.bot.user.id:
+                if executor.id != guild.owner_id and executor.id != self.bot.user.id:
                     role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
-                    if not await self.bot.db.is_whitelisted(member.guild.id, executor.id, role_ids):
+                    is_whitelisted = await self.bot.db.is_whitelisted(guild.id, executor.id, role_ids)
+                    is_trusted = await is_verified_owner_or_trusted(self.bot, guild, executor.id)
+                    if not is_whitelisted and not is_trusted:
                         # Unauthorized bot addition!
-                        sec_cfg = await self.bot.db.get_security_config(member.guild.id)
-                        sec_state = await self.bot.db.get_security_state(member.guild.id)
+                        sec_state = await self.bot.db.get_security_state(guild.id)
                         if not sec_state.emergency_stop:
                             try:
                                 await member.kick(reason="Security: Unauthorized bot addition")
@@ -478,7 +486,7 @@ class SecurityCog(commands.Cog, name="Security"):
                         event_id = generate_event_id()
                         incident = SecurityIncident(
                             event_id=event_id,
-                            guild_id=member.guild.id,
+                            guild_id=guild.id,
                             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                             event_type="UNAUTHORIZED_BOT_ADD",
                             executor_id=executor.id,
@@ -496,50 +504,320 @@ class SecurityCog(commands.Cog, name="Security"):
                             audit_verified=True,
                         )
                         await self.bot.db.record_security_incident(incident)
-                        await self._notify_security_channel(member.guild, incident)
+                        await self._notify_security_channel(guild, incident)
+            return
+
+        # 2. Automatic Anti-Raid Mode (Section 4)
+        try:
+            raid_cfg = await self.bot.db.get_anti_raid_config(guild.id)
+        except Exception:
+            raid_cfg = AntiRaidConfig(guild_id=guild.id)
+
+        if not getattr(raid_cfg, "enabled", True):
+            return
+
+        now_ts = time.time()
+        dq = self._join_burst_windows[guild.id]
+        window_sec = getattr(raid_cfg, "join_window_seconds", 10)
+        cutoff = now_ts - float(window_sec)
+
+        while dq and dq[0][0] < cutoff:
+            dq.popleft()
+
+        # Account age in days
+        created_at = member.created_at
+        age_days = (discord.utils.utcnow() - created_at).total_seconds() / 86400.0
+        age_threshold = getattr(raid_cfg, "account_age_threshold_days", 7)
+        is_suspicious_age = age_days < age_threshold
+
+        dq.append((now_ts, member.id, age_days))
+
+        # Quarantine suspicious young accounts if quarantine role configured
+        if is_suspicious_age and raid_cfg.quarantine_role_id:
+            q_role = guild.get_role(raid_cfg.quarantine_role_id)
+            if q_role and q_role < guild.me.top_role:
+                try:
+                    await member.add_roles(q_role, reason=f"Anti-Raid: New account quarantine (<{age_threshold}d old)")
+                except Exception as e:
+                    logger.debug("Could not assign quarantine role: %s", e)
+
+        # Check Raid Threshold Breach
+        join_threshold = getattr(raid_cfg, "join_threshold", 5)
+        young_in_window = sum(1 for _, _, age in dq if age < age_threshold)
+
+        is_raid = (len(dq) >= join_threshold) or (young_in_window >= max(3, join_threshold // 2))
+        if is_raid:
+            logger.critical(
+                "🚨 RAID DETECTED in %s: %d joins in %ds (%d young accounts)",
+                guild.name, len(dq), window_sec, young_in_window
+            )
+
+            # Auto-lockdown channels
+            locked_count = 0
+            if getattr(raid_cfg, "auto_lockdown", True):
+                try:
+                    locked_count = await self._execute_lockdown(guild)
+                except Exception as e:
+                    logger.error("Failed to auto-lockdown guild %s: %s", guild.id, e)
+
+            # Dispatch Alert to Owner and Security Log
+            event_id = generate_event_id()
+            now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            alert_embed = security_embed(
+                title="🚨 AUTOMATIC RAID LOCKDOWN ENGAGED",
+                description=(
+                    f"**Mass join spike detected! Automatic server containment active.**\n\n"
+                    f"📊 **Join Velocity:** `{len(dq)} accounts in {window_sec}s` (Threshold: `{join_threshold}`)\n"
+                    f"👶 **Suspicious Young Accounts (<{age_threshold}d):** `{young_in_window}`\n"
+                    f"🔒 **Channels Locked:** `{locked_count}`\n"
+                    f"⏱️ **Quiet Recovery Period:** `{raid_cfg.lockdown_duration_seconds}s`\n"
+                    f"🛡️ **Action Taken:** Message permissions restricted for `@everyone`."
+                ),
+            )
+            alert_embed.set_footer(text=f"Raivora Raid Shield • Incident ID: {event_id}")
+            alert_embed.timestamp = discord.utils.utcnow()
+            await self._send_private_security_alert(guild, alert_embed)
+
+            # Record incident
+            try:
+                incident = SecurityIncident(
+                    event_id=event_id,
+                    guild_id=guild.id,
+                    timestamp=now_iso,
+                    event_type="ANTI_RAID_LOCKDOWN",
+                    executor_id=None,
+                    executor_name="COORDINATED_RAID_BURST",
+                    target_id=guild.id,
+                    target_name=guild.name,
+                    action="server_lockdown",
+                    detected_count=len(dq),
+                    threshold=join_threshold,
+                    audit_log_id=None,
+                    reason=f"Mass join spike ({len(dq)} joins in {window_sec}s, {young_in_window} accounts <{age_threshold}d)",
+                    automated_action=f"Locked {locked_count} channels",
+                    result="LOCKDOWN_ENGAGED",
+                    severity="critical",
+                    audit_verified=True,
+                )
+                await self.bot.db.record_security_incident(incident)
+            except Exception as e:
+                logger.error("Failed to record raid incident: %s", e)
+
+            # Schedule auto-recovery quiet period timer
+            self._schedule_raid_recovery(guild, getattr(raid_cfg, "lockdown_duration_seconds", 300))
+
+    def _schedule_raid_recovery(self, guild: discord.Guild, duration: int) -> None:
+        """Schedules or resets the auto-unlock quiet period countdown."""
+        existing = self._raid_recovery_tasks.get(guild.id)
+        if existing and not existing.done():
+            existing.cancel()
+
+        async def _recovery_worker():
+            try:
+                await asyncio.sleep(duration)
+                # Verify that threat has subsided: check recent join window
+                now = time.time()
+                dq = self._join_burst_windows.get(guild.id, collections.deque())
+                recent_joins = sum(1 for ts, _, _ in dq if ts > (now - 60))
+                if recent_joins > 2:
+                    logger.info("Raid activity still elevated in %s, extending lockdown.", guild.name)
+                    self._schedule_raid_recovery(guild, duration)
+                    return
+
+                # Threat has subsided: lift lockdown
+                unlocked_count = await self._execute_unlock(guild)
+                logger.info("Auto-lifted raid lockdown for %s (%d channels restored).", guild.name, unlocked_count)
+
+                embed = success_embed(
+                    "🟢 Raid Lockdown Lifted",
+                    f"Threat subsided. Message permissions automatically restored in **{unlocked_count}** channels after quiet period.",
+                )
+                await self._send_private_security_alert(guild, embed)
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                logger.error("Error during raid recovery worker in guild %s: %s", guild.id, e)
+
+        self._raid_recovery_tasks[guild.id] = asyncio.create_task(_recovery_worker())
 
     @commands.Cog.listener()
     async def on_guild_role_update(self, before: discord.Role, after: discord.Role):
-        # Detect dangerous permission grant (administrator, manage_guild)
-        if not before.permissions.administrator and after.permissions.administrator:
-            executor, audit_entry = await find_audit_executor(
-                after.guild, discord.AuditLogAction.role_update, target_id=after.id
-            )
-            if executor and executor.id != after.guild.owner_id and executor.id != self.bot.user.id:
-                role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
-                if not await self.bot.db.is_whitelisted(after.guild.id, executor.id, role_ids):
-                    # Unauthorized administrator permission grant!
-                    sec_state = await self.bot.db.get_security_state(after.guild.id)
-                    result_msg = "Reverted dangerous permissions"
-                    if not sec_state.emergency_stop:
-                        try:
-                            # Revert permissions
-                            await after.edit(permissions=before.permissions, reason="Security: Unauthorized administrator permission grant")
-                        except (discord.Forbidden, discord.HTTPException) as e:
-                            result_msg = f"Failed to revert: {e}"
+        """
+        Permission and Role Security:
+        Continuously monitors Administrator, Manage Server, Manage Roles,
+        Manage Channels, Ban Members, Kick Members, and Mention Everyone.
+        """
+        guild = after.guild
+        dangerous_perms = (
+            "administrator", "manage_guild", "manage_roles",
+            "manage_channels", "ban_members", "kick_members", "mention_everyone"
+        )
 
-                    event_id = generate_event_id()
-                    incident = SecurityIncident(
-                        event_id=event_id,
-                        guild_id=after.guild.id,
-                        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                        event_type="DANGEROUS_PERM_CHANGE",
-                        executor_id=executor.id,
-                        executor_name=f"{executor.name}",
-                        target_id=after.id,
-                        target_name=f"@{after.name}",
-                        action="permission_grant_administrator",
-                        detected_count=1,
-                        threshold=1,
-                        audit_log_id=audit_entry.id if audit_entry else None,
-                        reason="Unauthorized administrator permission added to role",
-                        automated_action="Reverted role permissions",
-                        result=result_msg,
-                        severity="high",
-                        audit_verified=True,
-                    )
-                    await self.bot.db.record_security_incident(incident)
-                    await self._notify_security_channel(after.guild, incident)
+        granted_perms = [
+            p for p in dangerous_perms
+            if not getattr(before.permissions, p) and getattr(after.permissions, p)
+        ]
+        if not granted_perms:
+            return
+
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.role_update, target_id=after.id
+        )
+        if not executor:
+            return
+
+        # Check exemption: verified owner ID or trusted security user
+        if executor.id == guild.owner_id or executor.id == self.bot.user.id:
+            return
+
+        role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
+        is_whitelisted = await self.bot.db.is_whitelisted(guild.id, executor.id, role_ids)
+        is_trusted = await is_verified_owner_or_trusted(self.bot, guild, executor.id)
+        if is_whitelisted or is_trusted:
+            return
+
+        # UNAUTHORIZED DANGEROUS PERMISSION GRANT DETECTED
+        logger.critical(
+            "🚨 UNAUTHORIZED PERMISSION GRANT: Actor %s (%s) granted [%s] to role @%s in %s",
+            executor.name, executor.id, ", ".join(granted_perms), after.name, guild.name
+        )
+
+        sec_state = await self.bot.db.get_security_state(guild.id)
+        result_msg = "Reverted dangerous role permissions"
+        if not sec_state.emergency_stop:
+            try:
+                await after.edit(permissions=before.permissions, reason=f"Security: Unauthorized grant of {', '.join(granted_perms)}")
+            except (discord.Forbidden, discord.HTTPException) as e:
+                result_msg = f"Failed to revert role permissions: {e}"
+
+        # Record in database
+        event_id = generate_event_id()
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        try:
+            incident = SecurityIncident(
+                event_id=event_id,
+                guild_id=guild.id,
+                timestamp=now_iso,
+                event_type="DANGEROUS_PERM_CHANGE",
+                executor_id=executor.id,
+                executor_name=f"{executor.name}",
+                target_id=after.id,
+                target_name=f"@{after.name}",
+                action=f"role_perm_grant_{','.join(granted_perms)}",
+                detected_count=1,
+                threshold=1,
+                audit_log_id=audit_entry.id if audit_entry else None,
+                reason=f"Unauthorized permissions [{', '.join(granted_perms)}] added to role",
+                automated_action="Reverted role permissions",
+                result=result_msg,
+                severity="critical" if "administrator" in granted_perms else "high",
+                audit_verified=True,
+            )
+            await self.bot.db.record_security_incident(incident)
+            await self.bot.db.record_permission_audit(
+                guild_id=guild.id,
+                actor_id=executor.id,
+                target_type="role",
+                action="grant_permissions",
+                target_id=after.id,
+                permissions_changed=", ".join(granted_perms),
+                status=result_msg,
+            )
+            await self._notify_security_channel(guild, incident)
+        except Exception as e:
+            logger.error("Failed to log dangerous perm change: %s", e)
+
+        # Feed into AntiNuke engine for actor containment
+        if isinstance(executor, discord.Member):
+            await self.antinuke.record_and_evaluate(guild, executor, "dangerous_perm_grant", threshold=2)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before: discord.Member, after: discord.Member):
+        """
+        Continuously monitors role assignments granting administrative or dangerous permissions.
+        """
+        guild = after.guild
+        added_roles = [r for r in after.roles if r not in before.roles]
+        if not added_roles:
+            return
+
+        dangerous_perms = ("administrator", "manage_guild", "manage_roles", "manage_channels", "ban_members", "kick_members", "mention_everyone")
+        rogue_roles = [
+            r for r in added_roles
+            if any(getattr(r.permissions, p, False) for p in dangerous_perms)
+        ]
+        if not rogue_roles:
+            return
+
+        executor, audit_entry = await find_audit_executor(
+            guild, discord.AuditLogAction.member_role_update, target_id=after.id
+        )
+        if not executor:
+            return
+
+        if executor.id == guild.owner_id or executor.id == self.bot.user.id:
+            return
+
+        role_ids = [r.id for r in executor.roles] if isinstance(executor, discord.Member) else []
+        is_whitelisted = await self.bot.db.is_whitelisted(guild.id, executor.id, role_ids)
+        is_trusted = await is_verified_owner_or_trusted(self.bot, guild, executor.id)
+        if is_whitelisted or is_trusted:
+            return
+
+        # UNAUTHORIZED DANGEROUS ROLE ASSIGNMENT DETECTED
+        logger.critical(
+            "🚨 UNAUTHORIZED ROLE ASSIGNMENT: Actor %s (%s) assigned dangerous role(s) [%s] to member %s in %s",
+            executor.name, executor.id, ", ".join(r.name for r in rogue_roles), after.name, guild.name
+        )
+
+        sec_state = await self.bot.db.get_security_state(guild.id)
+        result_msg = "Stripped unauthorized dangerous role(s)"
+        if not sec_state.emergency_stop:
+            safe_roles = [r for r in after.roles if r not in rogue_roles]
+            try:
+                await after.edit(roles=safe_roles, reason=f"Security: Unauthorized assignment of dangerous role(s)")
+            except (discord.Forbidden, discord.HTTPException) as e:
+                result_msg = f"Failed to strip roles: {e}"
+
+        event_id = generate_event_id()
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        try:
+            incident = SecurityIncident(
+                event_id=event_id,
+                guild_id=guild.id,
+                timestamp=now_iso,
+                event_type="UNAUTHORIZED_ROLE_GRANT",
+                executor_id=executor.id,
+                executor_name=f"{executor.name}",
+                target_id=after.id,
+                target_name=f"{after.name}",
+                action="assign_dangerous_role",
+                detected_count=1,
+                threshold=1,
+                audit_log_id=audit_entry.id if audit_entry else None,
+                reason=f"Dangerous role(s) [{', '.join(r.name for r in rogue_roles)}] assigned without authorization",
+                automated_action="Removed unauthorized roles from member",
+                result=result_msg,
+                severity="critical",
+                audit_verified=True,
+            )
+            await self.bot.db.record_security_incident(incident)
+            await self.bot.db.record_permission_audit(
+                guild_id=guild.id,
+                actor_id=executor.id,
+                target_type="user",
+                action="assign_dangerous_role",
+                target_id=after.id,
+                permissions_changed=", ".join(r.name for r in rogue_roles),
+                status=result_msg,
+            )
+            await self._notify_security_channel(guild, incident)
+        except Exception as e:
+            logger.error("Failed to record member role audit: %s", e)
+
+        if isinstance(executor, discord.Member):
+            await self.antinuke.record_and_evaluate(guild, executor, "dangerous_perm_grant", threshold=2)
+
 
     async def _send_private_security_alert(self, guild: discord.Guild, embed: discord.Embed) -> bool:
         """Deliver security alert to the private staff/security channel."""
