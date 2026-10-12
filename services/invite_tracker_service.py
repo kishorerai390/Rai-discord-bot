@@ -333,7 +333,11 @@ class InviteTrackerService:
 
         for r in rewards:
             role = guild.get_role(r.role_id)
-            if not role or role >= guild.me.top_role:
+            if not role:
+                continue
+            role_pos = getattr(role, "position", 0)
+            bot_pos = getattr(guild.me.top_role, "position", 0) if guild.me and guild.me.top_role else 0
+            if role_pos >= bot_pos:
                 continue
 
             if net_invites >= r.required_invites:

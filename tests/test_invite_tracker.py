@@ -20,10 +20,22 @@ from services.invite_tracker_service import InviteTrackerService
 
 class TestInviteTracker(unittest.IsolatedAsyncioTestCase):
 
+    shared_db = None
+
     async def asyncSetUp(self):
-        # In-memory test database with full migrations
-        self.db = Database(":memory:")
-        await self.db.connect()
+        if TestInviteTracker.shared_db is None:
+            db = Database(":memory:")
+            await db.connect()
+            await db.get_or_create_guild_config(9988776655)
+            TestInviteTracker.shared_db = db
+
+        self.db = TestInviteTracker.shared_db
+        await self.db._db.execute("DELETE FROM invite_join_records;")
+        await self.db._db.execute("DELETE FROM member_invites WHERE guild_id = 9988776655;")
+        await self.db._db.execute("DELETE FROM invite_rewards WHERE guild_id = 9988776655;")
+        await self.db._db.execute("DELETE FROM invite_tracker_config WHERE guild_id = 9988776655;")
+        await self.db.upsert_invite_tracker_config(InviteTrackerConfig(guild_id=9988776655, enabled=True))
+        await self.db._db.commit()
 
         self.bot = MagicMock()
         self.bot.db = self.db
@@ -46,8 +58,7 @@ class TestInviteTracker(unittest.IsolatedAsyncioTestCase):
         self.bot.get_guild.return_value = self.guild
 
     async def asyncTearDown(self):
-        if self.db._db:
-            await self.db._db.close()
+        pass
 
     async def test_migration_v50_tables_exist(self):
         """Verify Migration v50 creates all required invite tables and indexes."""
@@ -58,8 +69,8 @@ class TestInviteTracker(unittest.IsolatedAsyncioTestCase):
             table_names = [r["name"] for r in rows]
 
         self.assertIn("invite_tracker_config", table_names)
+        self.assertIn("invite_join_records", table_names)
         self.assertIn("member_invites", table_names)
-        self.assertIn("inviter_stats", table_names)
         self.assertIn("invite_rewards", table_names)
 
     async def test_sync_guild_populates_cache(self):
