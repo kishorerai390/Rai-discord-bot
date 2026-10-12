@@ -229,6 +229,7 @@ class NekoSongsBot(commands.Bot):
         self.heartbeat_loop.start()
         self.maintenance_loop.start()
         self.snapshot_loop.start()
+        self.web_actions_loop.start()
 
     @tasks.loop(seconds=5.0)
     async def snapshot_loop(self) -> None:
@@ -470,12 +471,136 @@ class NekoSongsBot(commands.Bot):
     async def before_heartbeat(self) -> None:
         await self.wait_until_ready()
 
+    @tasks.loop(seconds=0.75)
+    async def web_actions_loop(self) -> None:
+        """Poll and execute actions submitted from the Raivora Music Web dashboard."""
+        if not self.db or not self.is_ready():
+            return
+        try:
+            pending = await self.db.fetch_pending_web_actions(limit=5)
+            for act in pending:
+                action_id = act["id"]
+                guild_id = act["guild_id"]
+                action_type = act["action"]
+                payload = act.get("payload", {})
+                user_id = act.get("user_id", 0)
+
+                session = await self.session_manager.get_session(guild_id)
+                from music_bot.services.player_service import MusicPlayerService
+                from music_bot.services.session_service import PlaybackState, LoopMode
+
+                try:
+                    if action_type == "PAUSE":
+                        if session.voice_client and session.voice_client.is_playing():
+                            session.voice_client.pause()
+                            session.state = PlaybackState.PAUSED
+                            session.pause_time = time.time()
+                            await MusicPlayerService.send_now_playing_panel(session)
+                            await self.db.mark_web_action_completed(action_id, {"status": "paused"})
+                        else:
+                            await self.db.mark_web_action_completed(action_id, {"status": "noop"})
+
+                    elif action_type == "RESUME":
+                        if session.voice_client and session.voice_client.is_paused():
+                            session.voice_client.resume()
+                            session.state = PlaybackState.PLAYING
+                            if session.pause_time > 0:
+                                session.paused_duration += time.time() - session.pause_time
+                                session.pause_time = 0.0
+                            await MusicPlayerService.send_now_playing_panel(session)
+                            await self.db.mark_web_action_completed(action_id, {"status": "resumed"})
+                        else:
+                            await self.db.mark_web_action_completed(action_id, {"status": "noop"})
+
+                    elif action_type == "SKIP":
+                        success, msg, next_t = await MusicPlayerService.skip(self, session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "skipped", "message": msg})
+
+                    elif action_type == "PREVIOUS":
+                        success, msg, prev_t = await MusicPlayerService.previous(self, session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "previous", "message": msg})
+
+                    elif action_type == "SEEK":
+                        target_sec = int(payload.get("seconds", 0))
+                        success = await MusicPlayerService.seek(self, session, target_sec)
+                        await self.db.mark_web_action_completed(action_id, {"status": "seeked" if success else "failed", "position": target_sec})
+
+                    elif action_type == "VOLUME":
+                        vol = max(0, min(100, int(payload.get("volume", 80))))
+                        session.volume = vol
+                        if session.voice_client and hasattr(session.voice_client.source, "volume"):
+                            session.voice_client.source.volume = vol / 100.0
+                        await MusicPlayerService.send_now_playing_panel(session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
+
+                    elif action_type == "SHUFFLE":
+                        session.shuffle()
+                        await self.db.mark_web_action_completed(action_id, {"status": "shuffled", "queue_len": len(session.queue)})
+
+                    elif action_type == "LOOP":
+                        mode_str = payload.get("mode", "off").lower()
+                        session.loop_mode = LoopMode(mode_str) if mode_str in ["off", "track", "queue"] else LoopMode.OFF
+                        await MusicPlayerService.send_now_playing_panel(session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "loop_set", "loop_mode": session.loop_mode.value})
+
+                    elif action_type == "FILTER":
+                        preset_key = payload.get("preset", "flat").lower()
+                        display_name = payload.get("name", preset_key.title())
+                        success = await MusicPlayerService.apply_filter_or_eq(self, session, preset_key, display_name)
+                        await self.db.mark_web_action_completed(action_id, {"status": "filter_applied" if success else "failed", "preset": preset_key})
+
+                    elif action_type == "ENQUEUE":
+                        query = payload.get("query", "").strip()
+                        if query:
+                            from music_bot.services.resolver_service import AudioResolver
+                            track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                            if track:
+                                session.queue.append(track)
+                                if not session.is_playing and not session.is_paused:
+                                    await MusicPlayerService.start_playback(self, session, session.queue.popleft())
+                                await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title})
+                            else:
+                                await self.db.mark_web_action_failed(action_id, "Could not resolve audio track")
+                        else:
+                            await self.db.mark_web_action_failed(action_id, "Empty query")
+
+                    elif action_type == "REMOVE":
+                        idx = int(payload.get("index", 0))
+                        if 0 <= idx < len(session.queue):
+                            removed = session.queue[idx]
+                            del session.queue[idx]
+                            await self.db.mark_web_action_completed(action_id, {"status": "removed", "title": removed.title})
+                        else:
+                            await self.db.mark_web_action_failed(action_id, "Index out of range")
+
+                    elif action_type == "CLEAR":
+                        session.queue.clear()
+                        await self.db.mark_web_action_completed(action_id, {"status": "cleared"})
+
+                    elif action_type == "STOP":
+                        await MusicPlayerService.stop(self, session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "stopped"})
+
+                    else:
+                        await self.db.mark_web_action_failed(action_id, f"Unknown action: {action_type}")
+
+                except Exception as act_err:
+                    logger.warning(f"Failed to execute web action {action_id} ({action_type}): {act_err}")
+                    await self.db.mark_web_action_failed(action_id, str(act_err))
+        except Exception as poll_err:
+            logger.debug(f"Web actions poll error: {poll_err}")
+
+    @web_actions_loop.before_loop
+    async def before_web_actions(self) -> None:
+        await self.wait_until_ready()
+
     async def close(self) -> None:
         """Gracefully release all resources, voice connections, and DB handles with state preservation."""
         logger.info(f"Initiating graceful shutdown for {BOT_NAME}...")
         self.heartbeat_loop.cancel()
         self.maintenance_loop.cancel()
         self.snapshot_loop.cancel()
+        self.web_actions_loop.cancel()
 
         # Feature 109 & Phase 3: Save exact persistent playback positions & queues before shutdown
         try:

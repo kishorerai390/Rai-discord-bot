@@ -209,6 +209,19 @@ class MusicDatabase:
                 CREATE INDEX IF NOT EXISTS idx_pers_sessions_guild ON persistent_music_sessions(guild_id);
                 CREATE INDEX IF NOT EXISTS idx_pers_sessions_status ON persistent_music_sessions(session_status);
                 CREATE INDEX IF NOT EXISTS idx_pers_sessions_expires ON persistent_music_sessions(expires_at);
+
+                CREATE TABLE IF NOT EXISTS music_web_actions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    payload_json TEXT DEFAULT '{}',
+                    user_id INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'PENDING',
+                    result_json TEXT DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    processed_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS idx_music_web_actions_status ON music_web_actions(status);
             """)
             await self._db.commit()
 
@@ -1185,5 +1198,81 @@ class MusicDatabase:
             row["history"] = []
 
         return PersistentMusicSession.from_dict(row)
+
+    async def submit_web_action(
+        self,
+        guild_id: int,
+        action: str,
+        payload: Dict[str, Any],
+        user_id: int,
+    ) -> int:
+        """Submit a user control action from the web platform for asynchronous bot execution."""
+        async with self._lock:
+            now = datetime.now(timezone.utc).isoformat()
+            async with self._db.execute("""
+                INSERT INTO music_web_actions (guild_id, action, payload_json, user_id, status, created_at)
+                VALUES (?, ?, ?, ?, 'PENDING', ?)
+            """, (guild_id, action.upper(), json.dumps(payload), user_id, now)) as cur:
+                await self._db.commit()
+                return cur.lastrowid
+
+    async def fetch_pending_web_actions(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Fetch pending actions submitted from the web dashboard."""
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT id, guild_id, action, payload_json, user_id, status, created_at
+                FROM music_web_actions
+                WHERE status = 'PENDING'
+                ORDER BY id ASC
+                LIMIT ?
+            """, (limit,)) as cur:
+                rows = await cur.fetchall()
+                results = []
+                for r in rows:
+                    d = dict(r)
+                    try:
+                        d["payload"] = json.loads(d["payload_json"])
+                    except Exception:
+                        d["payload"] = {}
+                    results.append(d)
+                return results
+
+    async def mark_web_action_completed(self, action_id: int, result: Optional[Dict[str, Any]] = None) -> None:
+        """Mark a web action as successfully processed."""
+        async with self._lock:
+            now = datetime.now(timezone.utc).isoformat()
+            res_json = json.dumps(result or {"status": "ok"})
+            await self._db.execute("""
+                UPDATE music_web_actions
+                SET status = 'PROCESSED', result_json = ?, processed_at = ?
+                WHERE id = ?
+            """, (res_json, now, action_id))
+            await self._db.commit()
+
+    async def mark_web_action_failed(self, action_id: int, error: str) -> None:
+        """Mark a web action as failed with error details."""
+        async with self._lock:
+            now = datetime.now(timezone.utc).isoformat()
+            res_json = json.dumps({"error": error})
+            await self._db.execute("""
+                UPDATE music_web_actions
+                SET status = 'FAILED', result_json = ?, processed_at = ?
+                WHERE id = ?
+            """, (res_json, now, action_id))
+            await self._db.commit()
+
+    async def get_recent_history(self, guild_id: int, limit: int = 25) -> List[Dict[str, Any]]:
+        """Fetch recent playback history for a guild."""
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT id, title, url, artist, requester_id, played_at
+                FROM music_history
+                WHERE guild_id = ?
+                ORDER BY id DESC
+                LIMIT ?
+            """, (guild_id, limit)) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
 
 
