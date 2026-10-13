@@ -215,6 +215,8 @@ async def test_resolve_text_channel_fallback_to_request_channel(mock_bot, mock_s
     mock_session.text_channel = None
     guild = mock_text_channel.guild
     guild.get_channel = MagicMock(return_value=mock_text_channel)
+    guild.text_channels = [mock_text_channel]
+    mock_session.voice_client.guild = guild
     mock_bot.get_guild.return_value = guild
 
     channel, err = await MusicPlayerService.resolve_text_channel(mock_session, bot=mock_bot)

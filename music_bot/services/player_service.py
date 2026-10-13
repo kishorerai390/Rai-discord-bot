@@ -550,8 +550,12 @@ class MusicPlayerService:
 
             # Check Neko DJ & Autoplay non-stop playback
             try:
-                dj_settings = await bot.db.get_dj_settings(session.guild_id)
-                if dj_settings.enabled or getattr(session, "dj_enabled", False) or session.autoplay:
+                dj_res = bot.db.get_dj_settings(session.guild_id) if bot and bot.db else None
+                if asyncio.iscoroutine(dj_res):
+                    dj_settings = await dj_res
+                else:
+                    dj_settings = dj_res
+                if dj_settings and (getattr(dj_settings, "enabled", False) or getattr(session, "dj_enabled", False) or session.autoplay):
                     from music_bot.services.dj_service import NekoDJService
                     rec = await NekoDJService.get_recommendation(bot, session)
                     if rec:
@@ -1087,8 +1091,12 @@ class MusicPlayerService:
                 # Manual queue is empty -> Check Auto-DJ
                 rec = None
                 try:
-                    dj_settings = await bot.db.get_dj_settings(session.guild_id) if bot and bot.db else None
-                    if (dj_settings and dj_settings.enabled) or getattr(session, "dj_enabled", False) or session.autoplay:
+                    dj_res = bot.db.get_dj_settings(session.guild_id) if bot and bot.db else None
+                    if asyncio.iscoroutine(dj_res):
+                        dj_settings = await dj_res
+                    else:
+                        dj_settings = dj_res
+                    if dj_settings and (getattr(dj_settings, "enabled", False) or getattr(session, "dj_enabled", False) or session.autoplay):
                         from music_bot.services.dj_service import NekoDJService
                         rec = await NekoDJService.get_recommendation(bot, session)
                 except Exception as dj_err:
@@ -1132,14 +1140,10 @@ class MusicPlayerService:
         """Skip currently active track cleanly under session lock."""
         if not session.voice_client:
             return False
-        if not bot and hasattr(session.voice_client, "client"):
-            bot = session.voice_client.client  # type: ignore
-        if bot:
-            success, _, _ = await cls.skip(bot, session)
-            return success
         if session.voice_client.is_playing() or session.voice_client.is_paused():
             session.voice_client.stop()
             return True
+        return False
         return False
 
     @classmethod
@@ -1412,28 +1416,32 @@ class MusicPlayerService:
 
         # 3. Known standard music channel names
         music_names = ("music", "music-bot", "music-commands", "song-requests", "bot-commands", "general")
-        for name in music_names:
-            ch = discord.utils.get(guild.text_channels, name=name)
-            if ch and ch not in candidates:
-                candidates.append(ch)
+        raw_channels = getattr(guild, "text_channels", [])
+        if isinstance(raw_channels, (list, tuple, set)):
+            for ch in raw_channels:
+                if getattr(ch, "name", None) in music_names and ch not in candidates:
+                    candidates.append(ch)
 
         # 4. Any available text channel in guild
-        for ch in guild.text_channels:
-            if ch not in candidates:
-                candidates.append(ch)
+        if isinstance(raw_channels, (list, tuple, set)):
+            for ch in raw_channels:
+                if ch not in candidates:
+                    candidates.append(ch)
 
         # Evaluate candidate channels for required permissions
         last_perm_err = None
         for ch in candidates:
+            if not hasattr(ch, "permissions_for") or not callable(ch.permissions_for):
+                continue
             perms = ch.permissions_for(me)
             missing = []
-            if not perms.view_channel:
+            if not getattr(perms, "view_channel", True):
                 missing.append("View Channel")
-            if not perms.send_messages:
+            if not getattr(perms, "send_messages", True):
                 missing.append("Send Messages")
-            if not perms.embed_links:
+            if not getattr(perms, "embed_links", True):
                 missing.append("Embed Links")
-            if not perms.read_message_history:
+            if not getattr(perms, "read_message_history", True):
                 missing.append("Read Message History")
 
             if not missing:
@@ -1489,6 +1497,21 @@ class MusicPlayerService:
                     f"[PlayerPanel] Cannot deploy Now Playing panel in guild {session.guild_id}: {perm_err}"
                 )
                 session.last_error = perm_err
+                fallback_ch = session.text_channel
+                if fallback_ch and hasattr(fallback_ch, "permissions_for") and hasattr(fallback_ch, "guild"):
+                    me = getattr(fallback_ch.guild, "me", None)
+                    if me:
+                        perms = fallback_ch.permissions_for(me)
+                        if getattr(perms, "send_messages", False):
+                            try:
+                                await fallback_ch.send(
+                                    f"⚠️ **MusicMaid Permission Alert:**\n"
+                                    f"I cannot display the Now Playing player in {fallback_ch.mention} because I am missing required permissions:\n"
+                                    f"• **{perm_err}**\n\n"
+                                    f"💡 *How to fix:* Right-click/tap this channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Embed Links** permission!"
+                                )
+                            except Exception:
+                                pass
                 return
 
             embed = cls.build_now_playing_embed(session)
