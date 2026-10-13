@@ -9,3 +9,4 @@ orjson>=3.13.0
 aiohttp>=3.9.0
 psutil>=5.9.0
 mutagen>=1.47.0
+prometheus-client
