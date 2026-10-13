@@ -101,28 +101,40 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
         embed = build_now_playing_embed(self.session)
         self.assertIn("No music is currently playing", embed.description)
 
-    def test_now_playing_control_view_all_13_buttons(self):
-        """2. Verify NowPlayingControlView defines all 13 interactive buttons."""
+    def test_now_playing_control_view_clean_redesign(self):
+        """2. Verify NowPlayingControlView defines clean minimal 2-row layout and modular sub-panels."""
+        from music_bot.services.player_service import QueueSubView, AudioSettingsSubView, AutoDJSubView, SettingsSubView
         view = NowPlayingControlView(self.session)
         custom_ids = {item.custom_id for item in view.children if isinstance(item, discord.ui.Button)}
 
         expected_buttons = {
             "music_btn_prev",         # Previous
-            "music_btn_rewind_10",    # Rewind 10s
             "music_btn_play_pause",   # Pause / Resume
-            "music_btn_forward_10",   # Forward 10s
             "music_btn_skip",         # Skip
-            "music_btn_queue",        # Queue
-            "music_btn_shuffle",      # Shuffle
-            "music_btn_loop",         # Loop
-            "music_btn_vol",          # Volume
-            "music_btn_stop",         # Stop
+            "music_btn_queue",        # Queue (Opens Queue Sub-View)
+            "music_btn_refresh",      # Refresh panel
+            "music_btn_nav_audio",    # Audio & EQ (Opens Audio Sub-View)
+            "music_btn_nav_autodj",   # Auto-DJ (Opens Auto-DJ Sub-View)
+            "music_btn_nav_settings", # Settings (Opens Settings Sub-View)
             "music_btn_fav",          # Favorite
-            "music_btn_filter",       # Audio Filters
-            "music_btn_lyrics",       # Lyrics
+            "music_btn_stop",         # Stop
         }
         self.assertTrue(expected_buttons.issubset(custom_ids))
-        self.assertEqual(len(custom_ids), 13)
+        self.assertEqual(len(custom_ids), 10)
+
+        # Verify sub-views are instantiable and possess modular controls
+        q_view = QueueSubView(self.session)
+        self.assertGreaterEqual(len(q_view.children), 4)
+
+        a_view = AudioSettingsSubView(self.session)
+        self.assertGreaterEqual(len(a_view.children), 8)
+
+        dj_view = AutoDJSubView(self.session)
+        self.assertGreaterEqual(len(dj_view.children), 5)
+
+        s_view = SettingsSubView(self.session)
+        self.assertGreaterEqual(len(s_view.children), 4)
+
 
     async def test_send_now_playing_panel_reuses_existing_message(self):
         """Verify send_now_playing_panel edits existing message instead of creating new messages."""

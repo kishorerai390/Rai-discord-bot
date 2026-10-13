@@ -352,34 +352,31 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
 
     def test_now_playing_control_view_buttons(self):
         """Now Playing view must contain all 13 interactive buttons and support persistent mode."""
-        # 1. Per-session view
+        # 1. Per-session clean minimal view
         session = GuildMusicSession(guild_id=self.guild_id_1)
         view = NowPlayingControlView(session)
 
-        # 13 buttons across 3 rows:
-        # Row 0: [⏮ Previous] [⏪ -10s] [⏸ Pause] [⏩ +10s] [⏭ Skip]
-        # Row 1: [📜 Queue] [🔀 Shuffle] [🔁 Loop] [🔊 Volume] [⏹ Stop]
-        # Row 2: [❤️ Favorite] [🎛️ Filter] [💬 Lyrics]
-        self.assertEqual(len(view.children), 13)
+        # 10 buttons across 2 clean rows:
+        # Row 0: [⏮ Prev] [⏸ Pause/Resume] [⏭ Skip] [📜 Queue] [🔄 Refresh]
+        # Row 1: [🎛️ Audio & EQ] [🎧 Auto-DJ] [⚙️ Settings] [❤️ Favorite] [⏹ Stop]
+        self.assertEqual(len(view.children), 10)
 
         labels = [btn.label for btn in view.children if hasattr(btn, "label")]
-        self.assertIn("Previous", labels)
-        self.assertIn("-10s", labels)
+        self.assertIn("Prev", labels)
         self.assertIn("Pause", labels)
-        self.assertIn("+10s", labels)
         self.assertIn("Skip", labels)
         self.assertIn("Queue", labels)
-        self.assertIn("Shuffle", labels)
-        self.assertIn("Loop", labels)
-        self.assertIn("Volume", labels)
+        self.assertIn("Refresh", labels)
+        self.assertIn("Audio & EQ", labels)
+        self.assertIn("Auto-DJ", labels)
+        self.assertIn("Settings", labels)
         self.assertIn("Favorite", labels)
-        self.assertIn("Filter", labels)
-        self.assertIn("Lyrics", labels)
         self.assertIn("Stop", labels)
 
         # 2. Persistent view with session=None
         persistent_view = NowPlayingControlView()
-        self.assertEqual(len(persistent_view.children), 13)
+        self.assertEqual(len(persistent_view.children), 10)
+
 
     def test_volume_adjust_view_preset_buttons(self):
         """Volume adjust view provides 20%, 50%, 80%, and 100% quick buttons."""
