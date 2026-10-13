@@ -1972,7 +1972,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="📜", label="Queue", style=discord.ButtonStyle.secondary, custom_id="music_btn_queue", row=0)
+    @discord.ui.button(emoji="📜", label="Queue", style=discord.ButtonStyle.secondary, custom_id="music_btn_queue", row=1)
     async def queue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         session = self._get_session(interaction)
         if not session:
@@ -1993,7 +1993,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="🔄", label="Refresh", style=discord.ButtonStyle.secondary, custom_id="music_btn_refresh", row=0)
+    @discord.ui.button(emoji="🔄", label="Refresh", style=discord.ButtonStyle.secondary, custom_id="music_btn_refresh", row=1)
     async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -2079,7 +2079,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="❤️", label="Favorite", style=discord.ButtonStyle.secondary, custom_id="music_btn_fav", row=1)
+    @discord.ui.button(emoji="❤️", label="Favorite", style=discord.ButtonStyle.secondary, custom_id="music_btn_fav", row=2)
     async def fav_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -2111,7 +2111,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=1)
+    @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=2)
     async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
