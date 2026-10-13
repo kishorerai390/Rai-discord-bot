@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import shutil
 import aiosqlite
 
 from music_bot.config import MUSIC_DATABASE_PATH
@@ -35,12 +36,82 @@ class MusicDatabase:
         self._db: Optional[aiosqlite.Connection] = None
         self._lock = asyncio.Lock()
 
+    def backup_database(self, reason: str = "pre_migration", max_backups: int = 5) -> Optional[Path]:
+        """Create a timestamped backup of music.db with bounded retention."""
+        if not self.db_path.exists():
+            return None
+        backup_dir = self.db_path.parent / "backups" / "db"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        backup_file = backup_dir / f"music_{timestamp}_{reason}.db"
+        try:
+            shutil.copy2(str(self.db_path), str(backup_file))
+            logger.info(f"[Database] Created database backup: {backup_file.name}")
+
+            # Retention pruning: keep only max_backups most recent
+            existing = sorted(backup_dir.glob("music_*.db"), key=lambda p: p.stat().st_mtime)
+            if len(existing) > max_backups:
+                for old in existing[:-max_backups]:
+                    try:
+                        old.unlink()
+                        logger.debug(f"[Database] Pruned old backup: {old.name}")
+                    except Exception:
+                        pass
+            return backup_file
+        except Exception as e:
+            logger.warning(f"[Database] Failed to create backup: {e}")
+            return None
+
+    async def run_migrations(self) -> None:
+        """Safe SQLite schema migration engine with automatic pre-migration backup & integrity verification."""
+        if not self._db:
+            return
+
+        async with self._lock:
+            await self._db.execute("PRAGMA journal_mode = WAL;")
+            await self._db.execute("PRAGMA foreign_keys = ON;")
+
+            cursor = await self._db.execute("PRAGMA user_version;")
+            row = await cursor.fetchone()
+            current_version = row[0] if row else 0
+
+            TARGET_VERSION = 1
+            if current_version < TARGET_VERSION:
+                logger.info(f"[Database] Migrating database from v{current_version} to v{TARGET_VERSION}...")
+                backup_path = self.backup_database(reason="migration_v1")
+
+                try:
+                    await self._db.execute("BEGIN IMMEDIATE TRANSACTION;")
+                    await self._db.execute(f"PRAGMA user_version = {TARGET_VERSION};")
+                    await self._db.commit()
+
+                    cur_int = await self._db.execute("PRAGMA integrity_check;")
+                    res_int = await cur_int.fetchone()
+                    if res_int and res_int[0] == "ok":
+                        logger.info(f"[Database] Migration to v{TARGET_VERSION} successful and verified.")
+                    else:
+                        raise RuntimeError(f"Integrity check failed: {res_int}")
+                except Exception as mig_err:
+                    logger.error(f"[Database] Migration failed: {mig_err}. Rolling back transaction...")
+                    try:
+                        await self._db.rollback()
+                    except Exception:
+                        pass
+                    if backup_path and backup_path.exists():
+                        logger.warning(f"[Database] Restoring database from pre-migration backup: {backup_path.name}")
+                        await self._db.close()
+                        shutil.copy2(str(backup_path), str(self.db_path))
+                        self._db = await aiosqlite.connect(str(self.db_path))
+                        self._db.row_factory = aiosqlite.Row
+                    raise mig_err
+
     async def connect(self) -> None:
         """Establish connection and apply initial schema."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = await aiosqlite.connect(str(self.db_path))
         self._db.row_factory = aiosqlite.Row
         await self._init_schema()
+        await self.run_migrations()
         logger.info(f"Music Bot database connected at {self.db_path}")
 
     @property

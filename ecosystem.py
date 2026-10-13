@@ -157,6 +157,7 @@ def run():
     music_restarts: list[float] = []
 
     try:
+        MAX_BURST_RESTARTS = 5
         while True:
             now = time.time()
             ret_main = proc_main.poll()
@@ -164,6 +165,10 @@ def run():
 
             if ret_main is not None:
                 main_restarts = [t for t in main_restarts if now - t < 60]
+                if len(main_restarts) >= MAX_BURST_RESTARTS:
+                    print(f"\n🛑 [BOUNDED RECOVERY] The Raivora crashed {len(main_restarts)} times in 60s. Pausing 45s cooldown to prevent restart loop...")
+                    time.sleep(45)
+                    main_restarts.clear()
                 backoff = 15 if len(main_restarts) >= 3 else 3
                 print(f"\n⚠️ The Raivora exited (code {ret_main}). Auto-recovering in {backoff}s...")
                 time.sleep(backoff)
@@ -174,6 +179,10 @@ def run():
 
             if ret_music is not None:
                 music_restarts = [t for t in music_restarts if now - t < 60]
+                if len(music_restarts) >= MAX_BURST_RESTARTS:
+                    print(f"\n🛑 [BOUNDED RECOVERY] Neko Songs crashed {len(music_restarts)} times in 60s. Pausing 45s cooldown to prevent restart loop...")
+                    time.sleep(45)
+                    music_restarts.clear()
                 backoff = 15 if len(music_restarts) >= 3 else 3
                 print(f"\n⚠️ Neko Songs exited (code {ret_music}). Auto-recovering in {backoff}s...")
                 time.sleep(backoff)

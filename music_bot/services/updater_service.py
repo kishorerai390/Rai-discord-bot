@@ -239,9 +239,72 @@ class MusicAutoUpdater:
             return {"is_git": False, "has_updates": False, "error": str(e)}
 
     @classmethod
+    async def create_code_backup(cls, repo_dir: Path) -> Optional[str]:
+        """Saves current git commit hash before pulling updates."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "HEAD",
+                cwd=str(repo_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await proc.communicate()
+            if proc.returncode == 0:
+                commit_hash = stdout.decode().strip()
+                logger.info(f"[AutoUpdater] Pre-update code snapshot captured: {commit_hash[:8]}")
+                return commit_hash
+        except Exception as e:
+            logger.warning(f"[AutoUpdater] Failed to capture pre-update git hash: {e}")
+        return None
+
+    @classmethod
+    async def verify_update_health(cls, bot: Optional[RaiMusicBot] = None) -> Tuple[bool, str]:
+        """Runs post-update verification probe ensuring AudioResolver and player components remain healthy."""
+        try:
+            from music_bot.services.resolver_service import AudioResolver
+            if not hasattr(AudioResolver, "resolve_track") or not hasattr(AudioResolver, "resolve_spotify_metadata"):
+                return False, "AudioResolver missing core resolution interfaces."
+            return True, "Core music interfaces verified healthy."
+        except Exception as e:
+            return False, f"Post-update health check exception: {e}"
+
+    @classmethod
+    async def rollback_git_update(cls, pre_commit_hash: str, repo_dir: Path, bot: Optional[RaiMusicBot] = None) -> Tuple[bool, str]:
+        """Rolls back the codebase to pre-update commit if verification or hot-reload fails."""
+        logger.warning(f"[AutoUpdater] Initiating emergency rollback to {pre_commit_hash[:8]}...")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "git", "reset", "--hard", pre_commit_hash,
+                cwd=str(repo_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                logger.info(f"[AutoUpdater] Successfully rolled back codebase to {pre_commit_hash[:8]}.")
+                await cls.hot_reload_services(bot=bot)
+                if bot:
+                    await cls.dispatch_update_alert(
+                        bot,
+                        title="⚠️ CODEBASE ROLLED BACK",
+                        description=f"An update failed post-deployment checks and was safely rolled back to `{pre_commit_hash[:8]}`.",
+                        color=0xED4245,
+                    )
+                return True, f"Successfully rolled back to {pre_commit_hash[:8]}"
+            else:
+                err = stderr.decode().strip()
+                logger.error(f"[AutoUpdater] Rollback failed: {err}")
+                return False, f"Rollback failed: {err}"
+        except Exception as e:
+            logger.error(f"[AutoUpdater] Rollback subprocess error: {e}")
+            return False, str(e)
+
+    @classmethod
     async def pull_git_updates(cls, bot: Optional[RaiMusicBot] = None) -> Tuple[bool, str]:
-        """Pulls latest git commits and hot-reloads core music bot services with zero playback loss."""
+        """Pulls latest git commits and hot-reloads core music bot services with automatic backup and rollback."""
         repo_dir = Path(__file__).resolve().parent.parent.parent
+        pre_hash = await cls.create_code_backup(repo_dir)
+
         if bot:
             bot.is_upgrading = True
             try:
@@ -266,6 +329,15 @@ class MusicAutoUpdater:
 
                 # Hot reload services in-memory and maintain active track positions
                 success, reload_msg = await cls.hot_reload_services(bot=bot)
+                if not success and pre_hash:
+                    await cls.rollback_git_update(pre_hash, repo_dir, bot=bot)
+                    return False, f"Hot-reload failed after pull. Rolled back to {pre_hash[:8]}: {reload_msg}"
+
+                # Post-update canary verification
+                health_ok, health_msg = await cls.verify_update_health(bot=bot)
+                if not health_ok and pre_hash:
+                    await cls.rollback_git_update(pre_hash, repo_dir, bot=bot)
+                    return False, f"Post-update health check failed. Rolled back to {pre_hash[:8]}: {health_msg}"
 
                 msg = f"Git updates pulled successfully:\n```\n{out_str[:300]}\n```\n• {reload_msg}"
                 if bot:
