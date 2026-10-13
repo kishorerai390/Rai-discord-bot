@@ -328,6 +328,75 @@ class AudioResolver:
         return results
 
     @classmethod
+    async def resolve_spotify_metadata(cls, spotify_url: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract title, artist, and album thumbnail from Spotify track/album/playlist URLs
+        using Spotify's public oEmbed API and open metadata without requiring developer credentials.
+        """
+        import urllib.request
+        import json
+        loop = asyncio.get_running_loop()
+
+        def _fetch_meta() -> Optional[Dict[str, Any]]:
+            try:
+                # 1. Query Spotify public oEmbed
+                clean_url = spotify_url.split("?")[0]
+                oembed_endpoint = f"https://open.spotify.com/oembed?url={clean_url}"
+                req = urllib.request.Request(
+                    oembed_endpoint,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                )
+                with urllib.request.urlopen(req, timeout=6.0) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+
+                track_title = data.get("title", "").strip()
+                thumbnail = data.get("thumbnail_url")
+                artist = "Unknown Artist"
+
+                # 2. Extract artist from open.spotify.com page title if available
+                page_req = urllib.request.Request(
+                    clean_url,
+                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+                )
+                try:
+                    with urllib.request.urlopen(page_req, timeout=5.0) as page_resp:
+                        html = page_resp.read().decode("utf-8", errors="ignore")
+                        start_idx = html.find("<title>")
+                        end_idx = html.find("</title>")
+                        if start_idx != -1 and end_idx != -1:
+                            page_title = html[start_idx + 7 : end_idx]
+                            if " - song and lyrics by " in page_title:
+                                parts = page_title.split(" - song and lyrics by ", 1)
+                                if not track_title:
+                                    track_title = parts[0].strip()
+                                artist = parts[1].split(" | Spotify")[0].strip()
+                            elif " - song by " in page_title:
+                                parts = page_title.split(" - song by ", 1)
+                                if not track_title:
+                                    track_title = parts[0].strip()
+                                artist = parts[1].split(" | Spotify")[0].strip()
+                            elif " | Spotify" in page_title:
+                                raw_title = page_title.replace(" | Spotify", "").strip()
+                                if " - " in raw_title:
+                                    pts = raw_title.split(" - ", 1)
+                                    artist, track_title = pts[0].strip(), pts[1].strip()
+                except Exception:
+                    pass
+
+                if track_title:
+                    return {
+                        "title": track_title,
+                        "artist": artist,
+                        "thumbnail": thumbnail,
+                        "search_query": f"{track_title} {artist}" if artist != "Unknown Artist" else track_title,
+                    }
+            except Exception as e:
+                logger.warning(f"Spotify metadata extraction error for '{spotify_url}': {e}")
+            return None
+
+        return await loop.run_in_executor(_audio_executor, _fetch_meta)
+
+    @classmethod
     async def resolve_track(
         cls, query_or_url: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
@@ -335,12 +404,29 @@ class AudioResolver:
         start_t = time.time()
         loop = asyncio.get_running_loop()
 
-        # Clean spotify or apple music links to plain track title
+        spotify_info = None
         cleaned_query = query_or_url
-        if "spotify.com" in query_or_url or "apple.com" in query_or_url:
+        if "spotify.com" in query_or_url:
+            spotify_info = await cls.resolve_spotify_metadata(query_or_url)
+            if spotify_info:
+                cleaned_query = spotify_info["search_query"]
+                logger.info(f"[Resolver] Resolved Spotify metadata: '{spotify_info['title']}' by '{spotify_info['artist']}'")
+        elif "apple.com" in query_or_url:
             cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
-        target = cleaned_query if cleaned_query.startswith("http") else f"ytsearch1:{cleaned_query}"
+        target = cleaned_query if (cleaned_query.startswith("http") and "spotify.com" not in cleaned_query) else f"ytsearch1:{cleaned_query}"
+
+        def _apply_metadata_enhancements(t: Optional[QueuedTrack]) -> Optional[QueuedTrack]:
+            if t and spotify_info:
+                if spotify_info.get("title"):
+                    t.title = spotify_info["title"]
+                if spotify_info.get("artist") and spotify_info["artist"] != "Unknown Artist":
+                    t.artist = spotify_info["artist"]
+                if spotify_info.get("thumbnail"):
+                    t.thumbnail = spotify_info["thumbnail"]
+                if query_or_url.startswith("http"):
+                    t.url = query_or_url
+            return t
 
         # Strategy 1: Primary YouTube extraction with modern client list
         try:
@@ -352,6 +438,7 @@ class AudioResolver:
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
+                track = _apply_metadata_enhancements(track)
                 dur = time.time() - start_t
                 logger.info(f"[Resolver] Primary YouTube resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
@@ -370,6 +457,7 @@ class AudioResolver:
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
+                track = _apply_metadata_enhancements(track)
                 dur = time.time() - start_t
                 logger.info(f"[Resolver] Secondary profile resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
@@ -377,7 +465,7 @@ class AudioResolver:
             logger.warning(f"Secondary YouTube profile failed for '{cleaned_query}': {fb_err}")
 
         # Strategy 3: Multi-Source Failover to SoundCloud if it's a search query
-        if not cleaned_query.startswith("http"):
+        if not cleaned_query.startswith("http") or spotify_info is not None:
             try:
                 sc_target = f"scsearch5:{cleaned_query}"
                 logger.info(f"Failing over to SoundCloud for '{cleaned_query}'...")
@@ -397,6 +485,7 @@ class AudioResolver:
                             continue
                         track = cls._parse_entry(entry, requester_id, requester_name)
                         if track and track.stream_url:
+                            track = _apply_metadata_enhancements(track)
                             dur = time.time() - start_t
                             logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
                             return track
