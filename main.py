@@ -6,6 +6,7 @@ Main Application Entry Point.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 # Configure UTF-8 encoding on Windows console for emoji/unicode safety
@@ -82,29 +83,34 @@ def main():
     music_bot = None
     music_token = None
     music_lock = None
-    try:
-        from music_bot.config import (
-            MUSIC_BOT_TOKEN,
-            get_masked_music_token,
-            is_music_token_valid,
-        )
-        if is_music_token_valid():
-            from music_bot.bot import NekoSongsBot
-            music_token = MUSIC_BOT_TOKEN
-            music_lock_file = config.ROOT_DIR / ".neko_songs.lock"
-            music_lock = SingleInstanceLock(port=MUSIC_LOCK_PORT, lock_file=music_lock_file)
-            try:
-                music_lock.acquire()
-                music_bot = NekoSongsBot()
-                print(f"[ECOSYSTEM] Music Bot configured ({get_masked_music_token()}). Running alongside Rai Sentinel 24/7.")
-            except InstanceAlreadyRunningError:
-                print("[WARNING] Another standalone Neko Songs process is already running. Proceeding with Rai Sentinel only.")
-                music_lock = None
-                music_bot = None
-        else:
-            print("[INFO] Music Bot token not configured. Running Rai Sentinel in standalone mode.")
-    except Exception as e:
-        logger.warning(f"Could not initialize Music Bot for ecosystem launcher: {e}")
+    is_standalone_security = os.environ.get("STANDALONE_SECURITY", "0") == "1"
+
+    if not is_standalone_security:
+        try:
+            from music_bot.config import (
+                MUSIC_BOT_TOKEN,
+                get_masked_music_token,
+                is_music_token_valid,
+            )
+            if is_music_token_valid():
+                from music_bot.bot import NekoSongsBot
+                music_token = MUSIC_BOT_TOKEN
+                music_lock_file = config.ROOT_DIR / ".neko_songs.lock"
+                music_lock = SingleInstanceLock(port=MUSIC_LOCK_PORT, lock_file=music_lock_file)
+                try:
+                    music_lock.acquire()
+                    music_bot = NekoSongsBot()
+                    print(f"[ECOSYSTEM] Music Bot configured ({get_masked_music_token()}). Running alongside Rai Sentinel 24/7.")
+                except InstanceAlreadyRunningError:
+                    print("[INFO] Standalone Neko Songs process detected or lock held. Running Rai Sentinel in standalone mode.")
+                    music_lock = None
+                    music_bot = None
+            else:
+                print("[INFO] Music Bot token not configured. Running Rai Sentinel in standalone mode.")
+        except Exception as e:
+            logger.warning(f"Could not initialize Music Bot for ecosystem launcher: {e}")
+    else:
+        logger.info("Running Rai Sentinel in dedicated standalone security mode (STANDALONE_SECURITY=1).")
 
     bot = SentinelBot()
     if music_bot and hasattr(bot, "keep_alive"):
@@ -114,11 +120,30 @@ def main():
         async with bot:
             if music_bot and music_token:
                 async with music_bot:
-                    logger.info("Starting Rai Sentinel and Neko Songs concurrently...")
-                    await asyncio.gather(
-                        bot.start(DISCORD_TOKEN),
-                        music_bot.start(music_token),
+                    logger.info("Starting Rai Sentinel and Neko Songs concurrently with error isolation...")
+                    
+                    async def _run_music_guarded():
+                        try:
+                            await music_bot.start(music_token)
+                        except Exception as m_err:
+                            logger.error(f"Music Bot client error: {m_err}", exc_info=True)
+
+                    async def _run_security_guarded():
+                        try:
+                            await bot.start(DISCORD_TOKEN)
+                        except Exception as s_err:
+                            logger.error(f"Security Bot client error: {s_err}", exc_info=True)
+
+                    music_task = asyncio.create_task(_run_music_guarded())
+                    security_task = asyncio.create_task(_run_security_guarded())
+
+                    # Await security bot; music failure never terminates security bot
+                    done, pending = await asyncio.wait(
+                        [security_task],
+                        return_when=asyncio.FIRST_COMPLETED,
                     )
+                    for t in pending:
+                        t.cancel()
             else:
                 await bot.start(DISCORD_TOKEN)
 

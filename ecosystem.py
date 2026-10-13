@@ -130,11 +130,14 @@ def run():
     clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora")
     clear_stale_instance(MUSIC_LOCK_PORT, "Neko Songs")
 
-    # 1. Spawn Main Bot (The Raivora)
+    # 1. Spawn Main Bot (The Raivora) in dedicated standalone mode
     print("[1/2] 🚀 Spawning The Raivora (Core, Security, Moderation)...")
+    main_env = os.environ.copy()
+    main_env["STANDALONE_SECURITY"] = "1"
     proc_main = subprocess.Popen(
         [python_executable, "main.py"],
         cwd=base_dir,
+        env=main_env,
     )
 
     # 2. Short pause to allow main bot DB migrations to settle
@@ -165,7 +168,7 @@ def run():
                 print(f"\n⚠️ The Raivora exited (code {ret_main}). Auto-recovering in {backoff}s...")
                 time.sleep(backoff)
                 clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora", exclude_pids={proc_music.pid})
-                proc_main = subprocess.Popen([python_executable, "main.py"], cwd=base_dir)
+                proc_main = subprocess.Popen([python_executable, "main.py"], cwd=base_dir, env=main_env)
                 main_restarts.append(time.time())
                 print(f"🚀 The Raivora respawned successfully (PID: {proc_main.pid}).")
 

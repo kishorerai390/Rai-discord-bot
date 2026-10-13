@@ -109,6 +109,17 @@ class MusicPlayerService:
                     if getattr(me.voice, "mute", False):
                         logger.warning(f"Bot is server-muted in guild {session.guild_id}! Audio cannot be heard.")
                         session.last_error = "⚠️ Bot is currently server-muted in voice channel."
+                        try:
+                            if perms.mute_members:
+                                await me.edit(mute=False)
+                                logger.info(f"Automatically unmuted bot in guild {session.guild_id}!")
+                        except Exception as unmute_err:
+                            logger.debug(f"Could not auto-unmute: {unmute_err}")
+                    if getattr(me.voice, "suppress", False):
+                        try:
+                            await session.voice_client.guild.change_voice_state(channel=vc_channel, suppress=False)
+                        except Exception as e:
+                            logger.debug(f"Could not clear suppress: {e}")
                     if getattr(me.voice, "self_mute", False):
                         try:
                             await session.voice_client.guild.change_voice_state(channel=vc_channel, self_mute=False)
@@ -172,13 +183,13 @@ class MusicPlayerService:
                 audio_source, volume=norm_vol
             )
 
-            # Validate that audio source actually produces valid PCM audio frames
+            # Validate that audio source actually produces valid PCM audio frames (with 8.0s buffering timeout)
             loop = asyncio.get_running_loop()
             first_frame: Optional[bytes] = None
             try:
                 first_frame = await asyncio.wait_for(
                     loop.run_in_executor(None, volume_transformer.read),
-                    timeout=3.5,
+                    timeout=8.0,
                 )
             except Exception as read_err:
                 logger.warning(f"Initial frame read failed for '{track.title}': {read_err}")
@@ -199,7 +210,7 @@ class MusicPlayerService:
                     try:
                         first_frame = await asyncio.wait_for(
                             loop.run_in_executor(None, volume_transformer.read),
-                            timeout=3.5,
+                            timeout=8.0,
                         )
                     except Exception:
                         first_frame = b""
@@ -247,15 +258,13 @@ class MusicPlayerService:
                     session.last_error = f"Audio playback error: {error}"
                     logger.error(f"Playback error in guild {session.guild_id}: {error}", exc_info=True)
 
-                # Mid-song stream auto-recovery for premature stream failures
+                # Mid-song stream auto-recovery for premature stream failures or premature EOF
                 elapsed = session.progress_seconds
                 duration = track.duration if track else 0
                 retries = getattr(track, "_retry_count", 0)
                 if (
                     not getattr(session, "_is_skipping", False)
-                    and error
-                    and duration > 30
-                    and elapsed < duration - 15
+                    and (error is not None or (duration > 40 and elapsed < duration - 25))
                     and retries < 2
                 ):
                     logger.warning(
@@ -400,7 +409,7 @@ class MusicPlayerService:
                 volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                 first_frame = await asyncio.wait_for(
                     loop.run_in_executor(None, volume_transformer.read),
-                    timeout=3.5,
+                    timeout=8.0,
                 )
             except Exception as e:
                 logger.warning(f"Initial frame read failed during stream resume for '{track.title}': {e}")
@@ -416,7 +425,7 @@ class MusicPlayerService:
                         volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                         first_frame = await asyncio.wait_for(
                             loop.run_in_executor(None, volume_transformer.read),
-                            timeout=3.5,
+                            timeout=8.0,
                         )
                     except Exception:
                         first_frame = b""

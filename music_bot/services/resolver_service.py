@@ -86,7 +86,7 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
-        "socket_timeout": 8,
+        "socket_timeout": 20,
         "remote_components": ["ejs:github"],
         "extractor_args": {
             "youtube": {}
@@ -121,7 +121,7 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
 YTDL_OPTIONS = _build_ytdl_options()
 
 FFMPEG_OPTIONS = {
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -analyzeduration 0 -loglevel warning",
     "options": "-vn",
 }
 
@@ -283,20 +283,20 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(_ytdl.extract_info, search_query, download=False)
                 ),
-                timeout=8.0,
+                timeout=20.0,
             )
         except Exception as e:
             logger.warning(f"YouTube search failed for '{query}': {e}. Attempting SoundCloud fallback...")
             try:
                 sc_query = f"scsearch{limit + 3}:{query}"
                 sc_opts = _build_ytdl_options()
-                sc_opts.update({"quiet": True, "noplaylist": True, "socket_timeout": 8})
+                sc_opts.update({"quiet": True, "noplaylist": True, "socket_timeout": 15})
                 sc_ydl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ydl.extract_info, sc_query, download=False)
                     ),
-                    timeout=8.0,
+                    timeout=20.0,
                 )
             except Exception as sc_err:
                 logger.error(f"SoundCloud search fallback also failed for '{query}': {sc_err}")
@@ -348,7 +348,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(_ytdl.extract_info, target, download=False)
                 ),
-                timeout=8.0,
+                timeout=20.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
@@ -366,7 +366,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(fallback_ytdl.extract_info, target, download=False)
                 ),
-                timeout=8.0,
+                timeout=20.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
@@ -382,13 +382,13 @@ class AudioResolver:
                 sc_target = f"scsearch5:{cleaned_query}"
                 logger.info(f"Failing over to SoundCloud for '{cleaned_query}'...")
                 sc_opts = _build_ytdl_options()
-                sc_opts.update({"format": "bestaudio/best", "noplaylist": True, "quiet": True, "socket_timeout": 8})
+                sc_opts.update({"format": "bestaudio/best", "noplaylist": True, "quiet": True, "socket_timeout": 15})
                 sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
                     ),
-                    timeout=8.0,
+                    timeout=20.0,
                 )
                 if data:
                     entries = data.get("entries") if "entries" in data else [data]
