@@ -1,8 +1,0 @@
-{
-  "name": "sentinel-discord-security",
-  "version": "1.0.0",
-  "description": "Antigravity plugin for Rai Sentinel Discord security bot monitoring, plugin authoring, incident triage, and automated health audits.",
-  "skills": [
-    "sentinel-security-audit"
-  ]
-}

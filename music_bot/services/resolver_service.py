@@ -86,7 +86,7 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
-        "socket_timeout": 20,
+        "socket_timeout": 10,
         "remote_components": ["ejs:github"],
         "extractor_args": {
             "youtube": {}

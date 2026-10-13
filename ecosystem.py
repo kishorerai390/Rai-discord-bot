@@ -127,55 +127,41 @@ def run():
             except Exception:
                 pass
 
-    clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora")
-    clear_stale_instance(MUSIC_LOCK_PORT, "Neko Songs")
+    clear_stale_instance(MUSIC_LOCK_PORT, "MusicMaid")
 
-    # 1. Spawn Main Bot (The Raivora) in dedicated standalone mode
-    print("[1/2] 🚀 Spawning The Raivora (Core, Security, Moderation)...")
-    main_env = os.environ.copy()
-    main_env["STANDALONE_SECURITY"] = "1"
-    proc_main = subprocess.Popen(
+    # 1. Spawn Primary Music Bot (MusicMaid)
+    print("[1/1] 🐱 Spawning Raivora Music Maid (Primary Audio Engine)...")
+    proc_music = subprocess.Popen(
         [python_executable, "main.py"],
         cwd=base_dir,
-        env=main_env,
     )
 
-    # 2. Short pause to allow main bot DB migrations to settle
-    time.sleep(2)
+    print(f"\n✅ MusicMaid running! (PID: {proc_music.pid})")
+    print("Press Ctrl+C to gracefully stop.\n")
 
-    # 3. Spawn Music Bot (Neko Songs)
-    print("[2/2] 🐱 Spawning Neko Songs (Dedicated Audio Companion)...")
-    proc_music = subprocess.Popen(
-        [python_executable, "music_main.py"],
-        cwd=base_dir,
-    )
-
-    print(f"\n✅ Both bot processes running! (Raivora PID: {proc_main.pid}, Neko Songs PID: {proc_music.pid})")
-    print("Press Ctrl+C to gracefully stop the entire ecosystem.\n")
-
-    main_restarts: list[float] = []
     music_restarts: list[float] = []
 
     try:
         MAX_BURST_RESTARTS = 5
         while True:
             now = time.time()
-            ret_main = proc_main.poll()
             ret_music = proc_music.poll()
 
-            if ret_main is not None:
-                main_restarts = [t for t in main_restarts if now - t < 60]
-                if len(main_restarts) >= MAX_BURST_RESTARTS:
-                    print(f"\n🛑 [BOUNDED RECOVERY] The Raivora crashed {len(main_restarts)} times in 60s. Pausing 45s cooldown to prevent restart loop...")
+            if ret_music is not None:
+                music_restarts = [t for t in music_restarts if now - t < 60]
+                if len(music_restarts) >= MAX_BURST_RESTARTS:
+                    print(f"\n🛑 [BOUNDED RECOVERY] MusicMaid crashed {len(music_restarts)} times in 60s. Pausing 45s cooldown to prevent restart loop...")
                     time.sleep(45)
-                    main_restarts.clear()
-                backoff = 15 if len(main_restarts) >= 3 else 3
-                print(f"\n⚠️ The Raivora exited (code {ret_main}). Auto-recovering in {backoff}s...")
+                    music_restarts.clear()
+                backoff = 15 if len(music_restarts) >= 3 else 3
+                print(f"\n⚠️ MusicMaid exited (code {ret_music}). Auto-recovering in {backoff}s...")
                 time.sleep(backoff)
-                clear_stale_instance(DEFAULT_LOCK_PORT, "The Raivora", exclude_pids={proc_music.pid})
-                proc_main = subprocess.Popen([python_executable, "main.py"], cwd=base_dir, env=main_env)
-                main_restarts.append(time.time())
-                print(f"🚀 The Raivora respawned successfully (PID: {proc_main.pid}).")
+                clear_stale_instance(MUSIC_LOCK_PORT, "MusicMaid")
+                proc_music = subprocess.Popen([python_executable, "main.py"], cwd=base_dir)
+                music_restarts.append(time.time())
+                print(f"🐱 MusicMaid respawned successfully (PID: {proc_music.pid}).")
+
+            time.sleep(2)
 
             if ret_music is not None:
                 music_restarts = [t for t in music_restarts if now - t < 60]
@@ -186,24 +172,16 @@ def run():
                 backoff = 15 if len(music_restarts) >= 3 else 3
                 print(f"\n⚠️ Neko Songs exited (code {ret_music}). Auto-recovering in {backoff}s...")
                 time.sleep(backoff)
-                clear_stale_instance(MUSIC_LOCK_PORT, "Neko Songs", exclude_pids={proc_main.pid})
-                proc_music = subprocess.Popen([python_executable, "music_main.py"], cwd=base_dir)
-                music_restarts.append(time.time())
-                print(f"🐱 Neko Songs respawned successfully (PID: {proc_music.pid}).")
-
-            time.sleep(2)
-
     except KeyboardInterrupt:
         print("\n🛑 Stopping Rai Ecosystem...")
     finally:
-        for name, p in [("Neko Songs", proc_music), ("The Raivora", proc_main)]:
-            if p and p.poll() is None:
-                print(f"Terminating {name} (PID: {p.pid})...")
-                p.terminate()
-                try:
-                    p.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    p.kill()
+        if proc_music and proc_music.poll() is None:
+            print(f"Terminating MusicMaid (PID: {proc_music.pid})...")
+            proc_music.terminate()
+            try:
+                proc_music.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc_music.kill()
         orchestrator_lock.release()
         print("✦ Rai Ecosystem stopped cleanly.")
 

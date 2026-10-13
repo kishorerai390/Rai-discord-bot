@@ -41,12 +41,13 @@ DIALOGUE_NOTHING_PLAYABLE: str = DIALOGUE_UNPLAYABLE
 DIALOGUE_UNAVAILABLE: str = "🐱 Neko's music source is temporarily unavailable. Please try again later."
 DIALOGUE_PLAYBACK_END: str = "🎶 That was a good one!"
 
-# Neko Songs Bot Credentials
-# Prioritizes NEKO_SONGS_BOT_TOKEN; falls back gracefully to MUSIC_BOT_TOKEN
-NEKO_SONGS_BOT_TOKEN: str = os.getenv(
-    "NEKO_SONGS_BOT_TOKEN", os.getenv("MUSIC_BOT_TOKEN", "")
+# Neko Songs / Music Maid Bot Credentials
+# Prioritizes MUSIC_BOT_TOKEN / NEKO_SONGS_BOT_TOKEN; falls back seamlessly to DISCORD_TOKEN
+MUSIC_BOT_TOKEN: str = os.getenv(
+    "MUSIC_BOT_TOKEN",
+    os.getenv("NEKO_SONGS_BOT_TOKEN", os.getenv("DISCORD_TOKEN", "")),
 ).strip()
-MUSIC_BOT_TOKEN: str = NEKO_SONGS_BOT_TOKEN
+NEKO_SONGS_BOT_TOKEN: str = MUSIC_BOT_TOKEN
 
 MUSIC_BOT_ID: int = int(os.getenv("MUSIC_BOT_ID", "1556676516274905218"))
 MUSIC_PREFIX: str = os.getenv("MUSIC_BOT_PREFIX", "m!").strip()

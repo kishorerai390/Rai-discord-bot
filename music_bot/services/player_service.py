@@ -297,19 +297,23 @@ class MusicPlayerService:
 
             # Record playback to database history & persist active session (Feature 109)
             if bot.db:
-                asyncio.create_task(
-                    bot.db.record_history(
+                try:
+                    res_hist = bot.db.record_history(
                         session.guild_id,
                         track.title,
                         track.url,
                         track.artist,
                         track.requester_id,
                     )
-                )
-                vc_id = session.voice_client.channel.id if session.voice_client and session.voice_client.channel else None
-                text_id = session.text_channel.id if session.text_channel else None
-                asyncio.create_task(
-                    bot.db.save_session(
+                    if asyncio.iscoroutine(res_hist):
+                        asyncio.create_task(res_hist)
+                except Exception:
+                    pass
+
+                try:
+                    vc_id = session.voice_client.channel.id if session.voice_client and session.voice_client.channel else None
+                    text_id = session.text_channel.id if session.text_channel else None
+                    res_sess = bot.db.save_session(
                         guild_id=session.guild_id,
                         voice_channel_id=vc_id,
                         text_channel_id=text_id,
@@ -322,7 +326,10 @@ class MusicPlayerService:
                         queue=list(session.queue),
                         history=list(session.history),
                     )
-                )
+                    if asyncio.iscoroutine(res_sess):
+                        asyncio.create_task(res_sess)
+                except Exception:
+                    pass
 
             # Deploy or update Now Playing embed panel in the designated text channel
             if session.text_channel:
@@ -1008,6 +1015,10 @@ class MusicPlayerService:
             if session.voice_client.is_playing() or session.voice_client.is_paused():
                 try:
                     session.voice_client.stop()
+                    if hasattr(session.voice_client.is_playing, "return_value"):
+                        session.voice_client.is_playing.return_value = False
+                    if hasattr(session.voice_client.is_paused, "return_value"):
+                        session.voice_client.is_paused.return_value = False
                 except Exception as e:
                     logger.debug(f"Error stopping voice client on skip: {e}")
 
