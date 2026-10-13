@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Optional
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 from music_bot.commands.music_cog import MusicCog
@@ -46,6 +49,13 @@ class NekoSongsBot(commands.Bot):
     """Independent Discord Bot application powering Neko Songs."""
 
     def __init__(self):
+        # Ensure Discord voice Opus codec is loaded
+        try:
+            if not discord.opus.is_loaded():
+                discord.opus._load_default()
+        except Exception as opus_err:
+            logger.debug(f"Opus loader notice: {opus_err}")
+
         intents = discord.Intents.default()
         intents.guilds = True
         intents.voice_states = True
@@ -61,7 +71,6 @@ class NekoSongsBot(commands.Bot):
         self.db = MusicDatabase()
         self.session_manager = SessionManager.get_instance()
         self._prefix_cache: Dict[int, str] = {}
-        import time
         self.started_at = time.time()
         self.is_upgrading: bool = False
 
