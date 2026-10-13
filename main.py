@@ -6,6 +6,7 @@ Main Application Entry Point.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 # Configure UTF-8 encoding on Windows console for emoji/unicode safety
@@ -48,6 +49,42 @@ import asyncio
 from core.bot import SentinelBot, COGS_LIST
 
 __all__ = ["SentinelBot", "COGS_LIST"]
+
+
+async def _start_music_bot_with_restarts(music_bot, music_token, max_restarts: int = 5):
+    """
+    Start the music bot and automatically restart it on unexpected exit.
+    Uses exponential backoff between restarts.
+    """
+    restart_count = 0
+    backoff = 1.0
+
+    while True:
+        try:
+            await music_bot.start(music_token)
+            logger.info("Music bot exited cleanly.")
+            break
+        except asyncio.CancelledError:
+            logger.info("Music bot supervisor cancelled.")
+            try:
+                await music_bot.close()
+            except Exception:
+                pass
+            break
+        except Exception as e:
+            restart_count += 1
+            logger.warning(
+                f"Music bot crashed/unexpectedly stopped (attempt {restart_count}): {e}",
+                exc_info=True,
+            )
+            if 0 < max_restarts <= restart_count:
+                logger.critical("Max music bot restart attempts reached. Giving up.")
+                break
+            jitter = min(5.0, backoff * 0.1)
+            sleep_for = backoff + (jitter * (0.5 - (ord(os.urandom(1)) / 255.0)))
+            logger.info(f"Restarting music bot in {sleep_for:.1f}s...")
+            await asyncio.sleep(max(1.0, sleep_for))
+            backoff = min(backoff * 2.0, 300.0)
 
 
 def main():
@@ -113,12 +150,21 @@ def main():
     async def run_ecosystem():
         async with bot:
             if music_bot and music_token:
-                async with music_bot:
-                    logger.info("Starting Rai Sentinel and Neko Songs concurrently...")
-                    await asyncio.gather(
-                        bot.start(DISCORD_TOKEN),
-                        music_bot.start(music_token),
-                    )
+                music_task = asyncio.create_task(_start_music_bot_with_restarts(music_bot, music_token))
+                try:
+                    logger.info("Starting Rai Sentinel and supervised Neko Songs...")
+                    await bot.start(DISCORD_TOKEN)
+                finally:
+                    if not music_task.done():
+                        music_task.cancel()
+                        try:
+                            await music_task
+                        except Exception:
+                            pass
+                    try:
+                        await music_bot.close()
+                    except Exception:
+                        pass
             else:
                 await bot.start(DISCORD_TOKEN)
 
