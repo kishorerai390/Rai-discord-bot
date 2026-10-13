@@ -347,7 +347,7 @@ class MusicApiRouter:
             from music_bot.services.player_service import MusicPlayerService
             try:
                 if action == "PAUSE":
-                    success, msg = await MusicPlayerService.pause(self.bot, session)
+                    success, msg = await MusicPlayerService.pause(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "noop", "message": msg})
 
                 elif action == "RESUME":
@@ -368,12 +368,27 @@ class MusicApiRouter:
                     await self.db.mark_web_action_completed(action_id, {"status": "seeked", "position": target})
 
                 elif action == "VOLUME":
-                    vol = max(0, min(100, int(payload.get("volume", 80))))
-                    session.volume = vol
-                    if session.voice_client and hasattr(session.voice_client.source, "volume"):
-                        session.voice_client.source.volume = vol / 100.0
-                    await MusicPlayerService.send_now_playing_panel(session)
+                    vol = max(0, min(150, int(payload.get("volume", 80))))
+                    await MusicPlayerService.set_volume(session, vol)
                     await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
+
+                elif action == "SHUFFLE":
+                    success, msg = MusicPlayerService.shuffle(session)
+                    await MusicPlayerService.send_now_playing_panel(session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "shuffled", "message": msg})
+
+                elif action == "LOOP":
+                    mode, msg = MusicPlayerService.cycle_loop(session)
+                    await MusicPlayerService.send_now_playing_panel(session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "loop_set", "mode": mode.value, "message": msg})
+
+                elif action == "STOP":
+                    success, msg = await MusicPlayerService.stop(self.bot, session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "stopped", "message": msg})
+
+                elif action == "FAVORITE":
+                    success, is_fav, msg = await MusicPlayerService.toggle_favorite(self.bot, user_id, session.current_track)
+                    await self.db.mark_web_action_completed(action_id, {"status": "favorited" if is_fav else "unfavorited", "message": msg})
 
                 elif action == "FILTER":
                     preset = payload.get("preset", "flat").lower()

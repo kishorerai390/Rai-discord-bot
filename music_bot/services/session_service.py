@@ -131,6 +131,11 @@ class GuildMusicSession:
         """Alias for elapsed_seconds providing uniform interface for progress tracking."""
         return self.elapsed_seconds
 
+    @progress_seconds.setter
+    def progress_seconds(self, value: int) -> None:
+        self.track_start_time = time.time() - max(0, value)
+        self.paused_duration = 0.0
+
     def reset(self) -> None:
         """Reset player state without clearing queue/history."""
         if self.progress_updater_task and not self.progress_updater_task.done():

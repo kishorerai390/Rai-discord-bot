@@ -4289,6 +4289,93 @@ UI_HTML = r"""<!DOCTYPE html>
             width: 100%;
             max-width: 380px;
           }
+          .mm-control-matrix {
+            display: flex;
+            flex-direction: column;
+            gap: 0.65rem;
+            width: 100%;
+            margin-top: 0.5rem;
+          }
+          .mm-row {
+            display: grid;
+            gap: 0.55rem;
+            width: 100%;
+          }
+          .mm-row-5 { grid-template-columns: repeat(5, 1fr); }
+          .mm-row-3 { grid-template-columns: repeat(3, 1fr); }
+          .mm-row-2 { grid-template-columns: 2fr 1fr; }
+          @media (max-width: 600px) {
+            .mm-row-5 { grid-template-columns: repeat(3, 1fr); }
+            .mm-row-3 { grid-template-columns: 1fr; }
+            .mm-row-2 { grid-template-columns: 1fr; }
+          }
+          .mm-card-btn {
+            background: rgba(22, 27, 44, 0.85);
+            border: 1px solid rgba(147, 51, 234, 0.28);
+            color: #f8fafc;
+            padding: 0.65rem 0.6rem;
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            backdrop-filter: blur(12px);
+          }
+          .mm-card-btn:hover {
+            background: rgba(147, 51, 234, 0.25);
+            border-color: rgba(168, 85, 247, 0.65);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(147, 51, 234, 0.25);
+          }
+          .mm-card-btn:active {
+            transform: translateY(0);
+          }
+          .mm-card-btn.mm-btn-primary {
+            background: linear-gradient(135deg, rgba(147, 51, 234, 0.65), rgba(6, 182, 212, 0.45));
+            border-color: rgba(6, 182, 212, 0.6);
+            box-shadow: 0 0 15px rgba(147, 51, 234, 0.4);
+          }
+          .mm-card-btn.mm-btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.4);
+            color: #ef4444;
+          }
+          .mm-card-btn.mm-btn-danger:hover {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: rgba(239, 68, 68, 0.8);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.35);
+          }
+          .mm-card-btn.active {
+            border-color: var(--cyan);
+            background: rgba(6, 182, 212, 0.25);
+            color: var(--cyan);
+          }
+          .mm-btn-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+          }
+          .mm-btn-text {
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            color: var(--text-muted);
+          }
+          .mm-card-btn:hover .mm-btn-text {
+            color: #fff;
+          }
+          .mm-vol-card {
+            background: rgba(22, 27, 44, 0.85);
+            border: 1px solid rgba(147, 51, 234, 0.28);
+            border-radius: var(--radius-md);
+            padding: 0.55rem 0.9rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
           .vol-chip {
             padding: 0.2rem 0.6rem;
             background: rgba(255, 255, 255, 0.08);
@@ -4400,27 +4487,45 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- HERO NOW PLAYING DECK -->
+          <!-- HERO NOW PLAYING DECK (MUSICMAID REFERENCE DESIGN) -->
           <div class="music-hero-card">
-            <div class="music-art-wrap">
-              <img id="music-album-art" class="music-vinyl spinning" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500" alt="Album Cover">
+            <!-- HEADER BRANDING & STATUS PILLS -->
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(147,51,234,0.25); padding-bottom:1rem; width:100%; grid-column: 1 / -1; flex-wrap:wrap; gap:1rem;">
+              <div style="display:flex; align-items:center; gap:0.75rem;">
+                <span style="font-size:1.8rem; filter:drop-shadow(0 0 8px rgba(147,51,234,0.6));">🎶</span>
+                <div>
+                  <div style="font-weight:900; font-size:1.35rem; color:#fff; letter-spacing:-0.5px; display:flex; align-items:center; gap:0.5rem;">
+                    <span>MusicMaid</span>
+                    <span style="font-size:0.68rem; background:rgba(147,51,234,0.3); border:1px solid rgba(168,85,247,0.4); color:#c084fc; padding:2px 6px; border-radius:4px; font-weight:700;">APP</span>
+                  </div>
+                  <div style="font-size:0.72rem; color:#a855f7; font-weight:700; letter-spacing:1.5px; text-transform:uppercase;">YOUR MUSIC, OUR PRIORITY.</div>
+                </div>
+              </div>
+
+              <div class="music-badges-row">
+                <span class="pill pill-green" id="music-badge-state">🟢 LIVE PLAYING</span>
+                <span class="pill pill-purple" id="music-badge-queue">📜 Queue: <span id="music-badge-queue-count">0</span></span>
+                <span class="pill pill-cyan" id="music-badge-filter">🎛️ EQ: <span id="music-badge-eq-label">Balanced</span></span>
+                <span class="pill pill-pink" id="music-badge-247">🕒 24/7</span>
+              </div>
+            </div>
+
+            <!-- ALBUM ARTWORK CARD -->
+            <div class="music-art-wrap" style="width:200px; height:200px; border-radius:18px; padding:6px; box-shadow:0 12px 35px rgba(0,0,0,0.8), 0 0 25px rgba(147,51,234,0.35);">
+              <img id="music-album-art" style="width:100%; height:100%; border-radius:14px; object-fit:cover; border:2px solid rgba(147,51,234,0.4);" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=500" alt="Album Cover">
             </div>
 
             <div class="music-meta-col">
-              <div class="music-badges-row">
-                <span class="pill pill-green" id="music-badge-state">🟢 PLAYING</span>
-                <span class="pill pill-purple" id="music-badge-vc">📍 In #❄️. Fun Time !</span>
-                <span class="pill pill-cyan" id="music-badge-filter">🎛️ Filter: Flat</span>
-                <span class="pill pill-pink" id="music-badge-autodj">🎧 Auto-DJ: OFF</span>
-              </div>
-
               <div>
-                <div class="music-track-title" id="music-live-title">Innimey Ippadithaan - Paatha Oru Lookula Video</div>
-                <div class="music-track-artist" id="music-live-artist">Santhanam, Ashna Zaveri • Neko Songs</div>
+                <div class="music-track-title" id="music-live-title">Tamil Video Song</div>
+                <div class="music-track-artist" style="display:flex; align-items:center; gap:0.4rem; margin-top:4px;">
+                  <span>👤</span> <span id="music-live-artist">Jukebox</span>
+                </div>
+                <div id="music-live-subtitle" style="font-size:0.85rem; color:var(--text-muted); margin-top:2px;">Best of 2025 • Lossless Audio</div>
               </div>
 
               <!-- REALTIME CANVAS AUDIO VISUALIZER -->
-              <canvas id="visualizer-canvas"></canvas>
+              <canvas id="visualizer-canvas" style="height:36px; border-radius:6px; background:rgba(0,0,0,0.25);"></canvas>
 
               <!-- PROGRESS SLIDER -->
               <div class="scrub-container">
@@ -4431,35 +4536,50 @@ UI_HTML = r"""<!DOCTYPE html>
                 </div>
               </div>
 
-              <!-- 13-BUTTON MASTER CONTROLS MATRIX -->
-              <div class="controls-cluster">
-                <button class="ctrl-btn" onclick="sendMusicAction('PREVIOUS')" title="Previous Track">⏮</button>
-                <button class="ctrl-btn" onclick="sendMusicSeekRelative(-10)" title="Rewind 10s">⏪</button>
-                <button class="ctrl-btn play-master" id="music-master-play-btn" onclick="toggleMusicPlayPause()" title="Play / Pause">▶</button>
-                <button class="ctrl-btn" onclick="sendMusicSeekRelative(10)" title="Fast Forward 10s">⏩</button>
-                <button class="ctrl-btn" onclick="sendMusicAction('SKIP')" title="Skip Current Song">⏭</button>
+              <!-- 4-ROW DISCORD-MATCHING CONTROL MATRIX (13 BUTTONS) -->
+              <div class="mm-control-matrix">
+                <!-- ROW 0: PRIMARY PLAYBACK (5 Buttons) -->
+                <div class="mm-row mm-row-5">
+                  <button class="mm-card-btn" onclick="sendMusicAction('PREVIOUS')" title="Previous Track"><span class="mm-btn-icon">⏮</span><span class="mm-btn-text">Previous</span></button>
+                  <button class="mm-card-btn" onclick="sendMusicSeekRelative(-10)" title="Rewind 10s"><span class="mm-btn-icon">↺</span><span class="mm-btn-text">Rewind 10s</span></button>
+                  <button class="mm-card-btn mm-btn-primary" id="music-master-play-btn" onclick="toggleMusicPlayPause()" title="Play / Pause"><span class="mm-btn-icon" id="music-play-icon">▶</span><span class="mm-btn-text" id="music-play-text">Pause</span></button>
+                  <button class="mm-card-btn" onclick="sendMusicSeekRelative(10)" title="Forward 10s"><span class="mm-btn-icon">↻</span><span class="mm-btn-text">Forward 10s</span></button>
+                  <button class="mm-card-btn" onclick="sendMusicAction('SKIP')" title="Skip"><span class="mm-btn-icon">⏭</span><span class="mm-btn-text">Skip</span></button>
+                </div>
 
-                <div style="width:1px; height:28px; background:rgba(255,255,255,0.15); margin:0 0.3rem;"></div>
+                <!-- ROW 1: QUEUE AND PLAYBACK OPTIONS (3 Buttons) -->
+                <div class="mm-row mm-row-3">
+                  <button class="mm-card-btn" onclick="switchMusicTab('queue', document.querySelector('.m-tab-btn'))" title="Queue"><span class="mm-btn-icon">📜</span><span class="mm-btn-text">Queue (<span id="mm-btn-q-count">0</span>)</span></button>
+                  <button class="mm-card-btn" id="music-btn-shuffle" onclick="sendMusicAction('SHUFFLE')" title="Shuffle"><span class="mm-btn-icon">🔀</span><span class="mm-btn-text">Shuffle</span></button>
+                  <button class="mm-card-btn" id="music-btn-loop" onclick="cycleMusicLoop()" title="Loop"><span class="mm-btn-icon">🔁</span><span class="mm-btn-text" id="mm-btn-loop-text">Loop</span></button>
+                </div>
 
-                <button class="ctrl-btn" id="music-btn-shuffle" onclick="sendMusicAction('SHUFFLE')" title="Shuffle Queue">🔀</button>
-                <button class="ctrl-btn" id="music-btn-loop" onclick="cycleMusicLoop()" title="Toggle Loop Mode">🔁</button>
-                <button class="ctrl-btn" id="music-btn-favorite" onclick="toggleCurrentFavorite()" title="Add to Favorites" style="color:var(--pink);">❤️</button>
-                <button class="ctrl-btn" onclick="openLyricsModal()" title="View Song Lyrics">💬</button>
-                <button class="ctrl-btn" onclick="sendMusicAction('STOP')" title="Stop & Clear Voice Channel" style="color:var(--danger);">⏹</button>
-              </div>
+                <!-- ROW 2: AUDIO CONTROLS (2 Buttons) -->
+                <div class="mm-row mm-row-2">
+                  <div class="mm-vol-card">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+                      <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted);"><span id="music-vol-icon">🔊</span> Volume</span>
+                      <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; font-weight:700; color:#00E5FF;" id="music-vol-label">80%</span>
+                    </div>
+                    <input type="range" id="music-vol-slider" class="scrub-slider" min="0" max="150" value="80" oninput="onMusicVolSlider(this.value)">
+                  </div>
+                  <button class="mm-card-btn mm-btn-danger" onclick="sendMusicAction('STOP')" title="Stop Playback"><span class="mm-btn-icon">⏹</span><span class="mm-btn-text">Stop</span></button>
+                </div>
 
-              <!-- REAL-TIME MASTER VOLUME BAR -->
-              <div class="volume-bar-row">
-                <span style="font-size:1.1rem;" id="music-vol-icon">🔊</span>
-                <input type="range" id="music-vol-slider" class="scrub-slider" min="0" max="100" value="80" oninput="onMusicVolSlider(this.value)">
-                <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; width:45px;" id="music-vol-label">80%</span>
-                <div style="display:flex; gap:0.3rem;">
-                  <button class="vol-chip" onclick="setMusicVolumePreset(20)">20%</button>
-                  <button class="vol-chip" onclick="setMusicVolumePreset(50)">50%</button>
-                  <button class="vol-chip" onclick="setMusicVolumePreset(80)">80%</button>
-                  <button class="vol-chip" onclick="setMusicVolumePreset(100)">100%</button>
+                <!-- ROW 3: PERSONAL FEATURES (3 Buttons) -->
+                <div class="mm-row mm-row-3">
+                  <button class="mm-card-btn" id="music-btn-favorite" onclick="toggleCurrentFavorite()" title="Favorite"><span class="mm-btn-icon" style="color:#EC4899;">💖</span><span class="mm-btn-text">Favorite</span></button>
+                  <button class="mm-card-btn" onclick="switchMusicTab('eq', document.querySelectorAll('.m-tab-btn')[1])" title="Filters & EQ"><span class="mm-btn-icon">🎛️</span><span class="mm-btn-text">Filters</span></button>
+                  <button class="mm-card-btn" onclick="openLyricsModal()" title="Song Lyrics"><span class="mm-btn-icon">📑</span><span class="mm-btn-text">Lyrics</span></button>
                 </div>
               </div>
+            </div>
+
+            <!-- BRAND SIGNATURE & SOUNDWAVE FOOTER -->
+            <div style="grid-column: 1 / -1; display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(147,51,234,0.2); padding-top:0.9rem; margin-top:0.6rem; font-size:0.82rem; color:var(--text-muted); width:100%;">
+              <span style="letter-spacing:2px; color:var(--cyan); font-family:'JetBrains Mono',monospace;">ılıılı.ll.ılı.ll.ılı.ll</span>
+              <span style="font-weight:700; font-style:italic; background:linear-gradient(135deg,#A855F7,#06B6D4); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">MusicMaid</span>
+              <span style="font-size:1.1rem;">🐾</span>
             </div>
           </div>
 
@@ -4773,9 +4893,21 @@ UI_HTML = r"""<!DOCTYPE html>
 
         const loopBtn = document.getElementById('music-btn-loop');
         if (loopBtn) {
-          loopBtn.className = 'ctrl-btn' + (data.loop_mode !== 'off' ? ' active' : '');
+          loopBtn.className = 'mm-card-btn' + (data.loop_mode !== 'off' ? ' active' : '');
           loopBtn.title = `Loop: ${data.loop_mode.toUpperCase()}`;
         }
+        const mmQueueBadge = document.getElementById('music-badge-queue-count');
+        if (mmQueueBadge) mmQueueBadge.innerText = data.queue_count || 0;
+        const mmBtnQ = document.getElementById('mm-btn-q-count');
+        if (mmBtnQ) mmBtnQ.innerText = data.queue_count || 0;
+        const mmEqBadge = document.getElementById('music-badge-eq-label');
+        if (mmEqBadge) mmEqBadge.innerText = data.eq_preset || 'Balanced';
+        const mmLoopText = document.getElementById('mm-btn-loop-text');
+        if (mmLoopText) mmLoopText.innerText = data.loop_mode && data.loop_mode !== 'off' ? `Loop: ${data.loop_mode.toUpperCase()}` : 'Loop';
+        const mmPlayIcon = document.getElementById('music-play-icon');
+        const mmPlayText = document.getElementById('music-play-text');
+        if (mmPlayIcon) mmPlayIcon.innerText = data.is_playing ? '⏸' : '▶';
+        if (mmPlayText) mmPlayText.innerText = data.is_playing ? 'Pause' : 'Resume';
       } catch (e) {}
     }
 

@@ -1256,6 +1256,18 @@ class MusicPlayerService:
             return True, "⏹️ Stopped playback and cleared queue. 🐾"
 
     @classmethod
+    async def set_volume(cls, session: GuildMusicSession, volume: int) -> Tuple[bool, str]:
+        """Set playback volume (1-150%) and apply to active audio transformer."""
+        vol = max(1, min(150, int(volume)))
+        session.volume = vol
+        if session.voice_client and getattr(session.voice_client, "source", None):
+            source = session.voice_client.source
+            if hasattr(source, "volume"):
+                source.volume = vol / 100.0
+        await cls.send_now_playing_panel(session)
+        return True, f"🔊 Master volume set to **{vol}%**."
+
+    @classmethod
     async def seek_relative(cls, bot: RaiMusicBot, session: GuildMusicSession, delta_seconds: int) -> Tuple[bool, int, str]:
         """Seek forward or backward by delta_seconds relative to current progress."""
         if not session.current_track or not session.voice_client or not session.voice_client.is_connected():
