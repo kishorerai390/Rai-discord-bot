@@ -638,14 +638,20 @@ class MusicPlayerService:
 
     @classmethod
     def build_now_playing_embed(cls, session: GuildMusicSession) -> discord.Embed:
-        """Construct clean, minimal MusicMaid Now Playing embed with accurate voice state."""
+        """Construct reference-grade MusicMaid Now Playing embed with header badges and accurate voice state."""
         track = session.current_track
         if not track:
-            return discord.Embed(
-                title="🎶 MusicMaid • Now Playing",
-                description="*No music is currently playing in this server.*",
+            embed = discord.Embed(
+                title="🎶 MusicMaid • Master Player",
+                description=(
+                    "`⏹️ IDLE`  `📜 Queue: 0`  `🎛️ EQ: Balanced`  `🕒 24/7`\n\n"
+                    "### Ready to play music 🐾\n"
+                    "*Join a voice channel and use `/music play <song>` or `m!play` to start listening.*"
+                ),
                 color=0x0B0E14,
             )
+            embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  MusicMaid  ✦  Lossless Audio Engine")
+            return embed
 
         elapsed = session.elapsed_seconds
         total = track.duration or 0
@@ -657,13 +663,14 @@ class MusicPlayerService:
 
         if total > 0:
             remaining = max(0, total - elapsed)
-            end_ts = int(time.time() + remaining)
-            time_suffix = f" • Ends <t:{end_ts}:R>" if is_active_play else ""
-            progress_str = f"{format_duration(elapsed, is_position=True)} / {format_duration(total)} (-{format_duration(remaining)}){time_suffix}"
-            progress_bar = create_progress_bar(elapsed, total)
+            ratio = min(1.0, max(0.0, elapsed / total))
+            bar_len = 15
+            pos = int(round(ratio * (bar_len - 1)))
+            progress_bar = "━" * pos + "🔘" + "━" * (bar_len - 1 - pos)
+            progress_str = f"`{format_duration(elapsed, is_position=True)}`  `{progress_bar}`  `{format_duration(total)}`"
         else:
-            progress_str = f"{format_duration(elapsed, is_position=True)} / 🔴 LIVE"
-            progress_bar = "🔘──────────────"
+            progress_bar = "🔘━━━━━━━━━━━━━"
+            progress_str = f"`{format_duration(elapsed, is_position=True)}`  `{progress_bar}`  `🔴 LIVE`"
 
         is_server_muted = False
         if session.voice_client and session.voice_client.guild and session.voice_client.guild.me:
@@ -673,27 +680,34 @@ class MusicPlayerService:
 
         if is_active_play:
             status_text = "🟢 Playing"
+            badge_state = "🟢 LIVE PLAYING"
         elif session.is_paused or session.state == PlaybackState.PAUSED:
             status_text = "⏸️ Paused"
+            badge_state = "⏸️ PAUSED"
         elif session.state in (PlaybackState.LOADING, PlaybackState.SEARCHING, PlaybackState.RESOLVING):
             status_text = "⏳ Buffering"
+            badge_state = "⏳ BUFFERING"
         elif session.state == PlaybackState.RECOVERING:
             status_text = "🔄 Recovering"
+            badge_state = "🔄 RECOVERING"
         elif session.state == PlaybackState.ERROR:
             status_text = "❌ Error"
+            badge_state = "❌ ERROR"
         else:
             status_text = "⏹️ Idle"
+            badge_state = "⏹️ IDLE"
 
         if is_server_muted:
             status_text += " (⚠️ Server Muted)"
+            badge_state += " (MUTED)"
 
         requester_str = f"<@{track.requester_id}>" if track.requester_id else track.requester_name
-        preset_name = session.eq_preset if session.eq_preset else "Flat"
+        preset_name = session.eq_preset if session.eq_preset else "Balanced"
         loop_str = session.loop_mode.value.title()
         recovery_line = f"\n• **Recovery:** `{session.recovery_status}`" if getattr(session, "recovery_status", None) else ""
         error_line = f"\n• **Error:** `{session.last_error[:80]}`" if session.state == PlaybackState.ERROR and session.last_error else ""
 
-        # Clean next track preview (manual queue takes precedence over Auto-DJ)
+        # Next track preview
         is_autodj_on = getattr(session, "dj_enabled", False) or session.autoplay
         if session.queue:
             next_info_line = f"\n• **Next Track:** [{session.queue[0].title[:38]}]({session.queue[0].url})"
@@ -706,14 +720,18 @@ class MusicPlayerService:
         is_spotify = ("spotify.com" in (track.url or "")) or (getattr(track, "source", None) == "spotify")
         spotify_source_tag = " • 🟢 `Spotify Source`" if is_spotify else ""
 
-        embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0xFEE75C if is_server_muted else (0x00E5FF if session.is_playing else 0x9B59B6))
+        embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0xFEE75C if is_server_muted else (0x00E5FF if session.is_playing else 0x9333EA))
+
+        badge_247 = "🕒 24/7" if getattr(session, "stay_in_vc", False) else "🕒 Normal"
+        badges_header = f"`{badge_state}`  `📜 Queue: {len(session.queue)}`  `🎛️ EQ: {preset_name}`  `{badge_247}`"
 
         embed = discord.Embed(
-            title="🎶 NOW PLAYING",
+            title="🎶 MusicMaid • Now Playing",
             description=(
+                f"{badges_header}\n\n"
                 f"### [{track.title}]({track.url})\n"
                 f"👤 **Artist:** `{track.artist}`{spotify_source_tag}\n\n"
-                f"**Progress:**\n`{progress_bar}` `{progress_str}`\n\n"
+                f"**Progress:**\n{progress_str}\n\n"
                 f"• **Requested by:** {requester_str}\n"
                 f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
                 f"• **Filter:** `{preset_name}` • **Loop:** `{loop_str}`"
@@ -725,7 +743,7 @@ class MusicPlayerService:
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
 
-        embed.set_footer(text="MusicMaid • Lossless Audio • Use buttons below to navigate")
+        embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  MusicMaid  ✦  Lossless Audio Engine")
         return embed
 
     @classmethod
@@ -1236,6 +1254,71 @@ class MusicPlayerService:
                     pass
 
             return True, "⏹️ Stopped playback and cleared queue. 🐾"
+
+    @classmethod
+    async def seek_relative(cls, bot: RaiMusicBot, session: GuildMusicSession, delta_seconds: int) -> Tuple[bool, int, str]:
+        """Seek forward or backward by delta_seconds relative to current progress."""
+        if not session.current_track or not session.voice_client or not session.voice_client.is_connected():
+            return False, 0, "❌ Nothing is currently playing."
+        cur = session.progress_seconds
+        dur = session.current_track.duration or 0
+        if dur > 0:
+            target = max(0, min(cur + delta_seconds, dur - 1))
+        else:
+            target = max(0, cur + delta_seconds)
+        success = await cls.seek(bot, session, target)
+        if success:
+            sign = "+" if delta_seconds > 0 else ""
+            msg = f"⏩ Forwarded {sign}{delta_seconds}s (now at `{format_duration(target, is_position=True)}`)." if delta_seconds > 0 else f"⏪ Rewound {abs(delta_seconds)}s (now at `{format_duration(target, is_position=True)}`)."
+            return True, target, msg
+        return False, cur, "❌ Seeking is not supported on this audio stream."
+
+    @classmethod
+    def cycle_loop(cls, session: GuildMusicSession) -> Tuple[LoopMode, str]:
+        """Cycle repeat mode: OFF -> TRACK -> QUEUE -> OFF."""
+        if session.loop_mode == LoopMode.OFF:
+            session.loop_mode = LoopMode.TRACK
+            return LoopMode.TRACK, "🔂 Repeat current track enabled."
+        elif session.loop_mode == LoopMode.TRACK:
+            session.loop_mode = LoopMode.QUEUE
+            return LoopMode.QUEUE, "🔁 Repeat entire queue enabled."
+        else:
+            session.loop_mode = LoopMode.OFF
+            return LoopMode.OFF, "➡️ Repeat disabled."
+
+    @classmethod
+    def shuffle(cls, session: GuildMusicSession) -> Tuple[bool, str]:
+        """Shuffle upcoming tracks without interrupting current playback."""
+        if len(session.queue) < 2:
+            return False, "❌ Need at least 2 tracks in queue to shuffle."
+        tracks = list(session.queue)
+        random.shuffle(tracks)
+        from collections import deque
+        session.queue = deque(tracks)
+        return True, f"🔀 Shuffled {len(tracks)} tracks in the queue."
+
+    @classmethod
+    async def toggle_favorite(cls, bot: Any, user_id: int, track: Optional[QueuedTrack] = None) -> Tuple[bool, bool, str]:
+        """Toggle favorite status of a track for a user in the persistent database."""
+        if not track:
+            return False, False, "❌ No track available to favorite."
+        if not bot or not getattr(bot, "db", None):
+            return False, False, "❌ Database unavailable."
+        
+        try:
+            favs = await bot.db.get_favorites(user_id)
+            existing = any(f.url == track.url for f in favs) if favs else False
+            if existing:
+                await bot.db.remove_favorite(user_id, track.url)
+                return True, False, f"💔 Removed **{track.title[:50]}** from your favorites."
+            else:
+                success = await bot.db.add_favorite(user_id, track=track)
+                if success:
+                    return True, True, f"💖 Added **{track.title[:50]}** to your favorites!"
+                return False, False, "❌ Could not save to favorites."
+        except Exception as e:
+            logger.warning(f"Error toggling favorite: {e}")
+            return False, False, f"❌ Error saving favorite: {e}"
 
     @classmethod
     async def send_now_playing_panel(cls, session: GuildMusicSession) -> None:
@@ -1789,11 +1872,56 @@ class SettingsSubView(discord.ui.View):
 
 
 # -------------------------------------------------------------
-# Clean, Minimal Main Master Control Panel View
+# Reference-Grade 4-Row Master Control Panel View & Modals
 # -------------------------------------------------------------
 
+class VolumeModal(discord.ui.Modal, title="🔊 MusicMaid Volume Control"):
+    volume_input = discord.ui.TextInput(
+        label="Volume Percentage (1 - 150%)",
+        placeholder="Enter volume number (e.g. 80)",
+        min_length=1,
+        max_length=3,
+        required=True,
+    )
+
+    def __init__(self, session: Optional[GuildMusicSession] = None, parent_view: Optional[discord.ui.View] = None):
+        super().__init__()
+        self.session = session
+        self.parent_view = parent_view
+        if session:
+            self.volume_input.default = str(session.volume)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            val = int(self.volume_input.value.strip())
+            if val < 1 or val > 150:
+                await interaction.response.send_message("❌ Volume must be between 1% and 150%.", ephemeral=True)
+                return
+        except ValueError:
+            await interaction.response.send_message("❌ Please enter a valid number (1-150).", ephemeral=True)
+            return
+
+        session = self.session or (interaction.guild and SessionManager.get_instance().get_session_sync(interaction.guild.id))
+        if not session:
+            await interaction.response.send_message("❌ No active music session found.", ephemeral=True)
+            return
+
+        await MusicPlayerService.set_volume(session, val)
+        if interaction.client and getattr(interaction.client, "db", None):
+            try:
+                await interaction.client.db.update_guild_settings(session.guild_id, volume=val)
+            except Exception:
+                pass
+
+        if self.parent_view and hasattr(self.parent_view, "_update_button_states"):
+            self.parent_view._update_button_states(session)
+        
+        await MusicPlayerService.send_now_playing_panel(session)
+        await interaction.response.send_message(f"🔊 Master volume set to **{val}%**.", ephemeral=True)
+
+
 class NowPlayingControlView(discord.ui.View):
-    """Clean, uncluttered 2-row Master Control Panel for MusicMaid."""
+    """Reference-grade 4-Row Master Control Panel for MusicMaid (13 Buttons)."""
 
     def __init__(self, session: Optional[GuildMusicSession] = None):
         super().__init__(timeout=None)
@@ -1818,7 +1946,19 @@ class NowPlayingControlView(discord.ui.View):
                 if child.custom_id == "music_btn_play_pause":
                     child.label = "Resume" if target.is_paused else "Pause"
                     child.emoji = "▶" if target.is_paused else "⏸"
-                    child.style = discord.ButtonStyle.success if target.is_paused else discord.ButtonStyle.secondary
+                    child.style = discord.ButtonStyle.success if target.is_paused else discord.ButtonStyle.primary
+                elif child.custom_id == "music_btn_queue":
+                    count = len(target.queue)
+                    child.label = f"Queue ({count})" if count > 0 else "Queue"
+                elif child.custom_id == "music_btn_volume":
+                    child.label = f"Volume ({target.volume}%)"
+                elif child.custom_id == "music_btn_loop":
+                    if target.loop_mode != LoopMode.OFF:
+                        child.label = f"Loop: {target.loop_mode.value.title()}"
+                        child.style = discord.ButtonStyle.primary
+                    else:
+                        child.label = "Loop"
+                        child.style = discord.ButtonStyle.secondary
 
     def _check_user_voice(self, interaction: discord.Interaction, session: Optional[GuildMusicSession]) -> Tuple[bool, Optional[str]]:
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
@@ -1835,8 +1975,11 @@ class NowPlayingControlView(discord.ui.View):
             return
         logger.error(f"Error in NowPlayingControlView for {item}: {error}", exc_info=True)
 
-    # --- ROW 0: Core Playback Quick Controls ---
-    @discord.ui.button(emoji="⏮", label="Prev", style=discord.ButtonStyle.secondary, custom_id="music_btn_prev", row=0)
+    # =========================================================================
+    # ROW 0: PRIMARY PLAYBACK (5 Buttons)
+    # =========================================================================
+
+    @discord.ui.button(emoji="⏮", label="Previous", style=discord.ButtonStyle.secondary, custom_id="music_btn_prev", row=0)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -1860,10 +2003,6 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
-        prev_track = session.history.pop()
-        if session.current_track:
-            session.queue.appendleft(session.current_track)
-
         bot: RaiMusicBot = interaction.client  # type: ignore
         success, msg, _ = await MusicPlayerService.previous(bot, session)
         self._update_button_states(session)
@@ -1872,7 +2011,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="⏪", label="-10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_rewind_10", row=0)
+    @discord.ui.button(emoji="↺", label="Rewind 10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_rewind_10", row=0)
     async def rewind_10_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -1889,7 +2028,7 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
-        if not session or not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
+        if not session or not session.current_track:
             try:
                 await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             except Exception:
@@ -1897,15 +2036,13 @@ class NowPlayingControlView(discord.ui.View):
             return
 
         bot: RaiMusicBot = interaction.client  # type: ignore
-        cur_pos = session.progress_seconds
-        target_pos = max(0, cur_pos - 10)
-        await MusicPlayerService.seek(bot, session, target_pos)
+        success, new_pos, msg = await MusicPlayerService.seek_relative(bot, session, -10)
         try:
-            await interaction.followup.send(f"⏪ Rewound 10s (now at `{format_duration(target_pos, is_position=True)}`).", ephemeral=True)
+            await interaction.followup.send(msg, ephemeral=True)
         except Exception:
             pass
 
-    @discord.ui.button(emoji="⏸", label="Pause", style=discord.ButtonStyle.secondary, custom_id="music_btn_play_pause", row=0)
+    @discord.ui.button(emoji="⏸", label="Pause", style=discord.ButtonStyle.primary, custom_id="music_btn_play_pause", row=0)
     async def play_pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -1936,12 +2073,13 @@ class NowPlayingControlView(discord.ui.View):
             success, action_text = await MusicPlayerService.resume(bot, session)
 
         self._update_button_states(session)
+        await MusicPlayerService.send_now_playing_panel(session)
         try:
             await interaction.followup.send(action_text, ephemeral=True)
         except Exception:
             pass
 
-    @discord.ui.button(emoji="⏩", label="+10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_forward_10", row=0)
+    @discord.ui.button(emoji="↻", label="Forward 10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_forward_10", row=0)
     async def forward_10_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -1958,7 +2096,7 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
-        if not session or not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
+        if not session or not session.current_track:
             try:
                 await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             except Exception:
@@ -1966,18 +2104,14 @@ class NowPlayingControlView(discord.ui.View):
             return
 
         bot: RaiMusicBot = interaction.client  # type: ignore
-        cur_pos = session.progress_seconds
-        dur = session.current_track.duration or 0
-        target_pos = min(dur - 1, cur_pos + 10) if dur > 0 else cur_pos + 10
-        await MusicPlayerService.seek(bot, session, target_pos)
+        success, new_pos, msg = await MusicPlayerService.seek_relative(bot, session, 10)
         try:
-            await interaction.followup.send(f"⏩ Fast-forwarded 10s (now at `{format_duration(target_pos, is_position=True)}`).", ephemeral=True)
+            await interaction.followup.send(msg, ephemeral=True)
         except Exception:
             pass
 
     @discord.ui.button(emoji="⏭", label="Skip", style=discord.ButtonStyle.secondary, custom_id="music_btn_skip", row=0)
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer(ephemeral=True)
@@ -2008,6 +2142,10 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
+    # =========================================================================
+    # ROW 1: QUEUE AND PLAYBACK OPTIONS (3 Buttons)
+    # =========================================================================
+
     @discord.ui.button(emoji="📜", label="Queue", style=discord.ButtonStyle.secondary, custom_id="music_btn_queue", row=1)
     async def queue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         session = self._get_session(interaction)
@@ -2029,8 +2167,8 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="🔄", label="Refresh", style=discord.ButtonStyle.secondary, custom_id="music_btn_refresh", row=1)
-    async def refresh_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(emoji="🔀", label="Shuffle", style=discord.ButtonStyle.secondary, custom_id="music_btn_shuffle", row=1)
+    async def shuffle_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer(ephemeral=True)
@@ -2038,22 +2176,155 @@ class NowPlayingControlView(discord.ui.View):
             pass
 
         session = self._get_session(interaction)
-        if not session:
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
             try:
-                await interaction.followup.send("🐾 No active music session to refresh.", ephemeral=True)
+                await interaction.followup.send(reason, ephemeral=True)
             except Exception:
                 pass
             return
 
-        await MusicPlayerService.send_now_playing_panel(session)
+        if not session:
+            try:
+                await interaction.followup.send("❌ No active music session.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        success, msg = MusicPlayerService.shuffle(session)
+        if success:
+            await MusicPlayerService.send_now_playing_panel(session)
         try:
-            await interaction.followup.send("🔄 Panel synchronized with actual voice connection state.", ephemeral=True)
+            await interaction.followup.send(msg, ephemeral=True)
         except Exception:
             pass
 
-    # --- ROW 1: Modular Category Navigation & Core Actions ---
-    @discord.ui.button(emoji="🎛️", label="Audio & EQ", style=discord.ButtonStyle.secondary, custom_id="music_btn_nav_audio", row=1)
-    async def audio_nav_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(emoji="🔁", label="Loop", style=discord.ButtonStyle.secondary, custom_id="music_btn_loop", row=1)
+    async def loop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session:
+            try:
+                await interaction.followup.send("❌ No active music session.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        new_mode, msg = MusicPlayerService.cycle_loop(session)
+        self._update_button_states(session)
+        await MusicPlayerService.send_now_playing_panel(session)
+        try:
+            await interaction.followup.send(msg, ephemeral=True)
+        except Exception:
+            pass
+
+    # =========================================================================
+    # ROW 2: AUDIO CONTROLS (2 Buttons)
+    # =========================================================================
+
+    @discord.ui.button(emoji="🔊", label="Volume", style=discord.ButtonStyle.secondary, custom_id="music_btn_volume", row=2)
+    async def volume_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(reason, ephemeral=True)
+                else:
+                    await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session:
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("❌ No active music session.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        try:
+            await interaction.response.send_modal(VolumeModal(session, parent_view=self))
+        except Exception:
+            try:
+                await interaction.followup.send(f"🔊 Current volume is **{session.volume}%**. Use `/music volume <percent>` to adjust.", ephemeral=True)
+            except Exception:
+                pass
+
+    @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=2)
+    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session:
+            try:
+                await interaction.followup.send("⏹ No active playback session to stop.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        bot_client: RaiMusicBot = interaction.client  # type: ignore
+        success, msg = await MusicPlayerService.stop(bot_client, session)
+        try:
+            await interaction.followup.send(msg, ephemeral=True)
+        except Exception:
+            pass
+
+    # =========================================================================
+    # ROW 3: PERSONAL FEATURES (3 Buttons)
+    # =========================================================================
+
+    @discord.ui.button(emoji="💖", label="Favorite", style=discord.ButtonStyle.secondary, custom_id="music_btn_favorite", row=3)
+    async def favorite_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        session = self._get_session(interaction)
+        if not session or not session.current_track:
+            try:
+                await interaction.followup.send("❌ No track currently playing to favorite.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        bot: RaiMusicBot = interaction.client  # type: ignore
+        success, is_fav, msg = await MusicPlayerService.toggle_favorite(bot, interaction.user.id, session.current_track)
+        try:
+            await interaction.followup.send(msg, ephemeral=True)
+        except Exception:
+            pass
+
+    @discord.ui.button(emoji="🎛️", label="Filters", style=discord.ButtonStyle.secondary, custom_id="music_btn_filters", row=3)
+    async def filters_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         session = self._get_session(interaction)
         if not session:
             try:
@@ -2073,50 +2344,8 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="🎧", label="Auto-DJ", style=discord.ButtonStyle.secondary, custom_id="music_btn_nav_autodj", row=1)
-    async def autodj_nav_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        session = self._get_session(interaction)
-        if not session:
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message("❌ No active music session.", ephemeral=True)
-            except Exception:
-                pass
-            return
-
-        embed = MusicPlayerService.build_autodj_embed(session)
-        view = AutoDJSubView(session, bot=interaction.client)
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-            else:
-                await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-        except Exception:
-            pass
-
-    @discord.ui.button(emoji="⚙️", label="Settings", style=discord.ButtonStyle.secondary, custom_id="music_btn_nav_settings", row=1)
-    async def settings_nav_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        session = self._get_session(interaction)
-        if not session:
-            try:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message("❌ No active music session.", ephemeral=True)
-            except Exception:
-                pass
-            return
-
-        embed = MusicPlayerService.build_settings_embed(session)
-        view = SettingsSubView(session, bot=interaction.client)
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-            else:
-                await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-        except Exception:
-            pass
-
-    @discord.ui.button(emoji="❤️", label="Favorite", style=discord.ButtonStyle.secondary, custom_id="music_btn_fav", row=2)
-    async def fav_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(emoji="📑", label="Lyrics", style=discord.ButtonStyle.secondary, custom_id="music_btn_lyrics", row=3)
+    async def lyrics_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer(ephemeral=True)
@@ -2126,55 +2355,31 @@ class NowPlayingControlView(discord.ui.View):
         session = self._get_session(interaction)
         if not session or not session.current_track:
             try:
-                await interaction.followup.send("❌ No track currently playing to add to favorites.", ephemeral=True)
+                await interaction.followup.send("❌ No track currently playing.", ephemeral=True)
             except Exception:
                 pass
             return
 
-        bot: RaiMusicBot = interaction.client  # type: ignore
-        success = await bot.db.add_favorite(interaction.user.id, session.current_track)
-        try:
-            if success:
-                await interaction.followup.send(
-                    f"❤️ Saved **{session.current_track.title}** to your favorites! View with `/music favorites`.",
-                    ephemeral=True,
-                )
-            else:
-                await interaction.followup.send(
-                    f"❤️ **{session.current_track.title}** is already in your favorites!",
-                    ephemeral=True,
-                )
-        except Exception:
-            pass
-
-    @discord.ui.button(emoji="⏹", label="Stop", style=discord.ButtonStyle.danger, custom_id="music_btn_stop", row=2)
-    async def stop_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            if not interaction.response.is_done():
-                await interaction.response.defer(ephemeral=True)
-        except Exception:
-            pass
-
-        session = self._get_session(interaction)
-        if not session:
+        track = session.current_track
+        from music_bot.services.lyrics_service import LyricsService
+        lyrics = await LyricsService.fetch_lyrics(track.title, track.artist)
+        if not lyrics:
             try:
-                await interaction.followup.send("⏹ No active playback session to stop.", ephemeral=True)
+                await interaction.followup.send(f"🐱 No lyrics found for **{track.title}**.", ephemeral=True)
             except Exception:
                 pass
             return
 
-        can_interact, reason = self._check_user_voice(interaction, session)
-        if not can_interact:
-            try:
-                await interaction.followup.send(reason, ephemeral=True)
-            except Exception:
-                pass
-            return
-
-        bot_client: RaiMusicBot = interaction.client  # type: ignore
-        success, msg = await MusicPlayerService.stop(bot_client, session)
+        embed = discord.Embed(
+            title=f"📑 Lyrics • {track.title[:50]}",
+            description=lyrics[:3900],
+            color=0x9333EA,
+        )
+        if track.thumbnail:
+            embed.set_thumbnail(url=track.thumbnail)
+        embed.set_footer(text=f"Artist: {track.artist or 'Unknown'} • MusicMaid Lyrics")
         try:
-            await interaction.followup.send(msg, ephemeral=True)
+            await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception:
             pass
 
