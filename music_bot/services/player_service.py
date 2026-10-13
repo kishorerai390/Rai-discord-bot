@@ -337,9 +337,11 @@ class MusicPlayerService:
                 except Exception:
                     pass
 
+            # Store bot reference on session for subsequent callbacks
+            session.bot = bot
+
             # Deploy or update Now Playing embed panel in the designated text channel
-            if session.text_channel:
-                asyncio.create_task(cls.send_now_playing_panel(session))
+            asyncio.create_task(cls.send_now_playing_panel(session, bot=bot))
 
             # Sync native Discord voice status header (Feature 78)
             if session.voice_client and session.voice_client.channel:
@@ -1361,9 +1363,107 @@ class MusicPlayerService:
             return False, False, f"❌ Error saving favorite: {e}"
 
     @classmethod
-    async def send_now_playing_panel(cls, session: GuildMusicSession) -> None:
-        """Send or update the single persistent interactive control panel in the text channel."""
-        # Broadcast real-time playback update to web UI clients
+    async def resolve_text_channel(
+        cls, session: GuildMusicSession, bot: Optional[RaiMusicBot] = None
+    ) -> Tuple[Optional[discord.TextChannel], Optional[str]]:
+        """
+        Phase 3: Resolve the authoritative text channel for the Now Playing player.
+        Checks:
+        1. Current session.text_channel validity and permissions.
+        2. Configured request_channel_id in music_guild_settings.
+        3. Fallback to common music channels (#music, #music-bot, #bot-commands) with verified permissions.
+        4. Validates permissions: View Channel, Send Messages, Embed Links, Read Message History.
+        Returns (channel, error_reason).
+        """
+        bot = bot or getattr(session, "bot", None)
+        guild: Optional[discord.Guild] = None
+
+        if session.text_channel and getattr(session.text_channel, "guild", None):
+            guild = session.text_channel.guild
+        elif session.voice_client and getattr(session.voice_client, "guild", None):
+            guild = session.voice_client.guild
+        elif bot:
+            guild = bot.get_guild(session.guild_id)
+
+        if not guild:
+            return None, f"Guild {session.guild_id} context cannot be determined."
+
+        me = guild.me
+        if not me:
+            return None, f"Bot member context cannot be determined in guild {guild.name}."
+
+        # Candidate channels to inspect in priority order
+        candidates: List[discord.TextChannel] = []
+
+        # 1. Existing session text channel
+        if session.text_channel and getattr(session.text_channel, "guild", None) and session.text_channel.guild.id == guild.id:
+            candidates.append(session.text_channel)
+
+        # 2. Configured request_channel_id from database
+        if bot and hasattr(bot, "db") and bot.db:
+            try:
+                g_settings = await bot.db.get_guild_settings(guild.id)
+                if g_settings and g_settings.request_channel_id:
+                    ch = guild.get_channel(g_settings.request_channel_id)
+                    if isinstance(ch, discord.TextChannel) and ch not in candidates:
+                        candidates.append(ch)
+            except Exception as e:
+                logger.debug(f"[ChannelResolution] DB settings check note: {e}")
+
+        # 3. Known standard music channel names
+        music_names = ("music", "music-bot", "music-commands", "song-requests", "bot-commands", "general")
+        for name in music_names:
+            ch = discord.utils.get(guild.text_channels, name=name)
+            if ch and ch not in candidates:
+                candidates.append(ch)
+
+        # 4. Any available text channel in guild
+        for ch in guild.text_channels:
+            if ch not in candidates:
+                candidates.append(ch)
+
+        # Evaluate candidate channels for required permissions
+        last_perm_err = None
+        for ch in candidates:
+            perms = ch.permissions_for(me)
+            missing = []
+            if not perms.view_channel:
+                missing.append("View Channel")
+            if not perms.send_messages:
+                missing.append("Send Messages")
+            if not perms.embed_links:
+                missing.append("Embed Links")
+            if not perms.read_message_history:
+                missing.append("Read Message History")
+
+            if not missing:
+                # Channel is 100% accessible and has all permissions
+                session.text_channel = ch
+                return ch, None
+            else:
+                last_perm_err = f"Channel #{ch.name} ({ch.id}) lacks permissions: {', '.join(missing)}"
+                logger.debug(f"[ChannelResolution] {last_perm_err}")
+
+        # If we got here, no candidate channel has all permissions
+        return None, last_perm_err or "No text channel found with View Channel, Send Messages, and Embed Links permissions."
+
+    @classmethod
+    async def send_now_playing_panel(
+        cls, session: GuildMusicSession, bot: Optional[RaiMusicBot] = None
+    ) -> None:
+        """
+        Phase 2 & 4: Centralized Now Playing player panel manager.
+        - Concurrency serialized with session._panel_lock.
+        - Verified text channel & permissions.
+        - Updates existing message in-place without spamming chat.
+        - Safely recreates panel if deleted or in a different channel.
+        - Attaches full 4-row 13-button NowPlayingControlView.
+        - Real-time broadcasts to Web UI.
+        """
+        if not hasattr(session, "_panel_lock"):
+            session._panel_lock = asyncio.Lock()
+
+        # Real-time WebSocket / SSE broadcast to Web dashboard
         try:
             from web.realtime import RealtimeGateway
             rg = RealtimeGateway.get_instance()
@@ -1382,34 +1482,107 @@ class MusicPlayerService:
         except Exception:
             pass
 
-        if not session.text_channel:
-            return
+        async with session._panel_lock:
+            channel, perm_err = await cls.resolve_text_channel(session, bot)
+            if not channel:
+                logger.warning(
+                    f"[PlayerPanel] Cannot deploy Now Playing panel in guild {session.guild_id}: {perm_err}"
+                )
+                session.last_error = perm_err
+                return
 
-        embed = cls.build_now_playing_embed(session)
-        view = NowPlayingControlView(session)
+            embed = cls.build_now_playing_embed(session)
+            view = NowPlayingControlView(session)
 
-        try:
-            # 1. Update existing message if valid (avoids spamming new messages)
+            # 1. Update existing message in-place if valid and in the same channel
             if session.now_playing_message:
+                if getattr(session.now_playing_message, "channel", None) and session.now_playing_message.channel.id == channel.id:
+                    try:
+                        await session.now_playing_message.edit(embed=embed, view=view)
+                        if session.is_playing:
+                            if not session.progress_updater_task or session.progress_updater_task.done():
+                                session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
+                        return
+                    except discord.NotFound:
+                        logger.debug(f"[PlayerPanel] Previous player message {session.now_playing_message.id} deleted. Recreating...")
+                        session.now_playing_message = None
+                    except discord.Forbidden:
+                        logger.error(f"[PlayerPanel] Bot lacks permission to edit message in #{channel.name} ({channel.id}).")
+                        session.now_playing_message = None
+                    except Exception as edit_err:
+                        logger.warning(f"[PlayerPanel] Failed to edit existing player message: {edit_err}")
+                        session.now_playing_message = None
+                else:
+                    # Message was in another channel, clear reference
+                    session.now_playing_message = None
+
+            # 2. Try fetching by stored message ID if message object was lost
+            if not session.now_playing_message and session.now_playing_message_id:
                 try:
-                    await session.now_playing_message.edit(embed=embed, view=view)
+                    old_msg = await channel.fetch_message(session.now_playing_message_id)
+                    await old_msg.edit(embed=embed, view=view)
+                    session.now_playing_message = old_msg
                     if session.is_playing:
                         if not session.progress_updater_task or session.progress_updater_task.done():
                             session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
                     return
-                except discord.NotFound:
-                    session.now_playing_message = None
+                except (discord.NotFound, discord.Forbidden):
+                    session.now_playing_message_id = None
                 except Exception:
-                    pass
+                    session.now_playing_message_id = None
 
-            # 2. Otherwise post new message and register as persistent panel
-            msg = await session.text_channel.send(embed=embed, view=view)
-            session.now_playing_message = msg
-            if session.is_playing:
-                if not session.progress_updater_task or session.progress_updater_task.done():
-                    session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
-        except Exception as e:
-            logger.warning(f"Could not deploy Now Playing panel in channel {session.text_channel.id}: {e}")
+            # 3. Post new message and register as persistent panel
+            try:
+                perms = channel.permissions_for(channel.guild.me)
+                if not perms.embed_links:
+                    warning_text = (
+                        f"⚠️ **MusicMaid Permission Alert:**\n"
+                        f"I need the **Embed Links** permission in {channel.mention} to display the Now Playing player!\n"
+                        f"Please ask a server administrator to grant **Embed Links** to MusicMaid."
+                    )
+                    logger.error(f"[PlayerPanel] Missing Embed Links permission in #{channel.name} ({channel.id})")
+                    if perms.send_messages:
+                        await channel.send(warning_text)
+                    return
+
+                msg = await channel.send(embed=embed, view=view)
+                session.now_playing_message = msg
+                session.now_playing_message_id = msg.id
+                session.now_playing_channel_id = channel.id
+
+                # Persist to database session
+                bot_inst = bot or getattr(session, "bot", None)
+                if bot_inst and hasattr(bot_inst, "db") and bot_inst.db and session.voice_client:
+                    try:
+                        vc_id = session.voice_client.channel.id if session.voice_client.channel else None
+                        res_save = bot_inst.db.save_session(
+                            guild_id=session.guild_id,
+                            voice_channel_id=vc_id,
+                            text_channel_id=channel.id,
+                            state=session.state.value,
+                            volume=session.volume,
+                            loop_mode=session.loop_mode.value,
+                            is_paused=session.is_paused,
+                            current_track=session.current_track,
+                            position_seconds=int(session.progress_seconds),
+                            queue=list(session.queue),
+                            history=list(session.history),
+                        )
+                        if asyncio.iscoroutine(res_save):
+                            asyncio.create_task(res_save)
+                    except Exception as db_save_err:
+                        logger.debug(f"[PlayerPanel] Session persist note: {db_save_err}")
+
+                if session.is_playing:
+                    if not session.progress_updater_task or session.progress_updater_task.done():
+                        session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
+
+            except discord.Forbidden as f_err:
+                logger.error(f"[PlayerPanel] 403 Forbidden deploying Now Playing panel in #{channel.name} ({channel.id}): {f_err}")
+                session.last_error = f"Missing permissions to post player in {channel.mention}"
+            except Exception as send_err:
+                logger.error(f"[PlayerPanel] Failed to deploy Now Playing panel in #{channel.name} ({channel.id}): {send_err}", exc_info=True)
+                session.last_error = f"Failed to post player message: {send_err}"
 
 
 # =============================================================================

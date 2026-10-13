@@ -67,29 +67,114 @@ class VoiceManager:
         if existing_vc and existing_vc.is_connected():
             session.voice_client = existing_vc
             if existing_vc.channel.id != target_channel.id:
-                await existing_vc.move_to(target_channel)
+                logger.info(f"[Voice] Moving connected voice client to target channel #{target_channel.name} ({target_channel.id})...")
+                try:
+                    await asyncio.wait_for(existing_vc.move_to(target_channel), timeout=15.0)
+                except Exception as move_err:
+                    logger.warning(f"[Voice] Error moving voice client: {move_err}")
             return existing_vc
         elif existing_vc:
+            logger.info(f"[Voice] Stale or non-connected VoiceClient detected in guild {member.guild.id}. Cleaning up before connecting...")
             try:
                 await existing_vc.disconnect(force=True)
+            except Exception as d_err:
+                logger.debug(f"[Voice] Stale disconnect notice: {d_err}")
+            try:
+                if member.guild:
+                    await member.guild.change_voice_state(channel=None)
             except Exception:
                 pass
+            await asyncio.sleep(0.5)
 
-        try:
-            session.state = PlaybackState.CONNECTING
-            vc = await asyncio.wait_for(
-                target_channel.connect(timeout=8.0, reconnect=True, self_deaf=True),
-                timeout=8.0,
-            )
-            session.voice_client = vc
-            session.state = PlaybackState.CONNECTED
-            session.last_error = None
-            return vc
-        except Exception as e:
-            logger.error(f"Failed to connect to voice channel {target_channel.id}: {e}")
-            session.state = PlaybackState.ERROR
-            session.last_error = f"Voice connection failed: {e}"
-            return None
+        max_attempts = 3
+        connect_timeout = 20.0
+        last_exception: Optional[Exception] = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                session.state = PlaybackState.CONNECTING
+                logger.info(
+                    f"[Voice] Connecting to #{target_channel.name} ({target_channel.id}) "
+                    f"in guild '{member.guild.name}' (attempt {attempt}/{max_attempts}, timeout={connect_timeout}s)..."
+                )
+                vc = await asyncio.wait_for(
+                    target_channel.connect(timeout=connect_timeout, reconnect=True, self_deaf=True),
+                    timeout=connect_timeout,
+                )
+                session.voice_client = vc
+                session.state = PlaybackState.CONNECTED
+                session.last_error = None
+                logger.info(
+                    f"[Voice] Successfully connected to #{target_channel.name} in '{member.guild.name}'. "
+                    f"Voice UDP audio transmission negotiated successfully."
+                )
+                return vc
+
+            except asyncio.TimeoutError as t_err:
+                last_exception = t_err
+                logger.warning(
+                    f"[Voice] Connection timed out on attempt {attempt}/{max_attempts} for #{target_channel.name} "
+                    f"during signalling / UDP state negotiation. (Exceeded {connect_timeout}s)"
+                )
+                try:
+                    if member.guild and member.guild.voice_client:
+                        await member.guild.voice_client.disconnect(force=True)
+                    if member.guild:
+                        await member.guild.change_voice_state(channel=None)
+                except Exception:
+                    pass
+
+                if attempt < max_attempts:
+                    backoff = attempt * 1.5
+                    logger.info(f"[Voice] Backing off for {backoff:.1f}s before retry {attempt + 1}/{max_attempts}...")
+                    await asyncio.sleep(backoff)
+
+            except discord.ClientException as ce:
+                last_exception = ce
+                logger.warning(f"[Voice] ClientException during voice connect on attempt {attempt}: {ce}")
+                # Check if voice client was established despite exception
+                if member.guild and member.guild.voice_client and member.guild.voice_client.is_connected():
+                    session.voice_client = member.guild.voice_client
+                    session.state = PlaybackState.CONNECTED
+                    session.last_error = None
+                    return member.guild.voice_client
+                try:
+                    if member.guild and member.guild.voice_client:
+                        await member.guild.voice_client.disconnect(force=True)
+                    if member.guild:
+                        await member.guild.change_voice_state(channel=None)
+                except Exception:
+                    pass
+                if attempt < max_attempts:
+                    await asyncio.sleep(attempt * 1.0)
+
+            except Exception as e:
+                last_exception = e
+                logger.error(f"[Voice] Unexpected error connecting to voice #{target_channel.id} on attempt {attempt}: {e}")
+                try:
+                    if member.guild and member.guild.voice_client:
+                        await member.guild.voice_client.disconnect(force=True)
+                    if member.guild:
+                        await member.guild.change_voice_state(channel=None)
+                except Exception:
+                    pass
+                if attempt < max_attempts:
+                    await asyncio.sleep(attempt * 1.0)
+
+        # All attempts failed: report diagnostic
+        err_msg = (
+            f"Voice connection failed after {max_attempts} attempts: "
+            f"Timed out during Discord voice signalling / UDP transmission negotiation.\n"
+            f"💡 **Network & UDP Diagnostic:**\n"
+            f"• Outbound UDP audio packets to Discord voice media servers (ports 50000–65535) could not be negotiated.\n"
+            f"• Ensure your firewall, router NAT, or host provider allows outbound UDP traffic.\n"
+            f"• If a VPN is active, try disabling it or switching locations.\n"
+            f"• Ensure MusicMaid has Connect and Speak permissions in {target_channel.mention}."
+        )
+        logger.error(f"[Voice] {err_msg} (Last exception: {last_exception})")
+        session.state = PlaybackState.ERROR
+        session.last_error = err_msg
+        return None
 
     @classmethod
     def schedule_auto_leave(cls, bot: RaiMusicBot, session: GuildMusicSession, timeout: int = AUTO_LEAVE_TIMEOUT_SECONDS) -> None:

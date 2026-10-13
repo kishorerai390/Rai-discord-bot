@@ -709,13 +709,10 @@ class MusicCog(commands.Cog, name="Music"):
         session = await self.session_manager.get_session(guild.id)
         session.is_intentional_stop = False
 
-        # 1. Connect to voice with timeout protection
+        # 1. Connect to voice with resilient bounded connection handling
         async with session.lock:
             try:
-                vc = await asyncio.wait_for(VoiceManager.join_voice_channel(member, text_channel, session), timeout=10.0)
-            except asyncio.TimeoutError:
-                vc = None
-                session.last_error = "Voice connection handshake timed out."
+                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
             except Exception as vc_err:
                 vc = None
                 session.last_error = str(vc_err)
@@ -827,11 +824,7 @@ class MusicCog(commands.Cog, name="Music"):
                     embed_queued.set_thumbnail(url=track.thumbnail)
                 embed_queued.set_footer(text=f"Requested by {member.display_name}")
                 await interaction.edit_original_response(embed=embed_queued)
-                if session.now_playing_message:
-                    try:
-                        await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
-                    except Exception:
-                        pass
+                await MusicPlayerService.send_now_playing_panel(session, bot=self.bot)
             else:
                 play_start = time.time()
                 success = await MusicPlayerService.start_playback(self.bot, session, track)
@@ -2716,11 +2709,7 @@ class MusicCog(commands.Cog, name="Music"):
                 if track.thumbnail:
                     embed.set_thumbnail(url=track.thumbnail)
                 await status_msg.edit(content=None, embed=embed)
-                if session.now_playing_message:
-                    try:
-                        await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
-                    except Exception:
-                        pass
+                await MusicPlayerService.send_now_playing_panel(session, bot=self.bot)
             else:
                 success = await MusicPlayerService.start_playback(self.bot, session, track)
                 if success:

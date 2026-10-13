@@ -79,6 +79,9 @@ class GuildMusicSession:
         self.sleep_timer_end: float = 0.0
         self.audio_filter: str = ""
         self.now_playing_message: Optional[discord.Message] = None
+        self.now_playing_message_id: Optional[int] = None
+        self.now_playing_channel_id: Optional[int] = None
+        self._panel_lock = asyncio.Lock()
         self.progress_updater_task: Optional[asyncio.Task] = None
         self._is_seeking: bool = False
         self._is_reencoding: bool = False
