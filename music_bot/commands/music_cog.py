@@ -1704,7 +1704,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @music_group.command(name="settings", description="Inspect and configure Neko Songs settings")
     async def music_settings(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await self.ensure_deferred(interaction, ephemeral=True)
         settings = await self.bot.db.get_guild_settings(interaction.guild_id)  # type: ignore
         embed = discord.Embed(
             title="⚙️ NEKO SONGS SETTINGS",
@@ -1724,7 +1724,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @app_commands.command(name="permissions", description="View voice and command permissions")
     async def music_permissions(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await self.ensure_deferred(interaction, ephemeral=True)
         settings = await self.bot.db.get_guild_settings(interaction.guild_id)  # type: ignore
         embed = discord.Embed(
             title="🛡️ NEKO SONGS PERMISSIONS",
