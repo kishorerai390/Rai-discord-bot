@@ -682,7 +682,8 @@ class MusicPlayerService:
         else:
             next_info_line = ""
 
-        embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0x00E5FF if session.is_playing else 0x9B59B6)
+        server_mute_alert = "\n\n⚠️ **Notice:** The bot is currently **Server-Muted** in Discord. Audio is silenced by server settings. Right-click the bot and uncheck **Server Mute** to hear audio." if is_server_muted else ""
+        embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0xFEE75C if is_server_muted else (0x00E5FF if session.is_playing else 0x9B59B6))
 
         embed = discord.Embed(
             title="🎶 NOW PLAYING",
@@ -695,7 +696,7 @@ class MusicPlayerService:
                 f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
                 f"• **Queue:** `{len(session.queue)} tracks` • **Loop:** `{session.loop_mode.value.title()}`\n"
                 f"• **Filter:** `{preset_name}` • **Auto-DJ:** `{is_autodj_str}` • **24/7:** `{is_247_str}`"
-                f"{next_info_line}{recovery_line}{error_line}"
+                f"{next_info_line}{recovery_line}{error_line}{server_mute_alert}"
             ),
             color=embed_color,
         )
@@ -1016,6 +1017,121 @@ class MusicPlayerService:
         return False
 
     @classmethod
+    async def pause(cls, session: GuildMusicSession) -> Tuple[bool, str]:
+        """Authoritatively pause current playback and update Now Playing panel."""
+        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
+            return False, "❌ Nothing is currently playing."
+        if session.is_paused or (session.voice_client and session.voice_client.is_paused()):
+            return False, "⏸️ Playback is already paused."
+        if session.voice_client and session.voice_client.is_playing():
+            session.voice_client.pause()
+        session.pause_time = time.time()
+        session.state = PlaybackState.PAUSED
+        await cls.send_now_playing_panel(session)
+        return True, "⏸️ Playback paused."
+
+    @classmethod
+    async def resume(cls, bot: RaiMusicBot, session: GuildMusicSession) -> Tuple[bool, str]:
+        """Authoritatively resume paused playback and update Now Playing panel."""
+        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
+            return False, "❌ Nothing is currently playing."
+        if session.is_playing and session.voice_client and not session.voice_client.is_paused():
+            return False, "▶️ Music is already playing."
+
+        if session.voice_client and session.voice_client.is_paused():
+            session.voice_client.resume()
+        elif session.state == PlaybackState.PAUSED and session.current_track:
+            cur_pos = session.progress_seconds
+            await cls.resume_track_stream(bot, session, session.current_track, cur_pos)
+
+        if session.pause_time > 0:
+            session.paused_duration += time.time() - session.pause_time
+            session.pause_time = 0.0
+        session.state = PlaybackState.PLAYING
+
+        if not session.progress_updater_task or session.progress_updater_task.done():
+            session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
+
+        await cls.send_now_playing_panel(session)
+        return True, "▶️ Playback resumed."
+
+    @classmethod
+    async def previous(cls, bot: RaiMusicBot, session: GuildMusicSession) -> Tuple[bool, str, Optional[QueuedTrack]]:
+        """Authoritatively return to the previous track from history."""
+        if not session.history:
+            return False, "❌ No previous tracks in history.", None
+
+        async with session.lock:
+            prev_track = session.history.pop()
+            if session.current_track:
+                session.queue.appendleft(session.current_track)
+
+            if session.voice_client and (session.voice_client.is_playing() or session.voice_client.is_paused()):
+                session.playback_generation += 1
+                session._is_skipping = True
+                try:
+                    session.voice_client.stop()
+                except Exception:
+                    pass
+                await asyncio.sleep(0.05)
+                session._is_skipping = False
+
+            success = await cls.start_playback(bot, session, prev_track)
+            if success:
+                return True, f"⏮️ Returned to **{prev_track.title}**.", prev_track
+            else:
+                return False, f"❌ Failed to resume previous track **{prev_track.title}**.", None
+
+    @classmethod
+    async def stop(cls, bot: RaiMusicBot, session: GuildMusicSession) -> Tuple[bool, str]:
+        """Authoritatively stop playback, clear queue, update panel, and respect 24/7 settings."""
+        async with session.lock:
+            session.is_intentional_stop = True
+            session.state = PlaybackState.STOPPED
+            session.queue.clear()
+            session.current_track = None
+
+            if session.progress_updater_task and not session.progress_updater_task.done():
+                session.progress_updater_task.cancel()
+                session.progress_updater_task = None
+
+            if session.voice_client:
+                if session.voice_client.is_playing() or session.voice_client.is_paused():
+                    try:
+                        session.voice_client.stop()
+                    except Exception:
+                        pass
+
+                # If 24/7 mode is NOT enabled, disconnect
+                if not getattr(session, "twenty_four_seven", False):
+                    try:
+                        await session.voice_client.disconnect()
+                    except Exception:
+                        pass
+                    session.voice_client = None
+
+            if session.now_playing_message:
+                try:
+                    embed = discord.Embed(
+                        title="⏹️ PLAYBACK STOPPED",
+                        description="Music playback has been stopped and the queue has been cleared. 🐾",
+                        color=0x2B2D31,
+                    )
+                    await session.now_playing_message.edit(embed=embed, view=None)
+                except Exception:
+                    session.now_playing_message = None
+
+            session.reset()
+
+            if bot and getattr(bot, "db", None) and hasattr(bot.db, "delete_session"):
+                try:
+                    await bot.db.delete_session(session.guild_id)
+                except Exception:
+                    pass
+
+            return True, "⏹️ Stopped playback and cleared queue. 🐾"
+
+    @classmethod
     async def send_now_playing_panel(cls, session: GuildMusicSession) -> None:
         """Send or update the single persistent interactive control panel in the text channel."""
         if not session.text_channel:
@@ -1221,9 +1337,10 @@ class NowPlayingControlView(discord.ui.View):
             session.queue.appendleft(session.current_track)
 
         bot: RaiMusicBot = interaction.client  # type: ignore
-        await MusicPlayerService.start_playback(bot, session, prev_track)
+        success, msg, _ = await MusicPlayerService.previous(bot, session)
+        self._update_button_states(session)
         try:
-            await interaction.followup.send(f"⏮ Returned to **{prev_track.title}**.", ephemeral=True)
+            await interaction.followup.send(msg, ephemeral=True)
         except Exception:
             pass
 
@@ -1284,34 +1401,13 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
+        bot: RaiMusicBot = interaction.client  # type: ignore
         if session.voice_client.is_playing():
-            session.voice_client.pause()
-            session.pause_time = time.time()
-            session.state = PlaybackState.PAUSED
-            action_text = "⏸ Playback paused."
-        elif session.voice_client.is_paused():
-            session.voice_client.resume()
-            if session.pause_time > 0:
-                session.paused_duration += time.time() - session.pause_time
-                session.pause_time = 0.0
-            session.state = PlaybackState.PLAYING
-            action_text = "▶ Playback resumed."
-            if not session.progress_updater_task or session.progress_updater_task.done():
-                session.progress_updater_task = asyncio.create_task(MusicPlayerService._progress_updater_loop(session))
-        elif session.state == PlaybackState.PAUSED and session.current_track:
-            bot: RaiMusicBot = interaction.client  # type: ignore
-            cur_pos = session.progress_seconds
-            await MusicPlayerService.resume_track_stream(bot, session, session.current_track, cur_pos)
-            action_text = "▶ Playback resumed."
+            success, action_text = await MusicPlayerService.pause(session)
         else:
-            action_text = "⏹ No track active."
+            success, action_text = await MusicPlayerService.resume(bot, session)
 
         self._update_button_states(session)
-        if session.now_playing_message:
-            try:
-                await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session), view=self)
-            except Exception:
-                pass
         try:
             await interaction.followup.send(action_text, ephemeral=True)
         except Exception:
@@ -1634,43 +1730,11 @@ class NowPlayingControlView(discord.ui.View):
                 pass
             return
 
-        # 2. State cleanup & stop voice atomically
-        session.is_intentional_stop = True
-        session.state = PlaybackState.STOPPED
-        session.queue.clear()
-        if session.voice_client:
-            session.voice_client.stop()
-            try:
-                await session.voice_client.disconnect()
-            except Exception:
-                pass
-
-        if session.voice_client and session.voice_client.channel:
-            vc_ch = session.voice_client.channel
-            if hasattr(vc_ch, "set_status"):
-                try:
-                    await vc_ch.set_status(None, reason="Neko Songs Stopped")
-                except Exception:
-                    pass
-            session.voice_client = None
-
-        if session.now_playing_message:
-            try:
-                await session.now_playing_message.delete()
-            except Exception:
-                pass
-            session.now_playing_message = None
-
-        session.reset()
-
-        bot_client = getattr(interaction, "client", None)
-        if bot_client and getattr(bot_client, "db", None) and hasattr(bot_client.db, "delete_session"):
-            coro = bot_client.db.delete_session(session.guild_id)
-            if asyncio.iscoroutine(coro):
-                asyncio.create_task(coro)
-
+        # 2. State cleanup & stop voice atomically via authoritative stop method
+        bot_client: RaiMusicBot = interaction.client  # type: ignore
+        success, msg = await MusicPlayerService.stop(bot_client, session)
         try:
-            await interaction.followup.send("⏹ Stopped music playback and disconnected. 🐾", ephemeral=True)
+            await interaction.followup.send(msg, ephemeral=True)
         except Exception:
             pass
 

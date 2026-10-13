@@ -800,7 +800,21 @@ class MusicCog(commands.Cog, name="Music"):
 
         # 3. Add to Queue or Start Playback
         async with session.lock:
-            if session.is_playing:
+            # Rapid-click duplicate guard (prevents identical double-queueing within 3 seconds)
+            now_t = time.time()
+            last_url = getattr(session, "_last_queued_url", None)
+            last_time = getattr(session, "_last_queued_time", 0.0)
+            if track.url and track.url == last_url and (now_t - last_time) < 3.0:
+                await interaction.edit_original_response(
+                    content=f"⚠️ **{track.title}** was already just queued a moment ago! (Duplicate prevented)",
+                    embed=None,
+                    view=None,
+                )
+                return
+            session._last_queued_url = track.url
+            session._last_queued_time = now_t
+
+            if session.is_playing or session.is_paused or session.has_active_track:
                 session.queue.append(track)
                 embed_queued = discord.Embed(
                     title="🐱 ADDED TO QUEUE",
@@ -813,6 +827,11 @@ class MusicCog(commands.Cog, name="Music"):
                     embed_queued.set_thumbnail(url=track.thumbnail)
                 embed_queued.set_footer(text=f"Requested by {member.display_name}")
                 await interaction.edit_original_response(embed=embed_queued)
+                if session.now_playing_message:
+                    try:
+                        await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                    except Exception:
+                        pass
             else:
                 play_start = time.time()
                 success = await MusicPlayerService.start_playback(self.bot, session, track)
@@ -877,54 +896,15 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_pause(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
-            await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
-            return
-
-        if session.is_paused or session.voice_client.is_paused():
-            await interaction.followup.send("⏸️ Playback is already paused.", ephemeral=True)
-            return
-
-        session.voice_client.pause()
-        session.pause_time = discord.utils.utcnow().timestamp()
-        session.state = PlaybackState.PAUSED
-        if session.now_playing_message:
-            try:
-                await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
-            except Exception:
-                pass
-        await interaction.followup.send("⏸️ Playback paused.")
+        success, msg = await MusicPlayerService.pause(session)
+        await interaction.followup.send(msg)
 
     @music_group.command(name="resume", description="Resume paused music playback")
     async def music_resume(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
-            await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
-            return
-
-        if session.is_playing and not session.voice_client.is_paused():
-            await interaction.followup.send("▶️ Music is already playing.", ephemeral=True)
-            return
-
-        if session.voice_client.is_paused():
-            session.voice_client.resume()
-        elif session.state == PlaybackState.PAUSED and session.current_track:
-            cur_pos = session.progress_seconds
-            await MusicPlayerService.resume_track_stream(self.bot, session, session.current_track, cur_pos)
-
-        if session.pause_time > 0:
-            session.paused_duration += time.time() - session.pause_time
-            session.pause_time = 0.0
-        session.state = PlaybackState.PLAYING
-        if not session.progress_updater_task or session.progress_updater_task.done():
-            session.progress_updater_task = asyncio.create_task(MusicPlayerService._progress_updater_loop(session))
-        if session.now_playing_message:
-            try:
-                await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
-            except Exception:
-                pass
-        await interaction.followup.send("▶️ Playback resumed.")
+        success, msg = await MusicPlayerService.resume(self.bot, session)
+        await interaction.followup.send(msg)
 
     @music_group.command(name="skip", description="Skip the currently playing song (or vote-to-skip)")
     async def music_skip(self, interaction: discord.Interaction) -> None:
@@ -975,29 +955,15 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_previous(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if not session.history:
-            await interaction.followup.send("❌ No previous tracks in history.", ephemeral=True)
-            return
-
-        prev = session.history.pop()
-        if session.current_track:
-            session.queue.appendleft(session.current_track)
-
-        await MusicPlayerService.start_playback(self.bot, session, prev)
-        await interaction.followup.send(f"⏮️ Returned to **{prev.title}**.")
+        success, msg, _ = await MusicPlayerService.previous(self.bot, session)
+        await interaction.followup.send(msg)
 
     @music_group.command(name="stop", description="Stop playback, clear queue, and leave voice")
     async def music_stop(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        session.is_intentional_stop = True
-        session.queue.clear()
-        if session.voice_client:
-            session.voice_client.stop()
-            await session.voice_client.disconnect()
-            session.voice_client = None
-        session.reset()
-        await interaction.followup.send("⏹️ Stopped playback and cleared queue. 🐾")
+        success, msg = await MusicPlayerService.stop(self.bot, session)
+        await interaction.followup.send(msg)
 
     @music_group.command(name="nowplaying", description="View the official Neko Songs Now Playing dashboard")
     async def music_nowplaying(self, interaction: discord.Interaction) -> None:
@@ -2723,7 +2689,17 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         async with session.lock:
-            if session.is_playing:
+            # Rapid duplicate guard (prevents identical double-queueing within 3 seconds)
+            now_t = time.time()
+            last_url = getattr(session, "_last_queued_url", None)
+            last_time = getattr(session, "_last_queued_time", 0.0)
+            if track.url and track.url == last_url and (now_t - last_time) < 3.0:
+                await status_msg.edit(content=f"⚠️ **{track.title}** was already just queued a moment ago! (Duplicate prevented)")
+                return
+            session._last_queued_url = track.url
+            session._last_queued_time = now_t
+
+            if session.is_playing or session.is_paused or session.has_active_track:
                 session.queue.append(track)
                 pos = len(session.queue)
                 embed = discord.Embed(
@@ -2773,13 +2749,8 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing()):
-            await ctx.reply("❌ Nothing is playing to pause.", mention_author=False)
-            return
-        session.voice_client.pause()
-        session.pause_time = time.time()
-        session.state = PlaybackState.PAUSED
-        await ctx.reply("⏸️ Playback paused.", mention_author=False)
+        success, msg = await MusicPlayerService.pause(session)
+        await ctx.reply(msg, mention_author=False)
 
     @commands.command(name="resume", aliases=["unpause"])
     async def pfx_resume(self, ctx: commands.Context) -> None:
@@ -2787,15 +2758,8 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        if not session.voice_client or not (session.is_paused or session.voice_client.is_paused()):
-            await ctx.reply("❌ Playback is not paused.", mention_author=False)
-            return
-        session.voice_client.resume()
-        if session.pause_time > 0:
-            session.paused_duration += time.time() - session.pause_time
-            session.pause_time = 0.0
-        session.state = PlaybackState.PLAYING
-        await ctx.reply("▶️ Playback resumed.", mention_author=False)
+        success, msg = await MusicPlayerService.resume(self.bot, session)
+        await ctx.reply(msg, mention_author=False)
 
     @commands.command(name="stop")
     async def pfx_stop(self, ctx: commands.Context) -> None:
@@ -2803,14 +2767,8 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        async with session.lock:
-            session.is_intentional_stop = True
-            session.queue.clear()
-            session.current_track = None
-            session.state = PlaybackState.STOPPED
-            if session.voice_client and (session.voice_client.is_playing() or session.voice_client.is_paused()):
-                session.voice_client.stop()
-        await ctx.reply("⏹️ Stopped playback and cleared queue.", mention_author=False)
+        success, msg = await MusicPlayerService.stop(self.bot, session)
+        await ctx.reply(msg, mention_author=False)
 
     @commands.command(name="queue", aliases=["q"])
     async def pfx_queue(self, ctx: commands.Context) -> None:
@@ -2965,18 +2923,8 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        if not session.history:
-            await ctx.reply("❌ No previously played songs in history.", mention_author=False)
-            return
-        prev_track = session.history.pop()
-        async with session.lock:
-            if session.current_track:
-                session.queue.appendleft(session.current_track)
-            success = await MusicPlayerService.start_playback(self.bot, session, prev_track)
-        if success:
-            await ctx.reply(f"⏮️ Playing previous track: **{prev_track.title}**", mention_author=False)
-        else:
-            await ctx.reply("❌ Failed to play previous track.", mention_author=False)
+        success, msg, _ = await MusicPlayerService.previous(self.bot, session)
+        await ctx.reply(msg, mention_author=False)
 
     @commands.command(name="shuffle")
     async def pfx_shuffle(self, ctx: commands.Context) -> None:
