@@ -353,12 +353,19 @@ class NekoSongsBot(commands.Bot):
             try:
                 active_saved = await self.db.get_active_sessions()
                 for saved in active_saved:
+                    if saved.get("is_paused") or saved.get("state") in ("PAUSED", "IDLE"):
+                        logger.info(f"Session in guild {saved.get('guild_id')} was paused/idle before restart; will not auto-play.")
+                        continue
                     guild = self.get_guild(saved["guild_id"])
                     if not guild:
                         continue
                     vc_channel = guild.get_channel(saved.get("voice_channel_id") or 0)
                     text_channel = guild.get_channel(saved.get("text_channel_id") or 0)
                     if isinstance(vc_channel, (discord.VoiceChannel, discord.StageChannel)):
+                        non_bot_listeners = [m for m in getattr(vc_channel, "members", []) if not m.bot]
+                        if not non_bot_listeners:
+                            logger.info(f"Voice channel #{vc_channel.name} in guild {guild.id} has no human listeners; will not auto-play on boot.")
+                            continue
                         session = await self.session_manager.get_session(guild.id)
                         if not session.is_active:
                             session.volume = saved.get("volume", 80)

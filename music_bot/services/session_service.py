@@ -143,6 +143,7 @@ class GuildMusicSession:
         self.paused_duration = 0.0
         self.skip_votes.clear()
         self.recovery_status = None
+        self.is_intentional_stop = True
 
 
 class SessionManager:

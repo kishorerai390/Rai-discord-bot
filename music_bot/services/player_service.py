@@ -249,6 +249,9 @@ class MusicPlayerService:
                     getattr(session, "_is_seeking", False)
                     or getattr(session, "_is_reencoding", False)
                     or getattr(session, "_is_skipping", False)
+                    or getattr(session, "is_intentional_stop", False)
+                    or session.state in (PlaybackState.PAUSED, PlaybackState.IDLE)
+                    or session.is_paused
                 ):
                     return
                 if session.playback_generation != current_generation:
@@ -264,6 +267,9 @@ class MusicPlayerService:
                 retries = getattr(track, "_retry_count", 0)
                 if (
                     not getattr(session, "_is_skipping", False)
+                    and not getattr(session, "is_intentional_stop", False)
+                    and not session.is_paused
+                    and session.state == PlaybackState.PLAYING
                     and (error is not None or (duration > 40 and elapsed < duration - 25))
                     and retries < 2
                 ):
@@ -459,6 +465,9 @@ class MusicPlayerService:
                     getattr(session, "_is_seeking", False)
                     or getattr(session, "_is_reencoding", False)
                     or getattr(session, "_is_skipping", False)
+                    or getattr(session, "is_intentional_stop", False)
+                    or session.state in (PlaybackState.PAUSED, PlaybackState.IDLE)
+                    or session.is_paused
                 ):
                     return
                 if session.playback_generation != current_generation:
@@ -494,8 +503,22 @@ class MusicPlayerService:
             logger.debug(f"Bypassing handle_track_finished for guild {session.guild_id} as skip is currently active.")
             return
 
+        if (
+            session.is_paused
+            or session.state in (PlaybackState.PAUSED, PlaybackState.IDLE)
+            or getattr(session, "is_intentional_stop", False)
+        ):
+            logger.debug(f"Bypassing handle_track_finished for guild {session.guild_id} (session paused or stopped).")
+            return
+
         async with session.lock:
             if getattr(session, "_is_skipping", False):
+                return
+            if (
+                session.is_paused
+                or session.state in (PlaybackState.PAUSED, PlaybackState.IDLE)
+                or getattr(session, "is_intentional_stop", False)
+            ):
                 return
 
             # Check loop modes
