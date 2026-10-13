@@ -505,10 +505,11 @@ class MusicPlayerService:
 
         if (
             session.is_paused
-            or session.state in (PlaybackState.PAUSED, PlaybackState.IDLE)
+            or session.state == PlaybackState.PAUSED
             or getattr(session, "is_intentional_stop", False)
+            or not session.current_track
         ):
-            logger.debug(f"Bypassing handle_track_finished for guild {session.guild_id} (session paused or stopped).")
+            logger.debug(f"Bypassing handle_track_finished for guild {session.guild_id} (session paused, stopped, or no current track).")
             return
 
         async with session.lock:
@@ -516,8 +517,9 @@ class MusicPlayerService:
                 return
             if (
                 session.is_paused
-                or session.state in (PlaybackState.PAUSED, PlaybackState.IDLE)
+                or session.state == PlaybackState.PAUSED
                 or getattr(session, "is_intentional_stop", False)
+                or not session.current_track
             ):
                 return
 
