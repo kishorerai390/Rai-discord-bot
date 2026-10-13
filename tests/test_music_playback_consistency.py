@@ -125,3 +125,46 @@ class TestPlaybackConsistency:
             assert len(mock_session.history) == 0
             assert mock_session.queue[0] == t_curr
             mock_start.assert_called_once_with(mock_bot, mock_session, t_prev)
+
+    async def test_twenty_four_seven_channel_mode_on_stop(self, mock_bot, mock_session):
+        """24/7 mode preserves voice connection on stop instead of disconnecting."""
+        mock_session.twenty_four_seven = True
+        mock_session.current_track = make_track("Active Song")
+        mock_session.state = PlaybackState.PLAYING
+        vc = mock_session.voice_client
+
+        success, msg = await MusicPlayerService.stop(mock_bot, mock_session)
+        assert success is True
+        vc.stop.assert_called_once()
+        vc.disconnect.assert_not_called()
+        assert mock_session.voice_client is not None
+
+    async def test_spotify_metadata_integration(self):
+        """Verify Spotify metadata resolution parses title, artist, and album thumbnail."""
+        from music_bot.services.resolver_service import AudioResolver
+        fake_oembed = {
+            "title": "Blinding Lights",
+            "thumbnail_url": "https://spotify.cdn/blinding_lights.jpg",
+        }
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = (
+                b'{"title": "Blinding Lights", "thumbnail_url": "https://spotify.cdn/blinding_lights.jpg"}'
+            )
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+            res = await AudioResolver.resolve_spotify_metadata("https://open.spotify.com/track/0VjIjW4GlUZAMYd2vXMi3b")
+            assert res is not None
+            assert res["title"] == "Blinding Lights"
+            assert "Blinding Lights" in res["search_query"]
+            assert res["thumbnail"] == "https://spotify.cdn/blinding_lights.jpg"
+
+    async def test_eq_filter_application(self, mock_bot, mock_session):
+        """Verify EQ filter preset updates preset display name and audio filter chain."""
+        with patch.object(MusicPlayerService, "send_now_playing_panel", new_callable=AsyncMock):
+            success = await MusicPlayerService.apply_filter_or_eq(
+                mock_bot, mock_session, "bassboost", "Bass Boost"
+            )
+            assert success is True
+            assert mock_session.eq_preset == "Bass Boost"
+            assert "equalizer=f=60" in mock_session.audio_filter
