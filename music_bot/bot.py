@@ -30,18 +30,15 @@ logger = logging.getLogger("NekoSongs.Client")
 
 
 async def _determine_prefix(bot: NekoSongsBot, message: discord.Message) -> List[str]:
-    """Dynamic multi-prefix resolver with per-guild customization support."""
+    """Dynamic prefix resolver prioritizing unique music prefix (m!) and custom guild prefix."""
     prefixes: List[str] = []
     if message.guild:
         guild_pref = await bot.get_guild_prefix(message.guild.id)
         if guild_pref and guild_pref not in prefixes:
             prefixes.append(guild_pref)
-    if "!" not in prefixes:
-        prefixes.append("!")
-    if "," not in prefixes:
-        prefixes.append(",")
-    if "m!" not in prefixes:
-        prefixes.append("m!")
+    default_prefix = config.MUSIC_PREFIX or "m!"
+    if default_prefix not in prefixes:
+        prefixes.append(default_prefix)
     return commands.when_mentioned_or(*prefixes)(bot, message)
 
 
@@ -55,6 +52,17 @@ class NekoSongsBot(commands.Bot):
                 discord.opus._load_default()
         except Exception as opus_err:
             logger.debug(f"Opus loader notice: {opus_err}")
+
+        # Ensure Davey E2EE Voice Protocol is validated and linked to discord.py
+        try:
+            import davey
+            import discord.voice_client as vc
+            import discord.voice_state as vs
+            vs.has_dave = True
+            vc.has_dave = True
+            logger.debug(f"Davey E2EE voice protocol active: v{getattr(davey, '__version__', '0.1.6')}")
+        except Exception as davey_err:
+            logger.debug(f"Davey loader notice: {davey_err}")
 
         intents = discord.Intents.default()
         intents.guilds = True
@@ -80,11 +88,11 @@ class NekoSongsBot(commands.Bot):
             return self._prefix_cache[guild_id]
         try:
             settings = await self.db.get_guild_settings(guild_id)
-            prefix = settings.prefix or ","
+            prefix = settings.prefix or config.MUSIC_PREFIX or "m!"
             self._prefix_cache[guild_id] = prefix
             return prefix
         except Exception:
-            return ","
+            return config.MUSIC_PREFIX or "m!"
 
     def set_cached_prefix(self, guild_id: int, prefix: str) -> None:
         """Update prefix in memory cache."""
