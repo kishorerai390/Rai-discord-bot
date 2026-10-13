@@ -1141,8 +1141,20 @@ class MusicPlayerService:
         return False
 
     @classmethod
-    async def pause(cls, session: GuildMusicSession) -> Tuple[bool, str]:
-        """Authoritatively pause current playback and update Now Playing panel."""
+    async def pause(cls, *args, **kwargs) -> Tuple[bool, str]:
+        """Authoritatively pause current playback and update Now Playing panel. Supports pause(session) or pause(bot, session)."""
+        session: Optional[GuildMusicSession] = None
+        for a in args:
+            if isinstance(a, GuildMusicSession):
+                session = a
+                break
+        if session is None and "session" in kwargs:
+            session = kwargs["session"]
+        if session is None and args:
+            session = args[-1]
+        if not session:
+            return False, "❌ No active session."
+
         if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
             return False, "❌ Nothing is currently playing."
         if session.is_paused or (session.voice_client and session.voice_client.is_paused()):
@@ -1155,8 +1167,24 @@ class MusicPlayerService:
         return True, "⏸️ Playback paused."
 
     @classmethod
-    async def resume(cls, bot: RaiMusicBot, session: GuildMusicSession) -> Tuple[bool, str]:
-        """Authoritatively resume paused playback and update Now Playing panel."""
+    async def resume(cls, *args, **kwargs) -> Tuple[bool, str]:
+        """Authoritatively resume paused playback and update Now Playing panel. Supports resume(bot, session) or resume(session)."""
+        bot = None
+        session: Optional[GuildMusicSession] = None
+        for a in args:
+            if isinstance(a, GuildMusicSession):
+                session = a
+            elif hasattr(a, "db") or hasattr(a, "loop"):
+                bot = a
+        if session is None and "session" in kwargs:
+            session = kwargs["session"]
+        if bot is None and "bot" in kwargs:
+            bot = kwargs["bot"]
+        if session is None and args:
+            session = args[-1]
+        if not session:
+            return False, "❌ No active session."
+
         if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
             return False, "❌ Nothing is currently playing."
         if session.is_playing and session.voice_client and not session.voice_client.is_paused():

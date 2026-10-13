@@ -557,7 +557,8 @@ class NekoSongsBot(commands.Bot):
                         await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
 
                     elif action_type == "SHUFFLE":
-                        session.shuffle()
+                        MusicPlayerService.shuffle(session)
+                        await MusicPlayerService.send_now_playing_panel(session)
                         await self.db.mark_web_action_completed(action_id, {"status": "shuffled", "queue_len": len(session.queue)})
 
                     elif action_type == "LOOP":
