@@ -330,71 +330,57 @@ class AudioResolver:
     @classmethod
     async def resolve_spotify_metadata(cls, spotify_url: str) -> Optional[Dict[str, Any]]:
         """
-        Extract title, artist, and album thumbnail from Spotify track/album/playlist URLs
-        using Spotify's public oEmbed API and open metadata without requiring developer credentials.
+        Extract title, artist, thumbnail, and metadata from Spotify URLs or URIs.
+        Prioritizes official Spotify Web API (Client Credentials Flow) with automatic
+        fallback to open oEmbed parser without requiring developer tokens.
         """
-        import urllib.request
-        import json
-        loop = asyncio.get_running_loop()
+        from music_bot.services.spotify_service import SpotifyItemType, SpotifyService, SpotifyTrack, SpotifyCollection
 
-        def _fetch_meta() -> Optional[Dict[str, Any]]:
-            try:
-                # 1. Query Spotify public oEmbed
-                clean_url = spotify_url.split("?")[0]
-                oembed_endpoint = f"https://open.spotify.com/oembed?url={clean_url}"
-                req = urllib.request.Request(
-                    oembed_endpoint,
-                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-                )
-                with urllib.request.urlopen(req, timeout=6.0) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
+        try:
+            res = await SpotifyService.resolve_url(spotify_url)
+            if res:
+                if isinstance(res, SpotifyTrack):
+                    return res.to_dict()
+                elif isinstance(res, SpotifyCollection):
+                    d = res.to_dict()
+                    # Add single track search query from first item or title
+                    first_track = res.tracks[0] if res.tracks else None
+                    d["title"] = res.title
+                    d["artist"] = res.author_or_artist
+                    d["search_query"] = first_track.search_query if first_track else f"{res.title} {res.author_or_artist}"
+                    return d
+        except Exception as e:
+            logger.warning(f"[Resolver] SpotifyService resolution error for '{spotify_url}': {e}")
 
-                track_title = data.get("title", "").strip()
-                thumbnail = data.get("thumbnail_url")
-                artist = "Unknown Artist"
+        # Direct fallback to open oEmbed
+        try:
+            fb = await SpotifyService.resolve_via_oembed(spotify_url)
+            if fb:
+                return fb.to_dict()
+        except Exception as fb_err:
+            logger.warning(f"[Resolver] Fallback oEmbed failed for '{spotify_url}': {fb_err}")
 
-                # 2. Extract artist from open.spotify.com page title if available
-                page_req = urllib.request.Request(
-                    clean_url,
-                    headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-                )
-                try:
-                    with urllib.request.urlopen(page_req, timeout=5.0) as page_resp:
-                        html = page_resp.read().decode("utf-8", errors="ignore")
-                        start_idx = html.find("<title>")
-                        end_idx = html.find("</title>")
-                        if start_idx != -1 and end_idx != -1:
-                            page_title = html[start_idx + 7 : end_idx]
-                            if " - song and lyrics by " in page_title:
-                                parts = page_title.split(" - song and lyrics by ", 1)
-                                if not track_title:
-                                    track_title = parts[0].strip()
-                                artist = parts[1].split(" | Spotify")[0].strip()
-                            elif " - song by " in page_title:
-                                parts = page_title.split(" - song by ", 1)
-                                if not track_title:
-                                    track_title = parts[0].strip()
-                                artist = parts[1].split(" | Spotify")[0].strip()
-                            elif " | Spotify" in page_title:
-                                raw_title = page_title.replace(" | Spotify", "").strip()
-                                if " - " in raw_title:
-                                    pts = raw_title.split(" - ", 1)
-                                    artist, track_title = pts[0].strip(), pts[1].strip()
-                except Exception:
-                    pass
+        return None
 
-                if track_title:
-                    return {
-                        "title": track_title,
-                        "artist": artist,
-                        "thumbnail": thumbnail,
-                        "search_query": f"{track_title} {artist}" if artist != "Unknown Artist" else track_title,
-                    }
-            except Exception as e:
-                logger.warning(f"Spotify metadata extraction error for '{spotify_url}': {e}")
+    @classmethod
+    async def resolve_spotify_collection(
+        cls, spotify_url: str, limit: int = 100
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Resolve Spotify albums or playlists into a collection with track metadata.
+        """
+        from music_bot.services.spotify_service import SpotifyItemType, SpotifyService, SpotifyCollection
+        parsed = SpotifyService.match_spotify_link(spotify_url)
+        if not parsed:
             return None
-
-        return await loop.run_in_executor(_audio_executor, _fetch_meta)
+        item_type, item_id = parsed
+        if item_type == SpotifyItemType.ALBUM:
+            col = await SpotifyService.get_album(item_id, limit=limit)
+            return col.to_dict() if col else None
+        elif item_type == SpotifyItemType.PLAYLIST:
+            col = await SpotifyService.get_playlist(item_id, limit=limit)
+            return col.to_dict() if col else None
+        return None
 
     @classmethod
     async def resolve_track(
@@ -406,15 +392,16 @@ class AudioResolver:
 
         spotify_info = None
         cleaned_query = query_or_url
-        if "spotify.com" in query_or_url:
+        is_spotify = "spotify.com" in query_or_url or query_or_url.startswith("spotify:")
+        if is_spotify:
             spotify_info = await cls.resolve_spotify_metadata(query_or_url)
             if spotify_info:
-                cleaned_query = spotify_info["search_query"]
-                logger.info(f"[Resolver] Resolved Spotify metadata: '{spotify_info['title']}' by '{spotify_info['artist']}'")
+                cleaned_query = spotify_info.get("search_query", query_or_url)
+                logger.info(f"[Resolver] Resolved Spotify metadata: '{spotify_info.get('title')}' by '{spotify_info.get('artist')}'")
         elif "apple.com" in query_or_url:
             cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
-        target = cleaned_query if (cleaned_query.startswith("http") and "spotify.com" not in cleaned_query) else f"ytsearch1:{cleaned_query}"
+        target = cleaned_query if (cleaned_query.startswith("http") and not is_spotify) else f"ytsearch1:{cleaned_query}"
 
         def _apply_metadata_enhancements(t: Optional[QueuedTrack]) -> Optional[QueuedTrack]:
             if t and spotify_info:
@@ -424,7 +411,9 @@ class AudioResolver:
                     t.artist = spotify_info["artist"]
                 if spotify_info.get("thumbnail"):
                     t.thumbnail = spotify_info["thumbnail"]
-                if query_or_url.startswith("http"):
+                if spotify_info.get("url"):
+                    t.url = spotify_info["url"]
+                elif query_or_url.startswith("http"):
                     t.url = query_or_url
             return t
 

@@ -78,6 +78,29 @@ LAVALINK_PASSWORD: str = os.getenv("LAVALINK_PASSWORD", "youshallnotpass")
 MUSIC_RATE_LIMIT_COUNT: int = int(os.getenv("MUSIC_RATE_LIMIT_COUNT", "6"))
 MUSIC_RATE_LIMIT_WINDOW_SECONDS: float = float(os.getenv("MUSIC_RATE_LIMIT_WINDOW", "30.0"))
 
+# Spotify Web API Settings & OAuth Configuration
+SPOTIFY_CLIENT_ID: str = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
+SPOTIFY_CLIENT_SECRET: str = os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
+SPOTIFY_REDIRECT_URI: str = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback").strip()
+
+
+def is_spotify_configured() -> bool:
+    """Check if official Spotify Web API credentials are provided."""
+    return bool(SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET)
+
+
+def get_masked_spotify_credentials() -> dict[str, str]:
+    """Return masked credentials for diagnostics without leaking secrets."""
+    cid_masked = f"{SPOTIFY_CLIENT_ID[:4]}...{SPOTIFY_CLIENT_ID[-4:]}" if len(SPOTIFY_CLIENT_ID) >= 8 else ("SET" if SPOTIFY_CLIENT_ID else "NOT_SET")
+    sec_masked = f"{SPOTIFY_CLIENT_SECRET[:3]}...{SPOTIFY_CLIENT_SECRET[-3:]}" if len(SPOTIFY_CLIENT_SECRET) >= 6 else ("SET" if SPOTIFY_CLIENT_SECRET else "NOT_SET")
+    return {
+        "client_id": cid_masked,
+        "client_secret": sec_masked,
+        "redirect_uri": SPOTIFY_REDIRECT_URI,
+        "is_configured": str(is_spotify_configured()),
+    }
+
+
 
 def is_music_token_valid() -> bool:
     """Validate token format without revealing its content."""
