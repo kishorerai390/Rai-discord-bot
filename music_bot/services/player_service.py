@@ -656,6 +656,10 @@ class MusicPlayerService:
             status_text += " (⚠️ Server Muted)"
 
         requester_str = f"<@{track.requester_id}>" if track.requester_id else track.requester_name
+        preset_name = session.eq_preset if session.eq_preset else "Flat"
+        loop_str = session.loop_mode.value.title()
+        recovery_line = f"\n• **Recovery:** `{session.recovery_status}`" if getattr(session, "recovery_status", None) else ""
+        error_line = f"\n• **Error:** `{session.last_error[:80]}`" if session.state == PlaybackState.ERROR and session.last_error else ""
 
         # Clean next track preview (manual queue takes precedence over Auto-DJ)
         is_autodj_on = getattr(session, "dj_enabled", False) or session.autoplay
@@ -667,18 +671,21 @@ class MusicPlayerService:
             next_info_line = ""
 
         server_mute_alert = "\n\n⚠️ **Notice:** The bot is currently **Server-Muted** in Discord voice settings." if is_server_muted else ""
-        spotify_source_tag = " • 🟢 `Spotify Source`" if ("spotify.com" in (track.url or "") or track.source == "spotify") else ""
+        is_spotify = ("spotify.com" in (track.url or "")) or (getattr(track, "source", None) == "spotify")
+        spotify_source_tag = " • 🟢 `Spotify Source`" if is_spotify else ""
 
         embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0xFEE75C if is_server_muted else (0x00E5FF if session.is_playing else 0x9B59B6))
 
         embed = discord.Embed(
-            title="🎶 MusicMaid • Now Playing",
+            title="🎶 NOW PLAYING",
             description=(
                 f"### [{track.title}]({track.url})\n"
                 f"👤 **Artist:** `{track.artist}`{spotify_source_tag}\n\n"
                 f"**Progress:**\n`{progress_bar}` `{progress_str}`\n\n"
-                f"• **Status:** {status_text} • **Volume:** `{session.volume}%` • **Requested by:** {requester_str}"
-                f"{next_info_line}{server_mute_alert}"
+                f"• **Requested by:** {requester_str}\n"
+                f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
+                f"• **Filter:** `{preset_name}` • **Loop:** `{loop_str}`"
+                f"{next_info_line}{recovery_line}{error_line}{server_mute_alert}"
             ),
             color=embed_color,
         )
@@ -1829,6 +1836,39 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
+    @discord.ui.button(emoji="⏪", label="-10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_rewind_10", row=0)
+    async def rewind_10_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session or not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
+            try:
+                await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        bot: RaiMusicBot = interaction.client  # type: ignore
+        cur_pos = session.progress_seconds
+        target_pos = max(0, cur_pos - 10)
+        await MusicPlayerService.seek(bot, session, target_pos)
+        try:
+            await interaction.followup.send(f"⏪ Rewound 10s (now at `{format_duration(target_pos, is_position=True)}`).", ephemeral=True)
+        except Exception:
+            pass
+
     @discord.ui.button(emoji="⏸", label="Pause", style=discord.ButtonStyle.secondary, custom_id="music_btn_play_pause", row=0)
     async def play_pause_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
@@ -1865,8 +1905,43 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
+    @discord.ui.button(emoji="⏩", label="+10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_forward_10", row=0)
+    async def forward_10_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+        except Exception:
+            pass
+
+        session = self._get_session(interaction)
+        can_interact, reason = self._check_user_voice(interaction, session)
+        if not can_interact:
+            try:
+                await interaction.followup.send(reason, ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        if not session or not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
+            try:
+                await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            except Exception:
+                pass
+            return
+
+        bot: RaiMusicBot = interaction.client  # type: ignore
+        cur_pos = session.progress_seconds
+        dur = session.current_track.duration or 0
+        target_pos = min(dur - 1, cur_pos + 10) if dur > 0 else cur_pos + 10
+        await MusicPlayerService.seek(bot, session, target_pos)
+        try:
+            await interaction.followup.send(f"⏩ Fast-forwarded 10s (now at `{format_duration(target_pos, is_position=True)}`).", ephemeral=True)
+        except Exception:
+            pass
+
     @discord.ui.button(emoji="⏭", label="Skip", style=discord.ButtonStyle.secondary, custom_id="music_btn_skip", row=0)
     async def skip_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+
         try:
             if not interaction.response.is_done():
                 await interaction.response.defer(ephemeral=True)

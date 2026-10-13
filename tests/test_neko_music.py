@@ -356,14 +356,17 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
         session = GuildMusicSession(guild_id=self.guild_id_1)
         view = NowPlayingControlView(session)
 
-        # 10 buttons across 2 clean rows:
-        # Row 0: [⏮ Prev] [⏸ Pause/Resume] [⏭ Skip] [📜 Queue] [🔄 Refresh]
-        # Row 1: [🎛️ Audio & EQ] [🎧 Auto-DJ] [⚙️ Settings] [❤️ Favorite] [⏹ Stop]
-        self.assertEqual(len(view.children), 10)
+        # 12 buttons across clean rows:
+        # Row 0: [⏮ Prev] [⏪ -10s] [⏸ Pause/Resume] [⏩ +10s] [⏭ Skip]
+        # Row 1: [📜 Queue] [🔄 Refresh] [🎛️ Audio & EQ] [🎧 Auto-DJ] [⚙️ Settings]
+        # Row 2: [❤️ Favorite] [⏹ Stop]
+        self.assertEqual(len(view.children), 12)
 
         labels = [btn.label for btn in view.children if hasattr(btn, "label")]
         self.assertIn("Prev", labels)
+        self.assertIn("-10s", labels)
         self.assertIn("Pause", labels)
+        self.assertIn("+10s", labels)
         self.assertIn("Skip", labels)
         self.assertIn("Queue", labels)
         self.assertIn("Refresh", labels)
@@ -375,7 +378,8 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
 
         # 2. Persistent view with session=None
         persistent_view = NowPlayingControlView()
-        self.assertEqual(len(persistent_view.children), 10)
+        self.assertEqual(len(persistent_view.children), 12)
+
 
 
     def test_volume_adjust_view_preset_buttons(self):

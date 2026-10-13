@@ -109,7 +109,9 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
 
         expected_buttons = {
             "music_btn_prev",         # Previous
+            "music_btn_rewind_10",    # Rewind 10s
             "music_btn_play_pause",   # Pause / Resume
+            "music_btn_forward_10",   # Forward 10s
             "music_btn_skip",         # Skip
             "music_btn_queue",        # Queue (Opens Queue Sub-View)
             "music_btn_refresh",      # Refresh panel
@@ -120,7 +122,8 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
             "music_btn_stop",         # Stop
         }
         self.assertTrue(expected_buttons.issubset(custom_ids))
-        self.assertEqual(len(custom_ids), 10)
+        self.assertEqual(len(custom_ids), 12)
+
 
         # Verify sub-views are instantiable and possess modular controls
         q_view = QueueSubView(self.session)
