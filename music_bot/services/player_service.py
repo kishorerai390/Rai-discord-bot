@@ -1134,6 +1134,25 @@ class MusicPlayerService:
     @classmethod
     async def send_now_playing_panel(cls, session: GuildMusicSession) -> None:
         """Send or update the single persistent interactive control panel in the text channel."""
+        # Broadcast real-time playback update to web UI clients
+        try:
+            from web.realtime import RealtimeGateway
+            rg = RealtimeGateway.get_instance()
+            if rg:
+                asyncio.create_task(rg.broadcast("MUSIC_UPDATED", {
+                    "guild_id": str(session.guild_id),
+                    "is_playing": session.is_playing,
+                    "is_paused": session.is_paused,
+                    "title": session.current_track.title if session.current_track else None,
+                    "artist": session.current_track.artist if session.current_track else None,
+                    "thumbnail": session.current_track.thumbnail if session.current_track else None,
+                    "volume": session.volume,
+                    "loop_mode": session.loop_mode.value,
+                    "eq_preset": session.eq_preset or "Flat",
+                }))
+        except Exception:
+            pass
+
         if not session.text_channel:
             return
 

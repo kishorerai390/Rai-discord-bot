@@ -512,26 +512,12 @@ class NekoSongsBot(commands.Bot):
 
                 try:
                     if action_type == "PAUSE":
-                        if session.voice_client and session.voice_client.is_playing():
-                            session.voice_client.pause()
-                            session.state = PlaybackState.PAUSED
-                            session.pause_time = time.time()
-                            await MusicPlayerService.send_now_playing_panel(session)
-                            await self.db.mark_web_action_completed(action_id, {"status": "paused"})
-                        else:
-                            await self.db.mark_web_action_completed(action_id, {"status": "noop"})
+                        success, msg = await MusicPlayerService.pause(self, session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "noop", "message": msg})
 
                     elif action_type == "RESUME":
-                        if session.voice_client and session.voice_client.is_paused():
-                            session.voice_client.resume()
-                            session.state = PlaybackState.PLAYING
-                            if session.pause_time > 0:
-                                session.paused_duration += time.time() - session.pause_time
-                                session.pause_time = 0.0
-                            await MusicPlayerService.send_now_playing_panel(session)
-                            await self.db.mark_web_action_completed(action_id, {"status": "resumed"})
-                        else:
-                            await self.db.mark_web_action_completed(action_id, {"status": "noop"})
+                        success, msg = await MusicPlayerService.resume(self, session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "resumed" if success else "noop", "message": msg})
 
                     elif action_type == "SKIP":
                         success, msg, next_t = await MusicPlayerService.skip(self, session)

@@ -45,9 +45,9 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         self.mock_bot.db = self.mock_db
         self.mock_bot.latency = 0.018
 
-        self.server = RaiCommunityOSServer(bot=self.mock_bot, db=self.mock_db, port=8199)
+        self.rai_server = RaiCommunityOSServer(bot=self.mock_bot, db=self.mock_db, port=8199)
         app = web.Application()
-        self.server.setup_routes(app)
+        self.rai_server.setup_routes(app)
         return app
 
     async def test_01_music_guilds_endpoint(self):
@@ -160,3 +160,67 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         json_data = await resp.json()
         assert json_data["success"] is True
         assert "favorited" in json_data["data"]
+
+    async def test_08_session_permissions_and_rbac(self):
+        """8. GET /api/music/session returns permission-aware control metadata."""
+        resp = await self.client.get("/api/music/session?guild_id=1525030316845301781")
+        assert resp.status == 200
+        json_data = await resp.json()
+        assert json_data["success"] is True
+        assert "permissions" in json_data["data"]
+        perms = json_data["data"]["permissions"]
+        assert "can_control" in perms
+        assert "is_admin" in perms
+        assert "is_staff" in perms
+
+    async def test_09_realtime_music_session_broadcasting(self):
+        """9. RealtimeGateway collects active music sessions with type 'music'."""
+        sm = SessionManager.get_instance()
+        test_session = sm.get_session_nowait(1525030316845301781)
+        if not test_session:
+            test_session = GuildMusicSession(guild_id=1525030316845301781)
+            sm._sessions[1525030316845301781] = test_session
+
+        test_session.current_track = make_track("Lossless Live Track", 240)
+        test_session.state = PlaybackState.PLAYING
+
+        mock_vc = MagicMock()
+        mock_vc.is_playing.return_value = True
+        mock_vc.channel.name = "Live Stage"
+        mock_vc.channel.members = [MagicMock(bot=False)]
+        test_session.voice_client = mock_vc
+
+        live_sessions = await self.rai_server.realtime_gateway.collect_live_sessions()
+        music_sessions = [s for s in live_sessions if s.get("type") == "music"]
+        assert len(music_sessions) > 0
+        assert music_sessions[0]["title"] == "Lossless Live Track"
+        assert music_sessions[0]["destination"] == "/music"
+
+    async def test_10_authoritative_pause_resume_dispatch(self):
+        """10. In-process dispatch executes authoritative MusicPlayerService methods."""
+        from music_bot.services.player_service import MusicPlayerService
+
+        sm = SessionManager.get_instance()
+        test_session = sm.get_session_nowait(1525030316845301781)
+        test_session.current_track = make_track("Track For Pause", 180)
+        test_session.state = PlaybackState.PLAYING
+
+        with patch.object(MusicPlayerService, "pause", new_callable=AsyncMock) as mock_pause, \
+             patch.object(MusicPlayerService, "resume", new_callable=AsyncMock) as mock_resume:
+            mock_pause.return_value = (True, "Playback paused.")
+            mock_resume.return_value = (True, "Playback resumed.")
+
+            resp = await self.client.post("/api/music/control", json={
+                "guild_id": 1525030316845301781,
+                "action": "PAUSE"
+            })
+            assert resp.status == 200
+            mock_pause.assert_called_once()
+
+            resp = await self.client.post("/api/music/control", json={
+                "guild_id": 1525030316845301781,
+                "action": "RESUME"
+            })
+            assert resp.status == 200
+            mock_resume.assert_called_once()
+

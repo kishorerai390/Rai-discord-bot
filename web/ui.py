@@ -6241,6 +6241,13 @@ UI_HTML = r"""<!DOCTYPE html>
           updatePartialMetric('pulse-listening', data.music_listeners);
           updatePartialDna('music', data.music_listeners);
         }
+        if (typeof fetchMusicSessionState === 'function' && (window.location.pathname === '/music' || document.getElementById('music-live-title'))) {
+          fetchMusicSessionState();
+          if (typeof fetchMusicQueue === 'function') fetchMusicQueue();
+        }
+        if (typeof syncLiveMusicTrack === 'function') {
+          syncLiveMusicTrack();
+        }
       } else if (eventType === 'LIVE_SESSION_ADDED') {
         insertLiveSessionCard(data);
       } else if (eventType === 'LIVE_SESSION_REMOVED') {

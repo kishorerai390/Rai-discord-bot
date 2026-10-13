@@ -204,6 +204,20 @@ class RealtimeGateway:
             except Exception as e:
                 logger.debug(f"Bot music query error: {e}")
 
+        # Also inspect SessionManager for dedicated MusicMaid process/sessions
+        try:
+            from music_bot.services.session_service import SessionManager
+            sm = SessionManager.get_instance()
+            for s in sm.get_all_sessions():
+                if s.is_playing and s.current_track:
+                    is_music_playing = True
+                    track_name = s.current_track.title
+                    if s.voice_client and hasattr(s.voice_client, "channel") and hasattr(s.voice_client.channel, "members"):
+                        non_bots = [m for m in s.voice_client.channel.members if not getattr(m, "bot", False)]
+                        music_listeners = (music_listeners or 0) + len(non_bots)
+        except Exception as sm_err:
+            logger.debug(f"SessionManager music telemetry note: {sm_err}")
+
         # Active projects (status = 'active')
         active_projects = 0
         try:
@@ -300,6 +314,7 @@ class RealtimeGateway:
             logger.debug(f"Live LFG error: {e}")
 
         # 2. Live Music Playback Session
+        music_live_added = False
         if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
             try:
                 for vc in self.bot.voice_clients:
@@ -307,10 +322,12 @@ class RealtimeGateway:
                         listeners = len([m for m in getattr(vc.channel, "members", []) if not getattr(m, "bot", False)])
                         sessions.append({
                             "id": "session_music_live",
-                            "type": "Listening Party",
+                            "type": "music",
+                            "channel_name": getattr(vc.channel, "name", "Voice Channel"),
                             "icon": "🎧",
                             "title": getattr(vc, "current_title", "Lossless Hi-Fi Audio"),
-                            "community": "Nightwave Creative Studio",
+                            "artist": "Raivora Music Maid",
+                            "community": "Raivora Music Realm",
                             "participants": f"{max(1, listeners)} listeners",
                             "participant_count": max(1, listeners),
                             "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -318,8 +335,39 @@ class RealtimeGateway:
                             "destination": "/music",
                             "action_label": "Tune In",
                         })
+                        music_live_added = True
             except Exception as e:
                 logger.debug(f"Live music error: {e}")
+
+        # If not already added from bot, check SessionManager
+        if not music_live_added:
+            try:
+                from music_bot.services.session_service import SessionManager
+                sm = SessionManager.get_instance()
+                for s in sm.get_all_sessions():
+                    if s.is_playing and s.current_track:
+                        listeners = 0
+                        vc_name = "Voice Channel"
+                        if s.voice_client and hasattr(s.voice_client, "channel") and hasattr(s.voice_client.channel, "members"):
+                            listeners = len([m for m in s.voice_client.channel.members if not getattr(m, "bot", False)])
+                            vc_name = s.voice_client.channel.name
+                        sessions.append({
+                            "id": f"session_music_{s.guild_id}",
+                            "type": "music",
+                            "channel_name": vc_name,
+                            "icon": "🎧",
+                            "title": s.current_track.title,
+                            "artist": s.current_track.artist or "Raivora Music Maid",
+                            "community": "Raivora Music Realm",
+                            "participants": f"{max(1, listeners)} listeners",
+                            "participant_count": max(1, listeners),
+                            "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                            "status": "LIVE",
+                            "destination": "/music",
+                            "action_label": "Tune In",
+                        })
+            except Exception as sm_err:
+                logger.debug(f"SessionManager live sessions note: {sm_err}")
 
         # 3. Active Voice Rooms (Public Voice with members)
         if self.bot and hasattr(self.bot, "is_ready") and self.bot.is_ready():

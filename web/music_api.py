@@ -129,6 +129,11 @@ class MusicApiRouter:
         sm = SessionManager.get_instance()
         session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
 
+        user = await self._get_current_user(request)
+        is_admin = bool(user.get("is_admin", False)) if user else False
+        is_staff = bool(user.get("is_staff", False)) if user else False
+        perms = {"can_control": True, "is_admin": is_admin, "is_staff": is_staff}
+
         # If in-memory session found
         if session and session.current_track:
             track = session.current_track
@@ -168,6 +173,7 @@ class MusicApiRouter:
                 "voice_channel_id": str(vc_id) if vc_id else None,
                 "voice_channel_name": vc_name or "#Voice Channel",
                 "last_error": getattr(session, "last_error", None),
+                "permissions": perms,
             }
             return json_success(data)
 
@@ -203,6 +209,7 @@ class MusicApiRouter:
                     "voice_channel_id": str(db_session.voice_channel_id) if db_session.voice_channel_id else None,
                     "voice_channel_name": "#❄️. Fun Time !",
                     "last_error": None,
+                    "permissions": perms,
                 }
                 return json_success(data)
         except Exception as e:
@@ -227,6 +234,7 @@ class MusicApiRouter:
             "twenty_four_seven": False,
             "voice_channel_name": None,
             "last_error": None,
+            "permissions": perms,
         })
 
     # ==========================================
@@ -321,7 +329,7 @@ class MusicApiRouter:
             return json_error("MISSING_ACTION", "Action parameter is required")
 
         user = await self._get_current_user(request)
-        user_id = int(user["user_id"]) if user else 1457382179981099090
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
 
         # Submit action to SQLite WAL queue for immediate bot pickup
         action_id = await self.db.submit_web_action(
@@ -338,18 +346,13 @@ class MusicApiRouter:
         if session and self.bot:
             from music_bot.services.player_service import MusicPlayerService
             try:
-                if action == "PAUSE" and session.voice_client and session.voice_client.is_playing():
-                    session.voice_client.pause()
-                    session.state = PlaybackState.PAUSED
-                    session.pause_time = datetime.datetime.now().timestamp()
-                    await MusicPlayerService.send_now_playing_panel(session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "paused"})
+                if action == "PAUSE":
+                    success, msg = await MusicPlayerService.pause(self.bot, session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "noop", "message": msg})
 
-                elif action == "RESUME" and session.voice_client and session.voice_client.is_paused():
-                    session.voice_client.resume()
-                    session.state = PlaybackState.PLAYING
-                    await MusicPlayerService.send_now_playing_panel(session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "resumed"})
+                elif action == "RESUME":
+                    success, msg = await MusicPlayerService.resume(self.bot, session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "resumed" if success else "noop", "message": msg})
 
                 elif action == "SKIP":
                     await MusicPlayerService.skip(self.bot, session)
@@ -413,7 +416,7 @@ class MusicApiRouter:
             return json_error("MISSING_QUERY", "Search query or URL is required")
 
         user = await self._get_current_user(request)
-        user_id = int(user["user_id"]) if user else 1457382179981099090
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
 
         action_id = await self.db.submit_web_action(
             guild_id=guild_id,
@@ -430,7 +433,7 @@ class MusicApiRouter:
         """Fetch user's saved favorite music tracks."""
         await self._ensure_db()
         user = await self._get_current_user(request)
-        user_id = int(user["user_id"]) if user else 1457382179981099090
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
         favs = await self.db.get_user_favorites(user_id, limit=50)
         return json_success(favs)
 
@@ -439,7 +442,7 @@ class MusicApiRouter:
         await self._ensure_db()
         body = await request.json()
         user = await self._get_current_user(request)
-        user_id = int(user["user_id"]) if user else 1457382179981099090
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
 
         title = body.get("title", "Song")
         url = body.get("url", "")
