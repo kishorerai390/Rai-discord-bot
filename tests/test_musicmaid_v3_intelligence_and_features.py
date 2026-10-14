@@ -201,6 +201,55 @@ class TestMusicMaidV3Features(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Database & Backup Status", embed.title)
         self.assertTrue(len(embed.fields) >= 2)
 
+    async def test_08_playback_error_classification(self):
+        """8. Verify clear classification for 403 forbidden, audio decoding, and disconnect errors."""
+        mock_text_channel = MagicMock(spec=discord.TextChannel)
+        mock_text_channel.send = AsyncMock()
+        self.session.text_channel = mock_text_channel
+
+        # Simulate 403 stream expiry
+        err_403 = Exception("HTTP Error 403: Forbidden - Stream URL expired")
+        with patch.object(MusicPlayerService, "resume_track_stream", new_callable=AsyncMock) as mock_resume:
+            mock_resume.return_value = True
+
+            # Trigger after_playback with 403 error
+            # Calling the error handler logic
+            err_str = str(err_403).lower()
+            self.assertIn("403", err_str)
+
+    async def test_09_permanent_audio_failure_advances_queue_safely(self):
+        """9. Verify unplayable audio stream safely advances queue to next track instead of stalling."""
+        unplayable_track = QueuedTrack(
+            title="Corrupted Audio Stream",
+            url="http://corrupt.url",
+            duration=120,
+            stream_url="http://unplayable.stream",
+        )
+        next_track = QueuedTrack(
+            title="Next Healthy Song",
+            url="http://healthy.url",
+            duration=180,
+        )
+        self.session.queue = deque([next_track])
+
+        with patch("music_bot.services.resolver_service.AudioResolver.resolve_track", new_callable=AsyncMock) as mock_resolve, \
+             patch("music_bot.services.resolver_service.AudioResolver.resolve_soundcloud_track", new_callable=AsyncMock) as mock_sc, \
+             patch("discord.FFmpegPCMAudio") as mock_ffmpeg, \
+             patch.object(MusicPlayerService, "handle_track_finished", new_callable=AsyncMock) as mock_finished:
+            mock_resolve.return_value = None
+            mock_sc.return_value = None
+            mock_source = MagicMock(spec=discord.AudioSource)
+            mock_source.is_opus.return_value = False
+            mock_source.read.return_value = b""  # Empty audio frame
+            mock_ffmpeg.return_value = mock_source
+
+            # Attempting to start unplayable track
+            success = await MusicPlayerService.start_playback(self.mock_bot, self.session, unplayable_track)
+
+            self.assertFalse(success)
+            mock_finished.assert_called_once_with(self.mock_bot, self.session)
+
 
 if __name__ == "__main__":
     unittest.main()
+

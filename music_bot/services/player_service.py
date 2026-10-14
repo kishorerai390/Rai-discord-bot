@@ -314,18 +314,33 @@ class MusicPlayerService:
                     logger.debug(f"Ignoring superseded playback callback (gen {current_generation} vs {session.playback_generation})")
                     return
                 if error:
-                    session.last_error = f"Audio playback error: {error}"
-                    logger.error(f"Playback error in guild {session.guild_id}: {error}", exc_info=True)
+                    err_str = str(error).lower()
+                    if "403" in err_str or "forbidden" in err_str:
+                        error_type = "HTTP 403 Forbidden (Stream Expired)"
+                        advice = "The stream URL expired or was blocked by the audio provider. Auto-recovery is attempting to re-resolve the stream."
+                    elif "invalid data" in err_str or "decode" in err_str or "codec" in err_str or "header" in err_str:
+                        error_type = "Audio Decoding / Format Error"
+                        advice = "The audio container could not be decoded by FFmpeg. Safely advancing to the next queued track."
+                    elif "connection" in err_str or "reset" in err_str or "pipe" in err_str or "broken" in err_str:
+                        error_type = "Audio Stream Disconnect"
+                        advice = "The remote audio host interrupted the stream connection. Attempting auto-resume."
+                    else:
+                        error_type = "Audio Playback Exception"
+                        advice = "Unexpected audio playback error. Safely advancing queue to prevent stuck player."
+
+                    session.last_error = f"{error_type}: {error}"
+                    logger.error(f"Playback error ({error_type}) in guild {session.guild_id}: {error}", exc_info=True)
                     if session.text_channel:
                         async def _report_playback_err():
                             try:
                                 await session.text_channel.send(
                                     embed=discord.Embed(
-                                        title="❌ AUDIO PLAYBACK STOPPED",
+                                        title=f"⚠️ {error_type.upper()}",
                                         description=(
-                                            f"Audio playback encountered an error for **{track.title if track else 'track'}**:\n"
-                                            f"```\n{str(error)[:600]}\n```\n"
-                                            f"💡 *If running on Render, ensure FFmpeg and PyNaCl are installed, and check if YouTube is rate-limiting the audio stream.*"
+                                            f"Playback issue detected for **{track.title if track else 'track'}**:\n"
+                                            f"• **Category:** `{error_type}`\n"
+                                            f"• **Details:** `{str(error)[:200]}`\n\n"
+                                            f"💡 *{advice}*"
                                         ),
                                         color=0xED4245,
                                     )
