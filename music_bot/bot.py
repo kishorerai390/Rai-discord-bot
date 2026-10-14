@@ -393,7 +393,7 @@ class NekoSongsBot(commands.Bot):
                                         logger.info(f"Saved session in guild {guild.id} had finished playback; cleaned up.")
                                 elif start_pos and start_pos > 3:
                                     await MusicPlayerService.resume_track_stream(self, session, track, start_pos)
-                                    logger.info(f"Auto-resumed playback in guild {guild.id} on #{vc_channel.name} at {start_pos}s (where it left off) with {len(session.queue)} in queue, {len(session.history)} in history!")
+                                    logger.info(f"Auto-resumed playback in guild {guild.id} on #{vc_channel.name} at {start_pos}s (where it left off) with {len(session.queue)} in queue, {len(session.history)} in history")
                                 else:
                                     await MusicPlayerService.start_playback(self, session, track)
                                     logger.info(f"Auto-resumed playback in guild {guild.id} on #{vc_channel.name} with {len(session.queue)} in queue, {len(session.history)} in history")
@@ -439,7 +439,7 @@ class NekoSongsBot(commands.Bot):
         # Initialize Autonomous Dependency & Extractor Updater
         try:
             from music_bot.services.updater_service import MusicAutoUpdater
-            MusicAutoUpdater.start_background_updater(self)
+            pass
         except Exception as e:
             logger.warning(f"Failed to start MusicAutoUpdater: {e}")
 
@@ -657,4 +657,3 @@ class NekoSongsBot(commands.Bot):
 
 # Backwards compatibility alias
 RaiMusicBot = NekoSongsBot
-
