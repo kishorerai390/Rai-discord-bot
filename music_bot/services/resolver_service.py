@@ -408,6 +408,15 @@ FFMPEG_OPTIONS = {
     "options": "-vn",
 }
 
+YTDL_OPTIONS = {
+    "format": "bestaudio/best",
+    "noplaylist": True,
+    "quiet": True,
+    "no_warnings": True,
+    "socket_timeout": 10,
+    "extract_flat": False,
+}
+
 
 
 class AudioResolver:

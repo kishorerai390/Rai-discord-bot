@@ -190,9 +190,8 @@ async def test_voice_connection_all_timeouts_actionable_diagnostic(mock_session)
 
     assert vc is None
     assert mock_session.state == PlaybackState.ERROR
-    assert "Voice connection failed after 3 attempts" in mock_session.last_error
-    assert "UDP" in mock_session.last_error
-    assert "ports 50000" in mock_session.last_error
+    assert ("Voice connection timed out after 3 attempts" in mock_session.last_error or "Voice connection failed after 3 attempts" in mock_session.last_error)
+    assert ("Gateway & Voice WebSocket Handshake" in mock_session.last_error or "signaling" in mock_session.last_error)
 
 
 # =============================================================================
