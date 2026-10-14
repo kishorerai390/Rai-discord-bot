@@ -2693,6 +2693,31 @@ class MusicCog(commands.Cog, name="Music"):
         embed.set_footer(text=f"{bot_name} • 24/7 Lossless Audio Companion & Web Player")
         await interaction.edit_original_response(embed=embed, view=view)
 
+    @commands.command(name="invite")
+    async def pfx_invite(self, ctx: commands.Context) -> None:
+        """Get official invite link for MusicMaid via text command."""
+        bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        client_id = self.bot.user.id if self.bot.user else 1554626865958887444
+        invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=2268449856&scope=bot%20applications.commands"
+        view = discord.ui.View()
+        view.add_item(
+            discord.ui.Button(
+                label=f"Invite {bot_name}",
+                style=discord.ButtonStyle.link,
+                url=invite_url,
+                emoji="🎵",
+            )
+        )
+        embed = discord.Embed(
+            title=f"🐾 Invite {bot_name}",
+            description=(
+                f"Bring 24/7 lossless music, Auto-DJ, DSP Equalizer, and web controls to your server!\n\n"
+                f"🔗 **Direct Invite Link:** [Click Here to Invite]({invite_url})"
+            ),
+            color=0x00E5FF,
+        )
+        await ctx.reply(embed=embed, view=view, mention_author=False)
+
     # =========================================================================
     # PREMIUM MANAGEMENT SUITE
     # =========================================================================

@@ -31,15 +31,15 @@ logger = logging.getLogger("NekoSongs.Client")
 
 
 async def _determine_prefix(bot: NekoSongsBot, message: discord.Message) -> List[str]:
-    """Dynamic prefix resolver prioritizing unique music prefix (m!) and custom guild prefix."""
+    """Dynamic prefix resolver prioritizing custom guild prefix, unique music prefix (m!), and comma (,)."""
     prefixes: List[str] = []
     if message.guild:
         guild_pref = await bot.get_guild_prefix(message.guild.id)
         if guild_pref and guild_pref not in prefixes:
             prefixes.append(guild_pref)
-    default_prefix = config.MUSIC_PREFIX or "m!"
-    if default_prefix not in prefixes:
-        prefixes.append(default_prefix)
+    for p in [config.MUSIC_PREFIX or "m!", ",", "m!"]:
+        if p and p not in prefixes:
+            prefixes.append(p)
     return commands.when_mentioned_or(*prefixes)(bot, message)
 
 
@@ -334,17 +334,8 @@ class NekoSongsBot(commands.Bot):
             status=discord.Status.online,
         )
 
-        # Non-blocking background cleanup of guild command copies (prevents on_ready gateway stall)
-        async def _cleanup_guild_commands():
-            if COMMAND_SYNC_MODE != "guild":
-                for guild in self.guilds:
-                    try:
-                        self.tree.clear_commands(guild=guild)
-                        await self.tree.sync(guild=guild)
-                        logger.info(f"Cleaned guild command copies in {guild.name} ({guild.id}) to eliminate duplicates.")
-                    except Exception as e:
-                        logger.debug(f"Guild command cleanup notice for {guild.name}: {e}")
-        asyncio.create_task(_cleanup_guild_commands())
+        # Public Bot Command Integrity: Commands are registered globally during setup_hook
+        logger.info(f"✦ {BOT_NAME} ready across {len(self.guilds)} guilds. Global slash commands active. ✦")
 
         # Feature 109: Auto-Resume active music sessions across restarts
         if self.db:

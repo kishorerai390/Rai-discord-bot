@@ -208,18 +208,37 @@ def sync_and_prepare_cookies() -> Optional[str]:
     raw_content: Optional[str] = None
     source_name: Optional[str] = None
 
-    # Source 1: Render Secret Files mount path
-    render_secret = Path("/etc/secrets/cookies.txt")
-    if render_secret.exists() and render_secret.stat().st_size > 0:
-        try:
-            raw_content = render_secret.read_text(encoding="utf-8", errors="replace")
-            source_name = "/etc/secrets/cookies.txt (Render Secret File)"
-        except Exception as e:
-            logger.warning(f"[Cookies] Failed reading {render_secret}: {_format_error(e)}")
+    # Source 1: Render Secret Files mount path (/etc/secrets/...)
+    secrets_dir = Path("/etc/secrets")
+    if secrets_dir.exists() and secrets_dir.is_dir():
+        # Check standard cookies.txt first
+        standard_secret = secrets_dir / "cookies.txt"
+        if standard_secret.exists() and standard_secret.stat().st_size > 0:
+            try:
+                raw_content = standard_secret.read_text(encoding="utf-8", errors="replace")
+                source_name = "/etc/secrets/cookies.txt (Render Secret File)"
+            except Exception as e:
+                logger.warning(f"[Cookies] Failed reading {standard_secret}: {_format_error(e)}")
+
+        # If not standard name, scan all files in /etc/secrets for cookie content
+        if not raw_content:
+            try:
+                for candidate in secrets_dir.iterdir():
+                    if candidate.is_file() and candidate.stat().st_size > 0:
+                        try:
+                            cand_txt = candidate.read_text(encoding="utf-8", errors="replace")
+                            if "youtube" in cand_txt.lower() or "\t" in cand_txt:
+                                raw_content = cand_txt
+                                source_name = f"{candidate} (Render Secret File)"
+                                break
+                        except Exception:
+                            pass
+            except Exception as scan_err:
+                logger.debug(f"[Cookies] Error scanning /etc/secrets: {scan_err}")
 
     # Source 2: Environment variables
     if not raw_content:
-        env_raw = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("YOUTUBE_COOKIES_DATA")
+        env_raw = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("YOUTUBE_COOKIES_DATA") or os.environ.get("COOKIES")
         if env_raw and env_raw.strip():
             raw_content = env_raw.strip()
             source_name = "YOUTUBE_COOKIES environment variable"
@@ -233,13 +252,19 @@ def sync_and_prepare_cookies() -> Optional[str]:
             except Exception as e:
                 logger.warning(f"[Cookies] Failed decoding YOUTUBE_COOKIES_BASE64: {_format_error(e)}")
 
-    # Source 3: Local workspace fallback (if not in git)
+    # Source 3: Render app directory, project root, and local workspace fallback
     if not raw_content:
-        for local_path in [
+        candidate_paths = [
+            Path("/opt/render/project/src/cookies.txt"),
+            Path("/opt/render/project/src/youtube_cookies.txt"),
+            BASE_DIR / "cookies.txt",
+            BASE_DIR / "youtube_cookies.txt",
             BASE_DIR / "data" / "cookies.txt",
             BASE_DIR / "data" / "youtube_cookies.txt",
-            BASE_DIR / "cookies.txt",
-        ]:
+            Path.cwd() / "cookies.txt",
+            Path.cwd() / "youtube_cookies.txt",
+        ]
+        for local_path in candidate_paths:
             if local_path.exists() and local_path.stat().st_size > 0:
                 try:
                     raw_content = local_path.read_text(encoding="utf-8", errors="replace")
@@ -250,8 +275,8 @@ def sync_and_prepare_cookies() -> Optional[str]:
 
     if not raw_content or not raw_content.strip():
         logger.warning(
-            "[Cookies] WARNING: No YouTube cookies found (checked /etc/secrets/cookies.txt, "
-            "YOUTUBE_COOKIES env, and data/cookies.txt). YouTube datacenter IP blocks are likely "
+            "[Cookies] WARNING: No YouTube cookies found (checked /etc/secrets/, "
+            "YOUTUBE_COOKIES env, and project root). YouTube datacenter IP blocks are likely "
             "on Render free tier. To fix: upload cookies.txt as a Render Secret File."
         )
         return None
