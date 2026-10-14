@@ -522,7 +522,7 @@ class VoiceManager:
         stage_title, stage_advice, flow_name = cls._inspect_failed_stage(member.guild, last_exception)
 
         err_msg = (
-            f"Voice connection timed out after {max_attempts} attempts ({total_fail_ms:.0f}ms).\n"
+            f"Voice connection failed: Voice connection timed out after {max_attempts} attempts ({total_fail_ms:.0f}ms).\n"
             f"• **Failed Stage:** `{stage_title}`\n"
             f"• **Target Channel:** {target_channel.mention}\n\n"
             f"💡 **Recommended Action:**\n{stage_advice}"
