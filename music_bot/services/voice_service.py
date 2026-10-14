@@ -1,13 +1,17 @@
 """
 Voice Connection & Auto-Leave Management for Rai Music Bot.
-Monitors listener activity and disconnects gracefully on empty channels after configurable timeout.
+Monitors listener activity, manages Discord voice signaling lifecycle,
+and disconnects gracefully on empty channels after configurable timeout.
 """
 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
-from typing import TYPE_CHECKING, Optional
+import random
+import time
+from typing import TYPE_CHECKING, Optional, Tuple
 import discord
 
 from music_bot.config import AUTO_LEAVE_TIMEOUT_SECONDS
@@ -19,11 +23,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger("RaiMusic.Voice")
 
 
+@dataclass
+class VoiceTelemetry:
+    """Diagnostic telemetry captured during voice connection sequences."""
+    guild_id: int
+    channel_id: Optional[int] = None
+    channel_name: Optional[str] = None
+    attempt: int = 0
+    max_attempts: int = 3
+    stage: str = "Idle"
+    elapsed_ms: float = 0.0
+    flow_state: Optional[str] = None
+    last_error: Optional[str] = None
+    last_connected_at: Optional[float] = None
+    success: bool = False
+    cleanup_succeeded: bool = True
+
+
 class VoiceManager:
     """Manages voice connectivity and auto-leave inactivity timers with singleflight concurrency protection."""
 
     _guild_locks: dict[int, asyncio.Lock] = {}
     _in_flight_tasks: dict[int, asyncio.Task[Optional[discord.VoiceClient]]] = {}
+    _in_flight_channels: dict[int, int] = {}
+    _telemetry: dict[int, VoiceTelemetry] = {}
 
     @classmethod
     def _get_guild_lock(cls, guild_id: int) -> asyncio.Lock:
@@ -31,6 +54,152 @@ class VoiceManager:
         if guild_id not in cls._guild_locks:
             cls._guild_locks[guild_id] = asyncio.Lock()
         return cls._guild_locks[guild_id]
+
+    @classmethod
+    def get_telemetry(cls, guild_id: int) -> Optional[VoiceTelemetry]:
+        """Retrieve the latest voice connection telemetry for a guild."""
+        return cls._telemetry.get(guild_id)
+
+    @classmethod
+    async def _purge_voice_client_state(cls, guild: Optional[discord.Guild]) -> bool:
+        """
+        Safely and thoroughly cleans up any orphaned or stale voice client state from discord.py internal tracking.
+        Prevents ClientException('Already connected to a voice channel.') from poisoning subsequent connection attempts.
+        """
+        if not guild:
+            return True
+        guild_id = guild.id
+        cleaned = True
+
+        vc = getattr(guild, "voice_client", None)
+        state = getattr(guild, "_state", None)
+
+        if vc:
+            try:
+                vc.stop()
+            except Exception:
+                pass
+            if hasattr(vc, "disconnect") and callable(vc.disconnect):
+                try:
+                    await asyncio.wait_for(vc.disconnect(force=True), timeout=2.0)
+                except Exception:
+                    pass
+            try:
+                vc.cleanup()
+            except Exception:
+                pass
+            try:
+                # Force-close websocket and transport socket without blocking on Gateway disconnect waiter
+                conn = getattr(vc, "_connection", None)
+                if conn:
+                    if hasattr(conn, "ws") and conn.ws:
+                        await conn.ws.close()
+                    if hasattr(conn, "socket") and conn.socket:
+                        conn.socket.close()
+            except Exception:
+                pass
+
+        # Directly ensure the voice client is removed from discord.py ConnectionState dict
+        if state and hasattr(state, "_voice_clients") and isinstance(state._voice_clients, dict):
+            state._voice_clients.pop(guild_id, None)
+        if state and hasattr(state, "_remove_voice_client"):
+            try:
+                state._remove_voice_client(guild_id)
+            except Exception:
+                pass
+
+        # Send channel=None voice state update to Discord Gateway to reset session state
+        try:
+            await asyncio.shield(guild.change_voice_state(channel=None))
+        except Exception as gw_err:
+            logger.debug(f"[Voice] [Purge] Voice state change note for guild {guild_id}: {gw_err}")
+            cleaned = False
+
+        return cleaned
+
+    @classmethod
+    def _inspect_failed_stage(cls, guild: Optional[discord.Guild], exc: Optional[Exception]) -> Tuple[str, str, Optional[str]]:
+        """
+        Inspects the exact Discord voice connection flow state to pinpoint the true failure stage
+        and return actionable, evidence-based user guidance.
+        """
+        if not guild:
+            return ("Connection Initialization", "Guild information unavailable. Check bot guild permissions.", None)
+
+        vc = getattr(guild, "voice_client", None)
+        conn = getattr(vc, "_connection", None) if vc else None
+        flow_state = getattr(conn, "state", None)
+
+        flow_name = str(flow_state) if flow_state is not None else None
+
+        # Check ConnectionFlowState enum from discord.py
+        try:
+            from discord.voice_state import ConnectionFlowState
+        except ImportError:
+            ConnectionFlowState = None
+
+        if ConnectionFlowState and flow_state is not None:
+            if flow_state in (ConnectionFlowState.disconnected, ConnectionFlowState.set_guild_voice_state):
+                return (
+                    "Gateway Voice State Request",
+                    "Discord Gateway did not acknowledge the voice connection request in time. "
+                    "The Discord Gateway may be experiencing transient latency or rate limits. Please try again.",
+                    flow_name,
+                )
+            elif flow_state in (ConnectionFlowState.got_voice_state_update, ConnectionFlowState.got_voice_server_update):
+                return (
+                    "Gateway Voice Server Allocation",
+                    "Discord acknowledged the voice state request, but did not allocate a voice server endpoint in time. "
+                    "Discord voice server infrastructure in this region may be temporarily congested.",
+                    flow_name,
+                )
+            elif flow_state == ConnectionFlowState.got_both_voice_updates:
+                return (
+                    "Voice WebSocket Handshake",
+                    "Discord allocated a voice endpoint, but MusicMaid could not complete the Voice WebSocket handshake. "
+                    "Check bot hosting connectivity, outbound TCP/WebSocket access, and Discord service status.",
+                    flow_name,
+                )
+            elif flow_state == ConnectionFlowState.websocket_connected:
+                return (
+                    "Voice Session Ready Acknowledgment",
+                    "The Voice WebSocket connected, but timed out waiting for Discord's Ready payload.",
+                    flow_name,
+                )
+            elif flow_state == ConnectionFlowState.got_websocket_ready:
+                return (
+                    "UDP Voice Transport & IP Discovery",
+                    "Voice WebSocket handshake succeeded, but UDP voice transport packets could not reach Discord. "
+                    "Check your hosting provider's outbound UDP firewall policies. "
+                    "(Optionally, temporarily changing Region Override in channel settings to a different region may route through an accessible UDP cluster).",
+                    flow_name,
+                )
+            elif flow_state == ConnectionFlowState.got_ip_discovery:
+                return (
+                    "Voice Encryption Protocol Selection",
+                    "UDP IP discovery succeeded, but voice transport encryption protocol negotiation timed out.",
+                    flow_name,
+                )
+
+        if isinstance(exc, discord.ClientException):
+            return (
+                "Gateway Voice State Desynchronization",
+                "Internal Discord voice client state desynchronized with Discord Gateway. Stale session state was purged; please try again.",
+                flow_name,
+            )
+
+        if isinstance(exc, asyncio.TimeoutError):
+            return (
+                "Gateway & Voice WebSocket Handshake",
+                "Voice connection timed out during signaling. Check bot gateway connection and hosting outbound network stability.",
+                flow_name,
+            )
+
+        return (
+            "Voice Signaling & Connection",
+            f"Voice connection encountered an unexpected error: {exc or 'Unknown error'}. Check bot logs.",
+            flow_name,
+        )
 
     @classmethod
     async def join_voice_channel(
@@ -45,18 +214,31 @@ class VoiceManager:
             return None
 
         guild_id = member.guild.id
+        target_channel = member.voice.channel
 
-        # Concurrency Gate: If a connection task is already active for this guild, coalesce into it
+        # Concurrency Gate: Check if a connection task is already active for this guild
         existing_task = cls._in_flight_tasks.get(guild_id)
         if existing_task and not existing_task.done():
-            logger.info(
-                f"[Voice] [Concurrency] Connection to voice for guild {guild_id} is already in-flight. "
-                f"Coalescing simultaneous request..."
-            )
-            try:
-                return await asyncio.shield(existing_task)
-            except Exception as wait_err:
-                logger.debug(f"[Voice] Coalesced wait error for guild {guild_id}: {wait_err}")
+            in_flight_ch = cls._in_flight_channels.get(guild_id)
+            if in_flight_ch == target_channel.id:
+                logger.info(
+                    f"[Voice] [Concurrency] Connection to voice for guild {guild_id} (#{target_channel.name}) "
+                    f"is already in-flight. Coalescing simultaneous request..."
+                )
+                try:
+                    return await asyncio.shield(existing_task)
+                except Exception as wait_err:
+                    logger.debug(f"[Voice] Coalesced wait error for guild {guild_id}: {wait_err}")
+            else:
+                logger.info(
+                    f"[Voice] [Concurrency] Superseding in-flight connection for guild {guild_id}: "
+                    f"target channel changed to #{target_channel.name}"
+                )
+                existing_task.cancel()
+                try:
+                    await asyncio.wait_for(asyncio.shield(existing_task), timeout=1.5)
+                except (Exception, asyncio.CancelledError):
+                    pass
 
         # Acquire per-guild lock to ensure serialized connection lifecycles
         lock = cls._get_guild_lock(guild_id)
@@ -66,29 +248,29 @@ class VoiceManager:
             if existing_task and not existing_task.done():
                 try:
                     return await asyncio.shield(existing_task)
-                except Exception:
+                except (Exception, asyncio.CancelledError):
                     pass
 
             # Create and register the in-flight worker task
             loop = asyncio.get_running_loop()
             task: asyncio.Task[Optional[discord.VoiceClient]] = loop.create_task(
                 cls._execute_join_pipeline(member, text_channel, session),
-                name=f"VoiceConnect-{guild_id}-{member.voice.channel.id}",
+                name=f"VoiceConnect-{guild_id}-{target_channel.id}",
             )
             cls._in_flight_tasks[guild_id] = task
+            cls._in_flight_channels[guild_id] = target_channel.id
             try:
                 return await task
             finally:
                 if cls._in_flight_tasks.get(guild_id) is task:
                     cls._in_flight_tasks.pop(guild_id, None)
+                cls._in_flight_channels.pop(guild_id, None)
 
     @classmethod
     async def _execute_join_pipeline(
         cls, member: discord.Member, text_channel: discord.TextChannel, session: GuildMusicSession
     ) -> Optional[discord.VoiceClient]:
-        """Internal worker executing the 5-stage voice connection sequence with granular diagnostic telemetry."""
-        import time
-
+        """Internal worker executing the voice connection sequence with granular diagnostic telemetry."""
         t_start = time.monotonic()
         target_channel = member.voice.channel if member.voice else None
         if not target_channel or not member.guild:
@@ -97,32 +279,61 @@ class VoiceManager:
         guild_id = member.guild.id
         session.text_channel = text_channel
 
+        # Initialize telemetry record
+        telemetry = VoiceTelemetry(
+            guild_id=guild_id,
+            channel_id=target_channel.id,
+            channel_name=target_channel.name,
+            stage="Pre-flight",
+        )
+        cls._telemetry[guild_id] = telemetry
+
         # =========================================================================
         # STAGE 1: PRE-FLIGHT AUDIT (AFK Sentry, Bot Channel Access, Permissions)
         # =========================================================================
-        # Feature 135: AFK Channel Anti-Join Sentry
         if member.guild.afk_channel and target_channel.id == member.guild.afk_channel.id:
             logger.warning(f"[Voice] [Stage 1: Pre-flight] Blocked joining AFK voice channel in guild {guild_id}")
-            session.last_error = "Cannot play music in the server's AFK voice channel."
+            err = "Cannot play music in the server's AFK voice channel."
+            session.last_error = err
+            telemetry.last_error = err
+            telemetry.stage = "AFK Channel Sentry"
             return None
+
+        # Channel user limit check (if full and bot lacks move_members permission)
+        user_limit = getattr(target_channel, "user_limit", 0)
+        members_list = getattr(target_channel, "members", [])
+        if isinstance(user_limit, int) and user_limit > 0:
+            if isinstance(members_list, (list, tuple)) and len(members_list) >= user_limit:
+                bot_perms = target_channel.permissions_for(member.guild.me) if member.guild.me else None
+                if not (bot_perms and bot_perms.move_members):
+                    err = f"Voice channel {target_channel.mention} is full (`{len(members_list)}/{user_limit}`)."
+                    logger.warning(f"[Voice] [Stage 1: Pre-flight] Guild {guild_id}: {err}")
+                    session.last_error = err
+                    telemetry.last_error = err
+                    telemetry.stage = "Channel Full"
+                    return None
 
         # Cancel pending auto-leave inactivity timer
         if session.auto_leave_task and not session.auto_leave_task.done():
             session.auto_leave_task.cancel()
             session.auto_leave_task = None
 
-        # Permissions check
+        # Permissions check: Fast-fail permanent permission errors without retries
         if member.guild.me:
             perms = target_channel.permissions_for(member.guild.me)
             if not perms.connect:
                 err = f"Missing **Connect** permission in {target_channel.mention}"
                 logger.warning(f"[Voice] [Stage 1: Pre-flight] Guild {guild_id}: {err}")
                 session.last_error = err
+                telemetry.last_error = err
+                telemetry.stage = "Missing Connect Permission"
                 return None
             if not perms.speak:
                 err = f"Missing **Speak** permission in {target_channel.mention}"
                 logger.warning(f"[Voice] [Stage 1: Pre-flight] Guild {guild_id}: {err}")
                 session.last_error = err
+                telemetry.last_error = err
+                telemetry.stage = "Missing Speak Permission"
                 return None
 
         stage1_ms = (time.monotonic() - t_start) * 1000
@@ -143,6 +354,10 @@ class VoiceManager:
                     f"[Voice] [Stage 2: Existing Connection Reused] Guild {guild_id} | "
                     f"Already in target channel #{target_channel.name} | Total: {stage2_ms:.1f}ms"
                 )
+                telemetry.stage = "Connected (Reused)"
+                telemetry.success = True
+                telemetry.elapsed_ms = stage2_ms
+                telemetry.last_connected_at = time.time()
                 return existing_vc
 
             logger.info(
@@ -154,49 +369,58 @@ class VoiceManager:
                 session.voice_client = existing_vc
                 stage2_ms = (time.monotonic() - t_start) * 1000
                 logger.info(f"[Voice] [Stage 2: Channel Move PASS] Total: {stage2_ms:.1f}ms")
+                telemetry.stage = "Connected (Moved)"
+                telemetry.success = True
+                telemetry.elapsed_ms = stage2_ms
+                telemetry.last_connected_at = time.time()
                 return existing_vc
             except Exception as move_err:
-                logger.warning(f"[Voice] [Stage 2: Move Warning] Move failed ({move_err}). Reconnecting cleanly...")
+                logger.warning(f"[Voice] [Stage 2: Move Warning] Move failed ({move_err}). Purging state before reconnect...")
+                await cls._purge_voice_client_state(member.guild)
 
         elif existing_vc:
             # Stale / orphaned VoiceClient cleanup
             logger.info(f"[Voice] [Stage 2: Stale Cleanup] Clearing orphaned VoiceClient in guild {guild_id}...")
-            try:
-                await asyncio.shield(existing_vc.disconnect(force=True))
-            except Exception as d_err:
-                logger.debug(f"[Voice] Orphaned disconnect note: {d_err}")
-            try:
-                await asyncio.shield(member.guild.change_voice_state(channel=None))
-            except Exception:
-                pass
-            # Allow Discord Gateway 1.0s to acknowledge state clearance
-            await asyncio.sleep(1.0)
+            await cls._purge_voice_client_state(member.guild)
+            await asyncio.sleep(0.5)
 
         # =========================================================================
         # STAGE 3-5: BOUNDED HANDSHAKE & UDP TRANSMISSION NEGOTIATION
         # =========================================================================
         max_attempts = 3
-        connect_timeout = 35.0
         last_exception: Optional[Exception] = None
-        failed_stage = "Gateway Handshake"
+        current_stage = "Gateway Signaling"
 
         for attempt in range(1, max_attempts + 1):
             t_attempt = time.monotonic()
             session.state = PlaybackState.CONNECTING
+            telemetry.attempt = attempt
+
+            # Dynamic timeout per attempt: 15s on first attempt, 20s on retries
+            connect_timeout = 15.0 if attempt == 1 else 20.0
+
             logger.info(
                 f"[Voice] [Stage 3: Gateway Signaling] Guild {guild_id} | Connecting to #{target_channel.name} "
                 f"(Attempt {attempt}/{max_attempts}, timeout={connect_timeout}s)..."
             )
 
+            # Ensure discord.py's internal state dict has no stale voice client key before connect()
+            state = getattr(member.guild, "_state", None)
+            if state and hasattr(state, "_voice_clients") and isinstance(state._voice_clients, dict):
+                state._voice_clients.pop(guild_id, None)
+
             try:
-                # Initiate Discord Voice handshake (WebSocket signalling + UDP IP discovery)
-                failed_stage = "Gateway & Voice WebSocket Handshake"
+                current_stage = "Gateway & Voice WebSocket Handshake"
+                telemetry.stage = current_stage
+
                 vc = await asyncio.wait_for(
                     target_channel.connect(timeout=connect_timeout, reconnect=True, self_deaf=True),
-                    timeout=connect_timeout + 5.0,
+                    timeout=connect_timeout + 3.0,
                 )
 
-                failed_stage = "UDP Transmission Verification"
+                current_stage = "UDP Transmission Verification"
+                telemetry.stage = current_stage
+
                 if vc and vc.is_connected():
                     session.voice_client = vc
                     session.state = PlaybackState.CONNECTED
@@ -206,6 +430,10 @@ class VoiceManager:
                         f"[Voice] [Stage 4/5: UDP Handshake PASS] Guild {guild_id} | "
                         f"Connected to #{target_channel.name} in {total_dur_ms:.1f}ms (Attempt {attempt}) 🚀"
                     )
+                    telemetry.stage = "Connected"
+                    telemetry.success = True
+                    telemetry.elapsed_ms = total_dur_ms
+                    telemetry.last_connected_at = time.time()
                     return vc
 
                 # Fallback check: Did guild VoiceClient connect despite edge condition?
@@ -216,74 +444,96 @@ class VoiceManager:
                     session.last_error = None
                     total_dur_ms = (time.monotonic() - t_start) * 1000
                     logger.info(f"[Voice] [Stage 5: State Verified] VoiceClient verified connected in {total_dur_ms:.1f}ms")
+                    telemetry.stage = "Connected"
+                    telemetry.success = True
+                    telemetry.elapsed_ms = total_dur_ms
+                    telemetry.last_connected_at = time.time()
                     return curr_vc
 
-                raise RuntimeError("VoiceClient connected but is_connected() returned False.")
+                raise RuntimeError("VoiceClient connect returned but is_connected() is False.")
 
-            except asyncio.TimeoutError as t_err:
-                last_exception = t_err
-                att_ms = (time.monotonic() - t_attempt) * 1000
-                logger.warning(
-                    f"[Voice] [Attempt {attempt} TIMEOUT] Guild {guild_id} | Failed at '{failed_stage}' "
-                    f"after {att_ms:.1f}ms (Exceeded {connect_timeout}s)"
-                )
-                try:
-                    if member.guild and member.guild.voice_client:
-                        await asyncio.shield(member.guild.voice_client.disconnect(force=True))
-                    if member.guild:
-                        await asyncio.shield(member.guild.change_voice_state(channel=None))
-                except Exception:
-                    pass
-
-                if attempt < max_attempts:
-                    import random
-                    backoff = (attempt * 2.0) + random.uniform(0.1, 0.5)
-                    logger.info(f"[Voice] Backing off {backoff:.2f}s before retry {attempt + 1}/{max_attempts}...")
-                    await asyncio.sleep(backoff)
+            except asyncio.CancelledError:
+                logger.info(f"[Voice] Connection task cancelled for guild {guild_id}.")
+                await cls._purge_voice_client_state(member.guild)
+                telemetry.stage = "Cancelled"
+                raise
 
             except discord.ClientException as ce:
                 last_exception = ce
                 logger.warning(f"[Voice] [Attempt {attempt} ClientException] Guild {guild_id}: {ce}")
-                if member.guild and member.guild.voice_client and member.guild.voice_client.is_connected():
-                    session.voice_client = member.guild.voice_client
+
+                # Check if guild VoiceClient is actually connected and in target channel
+                curr_vc = member.guild.voice_client
+                if curr_vc and curr_vc.is_connected() and curr_vc.channel and curr_vc.channel.id == target_channel.id:
+                    session.voice_client = curr_vc
                     session.state = PlaybackState.CONNECTED
                     session.last_error = None
-                    return member.guild.voice_client
-                try:
-                    if member.guild and member.guild.voice_client:
-                        await asyncio.shield(member.guild.voice_client.disconnect(force=True))
-                    if member.guild:
-                        await asyncio.shield(member.guild.change_voice_state(channel=None))
-                except Exception:
-                    pass
+                    total_dur_ms = (time.monotonic() - t_start) * 1000
+                    telemetry.stage = "Connected"
+                    telemetry.success = True
+                    telemetry.elapsed_ms = total_dur_ms
+                    telemetry.last_connected_at = time.time()
+                    return curr_vc
+
+                # Desynchronization detected: purge stale state before retry
+                current_stage = "Gateway Voice State Desynchronization"
+                telemetry.stage = current_stage
+                await cls._purge_voice_client_state(member.guild)
+
                 if attempt < max_attempts:
-                    await asyncio.sleep(attempt * 1.5)
+                    backoff = (attempt * 1.0) + random.uniform(0.1, 0.4)
+                    logger.info(f"[Voice] Backing off {backoff:.2f}s after ClientException before retry {attempt + 1}...")
+                    await asyncio.sleep(backoff)
+
+            except asyncio.TimeoutError as t_err:
+                last_exception = t_err
+                att_ms = (time.monotonic() - t_attempt) * 1000
+                stage_name, _, flow_name = cls._inspect_failed_stage(member.guild, t_err)
+                current_stage = stage_name
+                telemetry.stage = current_stage
+                telemetry.flow_state = flow_name
+
+                logger.warning(
+                    f"[Voice] [Attempt {attempt} TIMEOUT] Guild {guild_id} | Failed at '{current_stage}' "
+                    f"(flow_state={flow_name}) after {att_ms:.1f}ms (Timeout={connect_timeout}s)"
+                )
+                await cls._purge_voice_client_state(member.guild)
+
+                if attempt < max_attempts:
+                    backoff = (attempt * 1.5) + random.uniform(0.2, 0.5)
+                    logger.info(f"[Voice] Backing off {backoff:.2f}s before retry {attempt + 1}/{max_attempts}...")
+                    await asyncio.sleep(backoff)
 
             except Exception as e:
                 last_exception = e
-                logger.error(f"[Voice] [Attempt {attempt} Error] Unexpected error at '{failed_stage}': {e}", exc_info=True)
-                try:
-                    if member.guild and member.guild.voice_client:
-                        await asyncio.shield(member.guild.voice_client.disconnect(force=True))
-                    if member.guild:
-                        await asyncio.shield(member.guild.change_voice_state(channel=None))
-                except Exception:
-                    pass
-                if attempt < max_attempts:
-                    await asyncio.sleep(attempt * 1.5)
+                stage_name, _, flow_name = cls._inspect_failed_stage(member.guild, e)
+                current_stage = stage_name
+                telemetry.stage = current_stage
+                telemetry.flow_state = flow_name
+                logger.error(f"[Voice] [Attempt {attempt} Error] Unexpected error at '{current_stage}': {e}", exc_info=True)
+                await cls._purge_voice_client_state(member.guild)
 
-        # All attempts failed: format actionable user diagnostic
+                if attempt < max_attempts:
+                    backoff = (attempt * 1.5) + random.uniform(0.2, 0.5)
+                    await asyncio.sleep(backoff)
+
+        # All attempts failed: format evidence-based user diagnostic
         total_fail_ms = (time.monotonic() - t_start) * 1000
+        stage_title, stage_advice, flow_name = cls._inspect_failed_stage(member.guild, last_exception)
+
         err_msg = (
             f"Voice connection timed out after {max_attempts} attempts ({total_fail_ms:.0f}ms).\n"
-            f"• **Failed Stage:** `{failed_stage}`\n"
+            f"• **Failed Stage:** `{stage_title}`\n"
             f"• **Target Channel:** {target_channel.mention}\n\n"
-            f"💡 **How to Fix Instantly:**\n"
-            f"1. In Discord, right-click/tap gear on **{target_channel.name}** ➔ **Edit Channel** ➔ **Overview**.\n"
-            f"2. Scroll down to **Region Override** and change from *Automatic* to a close region (e.g. **US East**, **Rotterdam**, or **Singapore**).\n"
-            f"3. Try `,play` again!"
+            f"💡 **Recommended Action:**\n{stage_advice}"
         )
         logger.error(f"[Voice] [Connection Exhausted] Guild {guild_id}: {err_msg} (Last error: {last_exception})")
+
+        telemetry.stage = stage_title
+        telemetry.elapsed_ms = total_fail_ms
+        telemetry.last_error = str(last_exception)
+        telemetry.success = False
+
         session.state = PlaybackState.ERROR
         session.last_error = err_msg
         return None

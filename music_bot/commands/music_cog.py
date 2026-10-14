@@ -3877,12 +3877,103 @@ class MusicCog(commands.Cog, name="Music"):
         embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", interaction.guild)
         await interaction.edit_original_response(embed=embed)
 
-    @commands.command(name="debug", aliases=["diag", "audioinfo"])
-    async def pfx_debug(self, ctx: commands.Context, *, test_query: Optional[str] = None) -> None:
-        """Run audio pipeline diagnostics via text command."""
-        loading_msg = await ctx.send("🔍 Running audio pipeline diagnostics (checking FFmpeg, cookies, yt-dlp, and resolution)...")
-        embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", ctx.guild)
-        await loading_msg.edit(content=None, embed=embed)
+    def _build_music_status_embed(self, guild: Optional[discord.Guild], user: Optional[discord.Member | discord.User]) -> discord.Embed:
+        """Constructs a comprehensive, safe status embed displaying voice connectivity, gateway latency, and session health."""
+        embed = discord.Embed(
+            title="📡 MusicMaid Voice & System Status",
+            color=0x5865F2,
+            timestamp=discord.utils.utcnow(),
+        )
+
+        # 1. Gateway & Discord Connection
+        gw_ping = f"{round(self.bot.latency * 1000, 1)}ms" if self.bot and self.bot.latency else "N/A"
+        embed.add_field(
+            name="🌐 Gateway State",
+            value=f"• **Status:** `Connected`\n• **Gateway Ping:** `{gw_ping}`",
+            inline=True,
+        )
+
+        # 2. Voice Client & Transport State
+        vc = guild.voice_client if guild else None
+        is_connected = vc is not None and vc.is_connected()
+        vc_channel = vc.channel if vc and hasattr(vc, "channel") else None
+        vc_latency = f"{round(vc.latency * 1000, 1)}ms" if is_connected and hasattr(vc, "latency") and vc.latency else "N/A"
+
+        status_text = "🟢 Connected" if is_connected else "⚪ Disconnected"
+        channel_text = vc_channel.mention if vc_channel else "None"
+        embed.add_field(
+            name="🔊 Voice Session",
+            value=f"• **Status:** {status_text}\n• **Channel:** {channel_text}\n• **Voice Ping:** `{vc_latency}`",
+            inline=True,
+        )
+
+        # 3. Audio & Playback Session
+        session = self.bot.sessions.get(guild.id) if guild else None
+        state_name = session.state.name if session else "IDLE"
+        current_title = session.current_track.title if session and session.current_track else "None"
+        queue_len = len(session.queue) if session else 0
+
+        embed.add_field(
+            name="🎵 Player Session",
+            value=f"• **Playback State:** `{state_name}`\n• **Now Playing:** `{current_title[:35]}`\n• **Queue Size:** `{queue_len} tracks`",
+            inline=True,
+        )
+
+        # 4. Telemetry of Last Connection Sequence
+        from music_bot.services.voice_service import VoiceManager
+        telemetry = VoiceManager.get_telemetry(guild.id) if guild else None
+        if telemetry:
+            tele_status = "🟢 Success" if telemetry.success else f"🔴 Failed (Attempt {telemetry.attempt}/{telemetry.max_attempts})"
+            embed.add_field(
+                name="📊 Connection Telemetry",
+                value=(
+                    f"• **Last Result:** {tele_status}\n"
+                    f"• **Stage:** `{telemetry.stage}`\n"
+                    f"• **Handshake Duration:** `{telemetry.elapsed_ms:.0f}ms`\n"
+                    f"• **Target Channel:** `#{telemetry.channel_name or 'unknown'}`"
+                ),
+                inline=False,
+            )
+
+        # 5. Maintainer Diagnostics (Only shown if user has Administrator / Manage Server perms)
+        is_maintainer = False
+        if isinstance(user, discord.Member):
+            is_maintainer = user.guild_permissions.administrator or user.guild_permissions.manage_guild
+        if user and getattr(self.bot, "owner_id", None) == user.id:
+            is_maintainer = True
+
+        if is_maintainer and guild:
+            from discord.voice_client import has_nacl
+            from discord.opus import is_loaded as opus_is_loaded
+            dave_loaded = getattr(discord.voice_client, "has_dave", False)
+
+            embed.add_field(
+                name="🛠️ Maintainer Diagnostics",
+                value=(
+                    f"• **Guild ID:** `{guild.id}`\n"
+                    f"• **Channel ID:** `{vc_channel.id if vc_channel else 'N/A'}`\n"
+                    f"• **PyNaCl:** `{'Loaded ✅' if has_nacl else 'Missing ❌'}` | **Opus:** `{'Loaded ✅' if opus_is_loaded() else 'Missing ❌'}`\n"
+                    f"• **Dave Protocol:** `{'Active ✅' if dave_loaded else 'Inactive ⚠️'}`\n"
+                    f"• **In-flight Tasks:** `{len(VoiceManager._in_flight_tasks)}`"
+                ),
+                inline=False,
+            )
+
+        embed.set_footer(text="MusicMaid Voice Diagnostics • Run /musicstatus or !musicstatus")
+        return embed
+
+    @app_commands.command(name="musicstatus", description="Display voice connection health, gateway latency, and playback status")
+    async def cmd_musicstatus(self, interaction: discord.Interaction) -> None:
+        """Slash command to view safe music bot status and voice telemetry."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        embed = self._build_music_status_embed(interaction.guild, interaction.user)
+        await interaction.edit_original_response(embed=embed)
+
+    @commands.command(name="musicstatus", aliases=["vcstatus", "voicestatus"])
+    async def pfx_musicstatus(self, ctx: commands.Context) -> None:
+        """Text command to view safe music bot status and voice telemetry."""
+        embed = self._build_music_status_embed(ctx.guild, ctx.author)
+        await ctx.send(embed=embed)
 
 
 async def setup(bot: RaiMusicBot) -> None:

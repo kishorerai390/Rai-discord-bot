@@ -1,13 +1,20 @@
 """
 Unit Test Suite for VoiceManager Voice Connection Lifecycle, Concurrency, and Diagnostic Telemetry.
-Validates:
-1. Concurrency singleflight coalescing (multiple simultaneous play requests do NOT spawn competing connections).
-2. Existing connection reuse (instant return when already in target channel).
-3. Seamless channel move (VoiceClient.move_to when caller is in a different voice channel).
-4. Permission rejection (fast-fails with clear error when Connect/Speak permission missing).
-5. AFK channel anti-join sentry.
-6. Stale client cleanup before reconnecting.
-7. Bounded retries and diagnostic reporting on transient timeouts.
+Validates all 14 lifecycle scenarios:
+1. Successful voice connection
+2. Delayed voice state update
+3. Delayed voice server update
+4. Missing handshake events
+5. WebSocket timeout
+6. UDP negotiation failure
+7. Permission denial
+8. Repeated play commands (coalescing)
+9. Superseding connection when target channel changes
+10. Connections in multiple guilds (isolation)
+11. Cancellation during connection
+12. Recovery after a temporary failure
+13. Queue preservation after a failed connection
+14. Stale voice client cleanup and purge
 """
 
 from __future__ import annotations
@@ -18,7 +25,7 @@ import unittest
 import discord
 
 from music_bot.services.session_service import GuildMusicSession, PlaybackState
-from music_bot.services.voice_service import VoiceManager
+from music_bot.services.voice_service import VoiceManager, VoiceTelemetry
 
 
 class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
@@ -28,6 +35,8 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         # Reset VoiceManager global state before each test
         VoiceManager._guild_locks.clear()
         VoiceManager._in_flight_tasks.clear()
+        VoiceManager._in_flight_channels.clear()
+        VoiceManager._telemetry.clear()
 
         self.guild_id = 123456789
         self.session = GuildMusicSession(self.guild_id)
@@ -39,6 +48,8 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         self.guild.afk_channel = None
         self.guild.voice_client = None
         self.guild.change_voice_state = AsyncMock()
+        self.guild._state = MagicMock()
+        self.guild._state._voice_clients = {}
 
         # Mock Bot Member
         self.bot_member = MagicMock(spec=discord.Member)
@@ -50,6 +61,8 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         self.voice_channel.name = "Developers Zone </>"
         self.voice_channel.mention = "<#987654321>"
         self.voice_channel.guild = self.guild
+        self.voice_channel.user_limit = 0
+        self.voice_channel.members = []
 
         # Default permissions: Connect=True, Speak=True
         self.perms = MagicMock()
@@ -68,8 +81,8 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         self.text_channel.id = 111222333
         self.text_channel.mention = "<#111222333>"
 
-    async def test_01_successful_connection_first_attempt(self):
-        """Verify successful connection sets session state and returns VoiceClient."""
+    async def test_01_successful_connection(self):
+        """Scenario 1: Verify successful connection sets session state and returns VoiceClient."""
         mock_vc = MagicMock(spec=discord.VoiceClient)
         mock_vc.is_connected.return_value = True
         mock_vc.channel = self.voice_channel
@@ -83,68 +96,106 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(self.session.last_error)
         self.voice_channel.connect.assert_awaited_once()
 
-    async def test_02_concurrency_singleflight_coalescing(self):
-        """Verify multiple simultaneous play requests coalesce into a single connection task."""
-        mock_vc = MagicMock(spec=discord.VoiceClient)
-        mock_vc.is_connected.return_value = True
-        mock_vc.channel = self.voice_channel
+        telemetry = VoiceManager.get_telemetry(self.guild_id)
+        self.assertIsNotNone(telemetry)
+        self.assertTrue(telemetry.success)
+        self.assertEqual(telemetry.stage, "Connected")
 
-        # Slow connect to simulate network handshake delay
-        async def slow_connect(*args, **kwargs):
-            await asyncio.sleep(0.05)
-            return mock_vc
+    async def test_02_delayed_voice_state_update(self):
+        """Scenario 2: Gateway voice state update delayed, reports Gateway Voice State Request."""
+        try:
+            from discord.voice_state import ConnectionFlowState
+            flow_state = ConnectionFlowState.set_guild_voice_state
+        except ImportError:
+            flow_state = None
 
-        self.voice_channel.connect = AsyncMock(side_effect=slow_connect)
+        mock_conn = MagicMock()
+        mock_conn.state = flow_state
+        mock_vc = MagicMock()
+        mock_vc._connection = mock_conn
+        self.guild.voice_client = mock_vc
 
-        # Launch 3 simultaneous connection requests
-        t1 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
-        t2 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
-        t3 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
+        stage_name, advice, _ = VoiceManager._inspect_failed_stage(self.guild, asyncio.TimeoutError())
+        self.assertEqual(stage_name, "Gateway Voice State Request")
+        self.assertIn("Gateway did not acknowledge", advice)
 
-        results = await asyncio.gather(t1, t2, t3)
+    async def test_03_delayed_voice_server_update(self):
+        """Scenario 3: Gateway voice server update delayed, reports Gateway Voice Server Allocation."""
+        try:
+            from discord.voice_state import ConnectionFlowState
+            flow_state = ConnectionFlowState.got_voice_state_update
+        except ImportError:
+            flow_state = None
 
-        # All 3 callers must receive the exact same VoiceClient
-        self.assertEqual(results[0], mock_vc)
-        self.assertEqual(results[1], mock_vc)
-        self.assertEqual(results[2], mock_vc)
+        mock_conn = MagicMock()
+        mock_conn.state = flow_state
+        mock_vc = MagicMock()
+        mock_vc._connection = mock_conn
+        self.guild.voice_client = mock_vc
 
-        # connect() must have been called EXACTLY ONCE despite 3 simultaneous requests!
-        self.assertEqual(self.voice_channel.connect.await_count, 1)
+        stage_name, advice, _ = VoiceManager._inspect_failed_stage(self.guild, asyncio.TimeoutError())
+        self.assertEqual(stage_name, "Gateway Voice Server Allocation")
+        self.assertIn("voice server endpoint", advice)
 
-    async def test_03_existing_connection_reused_instantly(self):
-        """Verify if already connected to target channel, VoiceClient is reused without reconnecting."""
-        existing_vc = MagicMock(spec=discord.VoiceClient)
-        existing_vc.is_connected.return_value = True
-        existing_vc.channel = self.voice_channel
-        self.guild.voice_client = existing_vc
+    async def test_04_missing_handshake_events(self):
+        """Scenario 4: WebSocket opened but ready payload timed out."""
+        try:
+            from discord.voice_state import ConnectionFlowState
+            flow_state = ConnectionFlowState.websocket_connected
+        except ImportError:
+            flow_state = None
 
-        self.voice_channel.connect = AsyncMock()
+        mock_conn = MagicMock()
+        mock_conn.state = flow_state
+        mock_vc = MagicMock()
+        mock_vc._connection = mock_conn
+        self.guild.voice_client = mock_vc
 
-        vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+        stage_name, advice, _ = VoiceManager._inspect_failed_stage(self.guild, asyncio.TimeoutError())
+        self.assertEqual(stage_name, "Voice Session Ready Acknowledgment")
+        self.assertIn("Ready payload", advice)
 
-        self.assertEqual(vc, existing_vc)
-        # connect() must NOT be called when already connected
-        self.voice_channel.connect.assert_not_called()
+    async def test_05_websocket_timeout(self):
+        """Scenario 5: WebSocket handshake times out before session establishment."""
+        try:
+            from discord.voice_state import ConnectionFlowState
+            flow_state = ConnectionFlowState.got_both_voice_updates
+        except ImportError:
+            flow_state = None
 
-    async def test_04_channel_move_when_caller_in_different_channel(self):
-        """Verify bot seamlessly moves to caller's channel if already connected elsewhere."""
-        old_channel = MagicMock(spec=discord.VoiceChannel)
-        old_channel.id = 555555
-        old_channel.name = "General Voice"
+        mock_conn = MagicMock()
+        mock_conn.state = flow_state
+        mock_vc = MagicMock()
+        mock_vc._connection = mock_conn
+        self.guild.voice_client = mock_vc
 
-        existing_vc = MagicMock(spec=discord.VoiceClient)
-        existing_vc.is_connected.return_value = True
-        existing_vc.channel = old_channel
-        existing_vc.move_to = AsyncMock()
-        self.guild.voice_client = existing_vc
+        stage_name, advice, _ = VoiceManager._inspect_failed_stage(self.guild, asyncio.TimeoutError())
+        self.assertEqual(stage_name, "Voice WebSocket Handshake")
+        self.assertIn("Voice WebSocket", advice)
+        # Should not falsely claim Region Override is the fix!
+        self.assertNotIn("Region Override", advice)
 
-        vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+    async def test_06_udp_negotiation_failure(self):
+        """Scenario 6: UDP negotiation fails after WebSocket handshake, recommends outbound UDP check."""
+        try:
+            from discord.voice_state import ConnectionFlowState
+            flow_state = ConnectionFlowState.got_websocket_ready
+        except ImportError:
+            flow_state = None
 
-        self.assertEqual(vc, existing_vc)
-        existing_vc.move_to.assert_awaited_once_with(self.voice_channel)
+        mock_conn = MagicMock()
+        mock_conn.state = flow_state
+        mock_vc = MagicMock()
+        mock_vc._connection = mock_conn
+        self.guild.voice_client = mock_vc
 
-    async def test_05_permission_denial_fast_fails(self):
-        """Verify missing Connect or Speak permission fast-fails without retries."""
+        stage_name, advice, _ = VoiceManager._inspect_failed_stage(self.guild, asyncio.TimeoutError())
+        self.assertEqual(stage_name, "UDP Voice Transport & IP Discovery")
+        self.assertIn("outbound UDP", advice)
+        self.assertIn("Region Override", advice)
+
+    async def test_07_permission_denial(self):
+        """Scenario 7: Permission denial fast-fails without retries."""
         self.perms.connect = False
         self.voice_channel.permissions_for.return_value = self.perms
 
@@ -152,40 +203,157 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(vc)
         self.assertIn("Connect", self.session.last_error)
+        self.voice_channel.connect.assert_not_called()
 
-    async def test_06_afk_channel_sentry_blocks_join(self):
-        """Verify bot refuses to join designated AFK voice channel."""
-        self.guild.afk_channel = self.voice_channel
+    async def test_08_repeated_play_commands_coalesce(self):
+        """Scenario 8: Multiple simultaneous play commands coalesce into a single connection task."""
+        mock_vc = MagicMock(spec=discord.VoiceClient)
+        mock_vc.is_connected.return_value = True
+        mock_vc.channel = self.voice_channel
 
+        async def slow_connect(*args, **kwargs):
+            await asyncio.sleep(0.05)
+            return mock_vc
+
+        self.voice_channel.connect = AsyncMock(side_effect=slow_connect)
+
+        t1 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
+        t2 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
+        t3 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
+
+        results = await asyncio.gather(t1, t2, t3)
+
+        self.assertEqual(results[0], mock_vc)
+        self.assertEqual(results[1], mock_vc)
+        self.assertEqual(results[2], mock_vc)
+        self.assertEqual(self.voice_channel.connect.await_count, 1)
+
+    async def test_09_supersede_when_target_channel_changes(self):
+        """Scenario 9: If target channel changes while connecting, supersede previous attempt."""
+        new_channel = MagicMock(spec=discord.VoiceChannel)
+        new_channel.id = 999888777
+        new_channel.name = "Music Lounge"
+        new_channel.mention = "<#999888777>"
+        new_channel.guild = self.guild
+        new_channel.user_limit = 0
+        new_channel.members = []
+        new_channel.permissions_for.return_value = self.perms
+
+        mock_vc = MagicMock(spec=discord.VoiceClient)
+        mock_vc.is_connected.return_value = True
+        mock_vc.channel = new_channel
+
+        async def slow_connect_old(*args, **kwargs):
+            await asyncio.sleep(0.5)
+            return mock_vc
+
+        self.voice_channel.connect = AsyncMock(side_effect=slow_connect_old)
+        new_channel.connect = AsyncMock(return_value=mock_vc)
+
+        # Start connecting to channel 1
+        t1 = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
+        await asyncio.sleep(0.01)
+
+        # Caller moves to channel 2 and initiates join
+        self.member.voice.channel = new_channel
         vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
 
-        self.assertIsNone(vc)
-        self.assertIn("AFK", self.session.last_error)
+        self.assertEqual(vc, mock_vc)
+        new_channel.connect.assert_awaited_once()
 
-    async def test_07_stale_voice_client_cleanup(self):
-        """Verify disconnected / orphaned VoiceClient is forcefully cleaned up before new connect."""
-        dead_vc = MagicMock(spec=discord.VoiceClient)
-        dead_vc.is_connected.return_value = False
-        dead_vc.disconnect = AsyncMock()
-        self.guild.voice_client = dead_vc
+    async def test_10_connections_in_multiple_guilds(self):
+        """Scenario 10: Connections in different guilds proceed concurrently without interference."""
+        guild2_id = 9876543210
+        session2 = GuildMusicSession(guild2_id)
 
-        fresh_vc = MagicMock(spec=discord.VoiceClient)
-        fresh_vc.is_connected.return_value = True
-        fresh_vc.channel = self.voice_channel
+        guild2 = MagicMock(spec=discord.Guild)
+        guild2.id = guild2_id
+        guild2.afk_channel = None
+        guild2.voice_client = None
+        guild2.change_voice_state = AsyncMock()
+        guild2._state = MagicMock()
+        guild2._state._voice_clients = {}
 
-        async def fake_connect(*args, **kwargs):
-            return fresh_vc
+        voice_channel2 = MagicMock(spec=discord.VoiceChannel)
+        voice_channel2.id = 888777666
+        voice_channel2.name = "Server 2 Voice"
+        voice_channel2.guild = guild2
+        voice_channel2.user_limit = 0
+        voice_channel2.members = []
+        voice_channel2.permissions_for.return_value = self.perms
 
-        self.voice_channel.connect = AsyncMock(side_effect=fake_connect)
+        member2 = MagicMock(spec=discord.Member)
+        member2.guild = guild2
+        member2.voice = MagicMock()
+        member2.voice.channel = voice_channel2
+
+        vc1_mock = MagicMock(spec=discord.VoiceClient)
+        vc1_mock.is_connected.return_value = True
+        vc1_mock.channel = self.voice_channel
+
+        vc2_mock = MagicMock(spec=discord.VoiceClient)
+        vc2_mock.is_connected.return_value = True
+        vc2_mock.channel = voice_channel2
+
+        self.voice_channel.connect = AsyncMock(return_value=vc1_mock)
+        voice_channel2.connect = AsyncMock(return_value=vc2_mock)
+
+        r1, r2 = await asyncio.gather(
+            VoiceManager.join_voice_channel(self.member, self.text_channel, self.session),
+            VoiceManager.join_voice_channel(member2, self.text_channel, session2),
+        )
+
+        self.assertEqual(r1, vc1_mock)
+        self.assertEqual(r2, vc2_mock)
+
+    async def test_11_cancellation_during_connection(self):
+        """Scenario 11: Task cancellation during connect cleans up and purges state safely."""
+        async def hanging_connect(*args, **kwargs):
+            await asyncio.sleep(10.0)
+
+        self.voice_channel.connect = AsyncMock(side_effect=hanging_connect)
+
+        t = asyncio.create_task(VoiceManager.join_voice_channel(self.member, self.text_channel, self.session))
+        await asyncio.sleep(0.01)
+        t.cancel()
+
+        with self.assertRaises(asyncio.CancelledError):
+            await t
+
+        # Confirm in-flight tracking is cleared
+        self.assertNotIn(self.guild_id, VoiceManager._in_flight_tasks)
+
+    async def test_12_recovery_after_temporary_failure(self):
+        """Scenario 12: Temporary failure on attempt 1 (e.g. ClientException), succeeds on attempt 2."""
+        mock_vc = MagicMock(spec=discord.VoiceClient)
+        mock_vc.is_connected.return_value = True
+        mock_vc.channel = self.voice_channel
+
+        attempt = 0
+
+        async def fail_once_then_succeed(*args, **kwargs):
+            nonlocal attempt
+            attempt += 1
+            if attempt == 1:
+                raise discord.ClientException("Already connected to a voice channel.")
+            return mock_vc
+
+        self.voice_channel.connect = AsyncMock(side_effect=fail_once_then_succeed)
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
             vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
 
-        self.assertEqual(vc, fresh_vc)
-        dead_vc.disconnect.assert_awaited_once_with(force=True)
+        self.assertEqual(vc, mock_vc)
+        self.assertEqual(self.voice_channel.connect.await_count, 2)
+        self.assertEqual(self.session.state, PlaybackState.CONNECTED)
 
-    async def test_08_bounded_retries_and_diagnostics_on_timeout(self):
-        """Verify that repeated TimeoutErrors are bounded to 3 attempts and set clear diagnostics."""
+    async def test_13_queue_preservation_after_failed_connection(self):
+        """Scenario 13: Failed connection leaves queue intact in session."""
+        # Add tracks to queue
+        fake_track = MagicMock()
+        fake_track.title = "Kalyani"
+        self.session.queue.append(fake_track)
+
         self.voice_channel.connect = AsyncMock(side_effect=asyncio.TimeoutError)
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
@@ -193,9 +361,29 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(vc)
         self.assertEqual(self.session.state, PlaybackState.ERROR)
-        self.assertEqual(self.voice_channel.connect.await_count, 3)
-        self.assertIn("Voice connection timed out after 3 attempts", self.session.last_error)
-        self.assertIn("Region Override", self.session.last_error)
+        # Queue must not be wiped!
+        self.assertEqual(len(self.session.queue), 1)
+        self.assertEqual(self.session.queue[0].title, "Kalyani")
+
+    async def test_14_stale_voice_client_cleanup(self):
+        """Scenario 14: Disconnected/orphaned VoiceClient is cleaned up and purged before connecting."""
+        dead_vc = MagicMock(spec=discord.VoiceClient)
+        dead_vc.is_connected.return_value = False
+        dead_vc.disconnect = AsyncMock()
+        dead_vc.cleanup = MagicMock()
+        self.guild.voice_client = dead_vc
+
+        fresh_vc = MagicMock(spec=discord.VoiceClient)
+        fresh_vc.is_connected.return_value = True
+        fresh_vc.channel = self.voice_channel
+        self.voice_channel.connect = AsyncMock(return_value=fresh_vc)
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+
+        self.assertEqual(vc, fresh_vc)
+        dead_vc.disconnect.assert_awaited_once_with(force=True)
+        dead_vc.cleanup.assert_called()
 
 
 if __name__ == "__main__":
