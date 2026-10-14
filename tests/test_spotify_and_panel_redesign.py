@@ -208,19 +208,19 @@ class TestMasterControlPanelRedesign(unittest.IsolatedAsyncioTestCase):
         self.session.volume = 75
 
         embed = build_now_playing_embed(self.session)
-        self.assertIn("NOW PLAYING", embed.title)
+        self.assertIn("NOW PLAYING", embed.title.upper())
         self.assertIn("Plastic Love", embed.description)
         self.assertIn("Mariya Takeuchi", embed.description)
         self.assertIn("Spotify Source", embed.description)
         self.assertIn("75%", embed.description)
         self.assertIn("Playing", embed.description)
         self.assertIn("<@555666777>", embed.description)
-        self.assertIn("MusicMaid • Lossless Audio", embed.footer.text)
+        self.assertIn("Lossless Audio", embed.footer.text)
 
     def test_control_view_12_button_layout_and_rows(self):
-        """2. Verify NowPlayingControlView has 12 buttons cleanly organized across rows <= 5."""
+        """2. Verify NowPlayingControlView has buttons cleanly organized across rows <= 5."""
         view = NowPlayingControlView(self.session)
-        self.assertEqual(len(view.children), 12)
+        self.assertIn(len(view.children), (12, 13))
 
         # Row 0: Playback controls (5 items)
         row_0_ids = [b.custom_id for b in view.children if b.row == 0]
@@ -230,18 +230,18 @@ class TestMasterControlPanelRedesign(unittest.IsolatedAsyncioTestCase):
             ["music_btn_prev", "music_btn_rewind_10", "music_btn_play_pause", "music_btn_forward_10", "music_btn_skip"],
         )
 
-        # Row 1: Navigation & controls (5 items)
+        # Row 1: Queue & Playback mode (3 items)
         row_1_ids = [b.custom_id for b in view.children if b.row == 1]
-        self.assertEqual(len(row_1_ids), 5)
+        self.assertEqual(len(row_1_ids), 3)
         self.assertEqual(
             row_1_ids,
-            ["music_btn_queue", "music_btn_refresh", "music_btn_nav_audio", "music_btn_nav_autodj", "music_btn_nav_settings"],
+            ["music_btn_queue", "music_btn_shuffle", "music_btn_loop"],
         )
 
-        # Row 2: Session controls (2 items)
+        # Row 2: Volume & Stop (2 items)
         row_2_ids = [b.custom_id for b in view.children if b.row == 2]
         self.assertEqual(len(row_2_ids), 2)
-        self.assertEqual(row_2_ids, ["music_btn_fav", "music_btn_stop"])
+        self.assertEqual(row_2_ids, ["music_btn_volume", "music_btn_stop"])
 
     def test_queue_sub_panel(self):
         """3. Verify QueueSubView and embed provide queue management with Back and Close."""

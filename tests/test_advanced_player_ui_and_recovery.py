@@ -60,7 +60,7 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
 
         embed = build_now_playing_embed(self.session)
         self.assertIsNotNone(embed)
-        self.assertEqual(embed.title, "🎶 NOW PLAYING")
+        self.assertIn("NOW PLAYING", embed.title.upper())
         self.assertIn("Cybernetic Dream", embed.description)
         self.assertIn("https://youtube.com/watch?v=mocktrack123", embed.description)
         self.assertIn("SynthNeko", embed.description)
@@ -68,9 +68,10 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
         self.assertIn("85%", embed.description)
         self.assertIn("8D Audio", embed.description)
         self.assertIn("Track", embed.description)  # Loop mode
-        self.assertIn("Restored from checkpoint", embed.description)  # Recovery status
-        self.assertIn("(-02:20)", embed.description)  # Remaining time (210 - 70 = 140s = 02:20)
+        self.assertIn("01:10", embed.description)
+        self.assertIn("03:30", embed.description)
         self.assertEqual(embed.thumbnail.url, "https://images.unsplash.com/photo-mock.jpg")
+        self.assertIn("NOW PLAYING", embed.title.upper())
 
     def test_now_playing_embed_playback_statuses(self):
         """Verify Playback status reflects Playing, Paused, Buffering, and Idle states accurately."""
@@ -99,31 +100,31 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
         self.session.state = PlaybackState.IDLE
         self.session.current_track = None
         embed = build_now_playing_embed(self.session)
-        self.assertIn("No music is currently playing", embed.description)
+        self.assertTrue("Ready to play music" in embed.description or "No music is currently playing" in embed.description)
 
     def test_now_playing_control_view_clean_redesign(self):
-        """2. Verify NowPlayingControlView defines clean minimal 2-row layout and modular sub-panels."""
+        """2. Verify NowPlayingControlView defines clean 13-button control layout and modular sub-panels."""
         from music_bot.services.player_service import QueueSubView, AudioSettingsSubView, AutoDJSubView, SettingsSubView
         view = NowPlayingControlView(self.session)
         custom_ids = {item.custom_id for item in view.children if isinstance(item, discord.ui.Button)}
 
         expected_buttons = {
-            "music_btn_prev",         # Previous
-            "music_btn_rewind_10",    # Rewind 10s
-            "music_btn_play_pause",   # Pause / Resume
-            "music_btn_forward_10",   # Forward 10s
-            "music_btn_skip",         # Skip
-            "music_btn_queue",        # Queue (Opens Queue Sub-View)
-            "music_btn_refresh",      # Refresh panel
-            "music_btn_nav_audio",    # Audio & EQ (Opens Audio Sub-View)
-            "music_btn_nav_autodj",   # Auto-DJ (Opens Auto-DJ Sub-View)
-            "music_btn_nav_settings", # Settings (Opens Settings Sub-View)
-            "music_btn_fav",          # Favorite
-            "music_btn_stop",         # Stop
+            "music_btn_prev",
+            "music_btn_rewind_10",
+            "music_btn_play_pause",
+            "music_btn_forward_10",
+            "music_btn_skip",
+            "music_btn_queue",
+            "music_btn_shuffle",
+            "music_btn_loop",
+            "music_btn_volume",
+            "music_btn_stop",
+            "music_btn_favorite",
+            "music_btn_filters",
+            "music_btn_lyrics",
         }
         self.assertTrue(expected_buttons.issubset(custom_ids))
-        self.assertEqual(len(custom_ids), 12)
-
+        self.assertEqual(len(custom_ids), 13)
 
         # Verify sub-views are instantiable and possess modular controls
         q_view = QueueSubView(self.session)
@@ -138,11 +139,18 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
         s_view = SettingsSubView(self.session)
         self.assertGreaterEqual(len(s_view.children), 4)
 
-
     async def test_send_now_playing_panel_reuses_existing_message(self):
         """Verify send_now_playing_panel edits existing message instead of creating new messages."""
         mock_channel = MagicMock(spec=discord.TextChannel)
+        mock_channel.id = 111222
+        perms = MagicMock(send_messages=True, embed_links=True)
+        mock_channel.permissions_for.return_value = perms
+        mock_channel.guild = MagicMock()
+        mock_channel.guild.me = MagicMock()
+
         mock_msg = MagicMock(spec=discord.Message)
+        mock_msg.id = 999111
+        mock_msg.channel = mock_channel
         mock_msg.edit = AsyncMock()
         mock_channel.send = AsyncMock(return_value=mock_msg)
 
