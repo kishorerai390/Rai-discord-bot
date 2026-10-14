@@ -17,6 +17,7 @@ from config import WEB_PORT, COMMUNITY_GUILD_ID
 from database.database import Database
 from web.api import ApiRouter
 from web.ui import UI_HTML
+from web.legal import TERMS_OF_SERVICE_HTML, PRIVACY_POLICY_HTML
 
 from web.realtime import RealtimeGateway
 from web.music_api import MusicApiRouter
@@ -82,9 +83,23 @@ class RaiCommunityOSServer:
             "timestamp": int(time.time()),
         })
 
+    async def handle_terms(self, request: web.Request) -> web.Response:
+        """Render the official Terms of Service legal compliance page."""
+        return web.Response(text=TERMS_OF_SERVICE_HTML, content_type="text/html")
+
+    async def handle_privacy(self, request: web.Request) -> web.Response:
+        """Render the official Privacy Policy legal compliance page."""
+        return web.Response(text=PRIVACY_POLICY_HTML, content_type="text/html")
+
     def setup_routes(self, app: web.Application) -> None:
         """Register all UI and REST API routes."""
         r = self.api_router
+
+        # Legal Compliance Endpoints for Discord Developer Portal Verification
+        app.router.add_get("/terms", self.handle_terms)
+        app.router.add_get("/terms-of-service", self.handle_terms)
+        app.router.add_get("/privacy", self.handle_privacy)
+        app.router.add_get("/privacy-policy", self.handle_privacy)
 
         # UI Page Routes (rendered via the responsive SPA shell)
         ui_routes = [

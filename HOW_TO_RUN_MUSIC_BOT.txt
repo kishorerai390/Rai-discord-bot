@@ -18,7 +18,10 @@ Quick 3-Step Setup Guide:
    - In your ".env" file, set:
      MUSIC_BOT_TOKEN=your_token_here
 
-3. RUN THE BOT & WEB PLATFORM:
+3. INVITE BOT TO YOUR SERVER:
+   https://discord.com/oauth2/authorize?client_id=1554626865958887444&permissions=2268449856&scope=bot%20applications.commands
+
+4. RUN THE BOT & WEB PLATFORM:
    python main.py
    (or: npm start)
 

@@ -13,6 +13,8 @@ services:
         sync: false
       - key: NEKO_SONGS_BOT_TOKEN
         sync: false
+      - key: APPLICATION_ID
+        value: 1554626865958887444
       - key: BOT_NAME
         value: MusicMaid
       - key: EMBED_COLOR
