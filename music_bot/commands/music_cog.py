@@ -3877,6 +3877,13 @@ class MusicCog(commands.Cog, name="Music"):
         embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", interaction.guild)
         await interaction.edit_original_response(embed=embed)
 
+    @commands.command(name="debug", aliases=["diag", "audioinfo"])
+    async def pfx_debug(self, ctx: commands.Context, *, test_query: Optional[str] = None) -> None:
+        """Run audio pipeline diagnostics via text command."""
+        loading_msg = await ctx.send("🔍 Running audio pipeline diagnostics (checking FFmpeg, cookies, yt-dlp, and resolution)...")
+        embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", ctx.guild)
+        await loading_msg.edit(content=None, embed=embed)
+
     def _build_music_status_embed(self, guild: Optional[discord.Guild], user: Optional[discord.Member | discord.User]) -> discord.Embed:
         """Constructs a comprehensive, safe status embed displaying voice connectivity, gateway latency, and session health."""
         embed = discord.Embed(
