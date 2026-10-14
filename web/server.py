@@ -22,8 +22,7 @@ from web.legal import TERMS_OF_SERVICE_HTML, PRIVACY_POLICY_HTML
 from web.realtime import RealtimeGateway
 from web.music_api import MusicApiRouter
 
-if TYPE_CHECKING:
-    from main import SentinelBot
+from typing import Any, Optional
 
 logger = logging.getLogger("Rai.WebServer")
 
@@ -33,7 +32,7 @@ class RaiCommunityOSServer:
 
     def __init__(
         self,
-        bot: Optional[SentinelBot] = None,
+        bot: Optional[Any] = None,
         db: Optional[Database] = None,
         port: Optional[int] = None,
     ):

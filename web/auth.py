@@ -22,7 +22,6 @@ from config import (
 
 if TYPE_CHECKING:
     from database.database import Database
-    from main import SentinelBot
 
 logger = logging.getLogger("Rai.WebAuth")
 
@@ -33,7 +32,7 @@ DISCORD_API_BASE = "https://discord.com/api/v10"
 class AuthManager:
     """Manages Discord OAuth2 workflows and local web sessions."""
 
-    def __init__(self, db: Database, bot: Optional[SentinelBot] = None):
+    def __init__(self, db: Database, bot: Optional[Any] = None):
         self.db = db
         self.bot = bot
 

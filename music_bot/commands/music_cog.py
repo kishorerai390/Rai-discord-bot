@@ -2591,38 +2591,31 @@ class MusicCog(commands.Cog, name="Music"):
         except Exception as e:
             logger.error(f"Natural request error: {e}")
 
-    @app_commands.command(name="invite", description="Get official invite link for MusicMaid and SentinelBot")
+    @app_commands.command(name="invite", description="Get official invite link for MusicMaid")
     async def invite(self, interaction: discord.Interaction) -> None:
         """Provide official invite links for MusicMaid with interactive buttons."""
         await self.ensure_deferred(interaction, ephemeral=False)
         bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        client_id = self.bot.user.id if self.bot.user else 1554626865958887444
+        invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=2268449856&scope=bot%20applications.commands"
         view = discord.ui.View()
         view.add_item(
             discord.ui.Button(
-                label=f"Invite {bot_name} (Music)",
+                label=f"Invite {bot_name}",
                 style=discord.ButtonStyle.link,
-                url="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=36768832&integration_type=0&scope=bot+applications.commands",
+                url=invite_url,
                 emoji="🎵",
             )
         )
-        view.add_item(
-            discord.ui.Button(
-                label="Invite The Raivora (Security)",
-                style=discord.ButtonStyle.link,
-                url="https://discord.com/oauth2/authorize?client_id=1554732669072445532&permissions=8&integration_type=0&scope=bot+applications.commands",
-                emoji="🛡️",
-            )
-        )
         embed = discord.Embed(
-            title=f"🐾 Invite {bot_name} & The Raivora",
+            title=f"🐾 Invite {bot_name}",
             description=(
-                f"Bring cute, futuristic 24/7 audio and autonomous security protection to your server!\n\n"
-                f"🎵 **{bot_name}** — Hi-Fi Audio, 24/7 Radio, Smart Loudness & Stage Ducking\n"
-                f"🛡️ **The Raivora** — Autonomous Anti-Nuke, AutoMod & Incident Radar"
+                f"Bring cute, futuristic 24/7 lossless music, Auto-DJ, and web controls to your server!\n\n"
+                f"🎵 **{bot_name}** — Lossless Audio, 24/7 Radio, DSP Equalizer & Web Player Dashboard"
             ),
             color=0x00E5FF,
         )
-        embed.set_footer(text=f"{bot_name} • Cute & Futuristic Audio Companion")
+        embed.set_footer(text=f"{bot_name} • 24/7 Lossless Audio Companion & Web Player")
         await interaction.edit_original_response(embed=embed, view=view)
 
 

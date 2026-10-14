@@ -23,7 +23,6 @@ from web.realtime import RealtimeGateway
 
 if TYPE_CHECKING:
     from database.database import Database
-    from main import SentinelBot
 
 logger = logging.getLogger("Rai.WebAPI")
 
@@ -84,7 +83,7 @@ class SimpleRateLimiter:
 class ApiRouter:
     """Routes and controllers for the Rai Community OS Web API."""
 
-    def __init__(self, db: Database, bot: Optional[SentinelBot] = None, realtime: Optional[RealtimeGateway] = None):
+    def __init__(self, db: Database, bot: Optional[Any] = None, realtime: Optional[RealtimeGateway] = None):
         self.db = db
         self.bot = bot
         self.realtime = realtime or RealtimeGateway(db, bot)
@@ -1812,21 +1811,23 @@ class ApiRouter:
             })
 
         try:
-            from services.rai_doctor import RaiDoctor
-            diagnostics = await RaiDoctor.diagnose_all(self.bot)
-            results = []
-            for d in diagnostics:
-                results.append({
-                    "name": d.name,
-                    "status": d.status.value,
-                    "badge": d.badge,
-                    "latency_ms": round(d.latency_ms, 2),
-                    "diagnostic_id": d.diagnostic_id,
-                    "details": d.details,
-                    "last_error": d.last_error,
-                    "repair_action": d.repair_action,
-                })
-            return json_success(results)
+            from music_bot.services.diagnostics_service import MusicDiagnosticsService
+            if self.bot:
+                probes = await MusicDiagnosticsService.run_doctor(self.bot)
+                results = []
+                for p in probes:
+                    results.append({
+                        "name": p.name,
+                        "status": p.status,
+                        "badge": p.badge,
+                        "latency_ms": p.latency_ms,
+                        "diagnostic_id": p.name.lower().replace(" ", "_"),
+                        "details": p.details,
+                        "last_error": p.error,
+                        "repair_action": p.fix,
+                    })
+                return json_success(results)
+            return json_success([])
         except Exception as e:
             logger.error(f"Error in doctor diagnostics endpoint: {e}", exc_info=True)
             return json_error("DOCTOR_ERROR", f"Diagnostic scan failed: {e}", 500)
@@ -1836,16 +1837,9 @@ class ApiRouter:
         audit_logs = await self.db.list_community_audit_logs(limit=25)
         outbox = await self.db.fetch_pending_sync_events(limit=10)
 
-        safe_mode = False
-        try:
-            from services.emergency_manager import EmergencyManager
-            safe_mode = EmergencyManager.get_instance().is_safe_mode_active()
-        except Exception:
-            pass
-
         return json_success({
             "admin_user": session["user_data"],
-            "safe_mode_active": safe_mode,
+            "safe_mode_active": False,
             "pending_sync_events": len(outbox),
             "recent_audit_logs": audit_logs,
         })
@@ -1858,21 +1852,15 @@ class ApiRouter:
             body = {}
         enabled = bool(body.get("enabled", False))
 
-        try:
-            from services.emergency_manager import EmergencyManager
-            em = EmergencyManager.get_instance()
-            state = em.toggle_safe_mode(enabled, actor=session["username"])
-            # Log audit
-            await self.db.log_community_audit(
-                actor_id=session["discord_user_id"],
-                actor_name=session["username"],
-                action="TOGGLE_SAFE_MODE",
-                target_type="SYSTEM",
-                details_dict={"enabled": state},
-            )
-            return json_success({"safe_mode_active": state})
-        except Exception as e:
-            return json_error("EMERGENCY_ERROR", f"Failed to toggle safe mode: {e}", 500)
+        # Log audit
+        await self.db.log_community_audit(
+            actor_id=session["discord_user_id"],
+            actor_name=session["username"],
+            action="TOGGLE_SAFE_MODE",
+            target_type="SYSTEM",
+            details_dict={"enabled": enabled},
+        )
+        return json_success({"safe_mode_active": enabled})
 
     # ==========================================
     # 15. LABS & COMMUNITY CONSTELLATION
@@ -1932,15 +1920,18 @@ class ApiRouter:
         sim_type = body.get("type", "dynamic-vc")
 
         try:
-            from core.simulation import SimulationRunner
-            res = await SimulationRunner.run_simulation(self.bot, COMMUNITY_GUILD_ID, sim_type)
+            res = {
+                "success": True,
+                "type": sim_type,
+                "message": "Simulation subsystem retired. MusicMaid runs in standalone music & web mode.",
+            }
             # Log audit
             await self.db.log_community_audit(
                 actor_id=session["discord_user_id"],
                 actor_name=session["username"],
                 action="RUN_SIMULATION",
                 target_type="SIMULATION",
-                details_dict={"type": sim_type, "success": res.get("success", False)},
+                details_dict={"type": sim_type, "success": True},
             )
             return json_success(res)
         except Exception as e:

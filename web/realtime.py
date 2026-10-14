@@ -24,7 +24,6 @@ from config import COMMUNITY_GUILD_ID
 
 if TYPE_CHECKING:
     from database.database import Database
-    from main import SentinelBot
 
 logger = logging.getLogger("Rai.RealtimeGateway")
 
@@ -44,7 +43,7 @@ class RealtimeGateway:
 
     _instance: Optional["RealtimeGateway"] = None
 
-    def __init__(self, db: Database, bot: Optional[SentinelBot] = None):
+    def __init__(self, db: Database, bot: Optional[Any] = None):
         self.db = db
         self.bot = bot
         self.ws_clients: Set[web.WebSocketResponse] = set()
@@ -71,7 +70,7 @@ class RealtimeGateway:
     def get_instance(cls) -> Optional["RealtimeGateway"]:
         return cls._instance
 
-    def set_bot(self, bot: SentinelBot) -> None:
+    def set_bot(self, bot: Any) -> None:
         self.bot = bot
 
     async def start(self) -> None:
