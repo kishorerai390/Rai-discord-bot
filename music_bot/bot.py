@@ -219,7 +219,15 @@ class NekoSongsBot(commands.Bot):
             return True
         self.tree.interaction_check = tree_interaction_check
 
+        # 2c. Optional Lavalink Node Initialization (Config-flagged)
+        try:
+            from music_bot.services.lavalink_service import LavalinkManager
+            await LavalinkManager.setup_node(self)
+        except Exception as lava_err:
+            logger.warning(f"Lavalink initialization notice: {lava_err}")
+
         # 3. Synchronize application commands
+
         try:
             if COMMAND_SYNC_MODE == "guild" and TEST_GUILD_ID:
                 guild = discord.Object(id=TEST_GUILD_ID)

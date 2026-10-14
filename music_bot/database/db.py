@@ -298,6 +298,15 @@ class MusicDatabase:
                     processed_at TEXT
                 );
                 CREATE INDEX IF NOT EXISTS idx_music_web_actions_status ON music_web_actions(status);
+
+                CREATE TABLE IF NOT EXISTS music_premium (
+                    entity_id INTEGER PRIMARY KEY,
+                    entity_type TEXT NOT NULL DEFAULT 'guild',
+                    is_premium INTEGER DEFAULT 1,
+                    tier TEXT DEFAULT 'premium',
+                    activated_by INTEGER,
+                    created_at TEXT NOT NULL
+                );
             """)
             await self._db.commit()
 
@@ -1367,6 +1376,71 @@ class MusicDatabase:
             """, (guild_id, limit)) as cur:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
+
+    async def is_premium(self, guild_id: int, user_id: Optional[int] = None) -> bool:
+        """Check if either the guild or the user has an active premium subscription."""
+        async with self._lock:
+            if not self._db:
+                return False
+            query_ids = [guild_id]
+            if user_id:
+                query_ids.append(user_id)
+            placeholders = ",".join("?" for _ in query_ids)
+            async with self._db.execute(
+                f"SELECT 1 FROM music_premium WHERE entity_id IN ({placeholders}) AND is_premium = 1 LIMIT 1",
+                query_ids,
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row is not None
+
+    async def get_premium_info(self, entity_id: int) -> Optional[Dict[str, Any]]:
+        """Get premium record for a guild or user."""
+        async with self._lock:
+            if not self._db:
+                return None
+            async with self._db.execute(
+                "SELECT * FROM music_premium WHERE entity_id = ?",
+                (entity_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def set_premium(
+        self,
+        entity_id: int,
+        entity_type: str = "guild",
+        is_premium: bool = True,
+        tier: str = "premium",
+        activated_by: Optional[int] = None,
+    ) -> None:
+        """Set or revoke premium tier for a guild or user."""
+        now = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            if not self._db:
+                return
+            await self._db.execute("""
+                INSERT INTO music_premium (entity_id, entity_type, is_premium, tier, activated_by, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(entity_id) DO UPDATE SET
+                    entity_type = excluded.entity_type,
+                    is_premium = excluded.is_premium,
+                    tier = excluded.tier,
+                    activated_by = excluded.activated_by,
+                    created_at = excluded.created_at
+            """, (entity_id, entity_type, 1 if is_premium else 0, tier, activated_by, now))
+            await self._db.commit()
+
+    async def list_premiums(self) -> List[Dict[str, Any]]:
+        """List all entities with active premium."""
+        async with self._lock:
+            if not self._db:
+                return []
+            async with self._db.execute(
+                "SELECT * FROM music_premium WHERE is_premium = 1 ORDER BY created_at DESC"
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(r) for r in rows]
+
 
 
 

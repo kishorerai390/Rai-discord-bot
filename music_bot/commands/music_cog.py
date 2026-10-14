@@ -823,8 +823,20 @@ class MusicCog(commands.Cog, name="Music"):
                 session._last_queued_url = track.url
                 session._last_queued_time = now_t
 
+                total_dur_ms = (time.time() - start_t) * 1000
+                search_dur_ms = search_dur * 1000
+
                 if session.is_playing or session.is_paused or session.has_active_track:
                     session.queue.append(track)
+                    # Pre-resolve next track if queue was previously empty
+                    if len(session.queue) == 1 and not track.stream_url:
+                        asyncio.create_task(AudioResolver.pre_resolve_track(track))
+
+                    logger.info(
+                        f"[PLAY BENCHMARK] query='{query[:35]}' | search={search_dur_ms:.1f}ms | "
+                        f"extract={search_dur_ms:.1f}ms | ffmpeg_start=0.0ms (queued) | total={total_dur_ms:.1f}ms"
+                    )
+
                     embed_queued = discord.Embed(
                         title="🐱 ADDED TO QUEUE",
                         description=f"### [{track.title}]({track.url})\n"
@@ -850,7 +862,13 @@ class MusicCog(commands.Cog, name="Music"):
                         session.last_error = str(play_exc)
 
                     play_dur = time.time() - play_start
-                    logger.info(f"[Playback] Stream initialization took {play_dur:.2f}s (success={success})")
+                    play_dur_ms = play_dur * 1000
+                    total_dur_ms = (time.time() - start_t) * 1000
+
+                    logger.info(
+                        f"[PLAY BENCHMARK] query='{query[:35]}' | search={search_dur_ms:.1f}ms | "
+                        f"extract={search_dur_ms:.1f}ms | ffmpeg_start={play_dur_ms:.1f}ms | total={total_dur_ms:.1f}ms"
+                    )
                     if success:
                         try:
                             await interaction.edit_original_response(
@@ -864,6 +882,7 @@ class MusicCog(commands.Cog, name="Music"):
                                 await interaction.followup.send(f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*")
                             except Exception:
                                 pass
+
                     else:
                         err_detail = getattr(session, "last_error", None) or "Audio pipeline could not decode or play the audio stream."
                         embed_fail = discord.Embed(
@@ -921,6 +940,24 @@ class MusicCog(commands.Cog, name="Music"):
         if not await self._check_permissions(interaction):
             return
         await self._play_query(interaction, query)
+
+    @music_play.autocomplete("query")
+    async def music_play_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        try:
+            suggestions = await AudioResolver.autocomplete_search(current, limit=5)
+            choices = []
+            for item in suggestions:
+                title = item.get("title", "")
+                artist = item.get("artist", "")
+                label = f"{title[:75]} • {artist[:20]}" if artist and artist != "Direct Search" else title[:95]
+                val = item.get("url") or title
+                choices.append(app_commands.Choice(name=label[:100], value=val[:100]))
+            return choices
+        except Exception:
+            return []
+
 
     @music_group.command(name="search", description="Search YouTube and select from top results")
     @app_commands.describe(query="Song search query")
@@ -1066,18 +1103,30 @@ class MusicCog(commands.Cog, name="Music"):
         embed.set_footer(text=f"Total: {len(tracks)} tracks • Neko Songs")
         await interaction.followup.send(embed=embed)
 
-    @music_group.command(name="volume", description="Set playback volume (0-100%)")
-    @app_commands.describe(percent="Volume percentage (0-100)")
+    @music_group.command(name="volume", description="Set playback volume (0-100% standard, up to 150% with Premium)")
+    @app_commands.describe(percent="Volume percentage (0-100% standard, up to 150% with Premium)")
     async def music_volume(
-        self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 100]
+        self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 150]
     ) -> None:
         await interaction.response.defer(ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        session.volume = percent
+
+        is_prem = False
+        if interaction.guild:
+            is_prem = await self.bot.db.is_premium(interaction.guild.id, interaction.user.id)
+
+        target_vol = percent
+        premium_notice = ""
+        if target_vol > 100 and not is_prem:
+            target_vol = 100
+            premium_notice = "\n💎 *Volume above 100% (boosted up to 150%) requires **Premium**! Set to 100%. Use `/premium` to view perks.*"
+
+        session.volume = target_vol
         if session.voice_client and hasattr(session.voice_client.source, "volume"):
-            session.voice_client.source.volume = percent / 100.0  # type: ignore
+            session.voice_client.source.volume = target_vol / 100.0  # type: ignore
         await MusicPlayerService.send_now_playing_panel(session)
-        await interaction.followup.send(f"🔊 Volume set to `{percent}%`.")
+        await interaction.followup.send(f"🔊 Volume set to `{target_vol}%`.{premium_notice}")
+
 
     @app_commands.command(name="seek", description="Seek to a specific timestamp in the current song")
     @app_commands.describe(seconds="Target time in seconds")
@@ -1847,8 +1896,27 @@ class MusicCog(commands.Cog, name="Music"):
 
         # Toggle 24/7 state
         new_state = not settings.twenty_four_seven_enabled
+
+        if new_state:
+            is_prem = await self.bot.db.is_premium(guild.id, member.id)
+            is_admin = getattr(member.guild_permissions, "administrator", False) or (member.id == guild.owner_id)
+            if not is_prem and not is_admin:
+                embed_prem = discord.Embed(
+                    title="💎 PREMIUM FEATURE: 24/7 MODE",
+                    description=(
+                        "**24/7 Voice Channel Persistence** is an exclusive **MusicMaid Premium** feature!\n\n"
+                        "• Keeps the bot in your voice channel 24/7 without timing out.\n"
+                        "• Automatically reconnects after Render service restarts.\n\n"
+                        "💡 *Server Administrators or Premium subscribers can activate this feature. Use `/premium` to view status.*"
+                    ),
+                    color=0x9333EA,
+                )
+                await interaction.followup.send(embed=embed_prem, ephemeral=True)
+                return
+
         settings.twenty_four_seven_enabled = new_state
         session.twenty_four_seven = new_state
+
 
         if new_state:
             target_vc = None

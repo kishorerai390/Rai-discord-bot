@@ -19,16 +19,48 @@ import shutil
 import tempfile
 import time
 import traceback
+import urllib.parse
 from typing import Any, Dict, List, Optional, Tuple
 
 import yt_dlp
 
+from music_bot.config import REDIS_URL
 from music_bot.database.models import QueuedTrack
 
 logger = logging.getLogger("RaiMusic.Resolver")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
+
+# Track cache TTL (1 hour)
+CACHE_TTL = 3600
+
+# Redis client singleton for optional distributed track caching
+_redis_client: Any = None
+_redis_init_attempted: bool = False
+
+
+async def get_redis_client() -> Any:
+    """Retrieve or lazily connect to Redis client if REDIS_URL is configured."""
+    global _redis_client, _redis_init_attempted
+    if _redis_client is not None:
+        return _redis_client
+    if _redis_init_attempted:
+        return None
+    _redis_init_attempted = True
+    if not REDIS_URL:
+        return None
+    try:
+        import redis.asyncio as aioredis
+        client = aioredis.from_url(REDIS_URL, decode_responses=True)
+        await client.ping()
+        _redis_client = client
+        logger.info("[Resolver] Connected to Redis for persistent track caching.")
+        return _redis_client
+    except Exception as e:
+        logger.warning(f"[Resolver] Could not initialize Redis client ({REDIS_URL}): {_format_error(e)}. Using in-memory cache.")
+        return None
+
 
 # Global executor for thread-safe asynchronous yt-dlp operations
 _audio_executor = concurrent.futures.ThreadPoolExecutor(
@@ -37,6 +69,7 @@ _audio_executor = concurrent.futures.ThreadPoolExecutor(
 
 # Writable temporary cookie file destination (yt-dlp requires write permissions)
 WRITABLE_COOKIE_PATH = Path(tempfile.gettempdir()) / "musicmaid_cookies.txt"
+
 
 
 def _format_error(e: BaseException) -> str:
@@ -606,17 +639,17 @@ class AudioResolver:
         cls, query_or_url: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
         """
-        Public resolver method. Deduplicates concurrent resolutions, checks cache,
-        and ensures late-finishing resolutions are not discarded.
+        Public resolver method. Deduplicates concurrent resolutions, checks in-memory
+        and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
         cache_key = query_or_url.strip().lower()
         now = time.time()
 
-        # Check track cache (valid for 30 minutes)
+        # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)
         if cache_key in cls._track_cache:
             cached_track, cached_time = cls._track_cache[cache_key]
-            if now - cached_time < 1800:
-                logger.info(f"[Resolver] Cache hit for '{query_or_url[:60]}' -> '{cached_track.title}'")
+            if now - cached_time < CACHE_TTL:
+                logger.info(f"[Resolver] In-memory cache hit for '{query_or_url[:60]}' -> '{cached_track.title}'")
                 return QueuedTrack(
                     title=cached_track.title,
                     url=cached_track.url,
@@ -628,16 +661,50 @@ class AudioResolver:
                     thumbnail=cached_track.thumbnail,
                 )
 
-        # Reuse in-flight task if already resolving this exact query
+        # 2. Check optional Redis cache if configured
+        redis_c = await get_redis_client()
+        if redis_c:
+            try:
+                cached_json = await redis_c.get(f"mm:track:{cache_key}")
+                if cached_json:
+                    data = json.loads(cached_json)
+                    restored_track = QueuedTrack(
+                        title=data.get("title", "Unknown Track"),
+                        url=data.get("url", ""),
+                        stream_url=data.get("stream_url", ""),
+                        duration=data.get("duration", 0),
+                        requester_id=requester_id,
+                        requester_name=requester_name,
+                        artist=data.get("artist", "Unknown Artist"),
+                        thumbnail=data.get("thumbnail"),
+                    )
+                    cls._track_cache[cache_key] = (restored_track, now)
+                    logger.info(f"[Resolver] Redis cache hit for '{query_or_url[:60]}' -> '{restored_track.title}'")
+                    return restored_track
+            except Exception as r_err:
+                logger.debug(f"[Resolver] Redis cache lookup failed: {_format_error(r_err)}")
+
+        # 3. Deduplicate concurrent resolves of the same query
         if cache_key in cls._pending_tasks and not cls._pending_tasks[cache_key].done():
-            logger.info(f"[Resolver] Reusing in-flight resolution task for '{query_or_url[:60]}'")
+            logger.info(f"[Resolver] Deduplicating concurrent resolution for '{query_or_url[:60]}'")
             task = cls._pending_tasks[cache_key]
             try:
-                return await asyncio.shield(task)
+                res = await asyncio.shield(task)
+                if res:
+                    return QueuedTrack(
+                        title=res.title,
+                        url=res.url,
+                        stream_url=res.stream_url,
+                        duration=res.duration,
+                        requester_id=requester_id,
+                        requester_name=requester_name,
+                        artist=res.artist,
+                        thumbnail=res.thumbnail,
+                    )
             except Exception:
                 pass
 
-        # Create tracked background resolution task so late finishes are saved
+        # 4. Create background resolution task
         task = asyncio.create_task(
             cls._execute_resolution_pipeline(query_or_url, requester_id, requester_name)
         )
@@ -649,11 +716,110 @@ class AudioResolver:
                 res = f.result()
                 if res:
                     cls._track_cache[cache_key] = (res, time.time())
+                    # Write-through to Redis asynchronously
+                    if redis_c:
+                        async def _write_redis(k: str, t: QueuedTrack):
+                            try:
+                                payload = json.dumps({
+                                    "title": t.title,
+                                    "url": t.url,
+                                    "stream_url": t.stream_url,
+                                    "duration": t.duration,
+                                    "artist": t.artist,
+                                    "thumbnail": t.thumbnail,
+                                })
+                                await redis_c.setex(f"mm:track:{k}", CACHE_TTL, payload)
+                            except Exception:
+                                pass
+                        asyncio.create_task(_write_redis(cache_key, res))
             except Exception:
                 pass
 
         task.add_done_callback(_on_done)
         return await task
+
+    @classmethod
+    async def pre_resolve_track(cls, track: QueuedTrack) -> None:
+        """
+        Pre-resolve the next track in the queue while the current one plays.
+        Populates stream_url, duration, and thumbnail ahead of time for gapless transition.
+        """
+        if not track or track.stream_url:
+            return
+        try:
+            logger.info(f"[PreResolver] Lookahead resolving upcoming queue track: '{track.title}'")
+            fresh = await cls.resolve_track(
+                track.url or track.title, track.requester_id, track.requester_name
+            )
+            if fresh and fresh.stream_url:
+                track.stream_url = fresh.stream_url
+                track.duration = fresh.duration
+                if not track.thumbnail and fresh.thumbnail:
+                    track.thumbnail = fresh.thumbnail
+                logger.info(f"[PreResolver] Successfully pre-resolved upcoming track: '{track.title}'")
+        except Exception as e:
+            logger.debug(f"[PreResolver] Lookahead resolution notice for '{track.title}': {e}")
+
+    @classmethod
+    async def autocomplete_search(cls, query: str, limit: int = 5) -> List[Dict[str, str]]:
+        """
+        Instant suggestions (<200ms) for slash command autocomplete.
+        Checks matching cached queries and fetches YouTube search suggestions via Google's lightweight suggest API.
+        """
+        q = query.strip()
+        if not q or len(q) < 2:
+            return []
+
+        results: List[Dict[str, str]] = []
+        seen = set()
+
+        # 1. Instant check: match local track cache
+        q_lower = q.lower()
+        for k, (cached_track, _) in list(cls._track_cache.items()):
+            if q_lower in cached_track.title.lower() or q_lower in k:
+                if cached_track.title not in seen:
+                    seen.add(cached_track.title)
+                    results.append({
+                        "title": cached_track.title,
+                        "artist": cached_track.artist or "Cached Track",
+                        "url": cached_track.url or cached_track.title,
+                    })
+                    if len(results) >= limit:
+                        return results
+
+        # 2. Fast remote suggest API (<150ms HTTP GET, no cookies or IP block risk)
+        try:
+            import aiohttp
+            suggest_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote_plus(q)}"
+            timeout = aiohttp.ClientTimeout(total=1.2)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(suggest_url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json(content_type=None)
+                        if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
+                            for suggestion in data[1]:
+                                if suggestion not in seen:
+                                    seen.add(suggestion)
+                                    results.append({
+                                        "title": str(suggestion),
+                                        "artist": "Search Suggestion",
+                                        "url": str(suggestion),
+                                    })
+                                    if len(results) >= limit:
+                                        break
+        except Exception as e:
+            logger.debug(f"[Autocomplete] Suggest fetch error: {e}")
+
+        # 3. Fallback: return the query itself
+        if not results:
+            results.append({
+                "title": f"Play: {q}",
+                "artist": "Direct Search",
+                "url": q,
+            })
+
+        return results[:limit]
+
 
     @classmethod
     async def _execute_resolution_pipeline(

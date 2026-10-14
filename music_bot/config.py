@@ -75,6 +75,13 @@ LAVALINK_HOST: str = os.getenv("LAVALINK_HOST", "127.0.0.1")
 LAVALINK_PORT: int = int(os.getenv("LAVALINK_PORT", "2333"))
 LAVALINK_PASSWORD: str = os.getenv("LAVALINK_PASSWORD", "youshallnotpass")
 
+# Optional Redis Cache
+REDIS_URL: str = os.getenv("REDIS_URL", "").strip()
+
+# Volume and Premium Limits
+STANDARD_VOLUME_CAP: int = int(os.getenv("STANDARD_VOLUME_CAP", "100"))
+PREMIUM_VOLUME_CAP: int = int(os.getenv("PREMIUM_VOLUME_CAP", "150"))
+
 # Rate Limiting
 MUSIC_RATE_LIMIT_COUNT: int = int(os.getenv("MUSIC_RATE_LIMIT_COUNT", "6"))
 MUSIC_RATE_LIMIT_WINDOW_SECONDS: float = float(os.getenv("MUSIC_RATE_LIMIT_WINDOW", "30.0"))

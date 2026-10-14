@@ -345,12 +345,19 @@ class MusicPlayerService:
                 session.progress_updater_task.cancel()
             session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
 
+            # Pre-resolve the next track in the queue while the current one plays (Lookahead resolver)
+            if session.queue:
+                next_t = session.queue[0]
+                if not next_t.stream_url:
+                    asyncio.create_task(AudioResolver.pre_resolve_track(next_t))
+
             # Auto-precache lyrics in background for instant /lyrics responses
             try:
                 from music_bot.services.lyrics_service import LyricsService
                 LyricsService.precache_lyrics(track.title, track.artist)
             except Exception:
                 pass
+
 
             # Record playback to database history & persist active session (Feature 109)
             if bot.db:
