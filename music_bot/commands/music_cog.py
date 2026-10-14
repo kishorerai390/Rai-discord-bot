@@ -2457,6 +2457,12 @@ class MusicCog(commands.Cog, name="Music"):
             except Exception:
                 pass
 
+    @alias_play.autocomplete("query")
+    async def alias_play_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        return await self.music_play_autocomplete(interaction, current)
+
     @app_commands.command(name="pause", description="Pause music playback (Shortcut for /music pause)")
     async def alias_pause(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
@@ -2497,11 +2503,12 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_nowplaying.callback(self, interaction)
 
-    @app_commands.command(name="volume", description="Set volume 0-100% (Shortcut for /music volume)")
-    @app_commands.describe(percent="Volume percentage (0-100)")
-    async def alias_volume(self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 100]) -> None:
+    @app_commands.command(name="volume", description="Set volume 0-100% (up to 150% with Premium)")
+    @app_commands.describe(percent="Volume percentage (0-100% standard, up to 150% with Premium)")
+    async def alias_volume(self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 150]) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_volume.callback(self, interaction, percent)
+
 
     @app_commands.command(name="lyrics", description="Fetch lyrics for track (Shortcut for /music lyrics)")
     @app_commands.describe(song="Optional song title")
@@ -2685,6 +2692,86 @@ class MusicCog(commands.Cog, name="Music"):
         )
         embed.set_footer(text=f"{bot_name} • 24/7 Lossless Audio Companion & Web Player")
         await interaction.edit_original_response(embed=embed, view=view)
+
+    # =========================================================================
+    # PREMIUM MANAGEMENT SUITE
+    # =========================================================================
+
+    premium_group = app_commands.Group(name="premium", description="MusicMaid Premium Tier Perks & Management")
+
+    @premium_group.command(name="status", description="Check active premium tier status and unlocked perks")
+    async def premium_status(self, interaction: discord.Interaction) -> None:
+        """View whether current server or caller has an active premium subscription."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        guild_prem = await self.bot.db.is_premium(guild.id) if guild else False
+        user_prem = await self.bot.db.is_premium(0, member.id)
+        is_active = guild_prem or user_prem
+
+        embed = discord.Embed(
+            title="💎 MusicMaid Premium Status",
+            description=(
+                f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
+                f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
+                f"• **Personal User Premium:** `{'✅ Active' if user_prem else '❌ Inactive'}`\n\n"
+                f"### 🌟 Premium Perks:\n"
+                f"• 🔊 **150% Boosted Master Volume Cap** (Standard capped at 100%)\n"
+                f"• 🕒 **24/7 Voice Channel Persistence** (`/247` or `/stay`)\n"
+                f"• 🎛️ **Studio DSP Equalizer Presets** (Bass Boost, 8D Audio, Nightcore, Lo-Fi)\n"
+                f"• ⚡ **Priority In-Memory & Redis Caching** (Instant sub-100ms playback)\n"
+                f"• 🐱 **Lookahead Pre-Resolver** (Zero wait time between queued songs)"
+            ),
+            color=0x00E5FF if is_active else 0x9333EA,
+        )
+        embed.set_footer(text="MusicMaid • Premium Audio Suite")
+        await interaction.edit_original_response(embed=embed)
+
+    @premium_group.command(name="activate", description="Activate premium using a license key")
+    @app_commands.describe(key="Secret activation key")
+    async def premium_activate(self, interaction: discord.Interaction, key: str) -> None:
+        """Activate premium subscription for current server or account using key."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        secret_key = os.getenv("PREMIUM_KEY", "musicmaid_premium")
+        if key.strip() != secret_key:
+            await interaction.edit_original_response(content="❌ **Invalid activation key.** Please verify your key and try again.")
+            return
+
+        target_id = interaction.guild_id if interaction.guild else interaction.user.id
+        target_type = "guild" if interaction.guild else "user"
+        await self.bot.db.set_premium(target_id, entity_type=target_type, is_premium=True, tier="premium", activated_by=interaction.user.id)
+        await interaction.edit_original_response(
+            content=f"🎉 **Premium Activated Successfully!**\nAll premium features (150% volume cap, 24/7 persistence, studio DSP filters) are now unlocked for this {target_type}!"
+        )
+
+    @premium_group.command(name="grant", description="Administrator grant or revoke premium for server or user")
+    @app_commands.describe(action="Grant or revoke premium", target_type="Apply to server or user")
+    @app_commands.choices(
+        action=[app_commands.Choice(name="Grant Premium", value="grant"), app_commands.Choice(name="Revoke Premium", value="revoke")],
+        target_type=[app_commands.Choice(name="This Server", value="guild"), app_commands.Choice(name="Yourself", value="user")]
+    )
+    async def premium_grant(
+        self,
+        interaction: discord.Interaction,
+        action: app_commands.Choice[str],
+        target_type: app_commands.Choice[str],
+    ) -> None:
+        """Admin shortcut to grant or revoke premium."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        is_admin = getattr(interaction.user.guild_permissions, "administrator", False) if interaction.guild else False
+        is_owner = interaction.guild and interaction.user.id == interaction.guild.owner_id
+        if not is_admin and not is_owner:
+            await interaction.edit_original_response(content="❌ Only Server Administrators can manage premium grants.")
+            return
+
+        entity_id = interaction.guild_id if target_type.value == "guild" else interaction.user.id
+        is_prem = action.value == "grant"
+        await self.bot.db.set_premium(entity_id, entity_type=target_type.value, is_premium=is_prem, tier="premium", activated_by=interaction.user.id)
+        act_str = "granted to" if is_prem else "revoked from"
+        await interaction.edit_original_response(
+            content=f"✅ **Premium has been {act_str} this {target_type.name.lower()}!**"
+        )
+
 
 
     # =========================================================================
