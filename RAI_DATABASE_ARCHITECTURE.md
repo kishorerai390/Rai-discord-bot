@@ -29,7 +29,8 @@
       Storage)       State)      Dashboard)
 ```
 
-### The Cardinal Rule:
+### The Cardinal Rule
+>
 > **SECURITY > STABILITY > RECOVERY > PERFORMANCE > MODERATION > MUSIC > NON-CRITICAL FEATURES**
 
 Under NO circumstance will the security engine block or wait for cloud services (PostgreSQL, Firebase, Redis, or external AI) before executing urgent server protection actions.
@@ -59,7 +60,8 @@ DETECT ➔ WAIT FOR CLOUD ➔ WAIT FOR AI ➔ PROTECT
 
 All cloud writes pass through SQLite table `pending_sync_operations` before being drained asynchronously:
 
-### Schema:
+### Schema
+
 ```sql
 CREATE TABLE IF NOT EXISTS pending_sync_operations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +81,8 @@ CREATE TABLE IF NOT EXISTS pending_sync_operations (
 );
 ```
 
-### Strict Priority Order:
+### Strict Priority Order
+
 1. `CRITICAL_SECURITY` (Emergency lockdowns, mass bans, raid mitigations)
 2. `SECURITY` (Standard security events)
 3. `INCIDENT` (Security incident lifecycle tracking)
@@ -107,6 +110,7 @@ CREATE TABLE IF NOT EXISTS pending_sync_operations (
 ## 5. Circuit Breaker Isolation
 
 Each external database maintains an independent circuit breaker:
+
 - `PostgresConnectionPool`: Opens circuit after 3 consecutive connection timeouts. Reverts to local SQLite queue.
 - `RedisConnectionManager`: Opens circuit after 3 Redis errors. Instantly flips `is_fallback_active = True` and activates memory sliding windows.
 - `FirebaseConnectionManager`: Handles credential absence and network timeouts gracefully without raising uncaught exceptions.
@@ -122,6 +126,7 @@ Administrators can inspect live database health and sync backlog using:
 ```
 
 **Diagnostic Embed Matrix:**
+
 ```text
 『RΛI』 • DATABASE STATUS
 

@@ -22,10 +22,12 @@ Always start with the built-in diagnostic commands:
 **Symptoms**: Typing `/` does not show Rai's commands or new subcommands.
 
 **Causes**:
+
 1. Discord global command synchronization takes up to 1 hour to propagate to all servers if registered globally.
 2. Bot lacks the `applications.commands` OAuth2 scope.
 
 **Solution**:
+
 - Ensure the bot was invited with both `bot` and `applications.commands` scopes.
 - In development, configure `DEVELOPER_GUILD_ID` in `.env`. When set, commands sync instantly to that specific guild upon bot boot.
 - Check startup logs for: `Synced X application commands`.
@@ -39,6 +41,7 @@ Always start with the built-in diagnostic commands:
 **Cause**: Discord Role Hierarchy restriction.
 
 **Solution**:
+
 1. Open Discord **Server Settings ➔ Roles**.
 2. Find the bot's highest role (named `Rai` or `The Raivora`).
 3. Drag it above all member roles and above any roles it needs to assign or moderate (e.g. `Verified`, `Muted`, `Member`).
@@ -51,9 +54,11 @@ Always start with the built-in diagnostic commands:
 **Symptoms**: `/voiceguard status` displays `Audio Monitoring: Interface Mode (voice receiver backend unavailable)`.
 
 **Cause**:
+
 - Standard `discord.py` 2.x natively handles audio transmission (playback), but requires specialized native C extensions (such as `discord-ext-voice-recv`) to intercept and decode incoming user voice packets.
 
 **Solution**:
+
 - This is intentional graceful degradation designed so that Rai operates at 100% capacity for all other security, moderation, ticket, and automation features even when native voice-receive sinks are absent.
 - Simulated testing can still be executed via `/voiceguard test`.
 
@@ -66,6 +71,7 @@ Always start with the built-in diagnostic commands:
 **Cause**: Another process or background worker holds a transaction lock.
 
 **Solution**:
+
 - Rai enables SQLite WAL (`Write-Ahead Logging`) mode (`PRAGMA journal_mode=WAL;`) and sets `PRAGMA busy_timeout=15000;`.
 - Ensure no external GUI tools (like DB Browser for SQLite) hold an open uncommitted write transaction on `data/bot.db`.
 - The self-healing database layer automatically retries queries with exponential backoff.
@@ -79,6 +85,7 @@ Always start with the built-in diagnostic commands:
 **Cause**: Temporary network fluctuation between host machine and Discord gateway.
 
 **Solution**:
+
 - Rai has built-in resilient reconnect loops that automatically resume gateway sessions (`RESUMED session <id>`) with shard tracking.
 - No manual restart is required; the bot reconnects automatically once DNS resolution or network connectivity stabilizes.
 
@@ -89,6 +96,7 @@ Always start with the built-in diagnostic commands:
 **Symptoms**: Discord displays red error notices: *"The application did not respond"* or *"This interaction failed"* when clicking buttons, running slash commands, or submitting modals.
 
 **Root Causes**:
+
 1. **Interactions Endpoint URL Configured in Discord Developer Portal (Most Common)**:
    - If an HTTP URL is configured under **General Information ➔ Interactions Endpoint URL**, Discord will send all interactions as HTTP POST requests instead of over the Gateway WebSocket.
    - If that HTTP endpoint is unreachable, unhandled, or invalid, Discord instantly fails every command with *"Interaction failed"* or *"The application did not respond"*.
@@ -107,6 +115,7 @@ Always start with the built-in diagnostic commands:
    - Running synchronous calls (`time.sleep()`, synchronous `requests.get()`, heavy CPU loops) halts the asyncio event loop, causing heartbeats to stall and interactions to expire.
 
 **Recommended Quick Check Steps**:
+
 1. **Check Discord Developer Portal ➔ Ensure Interactions Endpoint URL is completely blank**:
    - Navigate to [Discord Developer Portal](https://discord.com/developers/applications).
    - Select your application ➔ **General Information**.
@@ -114,9 +123,11 @@ Always start with the built-in diagnostic commands:
    - **Ensure it is completely empty.** If any URL is present, delete it and click **Save Changes**.
 2. **Check your bot terminal / logs ➔ Run `python main.py` and verify it connects without `getaddrinfo` or rate limit errors**:
    - Start the bot and verify the startup banner appears:
+
      ```bash
      python main.py
      ```
+
    - Confirm log line: `Shard ID None has connected to Gateway (Session ID: ...)`
    - Verify there are no `ClientConnectorDNSError`, `429 Too Many Requests`, or `LoginFailure` errors.
 3. **If specific commands fail, check which command was typed so we can inspect that specific command's callback**:
@@ -131,6 +142,7 @@ Always start with the built-in diagnostic commands:
 ## 3. Server Architecture & Channel Suggestions
 
 ### 🎯 Key Structural Recommendations
+
 1. **Restore `#bot-commands` to Community**:
    - Move `#bot-commands` out of `📦・ARCHIVE` back into `✦ COMMUNITY ✦` to prevent members from cluttering `#general-chat` with bot music, games, and economy commands.
 2. **Relocate `#late-night-talks`**:
@@ -143,12 +155,14 @@ Always start with the built-in diagnostic commands:
 ### 🎨 Channel Naming Styles
 
 #### Option A: Midnight Luxe (Small-Caps + Curated Emojis)
+
 - Information: `📌・ʀᴜʟᴇs-ᴀɴᴅ-ɪɴғᴏ`, `📢・ᴀɴɴᴏᴜɴᴄᴇᴍᴇɴᴛs`, `✅・ᴠᴇʀɪғʏ-ʜᴇʀᴇ`, `👋・ᴡᴇʟᴄᴏᴍᴇ`, `🎭・ʀᴏʟᴇ-ᴘɪᴄᴋᴇʀ`, `🎫・sᴜᴘᴘᴏʀᴛ-ᴛɪᴄᴋᴇᴛs`
 - Community: `💬・ɢᴇɴᴇʀᴀʟ-ᴄʜᴀᴛ`, `🤖・ʙᴏᴛ-ᴄᴏᴍᴍᴀɴᴅs`, `📸・ᴍᴇᴅɪᴀ-sʜᴀʀᴇ`, `💡・sᴜɢɢᴇsᴛɪᴏɴs`, `🎉・ɢɪᴠᴇᴀᴡᴀʏs`, `🏆・ʟᴇᴠᴇʟ-ᴜᴘs`
 - Creators: `🎬・ᴍᴏᴠɪᴇ-ᴄʜᴀᴛ`, `✂️・ᴄʟɪᴘs-ᴀɴᴅ-ᴇᴅɪᴛs`, `🎨・ɢʀᴀᴘʜɪᴄs-ᴀɴᴅ-ʙᴀɴɴᴇʀs`, `🤝・ᴄᴏʟʟᴀʙ-ʀᴇǫᴜᴇsᴛs`
 - Voice: `➕・Join to Create`, `☕・Night Owl Lounge`, `🌊・Vibe & Chill`, `⚡・24/7 Lo-Fi Radio`, `🎯・Ranked Comms I & II`, `💤・AFK Sleeper`
 
 #### Option B: Clean Sans (Modern Minimalist)
+
 - Information: `rules-and-info`, `announcements`, `verify-here`, `welcome`, `roles`, `support`
 - Community: `general-chat`, `bot-commands`, `media`, `suggestions`, `giveaways`, `levels`
 - Voice: `Join to Create`, `Lounge 01 (Chill)`, `Squad 01 (Ranked)`, `Radio 24/7`, `AFK`
@@ -161,16 +175,21 @@ If the main database `data/bot.db` becomes corrupt due to abrupt system power lo
 
 1. Stop the bot process.
 2. Check the `data/backups/` directory for automated backups:
+
    ```bash
    ls -la data/backups/
    ```
+
 3. Copy the latest backup over `data/bot.db`:
+
    ```bash
    cp data/backups/bot_backup_YYYYMMDD_HHMMSS.db data/bot.db
    ```
+
 4. Verify schema version:
+
    ```bash
    python scripts/validate.py
    ```
-5. Restart Rai.
 
+5. Restart Rai.

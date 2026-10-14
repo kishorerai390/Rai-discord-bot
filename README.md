@@ -16,11 +16,11 @@ Built for 24/7 autonomous server defense, Rai eliminates black-box decisions by 
 * **Codename**: Rai / The Raivora
 * **Theme**: 3D Anime / Futuristic Cyberpunk / Neon Shinto Pagoda
 * **Palette**:
-  - Neon Cyan (`#00F0FF`) — Primary Identity & Embed Borders
-  - Royal Indigo (`#7289DA`) — Structural Accent
-  - Crimson Alert (`#FF4757`) — Threat & Raid Escalation
-  - Emerald Verified (`#2ED573`) — Safe & Verified Operations
-  - Deep Charcoal (`#0F111A`) — Cyberpunk Backdrop
+  * Neon Cyan (`#00F0FF`) — Primary Identity & Embed Borders
+  * Royal Indigo (`#7289DA`) — Structural Accent
+  * Crimson Alert (`#FF4757`) — Threat & Raid Escalation
+  * Emerald Verified (`#2ED573`) — Safe & Verified Operations
+  * Deep Charcoal (`#0F111A`) — Cyberpunk Backdrop
 * **Assets**: High-resolution 3D anime mascot logos and banners located in `assets/logo.jpg` and `assets/banner.jpg`.
 
 ---
@@ -181,8 +181,8 @@ f:/Bot/
 
 ### 1. Prerequisites
 
-- Python 3.11 or 3.12 (`python --version`)
-- FFmpeg (for music playback)
+* Python 3.11 or 3.12 (`python --version`)
+* FFmpeg (for music playback)
 
 ### 2. Setup Virtual Environment
 
@@ -221,6 +221,7 @@ python main.py
 In Discord **Server Settings ➔ Roles**, drag Rai's role to the **very top** of the role hierarchy.
 
 Grant the following bot permissions:
+
 * `Administrator` (Recommended for full security protection) OR:
   * `Manage Server`, `Manage Roles`, `Manage Channels`, `Ban Members`, `Kick Members`, `Moderate Members`
   * `Send Messages`, `Embed Links`, `Attach Files`, `Read Message History`, `Manage Messages`

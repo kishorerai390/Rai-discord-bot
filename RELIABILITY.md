@@ -9,6 +9,7 @@ This document specifies the reliability engineering, fault recovery, interaction
 ### The Underlying Problem
 
 Discord interactions (slash commands, button clicks, select menus, and modals) enforce a strict **3.0-second acknowledgment window**. If a bot fails to issue either an initial response or an acknowledgment (`defer()`) within 3,000 milliseconds:
+
 1. Discord Gateway cancels the pending interaction.
 2. The Discord client renders:
    > ⚠️ **The application did not respond**

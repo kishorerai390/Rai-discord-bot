@@ -87,12 +87,14 @@ Automated Recovery & Periodic Maintenance
 ### 3.1 Emergency Mode (`/security emergency`)
 
 Administrators can trigger server-wide heightened defense immediately during an active raid or brigade:
+
 - Join rate sensitivity is multiplied (thresholds lowered).
 - Anti-spam and mention filters operate in maximum enforcement mode.
 - Non-verified new accounts are restricted from sending links or role mentions.
 - Staff channels receive immediate real-time incident updates.
 
 Commands:
+
 - `/security emergency activate [reason]`
 - `/security emergency disable`
 - `/security emergency status`
@@ -100,6 +102,7 @@ Commands:
 ### 3.2 Safe Mode
 
 If multiple critical subsystems detect cascading failures or extreme unverified state divergences:
+
 - Destructive automated actions (kicks/bans/channel alters) are suspended.
 - Logging, monitoring, and threat timeline tracking continue uninterrupted.
 - Server administrators are alerted with failure diagnostics.
@@ -110,6 +113,7 @@ If multiple critical subsystems detect cascading failures or extreme unverified 
 ## 4. Privacy & Data Handling
 
 Rai strictly adheres to data minimization and Discord Developer Terms:
+
 - **No Token Storage**: Discord tokens and environment secrets are loaded strictly from `.env` or system environment variables into memory.
 - **No Message Scraping**: Message content is processed in volatile memory for spam/link/mention analysis and immediately discarded unless stored as a sanitized moderation warning record.
 - **Data Retention & Maintenance**:

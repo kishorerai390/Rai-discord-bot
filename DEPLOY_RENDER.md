@@ -64,7 +64,7 @@ git push origin main
 In your Render service setup (or under **Environment** in the left sidebar), add the following environment variables:
 
 | Key | Value | Description |
-|---|---|---|
+| --- | --- | --- |
 | `DISCORD_TOKEN` | *Your Security Bot Token* | Bot token for **The Raivora** |
 | `MUSIC_BOT_TOKEN` | *Your Music Bot Token* | Bot token for **Neko Songs / MusicMaid** |
 | `NEKO_SONGS_BOT_TOKEN` | *Your Music Bot Token* | Alias for the music bot token |

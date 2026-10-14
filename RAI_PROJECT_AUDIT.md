@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-RAI is an advanced Discord bot platform consisting of **35 cogs**, **286 commands and subcommands**, a SQLite database with **62 schema tables**, an asynchronous web dashboard, and over **30 unit and chaos test suites**. 
+RAI is an advanced Discord bot platform consisting of **35 cogs**, **286 commands and subcommands**, a SQLite database with **62 schema tables**, an asynchronous web dashboard, and over **30 unit and chaos test suites**.
 
 This audit assesses the entire codebase across architecture, security, music, persistence, concurrency, failure isolation, and performance. While the foundation is feature-rich, critical architectural bottlenecks and redundancy exist between legacy cogs and newly introduced modular packages. Resolving these in a strictly phased approach will elevate RAI to a high-capacity, multi-tenant production platform.
 
@@ -22,7 +22,7 @@ RAI features a massive suite of capabilities across security, moderation, music,
 ### Cog & Command Breakdown
 
 | # | Cog File | Lines | Total Commands | Command Names & Groups | Key Background Tasks & Listeners |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | 1 | `ai_companion.py` | 93 | 2 | `/askrai` | `on_message` listener |
 | 2 | `ai_vision.py` | 184 | 4 | `/imagine`, `/scanimage` | `on_message` listener |
 | 3 | `ai_watchdog.py` | 316 | 3 | `/security_ai status`, `/security_ai scan`, `/security_ai setkey` | `watchdog_loop(60s)`, `on_message` |
@@ -65,6 +65,7 @@ RAI features a massive suite of capabilities across security, moderation, music,
 ## 2. Current Architecture & Organization
 
 The codebase currently possesses a dual-structure:
+
 1. **Core Runtime (`main.py` & `core/bot.py`)**:
    - `SentinelBot` inherits from `commands.Bot` with `members` and `message_content` privileged intents.
    - Lifecycle management hooks: `setup_hook()`, `on_ready()`, `on_resumed()`, `close()`.
@@ -87,12 +88,14 @@ The codebase currently possesses a dual-structure:
 ## 3. Music Architecture
 
 ### Strengths
+
 - **Comprehensive Feature Set**: Complete Rythm-style slash command suite (`/play`, `/pause`, `/resume`, `/skip`, `/stop`, `/queue`, `/np`, `/loop`, `/shuffle`, `/seek`, `/volume`, `/previous`, `/autoplay`).
 - **Interactive UI**: `MusicControlView` with persistent button controls (play/pause, skip, prev, shuffle, loop, stop, queue).
 - **Embedded Audio Extraction**: Bundles `static-ffmpeg>=2.5` to eliminate external system package requirements on headless Linux environments like Render.
 - **Search Selection**: `SearchSelectView` presents an interactive dropdown menu when queries return multiple candidate tracks.
 
 ### Architectural Risks & Deficiencies
+
 - **Duplicate Logic**: `cogs/music.py` (1,380 lines) maintains an internal `GuildMusicPlayer` and `Song` representation that operates independently of the newly created `music/player.py` and `BoundedMusicQueue`.
 - **Bypassed Circuit Breakers in Legacy Cog**: In `cogs/music.py`, `yt_dlp.YoutubeDL` calls are executed directly in executors instead of routing through `music.source.AudioSourceResolver` and `CircuitBreakerRegistry.get("music_audio_source")`.
 - **Persistent State Gaps**: While playlists are stored in the SQLite `music_playlists` table, live queue states during bot restarts or network disruptions are held solely in RAM and lost upon process termination.
@@ -103,12 +106,14 @@ The codebase currently possesses a dual-structure:
 ## 4. Security Architecture
 
 ### Strengths
+
 - **Anti-Raid Join Detection**: Tracks join frequency across sliding time windows (10s, 60s, 300s) with account age heuristics (< 7 days flagged).
 - **Anti-Nuke Protection**: Detects rapid channel deletions, role deletions, mass kicks, mass bans, and webhook modifications.
 - **Emergency Lockdown**: Atomic channel overwrite modifications with previous state preservation.
 - **AutoMod Baseline**: Automatic 10-minute timeout for bad words, invite links, mass mentions, and emoji flooding.
 
 ### Architectural Risks & Deficiencies
+
 - **Thundering Herd Event Handling**:
   - `on_member_join` is handled by **9 independent cogs**: `autopilot`, `autorole`, `growth`, `logging`, `raid`, `roles`, `security`, `serverstats`, `welcome`.
   - When 20 users join during a raid, `9 * 20 = 180` concurrent coroutines fire simultaneously, each performing separate database lookups and API calls.
@@ -120,11 +125,13 @@ The codebase currently possesses a dual-structure:
 ## 5. Database Architecture
 
 ### Strengths
+
 - **Safe SQLite Configuration**: Enabled `PRAGMA foreign_keys = ON;`, `PRAGMA journal_mode = WAL;`, `PRAGMA synchronous = NORMAL;`, `PRAGMA busy_timeout = 5000;`.
 - **Extensive Schema**: 62 relational tables initialized in `database/migrations.py`.
 - **Strong Typed Models**: 48 dataclasses in `database/models.py`.
 
 ### Architectural Risks & Deficiencies
+
 - **Single Global Connection Bottleneck**: `Database` maintains a single `self._db: Optional[aiosqlite.Connection]` instance. In `aiosqlite`, all queries are processed sequentially through one worker thread. Under heavy traffic (simultaneous chat messages, music queue updates, and security logs), queries queue up and can exceed the 5000ms busy timeout.
 - **Lack of Connection Retry with Exponential Backoff**: Raw database queries that encounter `sqlite3.OperationalError: database is locked` do not have a transparent retry decorator.
 - **Tight SQLite Coupling**: Queries in `database/database.py` (3,747 lines) use SQLite-specific syntax (e.g. `INSERT OR IGNORE`, `datetime('now')`), requiring significant translation before PostgreSQL migration can occur.
@@ -134,6 +141,7 @@ The codebase currently possesses a dual-structure:
 ## 6. Dependencies & Configuration
 
 ### Dependencies (`requirements.txt`)
+
 ```text
 discord.py>=2.3.2
 aiosqlite>=0.19.0
@@ -142,10 +150,12 @@ PyNaCl>=1.5.0
 yt-dlp>=2023.7.6
 static-ffmpeg>=2.5
 ```
+
 - Dependencies are lean and well-targeted.
 - No heavy external frameworks that cause memory bloat.
 
 ### Configuration
+
 - `config/settings.py` provides central paths, colors, Lavalink placeholders, and thresholds.
 - `config/permissions.py` defines `PermissionLevel` (`OWNER = 50`, `ADMIN = 40`, `SECURITY_MANAGER = 30`, `MODERATOR = 20`, `DJ = 10`, `MEMBER = 0`).
 - Token masking: `get_masked_token()` ensures tokens are never printed in plain text.
@@ -158,7 +168,7 @@ static-ffmpeg>=2.5
 A total of **12 `@tasks.loop` background tasks** plus **3 core supervisor/worker tasks** run continuously:
 
 | Subsystem | Task Name | Interval | Purpose | Failure Mode Risk |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | `ai_watchdog` | `watchdog_loop` | 60s | Scans recent messages for anomalies | Can lag if message history query is slow |
 | `events` | `event_reminder_loop` | 30m | Dispatches scheduled event alerts | Low risk |
 | `hidden_voice` | `_cleanup_worker` | 15s | Deletes empty private channels | Can hit Discord channel delete rate limits |
@@ -214,6 +224,7 @@ A total of **12 `@tasks.loop` background tasks** plus **3 core supervisor/worker
 ## 11. Reliability & Fault-Isolation Analysis
 
 ### The Golden Rule: "Music Must Never Crash Security"
+
 - **Current State**:
   - In `core/`, `@MusicIsolationManager.guard` and `SecurityIsolationManager.run_isolated_task` exist.
   - In `cogs/music.py`, unhandled errors in Discord UI button callbacks or voice reconnects still run in the main cog task space.
@@ -226,7 +237,7 @@ A total of **12 `@tasks.loop` background tasks** plus **3 core supervisor/worker
 ## 12. Code Duplication & Consolidation Targets
 
 | Component | Monolithic File in `cogs/` | Modular Package File | Audit Finding & Recommendation |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **Music Player & Queue** | `cogs/music.py` (1,380 lines) | `music/player.py`, `music/queue.py`, `music/source.py` | Consolidate: Have `cogs/music.py` delegate audio extraction and player state entirely to `music.*` |
 | **Anti-Raid** | `cogs/raid.py` (248 lines) | `security/antiraid.py` | Consolidate: `cogs/raid.py` should act strictly as the presentation/command UI for `security/antiraid.py` |
 | **Anti-Nuke & Lockdown** | `cogs/security.py` (1,234 lines) | `security/antinuke.py`, `security/lockdown.py` | Consolidate: Extract atomic lockdown overwrite logic into `security/lockdown.py` |
@@ -238,6 +249,7 @@ A total of **12 `@tasks.loop` background tasks** plus **3 core supervisor/worker
 ## 13. Test Suite Assessment
 
 ### Existing Tests (30 Files)
+
 - `tests/test_production_resilience.py`: 9/9 passing (Music crash isolation, circuit breaker trip/recovery, priority queue preemption, queue bounds, supervisor health, lockdown restoration, exponential backoff, database failure isolation, corrupt track skip).
 - `tests/test_music_advanced.py`: 8/8 passing.
 - `tests/test_reliability_self_healing.py`: 5/5 passing.
@@ -245,6 +257,7 @@ A total of **12 `@tasks.loop` background tasks** plus **3 core supervisor/worker
 - `tests/test_automod.py`, `tests/test_moderation.py`, `tests/test_database.py`, `tests/test_raid.py`: 23/23 passing.
 
 ### Test Gaps
+
 1. **Multi-Guild Cross-Contamination Test**: Simulate Guild A suffering audio/queue crash while Guild B plays music and processes anti-raid events simultaneously.
 2. **Audit Log Delay Chaos Test**: Simulate Discord audit log latency during anti-nuke triggers.
 3. **Database Concurrency Stress Test**: 100 concurrent async writes to verify zero unhandled `sqlite3.OperationalError: database is locked`.

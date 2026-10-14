@@ -48,7 +48,8 @@
 
 The **Security Brain** is the central intelligence engine that correlates events from all security subsystems.
 
-### Core Components:
+### Core Components
+
 1. **Rolling Activity Windows (`RollingWindowTracker`)**:
    * Uses in-memory double-ended queues (`collections.deque`) to track event frequencies across 60s, 300s, 900s, and 1800s windows.
    * Tracks joins, new accounts (<24h old), message velocity, mention bursts, unauthorized invites, and repeated duplicate content.
@@ -81,7 +82,8 @@ The **Security Brain** is the central intelligence engine that correlates events
 
 VoiceGuard detects microphone abuse, acoustic spikes, and voice raids.
 
-### Mathematical Audio Pipeline:
+### Mathematical Audio Pipeline
+
 ```text
 Voice Frames (16-bit PCM)
            ↓
@@ -98,7 +100,8 @@ Sustained Duration Evaluation (>3.0s loud, >1.5s extreme)
 VoiceGuard Risk Score & Escalation Engine
 ```
 
-### Safety & Graceful Degradation:
+### Safety & Graceful Degradation
+
 * **No Real-World Decibel Faking**: Explicitly named *Relative Audio Energy / Audio Level*.
 * **Interface-Driven**: Built behind `AudioReceiverInterface`. When standard discord.py is deployed without third-party voice-receive sinks, VoiceGuard safely reports its interface mode in `/voiceguard status` and `/voiceguard test` without crashing.
 * **Gradual Escalation**:

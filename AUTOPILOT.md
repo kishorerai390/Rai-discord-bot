@@ -93,6 +93,7 @@ The Autopilot Engine manages dedicated background supervisors:
 ### Automatic Safe Mode
 
 If two or more critical background subsystems fail simultaneously:
+
 - Rai automatically engages **Safe Mode**.
 - Destructive automated actions (bans/kicks/channel locks) are immediately frozen.
 - Monitoring, logging, audit records, and staff alerts remain 100% active.
@@ -102,6 +103,7 @@ If two or more critical background subsystems fail simultaneously:
 ### Automatic Emergency Mode
 
 When the Security Brain calculates a composite risk score `>= 85` (CRITICAL):
+
 - Autopilot engages heightened server defense posture automatically.
 - Multiplies join rate and spam sensitivity.
 - Non-verified new accounts are restricted from sending links or role mentions.
@@ -121,6 +123,7 @@ Administrators can safely test the Autopilot and Security Brain without affectin
 ```
 
 In simulation mode:
+
 - Synthetic threat telemetry is generated and evaluated.
 - Risk scores, proposed actions, and threat timelines are produced.
 - Zero destructive Discord API calls are executed on live server assets.

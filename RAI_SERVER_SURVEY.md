@@ -38,6 +38,7 @@
 ## 3. Channel Layout & Assigned Work
 
 ### 📌 Community & Public Channels (Pos 00 - 02)
+
 - **`📊 ┃ SERVER STATS` (Pos 00):** Real-time voice display counters (`All Members: 39`, `Members: 26`, `Bots: 13`).
 - **`✦ ┃ INFORMATION` (Pos 01):**
   - `#✨・verify-here` — Anti-bot button verification gate.
@@ -51,6 +52,7 @@
   - `#🤖・bot-commands` — Public bot interactions and utility commands.
 
 ### 🎵 Music & Voice Lounges (Pos 03 - 09, 12)
+
 - **`🎵・RΛI MUSIC` (Pos 03):**
   - `#🎶・music-control` — Interactive playback matrix (`/play`, `/pause`, `/skip`, filters).
   - `#🎧・now-playing` — Real-time stream telemetry and track metadata.
@@ -64,6 +66,7 @@
 - **`💤 ┃ SYSTEM` (Pos 12):** `#💤・Sleep & AFK` (Auto AFK voice channel).
 
 ### 🛡️ Private Staff & Administration (Pos 10 - 11)
+
 - **`🛡️ ┃ SECURITY & INCIDENTS` (Pos 10 — Staff Only):**
   - `#🚨・alerts` — Anti-raid, anti-nuke, mention flood, and auto-quarantine feed.
   - `#📡・incident-log` — Formal incident lifecycle (`RAI-INC-XXXXXX`) and forensic timeline.
@@ -79,7 +82,8 @@
 
 ## 4. Roles & Permissions Analysis
 
-### ⚠️ Critical Findings:
+### ⚠️ Critical Findings
+
 1. **Third-Party Bots with Administrator Permission (8 Bots):**
    - `Rythm` (Pos 33)
    - `Wick` (Pos 25)

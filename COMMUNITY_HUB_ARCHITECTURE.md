@@ -4,7 +4,7 @@
 
 **Rai Community OS** is an external persistent web platform connected directly to the Rai / The Raivora Discord bot platform.
 
-```
+```text
        Discord Live Hangouts
                │
                ▼
@@ -49,7 +49,7 @@ Database operations use SQLite WAL mode with transactions and parameterization.
 **Migration 35** adds the persistent platform tables:
 
 | Table | Purpose |
-|---|---|
+| --- | --- |
 | `web_sessions` | Discord OAuth2 web tokens and authenticated sessions |
 | `project_tasks` | Kanban task items (`TODO`, `IN_PROGRESS`, `REVIEW`, `DONE`) |
 | `creator_portfolios` | Creator showcases, categories, tools, and external links |
@@ -67,6 +67,7 @@ Database operations use SQLite WAL mode with transactions and parameterization.
 ## 4. Web Views & REST API Endpoints
 
 ### Navigation & Views
+
 - **Home (`/`)**: Hero banner, live stats, featured projects, creator showcases, and subsystem health matrix.
 - **Discover (`/discover`)**: Real-time cross-module search with live filters.
 - **Brain (`/brain`)**: AI knowledge assistant indexing verified wiki guides, resources, and projects with source citations.
@@ -104,6 +105,7 @@ Database operations use SQLite WAL mode with transactions and parameterization.
 ## 6. Verification & Test Suite
 
 The platform is covered by an automated test suite in [`tests/test_community_web_platform.py`](file:///f:/Bot/tests/test_community_web_platform.py):
+
 - `test_01_ui_routes_render_html`: Verified all 18 UI routes render the luxury Midnight UI.
 - `test_02_telemetry_stats_and_health`: Validated `/api/stats` and `/health`.
 - `test_03_auth_dev_login_and_session`: Tested session cookies, permissions, and logout.
