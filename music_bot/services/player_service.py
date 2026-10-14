@@ -222,25 +222,46 @@ class MusicPlayerService:
                 first_frame = b""
 
             if not first_frame:
-                logger.warning(f"Audio source produced empty audio for '{track.title}' (stream URL may be blocked/stale). Attempting fresh re-resolution...")
+                logger.warning(
+                    f"Audio source produced empty audio for '{track.title}' (stream URL blocked or restricted on host). "
+                    f"Attempting instant SoundCloud audio stream recovery..."
+                )
                 try:
                     volume_transformer.cleanup()
                 except Exception:
                     pass
 
-                fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
-                if fresh and fresh.stream_url:
-                    track.stream_url = fresh.stream_url
+                # 1. Primary Recovery: Recover stream URL from SoundCloud (bypasses datacenter IP blocks)
+                sc_track = await AudioResolver.resolve_soundcloud_track(f"{track.title} {track.artist or ''}")
+                if sc_track and sc_track.stream_url:
+                    logger.info(f"[Recovery] Successfully recovered alternative audio stream from SoundCloud for '{track.title}'")
+                    track.stream_url = sc_track.stream_url
                     try:
                         audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
                         volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                         first_frame = await asyncio.wait_for(
                             loop.run_in_executor(None, volume_transformer.read),
-                            timeout=15.0,
+                            timeout=10.0,
                         )
-                    except Exception as re_read_err:
-                        logger.warning(f"Secondary frame read failed for '{track.title}': {re_read_err}")
+                    except Exception as sc_read_err:
+                        logger.warning(f"SoundCloud fallback frame read failed: {sc_read_err}")
                         first_frame = b""
+
+                # 2. Secondary Recovery: Re-resolve track if SoundCloud recovery didn't produce a frame
+                if not first_frame:
+                    fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+                    if fresh and fresh.stream_url:
+                        track.stream_url = fresh.stream_url
+                        try:
+                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                            first_frame = await asyncio.wait_for(
+                                loop.run_in_executor(None, volume_transformer.read),
+                                timeout=10.0,
+                            )
+                        except Exception as re_read_err:
+                            logger.warning(f"Secondary frame read failed for '{track.title}': {re_read_err}")
+                            first_frame = b""
 
                 if not first_frame:
                     try:
@@ -253,6 +274,7 @@ class MusicPlayerService:
                         f"The audio stream may be restricted by YouTube (HTTP 403 / IP blocked on cloud host). "
                         f"Try playing with a SoundCloud URL or add YouTube cookies."
                     )
+
                     if session.text_channel:
                         try:
                             await session.text_channel.send(

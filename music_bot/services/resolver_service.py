@@ -375,9 +375,14 @@ def _build_ytdl_options(
 
 FFMPEG_OPTIONS = {
     "executable": get_ffmpeg_executable(),
-    "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -analyzeduration 0 -loglevel warning",
+    "before_options": (
+        "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+        "-analyzeduration 0 -probesize 32768 -loglevel warning "
+        '-user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"'
+    ),
     "options": "-vn",
 }
+
 
 
 class AudioResolver:
@@ -822,6 +827,28 @@ class AudioResolver:
 
 
     @classmethod
+    async def resolve_soundcloud_track(cls, query: str) -> Optional[QueuedTrack]:
+        """Directly resolve track from SoundCloud for instant audio stream recovery."""
+        try:
+            loop = asyncio.get_running_loop()
+            sc_target = f"scsearch1:{query}"
+            sc_opts = _build_ytdl_options(for_soundcloud=True)
+            sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
+                ),
+                timeout=8.0,
+            )
+            if data:
+                entry = data["entries"][0] if "entries" in data and data["entries"] else data
+                if entry:
+                    return cls._parse_entry(entry, 0, "MusicMaid")
+        except Exception as e:
+            logger.debug(f"[Resolver] resolve_soundcloud_track error for '{query}': {e}")
+        return None
+
+    @classmethod
     async def _execute_resolution_pipeline(
         cls, query_or_url: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
@@ -858,55 +885,61 @@ class AudioResolver:
 
         cls.last_resolver_error = None
 
-        # Tier 1: Primary Mobile Profile (Android + iOS) - 10s fast timeout
-        try:
-            logger.info(f"[Resolver] Attempting Tier 1 (Android+iOS) for '{cleaned_query[:60]}'")
-            tier1_opts = _build_ytdl_options(["android", "ios"])
-            tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
-            data = await asyncio.wait_for(
-                loop.run_in_executor(
-                    _audio_executor, functools.partial(tier1_ydl.extract_info, target, download=False)
-                ),
-                timeout=10.0,
-            )
-            track = cls._parse_entry(data, requester_id, requester_name)
-            if track and track.stream_url:
-                track = _apply_metadata_enhancements(track)
-                dur = time.time() - start_t
-                logger.info(f"[Resolver] Tier 1 resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
-                return track
-        except Exception as yt_err:
-            err_msg = _format_error(yt_err)
-            cls.last_resolver_error = f"Tier 1 (Android+iOS) failed: {err_msg}"
-            logger.warning(f"[Resolver] Tier 1 failed for '{cleaned_query[:60]}': {err_msg}")
-
-        # Rapid Failover: If it's a search query, try SoundCloud immediately (never IP-blocked on cloud hosts)
+        # Concurrent Search: For song queries, race YouTube and SoundCloud simultaneously!
+        # SoundCloud is never blocked by cloud hosts and finishes in 2-3s.
         if not cleaned_query.startswith("http") or spotify_info is not None:
-            try:
-                sc_target = f"scsearch5:{cleaned_query}"
-                logger.info(f"[Resolver] Fast-failing over to SoundCloud for '{cleaned_query[:60]}'...")
-                sc_opts = _build_ytdl_options(for_soundcloud=True)
-                sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
-                data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
-                    ),
-                    timeout=10.0,
-                )
-                if data:
-                    entries = data.get("entries") if "entries" in data else [data]
-                    for entry in entries:
-                        if not entry:
-                            continue
-                        track = cls._parse_entry(entry, requester_id, requester_name)
-                        if track and track.stream_url:
-                            track = _apply_metadata_enhancements(track)
-                            dur = time.time() - start_t
-                            logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
-                            return track
-            except Exception as sc_err:
-                sc_msg = _format_error(sc_err)
-                logger.warning(f"[Resolver] Fast SoundCloud failover failed for '{cleaned_query[:60]}': {sc_msg}")
+            async def _try_yt() -> Optional[QueuedTrack]:
+                try:
+                    t_opts = _build_ytdl_options(["android", "ios"])
+                    ydl_i = yt_dlp.YoutubeDL(t_opts)
+                    d = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            _audio_executor, functools.partial(ydl_i.extract_info, target, download=False)
+                        ),
+                        timeout=8.0,
+                    )
+                    t = cls._parse_entry(d, requester_id, requester_name)
+                    if t and t.stream_url:
+                        return _apply_metadata_enhancements(t)
+                except Exception as e:
+                    logger.debug(f"[Resolver] Concurrent YT search notice: {e}")
+                return None
+
+            async def _try_sc() -> Optional[QueuedTrack]:
+                try:
+                    sc_t = f"scsearch5:{cleaned_query}"
+                    s_opts = _build_ytdl_options(for_soundcloud=True)
+                    s_ydl = yt_dlp.YoutubeDL(s_opts)
+                    d = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            _audio_executor, functools.partial(s_ydl.extract_info, sc_t, download=False)
+                        ),
+                        timeout=8.0,
+                    )
+                    if d:
+                        entries = d.get("entries") if "entries" in d else [d]
+                        for entry in entries:
+                            if not entry:
+                                continue
+                            t = cls._parse_entry(entry, requester_id, requester_name)
+                            if t and t.stream_url:
+                                return _apply_metadata_enhancements(t)
+                except Exception as e:
+                    logger.debug(f"[Resolver] Concurrent SC search notice: {e}")
+                return None
+
+            # Race both tasks concurrently
+            tasks = [asyncio.create_task(_try_yt()), asyncio.create_task(_try_sc())]
+            for fut in asyncio.as_completed(tasks):
+                winner = await fut
+                if winner and winner.stream_url:
+                    for t in tasks:
+                        if not t.done():
+                            t.cancel()
+                    dur = time.time() - start_t
+                    logger.info(f"[Resolver] Concurrent search race resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{winner.title}'")
+                    return winner
+
 
         # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 10s timeout
         try:
