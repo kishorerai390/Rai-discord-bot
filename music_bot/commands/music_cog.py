@@ -15,10 +15,12 @@ import logging
 import math
 import random
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
+import yt_dlp
 
 from music_bot.services.updater_service import MusicAutoUpdater
 
