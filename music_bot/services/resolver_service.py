@@ -858,7 +858,7 @@ class AudioResolver:
 
         cls.last_resolver_error = None
 
-        # Tier 1: Primary Mobile Profile (Android + iOS) - 25s timeout
+        # Tier 1: Primary Mobile Profile (Android + iOS) - 10s fast timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 1 (Android+iOS) for '{cleaned_query[:60]}'")
             tier1_opts = _build_ytdl_options(["android", "ios"])
@@ -867,7 +867,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier1_ydl.extract_info, target, download=False)
                 ),
-                timeout=25.0,
+                timeout=10.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track and track.stream_url:
@@ -878,9 +878,37 @@ class AudioResolver:
         except Exception as yt_err:
             err_msg = _format_error(yt_err)
             cls.last_resolver_error = f"Tier 1 (Android+iOS) failed: {err_msg}"
-            logger.warning(f"[Resolver] Tier 1 failed for '{cleaned_query[:60]}': {err_msg}", exc_info=True)
+            logger.warning(f"[Resolver] Tier 1 failed for '{cleaned_query[:60]}': {err_msg}")
 
-        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 20s timeout
+        # Rapid Failover: If it's a search query, try SoundCloud immediately (never IP-blocked on cloud hosts)
+        if not cleaned_query.startswith("http") or spotify_info is not None:
+            try:
+                sc_target = f"scsearch5:{cleaned_query}"
+                logger.info(f"[Resolver] Fast-failing over to SoundCloud for '{cleaned_query[:60]}'...")
+                sc_opts = _build_ytdl_options(for_soundcloud=True)
+                sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
+                    ),
+                    timeout=10.0,
+                )
+                if data:
+                    entries = data.get("entries") if "entries" in data else [data]
+                    for entry in entries:
+                        if not entry:
+                            continue
+                        track = cls._parse_entry(entry, requester_id, requester_name)
+                        if track and track.stream_url:
+                            track = _apply_metadata_enhancements(track)
+                            dur = time.time() - start_t
+                            logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
+                            return track
+            except Exception as sc_err:
+                sc_msg = _format_error(sc_err)
+                logger.warning(f"[Resolver] Fast SoundCloud failover failed for '{cleaned_query[:60]}': {sc_msg}")
+
+        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 10s timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 2 (TV client) for '{cleaned_query[:60]}'")
             tier2_opts = _build_ytdl_options(["tv"])
@@ -889,7 +917,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier2_ydl.extract_info, target, download=False)
                 ),
-                timeout=20.0,
+                timeout=10.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track and track.stream_url:
@@ -900,9 +928,9 @@ class AudioResolver:
         except Exception as fb_err:
             fb_msg = _format_error(fb_err)
             cls.last_resolver_error = f"Tier 2 (TV) failed: {fb_msg}"
-            logger.warning(f"[Resolver] Tier 2 (TV) failed for '{cleaned_query[:60]}': {fb_msg}", exc_info=True)
+            logger.warning(f"[Resolver] Tier 2 (TV) failed for '{cleaned_query[:60]}': {fb_msg}")
 
-        # Tier 3: Safari / iOS Embedded Profile - 18s timeout
+        # Tier 3: Safari / iOS Embedded Profile - 8s timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 3 (Safari+iOS) for '{cleaned_query[:60]}'")
             tier3_opts = _build_ytdl_options(["web_safari", "ios"])
@@ -911,7 +939,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier3_ydl.extract_info, target, download=False)
                 ),
-                timeout=18.0,
+                timeout=8.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track and track.stream_url:
@@ -922,7 +950,8 @@ class AudioResolver:
         except Exception as t3_err:
             t3_msg = _format_error(t3_err)
             cls.last_resolver_error = f"Tier 3 (Safari) failed: {t3_msg}"
-            logger.warning(f"[Resolver] Tier 3 (Safari) failed for '{cleaned_query[:60]}': {t3_msg}", exc_info=True)
+            logger.warning(f"[Resolver] Tier 3 (Safari) failed for '{cleaned_query[:60]}': {t3_msg}")
+
 
         # Tier 4: SoundCloud Fallback (Isolated options, 25s timeout)
         if not cleaned_query.startswith("http") or spotify_info is not None:
