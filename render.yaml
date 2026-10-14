@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: rai-discord-security-bot
+    name: musicmaid-bot
     env: python
     region: oregon
     plan: free
@@ -9,22 +9,16 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
-      - key: DISCORD_TOKEN
-        sync: false
       - key: MUSIC_BOT_TOKEN
         sync: false
       - key: NEKO_SONGS_BOT_TOKEN
         sync: false
-      - key: APPLICATION_ID
-        value: 1554732669072445532
       - key: BOT_NAME
-        value: Rai
+        value: MusicMaid
       - key: EMBED_COLOR
-        value: 0x00F0FF
+        value: 0x00E5FF
       - key: LOG_LEVEL
         value: INFO
-      - key: DATABASE_PATH
-        value: data/bot.db
       - key: MUSIC_DATABASE_PATH
         value: data/music.db
       - key: COMMAND_SYNC_MODE

@@ -71,22 +71,14 @@ class RaiCommunityOSServer:
 
     async def handle_health(self, request: web.Request) -> web.Response:
         """Lightweight health check endpoint for Render & UptimeRobot."""
-        sec_ready = bool(self.bot and getattr(self.bot, "is_ready", lambda: False)())
-        music_status = "online"
-        try:
-            from music_bot.services.session_service import SessionManager
-            sm = SessionManager.get_instance()
-            music_status = "online" if sm.get_all_sessions() or sec_ready else "starting"
-        except Exception:
-            music_status = "ready"
+        bot_ready = bool(self.bot and getattr(self.bot, "is_ready", lambda: False)())
+        music_status = "online" if bot_ready else "starting"
 
         return web.json_response({
             "status": "healthy",
-            "security_bot": "The Raivora",
-            "security_status": "online" if sec_ready else "starting",
-            "music_bot": "Neko Songs / MusicMaid",
-            "music_status": music_status,
-            "platform": "Rai Community OS & Music Web Platform",
+            "bot_name": "MusicMaid (Neko Songs)",
+            "bot_status": music_status,
+            "platform": "MusicMaid Web Player & Platform",
             "timestamp": int(time.time()),
         })
 

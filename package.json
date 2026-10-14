@@ -1,15 +1,13 @@
 {
-  "name": "rai-ecosystem",
-  "version": "2.0.0",
-  "description": "Rai Ecosystem — Main Bot & Independent Music Bot Discord Applications",
+  "name": "musicmaid",
+  "version": "2.2.0",
+  "description": "MusicMaid — 24/7 Lossless Discord Music Bot & Web Platform",
   "scripts": {
-    "start": "python ecosystem.py",
-    "start:all": "python ecosystem.py",
-    "start:rai": "python main.py",
-    "start:music": "python music_main.py",
-    "start:neko": "python music_main.py",
+    "start": "python main.py",
+    "start:music": "python main.py",
+    "start:web": "python main.py",
     "test": "python -m unittest discover tests"
   },
-  "author": "Rai Core Team",
+  "author": "MusicMaid Team",
   "license": "ISC"
 }

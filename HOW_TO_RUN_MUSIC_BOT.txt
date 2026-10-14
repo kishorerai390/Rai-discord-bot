@@ -1,36 +1,39 @@
 ============================================================
-           🎵 MUSICMAID (NEKO SONGS) DISCORD MUSIC BOT
+           🎵 MUSICMAID — DISCORD MUSIC BOT & WEB PLATFORM
 ============================================================
 
 Quick 3-Step Setup Guide:
 
 1. INSTALL DEPENDENCIES:
-   Open terminal / command prompt in this folder and run:
+   Open terminal in this folder and run:
    pip install -r requirements.txt
 
 2. CONFIGURE YOUR BOT TOKEN:
-   - Rename ".env.music.example" to ".env"
+   - Copy ".env.example" to ".env"
    - Go to Discord Developer Portal: https://discord.com/developers/applications
    - Select your bot -> "Bot" tab -> Copy your Bot Token
    - Under "Privileged Gateway Intents", enable:
      [x] Message Content Intent
      [x] Server Members Intent
-   - In your ".env" file, paste your token:
-     NEKO_SONGS_BOT_TOKEN=your_token_here
+   - In your ".env" file, set:
+     MUSIC_BOT_TOKEN=your_token_here
 
-3. RUN THE BOT:
-   python music_main.py
+3. RUN THE BOT & WEB PLATFORM:
+   python main.py
+   (or: npm start)
+
+✦ Web Player & Dashboard will be live at: http://localhost:8080/music
+✦ Health check endpoint will be live at: http://localhost:8080/health
 
 ============================================================
-Features:
-- /c : Interactive Master Control Panel & Command Center
-- /music play <query/url> : YouTube, Spotify links, Soundcloud
+Key Music Commands:
+- /play <query/url> : Play from YouTube, Spotify, SoundCloud, Bandcamp
+- /c : Interactive Master Control Panel & 13-button UI
 - /filter : Bass Boost, Nightcore, 8D Audio, Vaporwave, Vocal
 - /247 or /stay : Stay in voice channel 24/7 with auto-reconnect
-- /radio <mood> : 24/7 Continuous Vibe Radio (chill, gaming, night, anime, etc.)
-- /sleeptimer <mins> : Sleep timer with gentle 30-second volume fade-out
+- /radio <mood> : 24/7 Continuous Vibe Radio (chill, gaming, lofi, etc.)
+- /sleeptimer <mins> : Sleep timer with smooth volume fade-out
 - /playlist : Save, load, list, and delete server queues
-- /music dj : AI song recommendations
-- /music lyrics : Fast synchronized lyrics
-- /autoupdate : Background self-healing yt-dlp updater
+- /music dj : Smart Auto-DJ recommendations
+- /music lyrics : Synchronized real-time lyrics
 ============================================================
