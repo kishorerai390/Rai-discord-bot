@@ -5,6 +5,9 @@
 *.lock
 .bot.lock
 .neko_songs.lock
+cookies.txt
+*cookies*.txt
+data/*cookies*.txt
 
 # Python
 __pycache__/

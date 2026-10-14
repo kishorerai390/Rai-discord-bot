@@ -1,30 +1,254 @@
 """
 Audio Track Search and Stream Resolution Engine for Rai Music Bot.
 Operates asynchronously with yt-dlp in a thread pool to avoid blocking the event loop.
+Engineered for Render free tier resilience with dynamic cookies syncing, multi-client
+fallback profiles (Android, TV, iOS, Safari, Web), robust SoundCloud recovery, and
+transparent exception diagnostics.
 """
 
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import functools
+import json
 import logging
-from typing import Any, Dict, List, Optional
+import os
+from pathlib import Path
+import shutil
+import tempfile
+import time
+import traceback
+from typing import Any, Dict, List, Optional, Tuple
+
 import yt_dlp
 
 from music_bot.database.models import QueuedTrack
 
-from pathlib import Path
-import os
-
 logger = logging.getLogger("RaiMusic.Resolver")
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-COOKIE_PATHS = [
-    BASE_DIR / "data" / "cookies.txt",
-    BASE_DIR / "data" / "youtube_cookies.txt",
-    BASE_DIR / "cookies.txt",
-]
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
+
+# Global executor for thread-safe asynchronous yt-dlp operations
+_audio_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=8, thread_name_prefix="AudioResolver"
+)
+
+# Writable temporary cookie file destination (yt-dlp requires write permissions)
+WRITABLE_COOKIE_PATH = Path(tempfile.gettempdir()) / "musicmaid_cookies.txt"
+
+
+def _format_error(e: BaseException) -> str:
+    """Format exception with full type name and details, never returning an empty string."""
+    if isinstance(e, asyncio.TimeoutError):
+        return f"{type(e).__name__} (Network or resolution operation timed out)"
+    err_str = str(e).strip()
+    if not err_str:
+        return f"{type(e).__name__}: {repr(e)}"
+    return f"{type(e).__name__}: {err_str}"
+
+
+def get_ffmpeg_executable() -> str:
+    """
+    Resolve active FFmpeg binary path.
+    Prioritizes system PATH, imageio-ffmpeg static binaries, static-ffmpeg, and common Linux paths.
+    """
+    # 1. System PATH
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+
+    # 2. imageio-ffmpeg wheel distribution
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if exe and Path(exe).exists():
+            return exe
+    except Exception:
+        pass
+
+    # 3. static-ffmpeg package
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+        found = shutil.which("ffmpeg")
+        if found:
+            return found
+    except Exception:
+        pass
+
+    # 4. Standard Linux / container binaries
+    for candidate in [
+        "/usr/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/opt/render/project/src/.ffmpeg/bin/ffmpeg",
+        "/opt/homebrew/bin/ffmpeg",
+    ]:
+        if Path(candidate).exists():
+            return candidate
+
+    return "ffmpeg"
+
+
+def _detect_js_runtimes() -> Dict[str, Any]:
+    """Detect available JavaScript runtimes (Node.js or Deno) for yt-dlp EJS challenge solver."""
+    runtimes: Dict[str, Any] = {}
+
+    node_path = shutil.which("node")
+    if not node_path:
+        for candidate in [
+            "/usr/bin/node",
+            "/usr/local/bin/node",
+            "/opt/render/project/.nvm/versions/node/default/bin/node",
+        ]:
+            if Path(candidate).exists():
+                node_path = candidate
+                break
+
+    if node_path:
+        runtimes["node"] = {"path": node_path}
+
+    deno_path = shutil.which("deno")
+    if not deno_path:
+        deno_home = Path.home() / ".deno" / "bin" / "deno"
+        if deno_home.exists():
+            deno_path = str(deno_home)
+
+    if deno_path:
+        runtimes["deno"] = {"path": deno_path}
+
+    return runtimes
+
+
+def _validate_cookies_content(content: str) -> Tuple[bool, str]:
+    """
+    Validates Netscape cookie content and checks for expired YouTube authentication tokens.
+    Returns (is_valid, diagnostic_message).
+    """
+    lines = content.strip().splitlines()
+    if not lines:
+        return False, "Cookies file is empty."
+
+    now = time.time()
+    found_keys: List[str] = []
+    expired_keys: List[str] = []
+    target_keys = {"SAPISID", "__Secure-3PSID", "__Secure-1PSID", "LOGIN_INFO", "SID", "HSID", "SSID"}
+
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 7:
+            name = parts[5]
+            expiry_str = parts[4]
+            if name in target_keys:
+                found_keys.append(name)
+                try:
+                    exp_val = float(expiry_str)
+                    if 0 < exp_val < now:
+                        expired_keys.append(name)
+                except ValueError:
+                    pass
+
+    if not found_keys:
+        return True, "No critical YouTube session tokens identified (generic or guest cookies)."
+
+    if expired_keys:
+        return False, (
+            f"Expired YouTube authentication tokens detected: {', '.join(set(expired_keys))}. "
+            f"YouTube will reject requests with HTTP 403 or SABR. Please export fresh cookies."
+        )
+
+    return True, f"Valid YouTube cookies present ({len(set(found_keys))} session tokens verified)."
+
+
+def sync_and_prepare_cookies() -> Optional[str]:
+    """
+    Discovers, validates, and prepares YouTube cookies in a writable temp location.
+    Sources checked in priority order:
+    1. Render Secret File: /etc/secrets/cookies.txt
+    2. Environment Variable: YOUTUBE_COOKIES / YOUTUBE_COOKIES_BASE64
+    3. Project Data Directory: data/cookies.txt (or local cookies.txt)
+    """
+    raw_content: Optional[str] = None
+    source_name: Optional[str] = None
+
+    # Source 1: Render Secret Files mount path
+    render_secret = Path("/etc/secrets/cookies.txt")
+    if render_secret.exists() and render_secret.stat().st_size > 0:
+        try:
+            raw_content = render_secret.read_text(encoding="utf-8", errors="replace")
+            source_name = "/etc/secrets/cookies.txt (Render Secret File)"
+        except Exception as e:
+            logger.warning(f"[Cookies] Failed reading {render_secret}: {_format_error(e)}")
+
+    # Source 2: Environment variables
+    if not raw_content:
+        env_raw = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("YOUTUBE_COOKIES_DATA")
+        if env_raw and env_raw.strip():
+            raw_content = env_raw.strip()
+            source_name = "YOUTUBE_COOKIES environment variable"
+        elif os.environ.get("YOUTUBE_COOKIES_BASE64"):
+            try:
+                import base64
+                decoded = base64.b64decode(os.environ["YOUTUBE_COOKIES_BASE64"]).decode("utf-8", errors="replace")
+                if decoded.strip():
+                    raw_content = decoded.strip()
+                    source_name = "YOUTUBE_COOKIES_BASE64 environment variable"
+            except Exception as e:
+                logger.warning(f"[Cookies] Failed decoding YOUTUBE_COOKIES_BASE64: {_format_error(e)}")
+
+    # Source 3: Local workspace fallback (if not in git)
+    if not raw_content:
+        for local_path in [
+            BASE_DIR / "data" / "cookies.txt",
+            BASE_DIR / "data" / "youtube_cookies.txt",
+            BASE_DIR / "cookies.txt",
+        ]:
+            if local_path.exists() and local_path.stat().st_size > 0:
+                try:
+                    raw_content = local_path.read_text(encoding="utf-8", errors="replace")
+                    source_name = str(local_path)
+                    break
+                except Exception:
+                    pass
+
+    if not raw_content or not raw_content.strip():
+        logger.warning(
+            "[Cookies] WARNING: No YouTube cookies found (checked /etc/secrets/cookies.txt, "
+            "YOUTUBE_COOKIES env, and data/cookies.txt). YouTube datacenter IP blocks are likely "
+            "on Render free tier. To fix: upload cookies.txt as a Render Secret File."
+        )
+        return None
+
+    # Validate cookies integrity and expiration
+    is_valid, diag = _validate_cookies_content(raw_content)
+    if not is_valid:
+        logger.warning(f"[Cookies] WARNING: {diag}")
+    else:
+        logger.info(f"[Cookies] Loaded cookies from {source_name}: {diag}")
+
+    # Write to a guaranteed writable temporary path
+    try:
+        WRITABLE_COOKIE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        WRITABLE_COOKIE_PATH.write_text(raw_content.strip(), encoding="utf-8")
+        return str(WRITABLE_COOKIE_PATH)
+    except Exception as write_err:
+        logger.error(f"[Cookies] Could not write cookies to temp location: {_format_error(write_err)}")
+        return None
+
+
+def get_active_cookie_file() -> Optional[str]:
+    """Returns the path to the verified, writable cookiefile if present and non-empty."""
+    if WRITABLE_COOKIE_PATH.exists() and WRITABLE_COOKIE_PATH.stat().st_size > 0:
+        return str(WRITABLE_COOKIE_PATH)
+    return sync_and_prepare_cookies()
+
+
+# Initial cookies synchronization on module import
+sync_and_prepare_cookies()
 
 
 def _load_po_tokens_and_cookies() -> Dict[str, Any]:
@@ -39,83 +263,38 @@ def _load_po_tokens_and_cookies() -> Dict[str, Any]:
                 "cookies": [],
                 "last_rotated": 0.0,
             }
-            import json
             TOKENS_FILE.write_text(json.dumps(default_data, indent=2))
         except Exception:
             pass
         return {}
     try:
-        import json
         return json.loads(TOKENS_FILE.read_text(encoding="utf-8"))
     except Exception:
         return {}
 
 
-import concurrent.futures
-import shutil
-import time
+def _build_ytdl_options(
+    player_clients: Optional[List[str]] = None,
+    for_soundcloud: bool = False,
+) -> Dict[str, Any]:
+    """
+    Build yt-dlp extractor configuration options.
+    SoundCloud options are isolated from YouTube-specific cookie and client arguments.
+    """
+    if for_soundcloud:
+        return {
+            "format": "bestaudio/best",
+            "noplaylist": True,
+            "quiet": True,
+            "logtostderr": False,
+            "nocheckcertificate": True,
+            "socket_timeout": 20,
+            "source_address": "0.0.0.0",
+            "extractaudio": True,
+            "audioformat": "mp3",
+        }
 
-_audio_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="AudioResolver")
-
-
-def _detect_js_runtimes() -> Dict[str, Any]:
-    """Detect available JavaScript runtimes for yt-dlp EJS challenge solver."""
-    node = shutil.which("node") or "C:\\Program Files\\nodejs\\node.exe"
-    if node and (Path(node).exists() or shutil.which("node")):
-        return {"node": {}}
-    deno = shutil.which("deno")
-    if deno:
-        return {"deno": {}}
-    quickjs = shutil.which("quickjs")
-    if quickjs:
-        return {"quickjs": {}}
-    return {}
-
-
-
-def get_ffmpeg_executable() -> str:
-    """Resolve active FFmpeg binary path from system PATH or static-ffmpeg."""
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    try:
-        import static_ffmpeg
-        static_ffmpeg.add_paths()
-        found = shutil.which("ffmpeg")
-        if found:
-            return found
-    except Exception:
-        pass
-    return "ffmpeg"
-
-
-def _sync_environment_cookies() -> None:
-    """Load YouTube cookies from environment variables if present on Render/Cloud hosts."""
-    raw_cookies = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("YOUTUBE_COOKIES_DATA")
-    if not raw_cookies and os.environ.get("YOUTUBE_COOKIES_BASE64"):
-        try:
-            import base64
-            raw_cookies = base64.b64decode(os.environ["YOUTUBE_COOKIES_BASE64"]).decode("utf-8")
-        except Exception as e:
-            logger.warning(f"Could not decode YOUTUBE_COOKIES_BASE64: {e}")
-
-    if raw_cookies and raw_cookies.strip():
-        target = BASE_DIR / "data" / "cookies.txt"
-        try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(raw_cookies.strip(), encoding="utf-8")
-            logger.info(f"Loaded YouTube authentication cookies from environment variable into {target}")
-        except Exception as e:
-            logger.warning(f"Failed writing environment cookies to {target}: {e}")
-
-
-# Sync cookies on import
-_sync_environment_cookies()
-
-
-def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str, Any]:
-    # Default to Android and iOS player clients which have significantly higher success rates on datacenter IPs
-    clients = player_clients or ["android", "ios", "mweb", "web_creator"]
+    clients = player_clients or ["android", "ios"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "extractaudio": True,
@@ -129,9 +308,8 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
-        "socket_timeout": 8,
+        "socket_timeout": 15,
         "extractor_retries": 1,
-        "remote_components": ["ejs:github"],
         "extractor_args": {
             "youtube": {
                 "player_client": clients,
@@ -140,32 +318,27 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         },
     }
 
-    if player_clients:
-        opts["extractor_args"]["youtube"]["player_client"] = player_clients
-
-    # Automatically attach JavaScript runtime for EJS signature solving
+    # Automatically attach JavaScript runtime for EJS challenge solving
     js_runtimes = _detect_js_runtimes()
     if js_runtimes:
         opts["js_runtimes"] = js_runtimes
 
-    # Feature: Inject active YouTube PO-Token / Visitor Data to prevent 403 & SABR blocks
+    # Inject PO-Token if configured
     token_data = _load_po_tokens_and_cookies()
-    po_token = token_data.get("active_po_token")
-    visitor_data = token_data.get("visitor_data")
+    po_token = os.environ.get("PO_TOKEN") or token_data.get("active_po_token")
+    visitor_data = os.environ.get("VISITOR_DATA") or token_data.get("visitor_data")
     if po_token:
         opts["extractor_args"]["youtube"]["po_token"] = [f"web+{po_token}", f"mweb+{po_token}"]
     if visitor_data:
         opts["extractor_args"]["youtube"]["visitor_data"] = [visitor_data]
 
-    for cp in COOKIE_PATHS:
-        if cp.exists() and cp.stat().st_size > 0:
-            opts["cookiefile"] = str(cp)
-            logger.info(f"Loaded YouTube authentication cookies from {cp}")
-            break
+    # Attach verified writable cookiefile
+    cookie_path = get_active_cookie_file()
+    if cookie_path:
+        opts["cookiefile"] = cookie_path
+
     return opts
 
-
-YTDL_OPTIONS = _build_ytdl_options()
 
 FFMPEG_OPTIONS = {
     "executable": get_ffmpeg_executable(),
@@ -173,21 +346,22 @@ FFMPEG_OPTIONS = {
     "options": "-vn",
 }
 
-_ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
-
 
 class AudioResolver:
     """Handles query searching, URL extraction, and stream link generation with ultra-low latency."""
 
     _search_cache: Dict[str, List[Dict[str, Any]]] = {}
+    _track_cache: Dict[str, Tuple[QueuedTrack, float]] = {}  # cache_key -> (track, timestamp)
+    _pending_tasks: Dict[str, asyncio.Task[Optional[QueuedTrack]]] = {}
+
     PROFILE_PRESETS: List[List[str]] = [
         ["android", "ios"],
-        ["ios", "mweb"],
-        ["android", "mweb"],
-        ["mweb", "web_creator"],
-        ["ios", "web_creator"],
+        ["tv"],
+        ["web_safari", "ios"],
+        ["mweb", "web"],
     ]
     _active_profile_index: int = 0
+    last_resolver_error: Optional[str] = None
 
     @classmethod
     def get_current_profile_name(cls) -> str:
@@ -196,12 +370,9 @@ class AudioResolver:
 
     @classmethod
     def rotate_client_profile(cls) -> str:
-        """Rotates yt-dlp client profile in memory to bypass SABR / stream blocks with 0 downtime."""
+        """Rotates yt-dlp client profile in memory to bypass SABR / stream blocks."""
         cls._active_profile_index = (cls._active_profile_index + 1) % len(cls.PROFILE_PRESETS)
         new_profile = cls.PROFILE_PRESETS[cls._active_profile_index]
-        global _ytdl, YTDL_OPTIONS
-        YTDL_OPTIONS = _build_ytdl_options(new_profile)
-        _ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
         profile_name = "+".join(new_profile)
         logger.info(f"[CanaryEngine] Rotated yt-dlp client profile to: {profile_name}")
         return profile_name
@@ -209,18 +380,20 @@ class AudioResolver:
     @classmethod
     async def probe_extractor_health(cls) -> Dict[str, Any]:
         """Canary Probe: Tests resolving a 5-second test audio clip. Rotates clients if issues detected."""
-        import time
         start_t = time.time()
-        test_target = "ytsearch1:lofi silence beats"
+        test_target = "ytsearch1:lofi beats"
         loop = asyncio.get_running_loop()
 
         for attempt in range(len(cls.PROFILE_PRESETS)):
+            profile = cls.PROFILE_PRESETS[cls._active_profile_index]
             try:
+                opts = _build_ytdl_options(profile)
+                ytdl_inst = yt_dlp.YoutubeDL(opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
-                        _audio_executor, functools.partial(_ytdl.extract_info, test_target, download=False)
+                        _audio_executor, functools.partial(ytdl_inst.extract_info, test_target, download=False)
                     ),
-                    timeout=6.0,
+                    timeout=10.0,
                 )
                 entry = data["entries"][0] if "entries" in data and data["entries"] else data
                 stream_url = entry.get("url") if entry else None
@@ -233,18 +406,21 @@ class AudioResolver:
                     latency = round((time.time() - start_t) * 1000, 2)
                     return {
                         "operational": True,
-                        "profile": cls.get_current_profile_name(),
+                        "profile": "+".join(profile),
                         "latency_ms": latency,
                         "message": f"Healthy ({latency}ms latency)",
                     }
             except Exception as e:
-                logger.warning(f"[CanaryProbe] Client profile '{cls.get_current_profile_name()}' probe failed: {e}. Auto-rotating...")
+                err_msg = _format_error(e)
+                logger.warning(
+                    f"[CanaryProbe] Profile '{'+'.join(profile)}' failed: {err_msg}. Auto-rotating..."
+                )
                 cls.rotate_client_profile()
 
         return {
             "operational": False,
             "profile": cls.get_current_profile_name(),
-            "message": "All extractor profiles encountered restrictions. YouTube may require PO-Token or yt-dlp update.",
+            "message": "All extractor profiles encountered restrictions. Fresh cookies or PO-Token required.",
         }
 
     @classmethod
@@ -263,31 +439,25 @@ class AudioResolver:
             next_token = tokens[0]
 
         token_data["active_po_token"] = next_token
-        import time, json
         token_data["last_rotated"] = time.time()
         try:
             TOKENS_FILE.write_text(json.dumps(token_data, indent=2))
         except Exception as e:
-            logger.warning(f"Failed to write rotated token: {e}")
+            logger.warning(f"Failed writing rotated token: {e}")
 
-        # Rebuild options and YoutubeDL instance in memory
-        global _ytdl, YTDL_OPTIONS
-        YTDL_OPTIONS = _build_ytdl_options(cls.PROFILE_PRESETS[cls._active_profile_index])
-        _ytdl = yt_dlp.YoutubeDL(YTDL_OPTIONS)
         msg = f"Successfully rotated to next PO-Token ({next_token[:8]}...)."
         logger.info(f"[TokenRotator] {msg}")
         return True, msg
 
     @classmethod
     def _parse_entry(cls, data: Any, requester_id: int, requester_name: str) -> Optional[QueuedTrack]:
-        """Parse raw yt-dlp dictionary into a validated QueuedTrack, avoiding DRM-restricted formats."""
+        """Parse raw yt-dlp dictionary into a validated QueuedTrack, filtering DRM and invalid formats."""
         if not data:
             return None
         entry = data["entries"][0] if "entries" in data and data["entries"] else data
         if not entry:
             return None
 
-        # Find best playable stream url (filtering out DRM protected streams)
         stream_url = entry.get("url")
         if not stream_url and "formats" in entry:
             # 1. Best audio non-DRM format
@@ -295,7 +465,7 @@ class AudioResolver:
                 if fmt.get("acodec") != "none" and fmt.get("url") and not fmt.get("has_drm"):
                     stream_url = fmt["url"]
                     break
-            # 2. Any non-DRM format with URL
+            # 2. Any playable non-DRM format
             if not stream_url:
                 for fmt in entry["formats"]:
                     if fmt.get("url") and not fmt.get("has_drm"):
@@ -326,28 +496,40 @@ class AudioResolver:
         loop = asyncio.get_running_loop()
         search_query = f"ytsearch{limit}:{query}" if not query.startswith("http") else query
 
+        data = None
+        # 1. Primary YouTube Search in executor
         try:
+            primary_opts = _build_ytdl_options(["android", "ios"])
+            ydl_instance = yt_dlp.YoutubeDL(primary_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
-                    _audio_executor, functools.partial(_ytdl.extract_info, search_query, download=False)
+                    _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=20.0,
+                timeout=30.0,
             )
         except Exception as e:
-            logger.warning(f"YouTube search failed for '{query}': {e}. Attempting SoundCloud fallback...")
+            err_msg = _format_error(e)
+            logger.warning(
+                f"YouTube search failed for '{query}': {err_msg}. Attempting SoundCloud search fallback...",
+                exc_info=True,
+            )
+            # 2. SoundCloud Search Fallback
             try:
                 sc_query = f"scsearch{limit + 3}:{query}"
-                sc_opts = _build_ytdl_options()
-                sc_opts.update({"quiet": True, "noplaylist": True, "socket_timeout": 15})
+                sc_opts = _build_ytdl_options(for_soundcloud=True)
                 sc_ydl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ydl.extract_info, sc_query, download=False)
                     ),
-                    timeout=20.0,
+                    timeout=25.0,
                 )
             except Exception as sc_err:
-                logger.error(f"SoundCloud search fallback also failed for '{query}': {sc_err}")
+                sc_msg = _format_error(sc_err)
+                logger.error(
+                    f"SoundCloud search fallback also failed for '{query}': {sc_msg}",
+                    exc_info=True,
+                )
                 return []
 
         if not data:
@@ -356,10 +538,7 @@ class AudioResolver:
         entries = data.get("entries") if "entries" in data else [data]
         results = []
         for entry in entries:
-            if not entry:
-                continue
-            # Skip entries tagged as DRM protected
-            if entry.get("has_drm"):
+            if not entry or entry.get("has_drm"):
                 continue
             results.append({
                 "title": entry.get("title", "Unknown Track"),
@@ -377,11 +556,7 @@ class AudioResolver:
 
     @classmethod
     async def resolve_spotify_metadata(cls, spotify_url: str) -> Optional[Dict[str, Any]]:
-        """
-        Extract title, artist, thumbnail, and metadata from Spotify URLs or URIs.
-        Prioritizes official Spotify Web API (Client Credentials Flow) with automatic
-        fallback to open oEmbed parser without requiring developer tokens.
-        """
+        """Extract title, artist, thumbnail from Spotify URLs via API / oEmbed."""
         from music_bot.services.spotify_service import SpotifyItemType, SpotifyService, SpotifyTrack, SpotifyCollection
 
         try:
@@ -391,22 +566,20 @@ class AudioResolver:
                     return res.to_dict()
                 elif isinstance(res, SpotifyCollection):
                     d = res.to_dict()
-                    # Add single track search query from first item or title
                     first_track = res.tracks[0] if res.tracks else None
                     d["title"] = res.title
                     d["artist"] = res.author_or_artist
                     d["search_query"] = first_track.search_query if first_track else f"{res.title} {res.author_or_artist}"
                     return d
         except Exception as e:
-            logger.warning(f"[Resolver] SpotifyService resolution error for '{spotify_url}': {e}")
+            logger.warning(f"[Resolver] SpotifyService resolution error for '{spotify_url}': {_format_error(e)}")
 
-        # Direct fallback to open oEmbed
         try:
             fb = await SpotifyService.resolve_via_oembed(spotify_url)
             if fb:
                 return fb.to_dict()
         except Exception as fb_err:
-            logger.warning(f"[Resolver] Fallback oEmbed failed for '{spotify_url}': {fb_err}")
+            logger.warning(f"[Resolver] Fallback oEmbed failed for '{spotify_url}': {_format_error(fb_err)}")
 
         return None
 
@@ -414,10 +587,8 @@ class AudioResolver:
     async def resolve_spotify_collection(
         cls, spotify_url: str, limit: int = 100
     ) -> Optional[Dict[str, Any]]:
-        """
-        Resolve Spotify albums or playlists into a collection with track metadata.
-        """
-        from music_bot.services.spotify_service import SpotifyItemType, SpotifyService, SpotifyCollection
+        """Resolve Spotify albums or playlists into collection dictionary."""
+        from music_bot.services.spotify_service import SpotifyItemType, SpotifyService
         parsed = SpotifyService.match_spotify_link(spotify_url)
         if not parsed:
             return None
@@ -434,7 +605,61 @@ class AudioResolver:
     async def resolve_track(
         cls, query_or_url: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
-        """Resolve a query or direct link into a playable QueuedTrack with multi-source fallback."""
+        """
+        Public resolver method. Deduplicates concurrent resolutions, checks cache,
+        and ensures late-finishing resolutions are not discarded.
+        """
+        cache_key = query_or_url.strip().lower()
+        now = time.time()
+
+        # Check track cache (valid for 30 minutes)
+        if cache_key in cls._track_cache:
+            cached_track, cached_time = cls._track_cache[cache_key]
+            if now - cached_time < 1800:
+                logger.info(f"[Resolver] Cache hit for '{query_or_url[:60]}' -> '{cached_track.title}'")
+                return QueuedTrack(
+                    title=cached_track.title,
+                    url=cached_track.url,
+                    stream_url=cached_track.stream_url,
+                    duration=cached_track.duration,
+                    requester_id=requester_id,
+                    requester_name=requester_name,
+                    artist=cached_track.artist,
+                    thumbnail=cached_track.thumbnail,
+                )
+
+        # Reuse in-flight task if already resolving this exact query
+        if cache_key in cls._pending_tasks and not cls._pending_tasks[cache_key].done():
+            logger.info(f"[Resolver] Reusing in-flight resolution task for '{query_or_url[:60]}'")
+            task = cls._pending_tasks[cache_key]
+            try:
+                return await asyncio.shield(task)
+            except Exception:
+                pass
+
+        # Create tracked background resolution task so late finishes are saved
+        task = asyncio.create_task(
+            cls._execute_resolution_pipeline(query_or_url, requester_id, requester_name)
+        )
+        cls._pending_tasks[cache_key] = task
+
+        def _on_done(f: asyncio.Future):
+            cls._pending_tasks.pop(cache_key, None)
+            try:
+                res = f.result()
+                if res:
+                    cls._track_cache[cache_key] = (res, time.time())
+            except Exception:
+                pass
+
+        task.add_done_callback(_on_done)
+        return await task
+
+    @classmethod
+    async def _execute_resolution_pipeline(
+        cls, query_or_url: str, requester_id: int, requester_name: str
+    ) -> Optional[QueuedTrack]:
+        """Internal multi-tiered resolution pipeline with profile fallbacks and SoundCloud failover."""
         start_t = time.time()
         loop = asyncio.get_running_loop()
 
@@ -465,63 +690,86 @@ class AudioResolver:
                     t.url = query_or_url
             return t
 
-        # Strategy 1: Primary extraction with modern mobile/embedded client list
         cls.last_resolver_error = None
+
+        # Tier 1: Primary Mobile Profile (Android + iOS) - 25s timeout
         try:
+            logger.info(f"[Resolver] Attempting Tier 1 (Android+iOS) for '{cleaned_query[:60]}'")
+            tier1_opts = _build_ytdl_options(["android", "ios"])
+            tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
-                    _audio_executor, functools.partial(_ytdl.extract_info, target, download=False)
+                    _audio_executor, functools.partial(tier1_ydl.extract_info, target, download=False)
                 ),
-                timeout=12.0,
+                timeout=25.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
-            if track:
+            if track and track.stream_url:
                 track = _apply_metadata_enhancements(track)
                 dur = time.time() - start_t
-                logger.info(f"[Resolver] Primary resolver resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                logger.info(f"[Resolver] Tier 1 resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
         except Exception as yt_err:
-            cls.last_resolver_error = str(yt_err)
-            logger.warning(f"Primary resolver failed for '{cleaned_query}': {yt_err}. Trying secondary fallback...")
+            err_msg = _format_error(yt_err)
+            cls.last_resolver_error = f"Tier 1 (Android+iOS) failed: {err_msg}"
+            logger.warning(f"[Resolver] Tier 1 failed for '{cleaned_query[:60]}': {err_msg}", exc_info=True)
 
-        # Strategy 2: Fallback with mobile/ios profile
+        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 20s timeout
         try:
-            fallback_opts = _build_ytdl_options(["ios", "mweb"])
-            fallback_ytdl = yt_dlp.YoutubeDL(fallback_opts)
+            logger.info(f"[Resolver] Attempting Tier 2 (TV client) for '{cleaned_query[:60]}'")
+            tier2_opts = _build_ytdl_options(["tv"])
+            tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
-                    _audio_executor, functools.partial(fallback_ytdl.extract_info, target, download=False)
+                    _audio_executor, functools.partial(tier2_ydl.extract_info, target, download=False)
                 ),
-                timeout=10.0,
+                timeout=20.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
-            if track:
+            if track and track.stream_url:
                 track = _apply_metadata_enhancements(track)
                 dur = time.time() - start_t
-                logger.info(f"[Resolver] Secondary profile resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                logger.info(f"[Resolver] Tier 2 (TV) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
         except Exception as fb_err:
-            cls.last_resolver_error = str(fb_err)
-            logger.warning(f"Secondary profile failed for '{cleaned_query}': {fb_err}")
+            fb_msg = _format_error(fb_err)
+            cls.last_resolver_error = f"Tier 2 (TV) failed: {fb_msg}"
+            logger.warning(f"[Resolver] Tier 2 (TV) failed for '{cleaned_query[:60]}': {fb_msg}", exc_info=True)
 
-        # Strategy 3: Multi-Source Failover to SoundCloud if it's a search query or Spotify link
+        # Tier 3: Safari / iOS Embedded Profile - 18s timeout
+        try:
+            logger.info(f"[Resolver] Attempting Tier 3 (Safari+iOS) for '{cleaned_query[:60]}'")
+            tier3_opts = _build_ytdl_options(["web_safari", "ios"])
+            tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(tier3_ydl.extract_info, target, download=False)
+                ),
+                timeout=18.0,
+            )
+            track = cls._parse_entry(data, requester_id, requester_name)
+            if track and track.stream_url:
+                track = _apply_metadata_enhancements(track)
+                dur = time.time() - start_t
+                logger.info(f"[Resolver] Tier 3 (Safari) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                return track
+        except Exception as t3_err:
+            t3_msg = _format_error(t3_err)
+            cls.last_resolver_error = f"Tier 3 (Safari) failed: {t3_msg}"
+            logger.warning(f"[Resolver] Tier 3 (Safari) failed for '{cleaned_query[:60]}': {t3_msg}", exc_info=True)
+
+        # Tier 4: SoundCloud Fallback (Isolated options, 25s timeout)
         if not cleaned_query.startswith("http") or spotify_info is not None:
             try:
-                sc_target = f"scsearch3:{cleaned_query}"
-                logger.info(f"Failing over to SoundCloud for '{cleaned_query}'...")
-                sc_opts = {
-                    "format": "bestaudio/best",
-                    "noplaylist": True,
-                    "quiet": True,
-                    "socket_timeout": 8,
-                    "nocheckcertificate": True,
-                }
+                sc_target = f"scsearch5:{cleaned_query}"
+                logger.info(f"[Resolver] Failing over to SoundCloud for '{cleaned_query[:60]}'...")
+                sc_opts = _build_ytdl_options(for_soundcloud=True)
                 sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
                     ),
-                    timeout=10.0,
+                    timeout=25.0,
                 )
                 if data:
                     entries = data.get("entries") if "entries" in data else [data]
@@ -535,9 +783,10 @@ class AudioResolver:
                             logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
                             return track
             except Exception as sc_err:
-                cls.last_resolver_error = f"YouTube and SoundCloud both failed: {sc_err}"
-                logger.error(f"SoundCloud fallback failed for '{cleaned_query}': {sc_err}")
+                sc_msg = _format_error(sc_err)
+                cls.last_resolver_error = f"YouTube and SoundCloud both exhausted: {sc_msg}"
+                logger.error(f"[Resolver] SoundCloud failover failed for '{cleaned_query[:60]}': {sc_msg}", exc_info=True)
 
         dur = time.time() - start_t
-        logger.warning(f"[Resolver] Track resolution completely exhausted for '{cleaned_query}' in {dur:.2f}s")
+        logger.warning(f"[Resolver] All audio resolution tiers completely exhausted for '{cleaned_query[:60]}' in {dur:.2f}s")
         return None

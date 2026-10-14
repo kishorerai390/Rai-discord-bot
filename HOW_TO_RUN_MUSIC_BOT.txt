@@ -36,7 +36,17 @@ Key Music Commands:
 - /247 or /stay : Stay in voice channel 24/7 with auto-reconnect
 - /radio <mood> : 24/7 Continuous Vibe Radio (chill, gaming, lofi, etc.)
 - /sleeptimer <mins> : Sleep timer with smooth volume fade-out
+- /debug : Test and benchmark audio pipeline (yt-dlp, FFmpeg, cookies, resolution)
 - /playlist : Save, load, list, and delete server queues
 - /music dj : Smart Auto-DJ recommendations
 - /music lyrics : Synchronized real-time lyrics
+============================================================
+Render Deployment & YouTube Cookies:
+If deployed on Render, YouTube will block datacenter IPs without cookies.
+1. In your browser (incognito), log into a throwaway Google account.
+2. Export cookies in Netscape format (using an extension like "Get cookies.txt LOCALLY").
+3. In Render Dashboard -> Your Service -> "Environment" tab:
+   - Add Secret File -> Name: "cookies.txt" -> Paste cookie content.
+   - MusicMaid will automatically load it from /etc/secrets/cookies.txt into a writable temp path.
+4. Run /debug in Discord to confirm all stages pass!
 ============================================================

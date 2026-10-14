@@ -47,23 +47,12 @@ class NekoSongsBot(commands.Bot):
     """Independent Discord Bot application powering Neko Songs."""
 
     def __init__(self):
-        # Ensure Discord voice Opus codec is loaded
+        # Discord voice Opus codec
         try:
             if not discord.opus.is_loaded():
                 discord.opus._load_default()
         except Exception as opus_err:
             logger.debug(f"Opus loader notice: {opus_err}")
-
-        # Ensure Davey E2EE Voice Protocol is validated and linked to discord.py
-        try:
-            import davey
-            import discord.voice_client as vc
-            import discord.voice_state as vs
-            vs.has_dave = True
-            vc.has_dave = True
-            logger.debug(f"Davey E2EE voice protocol active: v{getattr(davey, '__version__', '0.1.6')}")
-        except Exception as davey_err:
-            logger.debug(f"Davey loader notice: {davey_err}")
 
         intents = discord.Intents.default()
         intents.guilds = True

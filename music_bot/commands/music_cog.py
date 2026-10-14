@@ -751,12 +751,12 @@ class MusicCog(commands.Cog, name="Music"):
             search_start = time.time()
             is_timed_out = False
             try:
-                # 35s timeout allows primary mobile YouTube extraction + secondary profile + SoundCloud fallback
-                track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=35.0)
+                # 60s timeout accommodates multi-tier profile fallbacks and SoundCloud failover on Render
+                track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=60.0)
             except asyncio.TimeoutError:
                 track = None
                 is_timed_out = True
-                logger.warning(f"[Playback] Audio resolution timed out after 35s for query '{query}'")
+                logger.warning(f"[Playback] Audio resolution timed out after 60s for query '{query}'")
             except Exception as e:
                 track = None
                 logger.error(f"[Playback] Track resolution exception for '{query}': {e}", exc_info=True)
@@ -765,12 +765,12 @@ class MusicCog(commands.Cog, name="Music"):
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
                 if is_timed_out:
                     embed_fail = discord.Embed(
-                        title="⏱️ AUDIO SEARCH TIMED OUT",
+                        title="⏱️ AUDIO SEARCH TIMED OUT (60s)",
                         description=(
-                            f"The music search for `{query[:100]}` took longer than 35s and timed out.\n\n"
-                            f"• Try playing with a direct SoundCloud link\n"
-                            f"• If running on Render, YouTube may be throttling datacenter requests.\n"
-                            f"• You can provide YouTube cookies via the `YOUTUBE_COOKIES` environment variable."
+                            f"The music search for `{query[:100]}` exceeded 60s.\n\n"
+                            f"• **Diagnostic:** The resolver is still running in the background. If it finishes, the track will be cached for your next `/play` attempt.\n"
+                            f"• **Render Tip:** YouTube frequently blocks datacenter IPs. Upload a fresh `cookies.txt` file as a Render Secret File (`/etc/secrets/cookies.txt`) or set `YOUTUBE_COOKIES` in environment variables.\n"
+                            f"• **Instant Playback:** You can also play directly from SoundCloud (e.g. paste a SoundCloud URL)."
                         ),
                         color=0xED4245,
                     )
@@ -780,7 +780,7 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
-                            f"• If YouTube is blocking Render's IP, try playing with a SoundCloud URL or add `YOUTUBE_COOKIES` in Render settings."
+                            f"• If YouTube is blocking Render's IP, upload fresh YouTube cookies to Render Secret Files (`/etc/secrets/cookies.txt`) or paste a direct SoundCloud link."
                         ),
                         color=0xED4245,
                     )
@@ -3527,6 +3527,173 @@ class MusicCog(commands.Cog, name="Music"):
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Join Support Server", url=SUPPORT_INVITE_URL, emoji="💬"))
         await ctx.send(embed=embed, view=view)
+
+    # =========================================================================
+    # AUDIO PIPELINE DIAGNOSTIC SUITE (/debug & m!debug)
+    # =========================================================================
+
+    async def _run_pipeline_diagnostics(self, query: str, guild: Optional[discord.Guild]) -> discord.Embed:
+        """Run deep end-to-end diagnostic probes on yt-dlp, FFmpeg, cookies, and resolution."""
+        import sys
+        import time
+        from music_bot.services.resolver_service import (
+            _detect_js_runtimes,
+            get_active_cookie_file,
+            get_ffmpeg_executable,
+            WRITABLE_COOKIE_PATH,
+        )
+
+        embed = discord.Embed(
+            title="🛠️ AUDIO PIPELINE DIAGNOSTICS",
+            description=f"Running live pipeline benchmark with test query: `{query[:60]}`",
+            color=0x00E5FF,
+        )
+
+        # 1. Environment & Binaries
+        ffmpeg_exe = get_ffmpeg_executable()
+        ffmpeg_ok = False
+        try:
+            import subprocess
+            proc = subprocess.run([ffmpeg_exe, "-version"], capture_output=True, text=True, timeout=2.0)
+            ffmpeg_ver = proc.stdout.splitlines()[0] if proc.stdout else "Available"
+            ffmpeg_ok = True
+        except Exception as fe:
+            ffmpeg_ver = f"Error: {fe}"
+
+        js_runtimes = _detect_js_runtimes()
+        ytdl_ver = getattr(yt_dlp, "__version__", "Unknown")
+
+        cookie_file = get_active_cookie_file()
+        render_secret_exists = Path("/etc/secrets/cookies.txt").exists()
+        cookie_status = "🔴 Missing (Datacenter IP blocks likely)"
+        if cookie_file:
+            c_size = Path(cookie_file).stat().st_size if Path(cookie_file).exists() else 0
+            src = "Render Secret (/etc/secrets/cookies.txt)" if render_secret_exists else "Env/Local"
+            cookie_status = f"🟢 Loaded ({src}, {c_size} bytes)"
+
+        env_val = (
+            f"• **Python:** `{sys.version.split()[0]} ({sys.platform})`\n"
+            f"• **yt-dlp:** `v{ytdl_ver}`\n"
+            f"• **FFmpeg:** {'🟢' if ffmpeg_ok else '🔴'} `{ffmpeg_exe}`\n"
+            f"  *Version:* `{ffmpeg_ver[:50]}`\n"
+            f"• **JS Runtime:** `{'🟢 ' + list(js_runtimes.keys())[0] if js_runtimes else '🟡 None detected'}`\n"
+            f"• **Cookies:** {cookie_status}"
+        )
+        embed.add_field(name="1. Environment & Dependencies", value=env_val, inline=False)
+
+        # 2. Stage 1: Search Provider Probe
+        s_t0 = time.time()
+        search_results = []
+        search_err = None
+        try:
+            search_results = await AudioResolver.search(query, limit=1)
+        except Exception as se:
+            search_err = str(se)
+        s_dur = (time.time() - s_t0) * 1000
+
+        if search_results:
+            first = search_results[0]
+            s_val = f"🟢 **PASS** ({s_dur:.0f}ms)\n• Found: `{first.get('title', 'Unknown')[:50]}`\n• Provider URL: `{first.get('url', '')[:45]}...`"
+        else:
+            s_val = f"🔴 **FAIL** ({s_dur:.0f}ms)\n• Error: `{search_err or 'No search results returned'}`"
+        embed.add_field(name="2. Stage 1: Search Provider", value=s_val, inline=False)
+
+        # 3. Stage 2: Track & Stream Resolution Probe
+        r_t0 = time.time()
+        track = None
+        resolve_err = None
+        try:
+            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=30.0)
+        except Exception as re:
+            resolve_err = str(re)
+        r_dur = (time.time() - r_t0) * 1000
+
+        if track and track.stream_url:
+            host = track.stream_url.split("/")[2] if "/" in track.stream_url else "stream"
+            r_val = (
+                f"🟢 **PASS** ({r_dur:.0f}ms)\n"
+                f"• Title: `{track.title[:50]}`\n"
+                f"• Stream Host: `{host[:40]}`\n"
+                f"• Duration: `{track.duration}s`\n"
+                f"• Profile Used: `{AudioResolver.get_current_profile_name()}`"
+            )
+        else:
+            r_val = (
+                f"🔴 **FAIL** ({r_dur:.0f}ms)\n"
+                f"• Error: `{resolve_err or AudioResolver.last_resolver_error or 'Stream resolution returned None'}`\n"
+                f"• Profile Used: `{AudioResolver.get_current_profile_name()}`"
+            )
+        embed.add_field(name="3. Stage 2: Audio Stream Resolution", value=r_val, inline=False)
+
+        # 4. Stage 3: FFmpeg PCM Decode Probe (Reads first 3840 bytes of audio)
+        f_val = "⚪ Skipped (Stream resolution failed)"
+        if track and track.stream_url:
+            f_t0 = time.time()
+            pcm_bytes = b""
+            f_err = None
+            try:
+                import subprocess
+                cmd = [
+                    ffmpeg_exe,
+                    "-reconnect", "1",
+                    "-reconnect_streamed", "1",
+                    "-reconnect_delay_max", "5",
+                    "-i", track.stream_url,
+                    "-f", "s16le",
+                    "-ar", "48000",
+                    "-ac", "2",
+                    "-loglevel", "error",
+                    "pipe:1"
+                ]
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                loop = asyncio.get_running_loop()
+                pcm_bytes = await asyncio.wait_for(
+                    loop.run_in_executor(None, proc.stdout.read, 3840),
+                    timeout=10.0,
+                )
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+            except Exception as fe:
+                f_err = str(fe)
+            f_dur = (time.time() - f_t0) * 1000
+
+            if pcm_bytes and len(pcm_bytes) >= 1000:
+                f_val = f"🟢 **PASS** ({f_dur:.0f}ms)\n• Successfully decoded `{len(pcm_bytes)}` bytes of 48kHz stereo PCM."
+            else:
+                f_val = f"🔴 **FAIL** ({f_dur:.0f}ms)\n• Read `{len(pcm_bytes)}` bytes.\n• Error: `{f_err or 'Empty audio stream (YouTube 403 or blocked format)'}`"
+        embed.add_field(name="4. Stage 3: FFmpeg Audio Decoder", value=f_val, inline=False)
+
+        # 5. Stage 4: Voice Gateway Diagnostic
+        vc_connected = guild.voice_client and guild.voice_client.is_connected() if guild else False
+        vc_name = guild.voice_client.channel.name if vc_connected else "Not in Voice"
+        gw_lat = f"{round(self.bot.latency * 1000, 1)}ms" if self.bot else "N/A"
+        embed.add_field(
+            name="5. Voice Gateway State",
+            value=f"• **Channel:** `{'🟢 ' + vc_name if vc_connected else '⚪ ' + vc_name}`\n• **Gateway Ping:** `{gw_lat}`",
+            inline=False,
+        )
+
+        overall_ok = search_results and track and track.stream_url and ffmpeg_ok
+        embed.color = 0x57F287 if overall_ok else 0xED4245
+        embed.set_footer(text="MusicMaid Audio Diagnostics • Run with /debug or m!debug")
+        return embed
+
+    @app_commands.command(name="debug", description="Run audio pipeline diagnostics: yt-dlp, FFmpeg, cookies, and resolution")
+    @app_commands.describe(test_query="Query or URL to test (defaults to 'lofi chill beat')")
+    async def cmd_debug(self, interaction: discord.Interaction, test_query: Optional[str] = None) -> None:
+        """Execute step-by-step audio pipeline diagnostic probing."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", interaction.guild)
+        await interaction.edit_original_response(embed=embed)
+
+    @commands.command(name="debug", aliases=["diag", "audioinfo"])
+    async def pfx_debug(self, ctx: commands.Context, *, test_query: Optional[str] = None) -> None:
+        """Run audio pipeline diagnostics via text command."""
+        loading_msg = await ctx.send("🔍 Running audio pipeline diagnostics (checking FFmpeg, cookies, yt-dlp, and resolution)...")
+        embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", ctx.guild)
+        await loading_msg.edit(content=None, embed=embed)
 
 
 async def setup(bot: RaiMusicBot) -> None:

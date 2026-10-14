@@ -215,7 +215,7 @@ class MusicPlayerService:
             try:
                 first_frame = await asyncio.wait_for(
                     loop.run_in_executor(None, volume_transformer.read),
-                    timeout=8.0,
+                    timeout=15.0,
                 )
             except Exception as read_err:
                 logger.warning(f"Initial frame read failed for '{track.title}': {read_err}")
@@ -236,7 +236,7 @@ class MusicPlayerService:
                         volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                         first_frame = await asyncio.wait_for(
                             loop.run_in_executor(None, volume_transformer.read),
-                            timeout=8.0,
+                            timeout=15.0,
                         )
                     except Exception as re_read_err:
                         logger.warning(f"Secondary frame read failed for '{track.title}': {re_read_err}")
