@@ -209,9 +209,11 @@ class TestAdvancedPlayerUIAndRecovery(unittest.IsolatedAsyncioTestCase):
             mock_seek.assert_awaited_once()
 
         # Skip button while paused
-        skip_btn = next(b for b in view.children if b.custom_id == "music_btn_skip")
-        await skip_btn.callback(mock_interaction)
-        mock_vc.stop.assert_called_once()
+        with patch.object(MusicPlayerService, "skip", new_callable=AsyncMock) as mock_skip:
+            mock_skip.return_value = (True, "Skipped", None)
+            skip_btn = next(b for b in view.children if b.custom_id == "music_btn_skip")
+            await skip_btn.callback(mock_interaction)
+            mock_skip.assert_awaited_once()
 
     async def test_stop_button_atomically_transitions_to_stopped(self):
         """Verify stop button sets STOPPED state, clears queue, disconnects voice client."""
