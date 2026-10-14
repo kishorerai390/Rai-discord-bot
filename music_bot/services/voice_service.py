@@ -84,10 +84,10 @@ class VoiceManager:
                     await member.guild.change_voice_state(channel=None)
             except Exception:
                 pass
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(1.5)
 
         max_attempts = 3
-        connect_timeout = 20.0
+        connect_timeout = 45.0
         last_exception: Optional[Exception] = None
 
         for attempt in range(1, max_attempts + 1):
@@ -99,7 +99,7 @@ class VoiceManager:
                 )
                 vc = await asyncio.wait_for(
                     target_channel.connect(timeout=connect_timeout, reconnect=True, self_deaf=True),
-                    timeout=connect_timeout,
+                    timeout=connect_timeout + 5.0,
                 )
                 session.voice_client = vc
                 session.state = PlaybackState.CONNECTED
@@ -125,7 +125,7 @@ class VoiceManager:
                     pass
 
                 if attempt < max_attempts:
-                    backoff = attempt * 1.5
+                    backoff = attempt * 2.0
                     logger.info(f"[Voice] Backing off for {backoff:.1f}s before retry {attempt + 1}/{max_attempts}...")
                     await asyncio.sleep(backoff)
 
