@@ -3716,6 +3716,8 @@ class MusicCog(commands.Cog, name="Music"):
         """Run deep end-to-end diagnostic probes on yt-dlp, FFmpeg, cookies, and resolution."""
         import sys
         import time
+        from pathlib import Path
+        import yt_dlp
         from music_bot.services.resolver_service import (
             _detect_js_runtimes,
             get_active_cookie_file,
@@ -3741,7 +3743,11 @@ class MusicCog(commands.Cog, name="Music"):
             ffmpeg_ver = f"Error: {fe}"
 
         js_runtimes = _detect_js_runtimes()
-        ytdl_ver = getattr(yt_dlp, "__version__", "Unknown")
+        try:
+            import yt_dlp.version
+            ytdl_ver = yt_dlp.version.__version__
+        except Exception:
+            ytdl_ver = getattr(yt_dlp, "__version__", "Available")
 
         cookie_file = get_active_cookie_file()
         render_secret_exists = Path("/etc/secrets/cookies.txt").exists()
@@ -3818,6 +3824,7 @@ class MusicCog(commands.Cog, name="Music"):
                     "-reconnect", "1",
                     "-reconnect_streamed", "1",
                     "-reconnect_delay_max", "5",
+                    "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     "-i", track.stream_url,
                     "-f", "s16le",
                     "-ar", "48000",
