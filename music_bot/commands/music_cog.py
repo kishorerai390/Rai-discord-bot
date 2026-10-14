@@ -694,160 +694,216 @@ class MusicCog(commands.Cog, name="Music"):
         self, interaction: discord.Interaction, query: str, ephemeral: bool = False
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition."""
-        start_t = time.time()
-        guild = interaction.guild
-        member = interaction.user
-        text_channel = interaction.channel
+        try:
+            start_t = time.time()
+            guild = interaction.guild
+            member = interaction.user
+            text_channel = interaction.channel
 
-        if not guild or not isinstance(member, discord.Member) or not isinstance(text_channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)):
-            try:
-                await interaction.edit_original_response(content="❌ Cannot determine server or channel context.")
-            except Exception:
-                await interaction.followup.send("❌ Cannot determine server or channel context.", ephemeral=True)
-            return
-
-        session = await self.session_manager.get_session(guild.id)
-        session.is_intentional_stop = False
-
-        # 1. Connect to voice with resilient bounded connection handling
-        async with session.lock:
-            try:
-                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
-            except Exception as vc_err:
-                vc = None
-                session.last_error = str(vc_err)
-
-            if not vc:
-                err_detail = getattr(session, "last_error", None) or "Bot lacks Connect or Speak permissions in this channel."
-                ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
-                embed_conn_err = discord.Embed(
-                    title="❌ COULD NOT CONNECT TO VOICE",
-                    description=(
-                        f"Could not connect to **{ch_name}**.\n"
-                        f"• **Reason:** {err_detail}\n\n"
-                        f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
-                    ),
-                    color=0xED4245,
-                )
+            if not guild or not isinstance(member, discord.Member) or not isinstance(text_channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)):
                 try:
-                    await interaction.edit_original_response(embed=embed_conn_err)
+                    await interaction.edit_original_response(content="❌ Cannot determine server or channel context.")
                 except Exception:
-                    await interaction.followup.send(embed=embed_conn_err, ephemeral=True)
+                    await interaction.followup.send("❌ Cannot determine server or channel context.", ephemeral=True)
                 return
 
-        # 2. Resolve query: Edit original response directly so NO duplicate dangling loading message in chat!
-        embed_loading = discord.Embed(
-            title="🔍 SEARCHING TRACK",
-            description=f"Resolving: `{query[:100]}`...\n*{DIALOGUE_START}*",
-            color=COLOR_NEON_BLUE,
-        )
-        try:
-            await interaction.edit_original_response(embed=embed_loading)
-        except Exception:
-            pass
+            session = await self.session_manager.get_session(guild.id)
+            session.is_intentional_stop = False
 
-        search_start = time.time()
-        is_timed_out = False
-        try:
-            track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=18.0)
-        except asyncio.TimeoutError:
-            track = None
-            is_timed_out = True
-            logger.warning(f"[Playback] Audio resolution timed out for query '{query}'")
-        except Exception as e:
-            track = None
-            logger.error(f"[Playback] Track resolution exception for '{query}': {e}", exc_info=True)
+            # 1. Connect to voice with resilient bounded connection handling
+            async with session.lock:
+                try:
+                    vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+                except Exception as vc_err:
+                    vc = None
+                    session.last_error = str(vc_err)
+                    logger.error(f"[Playback] Exception joining voice channel: {vc_err}", exc_info=True)
 
-        if not track:
-            if is_timed_out:
-                embed_fail = discord.Embed(
-                    title="⏱️ AUDIO SEARCH TIMED OUT",
-                    description=(
-                        f"The music search for `{query[:100]}` took longer than expected and timed out.\n\n"
-                        f"• Try playing with a direct YouTube or SoundCloud link\n"
-                        f"• Or refine your search terms (artist name + title)"
-                    ),
-                    color=0xED4245,
-                )
-            else:
-                embed_fail = discord.Embed(
-                    title="😿 NO AUDIO TRACK FOUND",
-                    description=f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`",
-                    color=0xED4245,
-                )
-            try:
-                await interaction.edit_original_response(embed=embed_fail)
-            except Exception:
-                await interaction.followup.send(embed=embed_fail, ephemeral=True)
-            return
-
-        search_dur = time.time() - search_start
-        logger.info(f"[Playback] Track '{track.title}' resolved in {search_dur:.2f}s")
-
-        # Feature 113: Audio Track Duration Ceiling Limiter (> 3 hours rejected for non-admins)
-        if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
-            await interaction.edit_original_response(
-                embed=discord.Embed(
-                    title="⚠️ TRACK DURATION EXCEEDED",
-                    description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
-                    color=0xED4245,
-                )
-            )
-            return
-
-        # 3. Add to Queue or Start Playback
-        async with session.lock:
-            # Rapid-click duplicate guard (prevents identical double-queueing within 3 seconds)
-            now_t = time.time()
-            last_url = getattr(session, "_last_queued_url", None)
-            last_time = getattr(session, "_last_queued_time", 0.0)
-            if track.url and track.url == last_url and (now_t - last_time) < 3.0:
-                await interaction.edit_original_response(
-                    content=f"⚠️ **{track.title}** was already just queued a moment ago! (Duplicate prevented)",
-                    embed=None,
-                    view=None,
-                )
-                return
-            session._last_queued_url = track.url
-            session._last_queued_time = now_t
-
-            if session.is_playing or session.is_paused or session.has_active_track:
-                session.queue.append(track)
-                embed_queued = discord.Embed(
-                    title="🐱 ADDED TO QUEUE",
-                    description=f"### [{track.title}]({track.url})\n"
-                                f"**Artist:** `{track.artist}` • **Duration:** `{format_duration(track.duration)}`\n"
-                                f"**Position in Queue:** `#{len(session.queue)}`",
-                    color=COLOR_ELECTRIC_CYAN,
-                )
-                if track.thumbnail:
-                    embed_queued.set_thumbnail(url=track.thumbnail)
-                embed_queued.set_footer(text=f"Requested by {member.display_name}")
-                await interaction.edit_original_response(embed=embed_queued)
-                await MusicPlayerService.send_now_playing_panel(session, bot=self.bot)
-            else:
-                play_start = time.time()
-                success = await MusicPlayerService.start_playback(self.bot, session, track)
-                play_dur = time.time() - play_start
-                logger.info(f"[Playback] Stream initialization took {play_dur:.2f}s (success={success})")
-                if success:
-                    try:
-                        await interaction.edit_original_response(
-                            content=f"🎶 Started playing **{track.title}**!",
-                            embed=None,
-                            view=None,
-                        )
-                    except Exception:
-                        pass
-                else:
-                    await interaction.edit_original_response(
-                        embed=discord.Embed(
-                            title="❌ PLAYBACK FAILED",
-                            description="Encountered an internal error while starting audio stream.",
-                            color=0xED4245,
+                if not vc:
+                    err_detail = getattr(session, "last_error", None) or "Bot lacks Connect or Speak permissions in this channel."
+                    ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
+                    embed_conn_err = discord.Embed(
+                        title="❌ COULD NOT CONNECT TO VOICE",
+                        description=(
+                            f"Could not connect to **{ch_name}**.\n"
+                            f"• **Reason:** {err_detail}\n\n"
+                            f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
                         ),
+                        color=0xED4245,
+                    )
+                    try:
+                        await interaction.edit_original_response(embed=embed_conn_err)
+                    except Exception:
+                        await interaction.followup.send(embed=embed_conn_err, ephemeral=True)
+                    return
+
+            # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
+            embed_loading = discord.Embed(
+                title="🔍 SEARCHING TRACK",
+                description=f"Resolving: `{query[:100]}`...\n*Contacting audio sources (YouTube & SoundCloud)...*",
+                color=COLOR_NEON_BLUE,
+            )
+            try:
+                await interaction.edit_original_response(embed=embed_loading)
+            except Exception as load_err:
+                logger.debug(f"[Playback] Notice setting loading embed: {load_err}")
+
+            search_start = time.time()
+            is_timed_out = False
+            try:
+                # 35s timeout allows primary mobile YouTube extraction + secondary profile + SoundCloud fallback
+                track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=35.0)
+            except asyncio.TimeoutError:
+                track = None
+                is_timed_out = True
+                logger.warning(f"[Playback] Audio resolution timed out after 35s for query '{query}'")
+            except Exception as e:
+                track = None
+                logger.error(f"[Playback] Track resolution exception for '{query}': {e}", exc_info=True)
+
+            if not track:
+                res_err = getattr(AudioResolver, "last_resolver_error", None)
+                if is_timed_out:
+                    embed_fail = discord.Embed(
+                        title="⏱️ AUDIO SEARCH TIMED OUT",
+                        description=(
+                            f"The music search for `{query[:100]}` took longer than 35s and timed out.\n\n"
+                            f"• Try playing with a direct SoundCloud link\n"
+                            f"• If running on Render, YouTube may be throttling datacenter requests.\n"
+                            f"• You can provide YouTube cookies via the `YOUTUBE_COOKIES` environment variable."
+                        ),
+                        color=0xED4245,
+                    )
+                else:
+                    embed_fail = discord.Embed(
+                        title="😿 NO AUDIO TRACK FOUND",
+                        description=(
+                            f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
+                            f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
+                            f"• If YouTube is blocking Render's IP, try playing with a SoundCloud URL or add `YOUTUBE_COOKIES` in Render settings."
+                        ),
+                        color=0xED4245,
+                    )
+                try:
+                    await interaction.edit_original_response(embed=embed_fail, content=None, view=None)
+                except Exception:
+                    try:
+                        await interaction.followup.send(embed=embed_fail)
+                    except Exception as post_err:
+                        logger.error(f"[Playback] Could not post track failure embed: {post_err}")
+                return
+
+            search_dur = time.time() - search_start
+            logger.info(f"[Playback] Track '{track.title}' resolved in {search_dur:.2f}s")
+
+            # Feature 113: Audio Track Duration Ceiling Limiter (> 3 hours rejected for non-admins)
+            if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
+                await interaction.edit_original_response(
+                    embed=discord.Embed(
+                        title="⚠️ TRACK DURATION EXCEEDED",
+                        description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
+                        color=0xED4245,
+                    )
+                )
+                return
+
+            # 3. Add to Queue or Start Playback
+            async with session.lock:
+                # Rapid-click duplicate guard (prevents identical double-queueing within 3 seconds)
+                now_t = time.time()
+                last_url = getattr(session, "_last_queued_url", None)
+                last_time = getattr(session, "_last_queued_time", 0.0)
+                if track.url and track.url == last_url and (now_t - last_time) < 3.0:
+                    await interaction.edit_original_response(
+                        content=f"⚠️ **{track.title}** was already just queued a moment ago! (Duplicate prevented)",
+                        embed=None,
                         view=None,
                     )
+                    return
+                session._last_queued_url = track.url
+                session._last_queued_time = now_t
+
+                if session.is_playing or session.is_paused or session.has_active_track:
+                    session.queue.append(track)
+                    embed_queued = discord.Embed(
+                        title="🐱 ADDED TO QUEUE",
+                        description=f"### [{track.title}]({track.url})\n"
+                                    f"**Artist:** `{track.artist}` • **Duration:** `{format_duration(track.duration)}`\n"
+                                    f"**Position in Queue:** `#{len(session.queue)}`",
+                        color=COLOR_ELECTRIC_CYAN,
+                    )
+                    if track.thumbnail:
+                        embed_queued.set_thumbnail(url=track.thumbnail)
+                    embed_queued.set_footer(text=f"Requested by {member.display_name}")
+                    try:
+                        await interaction.edit_original_response(embed=embed_queued, content=None, view=None)
+                    except Exception:
+                        await interaction.followup.send(embed=embed_queued)
+                    await MusicPlayerService.send_now_playing_panel(session, bot=self.bot)
+                else:
+                    play_start = time.time()
+                    try:
+                        success = await MusicPlayerService.start_playback(self.bot, session, track)
+                    except Exception as play_exc:
+                        logger.error(f"[Playback] Exception starting playback for '{track.title}': {play_exc}", exc_info=True)
+                        success = False
+                        session.last_error = str(play_exc)
+
+                    play_dur = time.time() - play_start
+                    logger.info(f"[Playback] Stream initialization took {play_dur:.2f}s (success={success})")
+                    if success:
+                        try:
+                            await interaction.edit_original_response(
+                                content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*",
+                                embed=None,
+                                view=None,
+                            )
+                        except Exception as edit_err:
+                            logger.warning(f"[Playback] Could not edit original response on play success: {edit_err}")
+                            try:
+                                await interaction.followup.send(f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*")
+                            except Exception:
+                                pass
+                    else:
+                        err_detail = getattr(session, "last_error", None) or "Audio pipeline could not decode or play the audio stream."
+                        embed_fail = discord.Embed(
+                            title="❌ PLAYBACK FAILED",
+                            description=(
+                                f"Encountered an error while starting audio stream for **{track.title}**:\n"
+                                f"```\n{err_detail[:800]}\n```\n"
+                                f"💡 **Render Deployment Notes:**\n"
+                                f"• Ensure FFmpeg is available (`apt-get install -y ffmpeg` via Docker, or static-ffmpeg).\n"
+                                f"• If YouTube is blocking Render's IP (HTTP 403), play with a SoundCloud URL or add `YOUTUBE_COOKIES`."
+                            ),
+                            color=0xED4245,
+                        )
+                        try:
+                            await interaction.edit_original_response(embed=embed_fail, content=None, view=None)
+                        except Exception:
+                            try:
+                                await interaction.followup.send(embed=embed_fail)
+                            except Exception as post_err:
+                                logger.error(f"[Playback] Could not post playback failure: {post_err}")
+        except Exception as top_err:
+            logger.error(f"[Playback] Critical unhandled error in _play_query for query '{query}': {top_err}", exc_info=True)
+            embed_crit = discord.Embed(
+                title="❌ PLAYBACK ERROR",
+                description=(
+                    f"An unexpected error occurred while processing your request:\n"
+                    f"```\n{str(top_err)[:800]}\n```"
+                ),
+                color=0xED4245,
+            )
+            try:
+                if interaction.response.is_done():
+                    try:
+                        await interaction.edit_original_response(embed=embed_crit, content=None, view=None)
+                    except Exception:
+                        await interaction.followup.send(embed=embed_crit)
+                else:
+                    await interaction.response.send_message(embed=embed_crit, ephemeral=True)
+            except Exception:
+                pass
 
     # =========================================================================
     # /MUSIC COMMAND GROUP
@@ -2319,8 +2375,19 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.command(name="play", description="Play a song or playlist (Shortcut for /music play)")
     @app_commands.describe(query="Song title, artist, or URL")
     async def alias_play(self, interaction: discord.Interaction, query: str) -> None:
-        await self.ensure_deferred(interaction, ephemeral=False)
-        await self.music_play.callback(self, interaction, query)
+        try:
+            await self.ensure_deferred(interaction, ephemeral=False)
+            await self.music_play.callback(self, interaction, query)
+        except Exception as e:
+            logger.error(f"[Playback] Uncaught error in alias_play (/play): {e}", exc_info=True)
+            try:
+                msg = f"❌ Error executing `/play`: {e}"
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+            except Exception:
+                pass
 
     @app_commands.command(name="pause", description="Pause music playback (Shortcut for /music pause)")
     async def alias_pause(self, interaction: discord.Interaction) -> None:

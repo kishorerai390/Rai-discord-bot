@@ -72,7 +72,50 @@ def _detect_js_runtimes() -> Dict[str, Any]:
     return {}
 
 
+
+def get_ffmpeg_executable() -> str:
+    """Resolve active FFmpeg binary path from system PATH or static-ffmpeg."""
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+        found = shutil.which("ffmpeg")
+        if found:
+            return found
+    except Exception:
+        pass
+    return "ffmpeg"
+
+
+def _sync_environment_cookies() -> None:
+    """Load YouTube cookies from environment variables if present on Render/Cloud hosts."""
+    raw_cookies = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("YOUTUBE_COOKIES_DATA")
+    if not raw_cookies and os.environ.get("YOUTUBE_COOKIES_BASE64"):
+        try:
+            import base64
+            raw_cookies = base64.b64decode(os.environ["YOUTUBE_COOKIES_BASE64"]).decode("utf-8")
+        except Exception as e:
+            logger.warning(f"Could not decode YOUTUBE_COOKIES_BASE64: {e}")
+
+    if raw_cookies and raw_cookies.strip():
+        target = BASE_DIR / "data" / "cookies.txt"
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(raw_cookies.strip(), encoding="utf-8")
+            logger.info(f"Loaded YouTube authentication cookies from environment variable into {target}")
+        except Exception as e:
+            logger.warning(f"Failed writing environment cookies to {target}: {e}")
+
+
+# Sync cookies on import
+_sync_environment_cookies()
+
+
 def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str, Any]:
+    # Default to Android and iOS player clients which have significantly higher success rates on datacenter IPs
+    clients = player_clients or ["android", "ios", "mweb", "web_creator"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "extractaudio": True,
@@ -86,10 +129,14 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
-        "socket_timeout": 10,
+        "socket_timeout": 8,
+        "extractor_retries": 1,
         "remote_components": ["ejs:github"],
         "extractor_args": {
-            "youtube": {}
+            "youtube": {
+                "player_client": clients,
+                "skip": ["translated_subs", "dash", "hls"],
+            }
         },
     }
 
@@ -121,6 +168,7 @@ def _build_ytdl_options(player_clients: Optional[List[str]] = None) -> Dict[str,
 YTDL_OPTIONS = _build_ytdl_options()
 
 FFMPEG_OPTIONS = {
+    "executable": get_ffmpeg_executable(),
     "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -analyzeduration 0 -loglevel warning",
     "options": "-vn",
 }
@@ -133,11 +181,11 @@ class AudioResolver:
 
     _search_cache: Dict[str, List[Dict[str, Any]]] = {}
     PROFILE_PRESETS: List[List[str]] = [
-        ["web_creator", "ios", "mweb"],
+        ["android", "ios"],
         ["ios", "mweb"],
-        ["web_creator", "ios"],
-        ["ios", "web_creator", "mweb", "android"],
-        ["android", "web"],
+        ["android", "mweb"],
+        ["mweb", "web_creator"],
+        ["ios", "web_creator"],
     ]
     _active_profile_index: int = 0
 
@@ -417,32 +465,34 @@ class AudioResolver:
                     t.url = query_or_url
             return t
 
-        # Strategy 1: Primary YouTube extraction with modern client list
+        # Strategy 1: Primary extraction with modern mobile/embedded client list
+        cls.last_resolver_error = None
         try:
             data = await asyncio.wait_for(
                 loop.run_in_executor(
                     _audio_executor, functools.partial(_ytdl.extract_info, target, download=False)
                 ),
-                timeout=20.0,
+                timeout=12.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
                 track = _apply_metadata_enhancements(track)
                 dur = time.time() - start_t
-                logger.info(f"[Resolver] Primary YouTube resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                logger.info(f"[Resolver] Primary resolver resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
         except Exception as yt_err:
-            logger.warning(f"Primary YouTube resolver failed for '{cleaned_query}': {yt_err}. Trying secondary fallback...")
+            cls.last_resolver_error = str(yt_err)
+            logger.warning(f"Primary resolver failed for '{cleaned_query}': {yt_err}. Trying secondary fallback...")
 
-        # Strategy 2: Fallback with mobile/creator client profile
+        # Strategy 2: Fallback with mobile/ios profile
         try:
-            fallback_opts = _build_ytdl_options(["web_creator", "ios", "mweb"])
+            fallback_opts = _build_ytdl_options(["ios", "mweb"])
             fallback_ytdl = yt_dlp.YoutubeDL(fallback_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
                     _audio_executor, functools.partial(fallback_ytdl.extract_info, target, download=False)
                 ),
-                timeout=20.0,
+                timeout=10.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track:
@@ -451,21 +501,27 @@ class AudioResolver:
                 logger.info(f"[Resolver] Secondary profile resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                 return track
         except Exception as fb_err:
-            logger.warning(f"Secondary YouTube profile failed for '{cleaned_query}': {fb_err}")
+            cls.last_resolver_error = str(fb_err)
+            logger.warning(f"Secondary profile failed for '{cleaned_query}': {fb_err}")
 
-        # Strategy 3: Multi-Source Failover to SoundCloud if it's a search query
+        # Strategy 3: Multi-Source Failover to SoundCloud if it's a search query or Spotify link
         if not cleaned_query.startswith("http") or spotify_info is not None:
             try:
-                sc_target = f"scsearch5:{cleaned_query}"
+                sc_target = f"scsearch3:{cleaned_query}"
                 logger.info(f"Failing over to SoundCloud for '{cleaned_query}'...")
-                sc_opts = _build_ytdl_options()
-                sc_opts.update({"format": "bestaudio/best", "noplaylist": True, "quiet": True, "socket_timeout": 15})
+                sc_opts = {
+                    "format": "bestaudio/best",
+                    "noplaylist": True,
+                    "quiet": True,
+                    "socket_timeout": 8,
+                    "nocheckcertificate": True,
+                }
                 sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
                     ),
-                    timeout=20.0,
+                    timeout=10.0,
                 )
                 if data:
                     entries = data.get("entries") if "entries" in data else [data]
@@ -479,6 +535,7 @@ class AudioResolver:
                             logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
                             return track
             except Exception as sc_err:
+                cls.last_resolver_error = f"YouTube and SoundCloud both failed: {sc_err}"
                 logger.error(f"SoundCloud fallback failed for '{cleaned_query}': {sc_err}")
 
         dur = time.time() - start_t

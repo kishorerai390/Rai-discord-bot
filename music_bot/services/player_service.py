@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import discord
 
 from music_bot.database.models import QueuedTrack
-from music_bot.services.resolver_service import FFMPEG_OPTIONS, AudioResolver
+from music_bot.services.resolver_service import FFMPEG_OPTIONS, AudioResolver, get_ffmpeg_executable
 from music_bot.services.session_service import GuildMusicSession, LoopMode, PlaybackState, SessionManager
 
 if TYPE_CHECKING:
@@ -174,11 +174,37 @@ class MusicPlayerService:
 
             # Feature 106: Smart Loudness Normalization & Volume Clamping
             norm_vol = max(0.05, min(1.0, session.volume / 100.0))
-            # Create FFmpeg audio source
+            # Create FFmpeg audio source with explicit executable resolution
             ffmpeg_opts = dict(FFMPEG_OPTIONS)
+            ffmpeg_opts["executable"] = get_ffmpeg_executable()
             if session.audio_filter:
                 ffmpeg_opts["options"] = f"-vn {session.audio_filter}"
-            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+
+            try:
+                audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+            except Exception as ffmpeg_err:
+                logger.error(f"Failed to initialize FFmpeg audio source for '{track.title}': {ffmpeg_err}", exc_info=True)
+                session.state = PlaybackState.ERROR
+                session.last_error = f"FFmpeg failed to start: {ffmpeg_err}. Ensure FFmpeg is installed on your host/container."
+                if session.text_channel:
+                    try:
+                        await session.text_channel.send(
+                            embed=discord.Embed(
+                                title="❌ FFMPEG NOT AVAILABLE",
+                                description=(
+                                    f"Failed to start audio decoder for **{track.title}**.\n\n"
+                                    f"• **Error:** `{ffmpeg_err}`\n"
+                                    f"• **FFmpeg Executable:** `{ffmpeg_opts.get('executable', 'ffmpeg')}`\n\n"
+                                    f"Ensure FFmpeg is installed in your Render environment or Docker container."
+                                ),
+                                color=0xED4245,
+                            )
+                        )
+                    except Exception:
+                        pass
+                await cls.handle_track_finished(bot, session)
+                return False
+
             volume_transformer = discord.PCMVolumeTransformer(
                 audio_source, volume=norm_vol
             )
@@ -196,7 +222,7 @@ class MusicPlayerService:
                 first_frame = b""
 
             if not first_frame:
-                logger.warning(f"Audio source produced empty audio for '{track.title}' (stream URL may be stale/expired). Attempting fresh re-resolution...")
+                logger.warning(f"Audio source produced empty audio for '{track.title}' (stream URL may be blocked/stale). Attempting fresh re-resolution...")
                 try:
                     volume_transformer.cleanup()
                 except Exception:
@@ -205,14 +231,15 @@ class MusicPlayerService:
                 fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
                 if fresh and fresh.stream_url:
                     track.stream_url = fresh.stream_url
-                    audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
-                    volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                     try:
+                        audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                        volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                         first_frame = await asyncio.wait_for(
                             loop.run_in_executor(None, volume_transformer.read),
                             timeout=8.0,
                         )
-                    except Exception:
+                    except Exception as re_read_err:
+                        logger.warning(f"Secondary frame read failed for '{track.title}': {re_read_err}")
                         first_frame = b""
 
                 if not first_frame:
@@ -221,13 +248,20 @@ class MusicPlayerService:
                     except Exception:
                         pass
                     session.state = PlaybackState.ERROR
-                    session.last_error = f"Audio source produced no sound for '{track.title}'."
+                    session.last_error = (
+                        f"FFmpeg received no audio data for '{track.title}'. "
+                        f"The audio stream may be restricted by YouTube (HTTP 403 / IP blocked on cloud host). "
+                        f"Try playing with a SoundCloud URL or add YouTube cookies."
+                    )
                     if session.text_channel:
                         try:
                             await session.text_channel.send(
                                 embed=discord.Embed(
                                     title="❌ NO AUDIO STREAM",
-                                    description=f"FFmpeg received no audio data for **{track.title}** (stream blocked or unavailable).\nSkipping to next track...",
+                                    description=(
+                                        f"FFmpeg received no audio data for **{track.title}** (stream blocked or unavailable).\n\n"
+                                        f"💡 *YouTube frequently blocks Render datacenter IPs with HTTP 403. Try playing with a SoundCloud URL, or add your YouTube cookies via `YOUTUBE_COOKIES` on Render.*"
+                                    ),
                                     color=0xED4245,
                                 )
                             )
@@ -260,6 +294,23 @@ class MusicPlayerService:
                 if error:
                     session.last_error = f"Audio playback error: {error}"
                     logger.error(f"Playback error in guild {session.guild_id}: {error}", exc_info=True)
+                    if session.text_channel:
+                        async def _report_playback_err():
+                            try:
+                                await session.text_channel.send(
+                                    embed=discord.Embed(
+                                        title="❌ AUDIO PLAYBACK STOPPED",
+                                        description=(
+                                            f"Audio playback encountered an error for **{track.title if track else 'track'}**:\n"
+                                            f"```\n{str(error)[:600]}\n```\n"
+                                            f"💡 *If running on Render, ensure FFmpeg and PyNaCl are installed, and check if YouTube is rate-limiting the audio stream.*"
+                                        ),
+                                        color=0xED4245,
+                                    )
+                                )
+                            except Exception:
+                                pass
+                        asyncio.run_coroutine_threadsafe(_report_playback_err(), loop)
 
                 # Mid-song stream auto-recovery for premature stream failures or premature EOF
                 elapsed = session.progress_seconds
@@ -409,9 +460,11 @@ class MusicPlayerService:
                 return False
 
             base_before = FFMPEG_OPTIONS.get("before_options", "")
-            resume_before = f"-ss {start_seconds} {base_before}".strip()
-
-            ffmpeg_opts = {"before_options": resume_before, "options": "-vn"}
+            ffmpeg_opts = {
+                "executable": get_ffmpeg_executable(),
+                "before_options": resume_before,
+                "options": "-vn",
+            }
             if session.audio_filter:
                 ffmpeg_opts["options"] = f"-vn {session.audio_filter}"
 

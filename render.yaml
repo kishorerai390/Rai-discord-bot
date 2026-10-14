@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
     startCommand: python main.py
     envVars:
       - key: PYTHON_VERSION
@@ -29,3 +29,5 @@ services:
         value: data/music.db
       - key: COMMAND_SYNC_MODE
         value: global
+      - key: YOUTUBE_COOKIES
+        sync: false

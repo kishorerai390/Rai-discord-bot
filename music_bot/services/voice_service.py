@@ -134,10 +134,16 @@ class VoiceManager:
                 logger.warning(f"[Voice] ClientException during voice connect on attempt {attempt}: {ce}")
                 # Check if voice client was established despite exception
                 if member.guild and member.guild.voice_client and member.guild.voice_client.is_connected():
-                    session.voice_client = member.guild.voice_client
+                    curr_vc = member.guild.voice_client
+                    session.voice_client = curr_vc
                     session.state = PlaybackState.CONNECTED
                     session.last_error = None
-                    return member.guild.voice_client
+                    if curr_vc.channel and curr_vc.channel.id != target_channel.id:
+                        try:
+                            await curr_vc.move_to(target_channel)
+                        except Exception as m_err:
+                            logger.warning(f"[Voice] Could not move to {target_channel.name}: {m_err}")
+                    return curr_vc
                 try:
                     if member.guild and member.guild.voice_client:
                         await member.guild.voice_client.disconnect(force=True)
