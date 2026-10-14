@@ -423,7 +423,7 @@ class MusicSessionMemoryService:
                     from music_bot.services.voice_service import VoiceManager
                     vc = await asyncio.wait_for(
                         VoiceManager.join_voice_channel(guild.me, text_ch, session),  # type: ignore
-                        timeout=8.0,
+                        timeout=50.0,
                     )
                     if vc and vc.is_connected():
                         reconnected = True
