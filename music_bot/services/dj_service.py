@@ -142,6 +142,21 @@ class NekoDJService:
 
         # Prioritized query hierarchy for continuous infinite variety
         queries_to_try = []
+        dj_mood = getattr(session, "dj_mood", "balanced") or "balanced"
+        mood_queries = {
+            "chill": ("chill acoustic indie pop lofi study songs", "Relaxing chill acoustic vibe matching your mood."),
+            "energetic": ("upbeat high energy workout dance party hits", "High-energy banger matching your energetic mood."),
+            "focus": ("lofi beats concentration study instrumental focus", "Concentration beats matching your focus mood."),
+            "gaming": ("synthwave cyberpunk electronic gaming bass playlist", "Cyberpunk gaming soundtrack matching your gaming mood."),
+            "relaxing": ("deep ambient peaceful sleep piano meditation songs", "Soothing ambient soundscape matching your relaxing mood."),
+            "party": ("club bangers dance electronic festival anthems", "Crowd-pleasing party hits matching your party mood."),
+        }
+        if dj_mood.lower() in mood_queries:
+            q_str, r_str = mood_queries[dj_mood.lower()]
+            if artist:
+                queries_to_try.append((f"{artist} {dj_mood} songs", f"More {dj_mood} style hits by **{artist}**."))
+            queries_to_try.append((q_str, r_str))
+
         if artist:
             queries_to_try.append((f"{artist} top tracks songs", f"More top hits by **{artist}**."))
             queries_to_try.append((f"{artist} mix playlist", f"Related artists & styles matching **{artist}**."))

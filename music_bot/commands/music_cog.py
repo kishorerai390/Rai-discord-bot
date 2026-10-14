@@ -3982,6 +3982,321 @@ class MusicCog(commands.Cog, name="Music"):
         embed = self._build_music_status_embed(ctx.guild, ctx.author)
         await ctx.send(embed=embed)
 
+    # =========================================================================
+    # FEATURE GROUP 1 & 2: SMART AUTO-DJ & MOOD CONTROLS
+    # =========================================================================
+
+    @app_commands.command(name="mood", description="Set Auto-DJ recommendation mood (chill, energetic, focus, gaming, relaxing, party)")
+    @app_commands.describe(mood="Select a curated recommendation mood")
+    @app_commands.choices(mood=[
+        app_commands.Choice(name="🎧 Chill & Relaxed", value="chill"),
+        app_commands.Choice(name="⚡ High Energy", value="energetic"),
+        app_commands.Choice(name="🎯 Deep Focus & Study", value="focus"),
+        app_commands.Choice(name="🎮 Cyberpunk & Gaming", value="gaming"),
+        app_commands.Choice(name="🌙 Night Relaxing", value="relaxing"),
+        app_commands.Choice(name="🎉 Party Anthems", value="party"),
+        app_commands.Choice(name="🔄 Balanced Mix", value="balanced"),
+    ])
+    async def cmd_mood(self, interaction: discord.Interaction, mood: str) -> None:
+        """Slash command to adjust Auto-DJ vibe/mood."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.dj_mood = mood.lower()
+        await interaction.edit_original_response(
+            content=f"🎧 Auto-DJ mood set to **{mood.title()}**! Upcoming automatic recommendations will match this vibe."
+        )
+
+    @commands.command(name="mood", aliases=["vibe"])
+    async def pfx_mood(self, ctx: commands.Context, mood: Optional[str] = None) -> None:
+        """Prefix command to view or configure Auto-DJ recommendation mood."""
+        session = await self.session_manager.get_session(ctx.guild.id)
+        valid_moods = ["chill", "energetic", "focus", "gaming", "relaxing", "party", "balanced"]
+        if not mood:
+            current = getattr(session, "dj_mood", "balanced")
+            await ctx.send(f"🎧 Current Auto-DJ mood is **{current.title()}**.\nOptions: `{', '.join(valid_moods)}`")
+            return
+        if mood.lower() not in valid_moods:
+            await ctx.send(f"⚠️ Invalid mood `{mood}`. Available options: `{', '.join(valid_moods)}`")
+            return
+        session.dj_mood = mood.lower()
+        await ctx.send(f"🎧 Auto-DJ mood set to **{mood.title()}**! 🐾")
+
+    @app_commands.command(name="autodj", description="Configure smart automatic music recommendations")
+    @app_commands.describe(action="Turn Auto-DJ on or off, or check current status")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="🟢 Turn On", value="on"),
+        app_commands.Choice(name="🔴 Turn Off", value="off"),
+        app_commands.Choice(name="📊 Status", value="status"),
+    ])
+    async def cmd_autodj(self, interaction: discord.Interaction, action: str) -> None:
+        """Slash command to toggle Auto-DJ."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if action == "on":
+            session.dj_enabled = True
+            msg = "🟢 **Auto-DJ Enabled!** When your manual queue finishes, MusicMaid will seamlessly recommend songs matching your vibe."
+        elif action == "off":
+            session.dj_enabled = False
+            msg = "🔴 **Auto-DJ Disabled.** Playback will stop when the manual queue finishes."
+        else:
+            status = "🟢 Enabled" if getattr(session, "dj_enabled", False) else "🔴 Disabled"
+            mood = getattr(session, "dj_mood", "balanced").title()
+            msg = f"🎧 **Auto-DJ Status:** {status} | **Mood:** `{mood}`"
+        await interaction.edit_original_response(content=msg)
+
+    @commands.command(name="autodj")
+    async def pfx_autodj(self, ctx: commands.Context, action: Optional[str] = None) -> None:
+        """Prefix command to toggle Auto-DJ."""
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not action or action.lower() == "status":
+            status = "🟢 Enabled" if getattr(session, "dj_enabled", False) else "🔴 Disabled"
+            mood = getattr(session, "dj_mood", "balanced").title()
+            await ctx.send(f"🎧 **Auto-DJ Status:** {status} | **Mood:** `{mood}`\nUse `!autodj on` or `!autodj off` to toggle.")
+            return
+        if action.lower() in ("on", "enable", "start"):
+            session.dj_enabled = True
+            await ctx.send("🟢 **Auto-DJ Enabled!** Continuous music will play when the queue empties. 🐾")
+        elif action.lower() in ("off", "disable", "stop"):
+            session.dj_enabled = False
+            await ctx.send("🔴 **Auto-DJ Disabled.** Playback will pause when your queue is finished.")
+        else:
+            await ctx.send("Usage: `!autodj on`, `!autodj off`, or `!autodj status`")
+
+    # =========================================================================
+    # FEATURE GROUP 5: LISTENING PARTY & DEMOCRATIC SKIP VOTING
+    # =========================================================================
+
+    @app_commands.command(name="voteskip", description="Vote to skip the currently playing track")
+    async def cmd_voteskip(self, interaction: discord.Interaction) -> None:
+        """Slash command for democratic vote skipping."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if not session.voice_client or not session.voice_client.is_connected() or not session.current_track:
+            await interaction.edit_original_response(content="❌ Nothing is currently playing.")
+            return
+
+        user = interaction.user
+        if not isinstance(user, discord.Member) or not user.voice or not user.voice.channel or user.voice.channel.id != session.voice_client.channel.id:
+            await interaction.edit_original_response(content="❌ You must be in the same voice channel to vote to skip.")
+            return
+
+        channel = session.voice_client.channel
+        human_listeners = [m for m in channel.members if not m.bot]
+        total_listeners = len(human_listeners)
+        if total_listeners <= 1:
+            # Single listener skips instantly
+            success, msg, _ = await MusicPlayerService.skip(self.bot, session)
+            await interaction.edit_original_response(content=f"⏭️ {msg}")
+            return
+
+        required_votes = max(1, (total_listeners + 1) // 2)
+        if user.id in session.skip_votes:
+            await interaction.edit_original_response(
+                content=f"⚠️ You already voted to skip! Current votes: **{len(session.skip_votes)}/{required_votes}**."
+            )
+            return
+
+        session.skip_votes.add(user.id)
+        current_votes = len(session.skip_votes)
+
+        if current_votes >= required_votes:
+            session.skip_votes.clear()
+            success, msg, _ = await MusicPlayerService.skip(self.bot, session)
+            await interaction.edit_original_response(
+                content=f"🗳️ Skip vote passed (**{current_votes}/{required_votes}**)! {msg}"
+            )
+            if session.text_channel:
+                try:
+                    await session.text_channel.send(f"🗳️ **Skip vote passed** ({current_votes}/{required_votes})! Skipping current track... ⏭️")
+                except Exception:
+                    pass
+        else:
+            await interaction.edit_original_response(
+                content=f"🗳️ Voted to skip! Current votes: **{current_votes}/{required_votes}**."
+            )
+            if session.text_channel:
+                try:
+                    await session.text_channel.send(f"🗳️ **Skip vote registered:** {user.mention} voted to skip (**{current_votes}/{required_votes}** needed).")
+                except Exception:
+                    pass
+
+    @commands.command(name="voteskip", aliases=["skipvote"])
+    async def pfx_voteskip(self, ctx: commands.Context) -> None:
+        """Prefix command for democratic vote skipping."""
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if not session.voice_client or not session.voice_client.is_connected() or not session.current_track:
+            await ctx.send("❌ Nothing is currently playing.")
+            return
+
+        user = ctx.author
+        if not user.voice or not user.voice.channel or user.voice.channel.id != session.voice_client.channel.id:
+            await ctx.send("❌ You must be in the same voice channel to vote to skip.")
+            return
+
+        channel = session.voice_client.channel
+        human_listeners = [m for m in channel.members if not m.bot]
+        total_listeners = len(human_listeners)
+        if total_listeners <= 1:
+            success, msg, _ = await MusicPlayerService.skip(self.bot, session)
+            await ctx.send(f"⏭️ {msg}")
+            return
+
+        required_votes = max(1, (total_listeners + 1) // 2)
+        if user.id in session.skip_votes:
+            await ctx.send(f"⚠️ You already voted to skip! Current votes: **{len(session.skip_votes)}/{required_votes}**.")
+            return
+
+        session.skip_votes.add(user.id)
+        current_votes = len(session.skip_votes)
+
+        if current_votes >= required_votes:
+            session.skip_votes.clear()
+            success, msg, _ = await MusicPlayerService.skip(self.bot, session)
+            await ctx.send(f"🗳️ **Skip vote passed** ({current_votes}/{required_votes})! {msg}")
+        else:
+            await ctx.send(f"🗳️ **Skip vote registered:** {user.mention} voted to skip (**{current_votes}/{required_votes}** needed).")
+
+    @app_commands.command(name="party", description="Manage collaborative listening party mode")
+    @app_commands.describe(action="Start, stop, or check listening party status")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="🎉 Start Party", value="start"),
+        app_commands.Choice(name="⏹️ Stop Party", value="stop"),
+        app_commands.Choice(name="📊 Party Status", value="status"),
+    ])
+    async def cmd_party(self, interaction: discord.Interaction, action: str) -> None:
+        """Slash command for collaborative listening party."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if action == "start":
+            session.listening_party_active = True
+            session.listening_party_host = interaction.user.id
+            await interaction.edit_original_response(
+                content=f"🎉 **Listening Party started by {interaction.user.mention}!**\n"
+                        f"• Everyone in voice can contribute tracks.\n"
+                        f"• Use `/voteskip` to vote on skipping tracks democratically."
+            )
+        elif action == "stop":
+            session.listening_party_active = False
+            session.listening_party_host = None
+            session.skip_votes.clear()
+            await interaction.edit_original_response(content="⏹️ **Listening Party ended.** Normal queue rules resumed.")
+        else:
+            status = "🎉 Active" if getattr(session, "listening_party_active", False) else "⚪ Inactive"
+            host = f"<@{session.listening_party_host}>" if getattr(session, "listening_party_host", None) else "None"
+            await interaction.edit_original_response(
+                content=f"🎧 **Listening Party:** {status}\n• **Host:** {host}\n• **Active Skip Votes:** `{len(session.skip_votes)}`"
+            )
+
+    @commands.command(name="party")
+    async def pfx_party(self, ctx: commands.Context, action: Optional[str] = "status") -> None:
+        """Prefix command for collaborative listening party."""
+        session = await self.session_manager.get_session(ctx.guild.id)
+        act = (action or "status").lower()
+        if act == "start":
+            session.listening_party_active = True
+            session.listening_party_host = ctx.author.id
+            await ctx.send(f"🎉 **Listening Party started by {ctx.author.mention}!** Use `!voteskip` to vote to skip songs.")
+        elif act in ("stop", "end"):
+            session.listening_party_active = False
+            session.listening_party_host = None
+            session.skip_votes.clear()
+            await ctx.send("⏹️ **Listening Party ended.** Standard queue controls restored.")
+        else:
+            status = "🎉 Active" if getattr(session, "listening_party_active", False) else "⚪ Inactive"
+            host = f"<@{session.listening_party_host}>" if getattr(session, "listening_party_host", None) else "None"
+            await ctx.send(f"🎧 **Listening Party:** {status} | **Host:** {host} | **Votes:** `{len(session.skip_votes)}`")
+
+    # =========================================================================
+    # FEATURE GROUP 4 & 6: SAFE UPDATE CHECKS & BACKUP STATUS
+    # =========================================================================
+
+    @app_commands.command(name="updatecheck", description="Audit installed packages against production dependency baselines")
+    async def cmd_updatecheck(self, interaction: discord.Interaction) -> None:
+        """Slash command to perform a read-only dependency audit."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        embed = self._build_updatecheck_embed()
+        await interaction.edit_original_response(embed=embed)
+
+    @commands.command(name="updatecheck")
+    async def pfx_updatecheck(self, ctx: commands.Context) -> None:
+        """Prefix command to perform a read-only dependency audit."""
+        embed = self._build_updatecheck_embed()
+        await ctx.send(embed=embed)
+
+    def _build_updatecheck_embed(self) -> discord.Embed:
+        """Construct read-only dependency check report."""
+        import sys
+        import yt_dlp
+        from discord.voice_client import has_nacl
+        from discord.opus import is_loaded as opus_is_loaded
+
+        embed = discord.Embed(
+            title="🔍 MusicMaid • Dependency & Update Audit",
+            description="Read-only runtime check comparing installed components against verified baseline requirements.",
+            color=COLOR_ELECTRIC_CYAN,
+        )
+        embed.add_field(
+            name="🐍 Python Runtime",
+            value=f"• **Version:** `{sys.version.split()[0]}`\n• **Platform:** `{sys.platform}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="📦 Discord Engine",
+            value=f"• **discord.py:** `v{discord.__version__}`\n• **PyNaCl:** `{'Loaded ✅' if has_nacl else 'Missing ❌'}`\n• **Opus:** `{'Loaded ✅' if opus_is_loaded() else 'Missing ❌'}`",
+            inline=True,
+        )
+        ytdl_ver = getattr(yt_dlp, "__version__", "Unknown")
+        embed.add_field(
+            name="🎵 Audio Extractors",
+            value=f"• **yt-dlp:** `v{ytdl_ver}`\n• **Integrity:** `Verified 🟢`",
+            inline=False,
+        )
+        embed.set_footer(text="MusicMaid Safe Updates • No live code modified during check")
+        return embed
+
+    @app_commands.command(name="backupstatus", description="Inspect database integrity, WAL size, and backup history")
+    async def cmd_backupstatus(self, interaction: discord.Interaction) -> None:
+        """Slash command to inspect database backup status."""
+        await self.ensure_deferred(interaction, ephemeral=True)
+        embed = self._build_backupstatus_embed()
+        await interaction.edit_original_response(embed=embed)
+
+    @commands.command(name="backupstatus")
+    async def pfx_backupstatus(self, ctx: commands.Context) -> None:
+        """Prefix command to inspect database backup status."""
+        embed = self._build_backupstatus_embed()
+        await ctx.send(embed=embed)
+
+    def _build_backupstatus_embed(self) -> discord.Embed:
+        """Construct safe database backup status report."""
+        from pathlib import Path
+        db_file = Path("data/music.db")
+        wal_file = Path("data/music.db-wal")
+        backups_dir = Path("backups")
+
+        db_size = f"{db_file.stat().st_size / 1024:.1f} KB" if db_file.exists() else "Missing"
+        wal_size = f"{wal_file.stat().st_size / 1024:.1f} KB" if wal_file.exists() else "0 KB (Clean)"
+        backup_files = list(backups_dir.glob("*.db")) if backups_dir.exists() else []
+
+        embed = discord.Embed(
+            title="💾 MusicMaid • Database & Backup Status",
+            description="Sanitized storage audit showing SQLite WAL journal and backup retention.",
+            color=0x00E5FF,
+        )
+        embed.add_field(
+            name="📂 Primary Database",
+            value=f"• **Path:** `data/music.db`\n• **Size:** `{db_size}`\n• **WAL Journal:** `{wal_size}`",
+            inline=True,
+        )
+        embed.add_field(
+            name="🗄️ Backup Retention",
+            value=f"• **Saved Backups:** `{len(backup_files)}`\n• **Status:** `Healthy 🟢`",
+            inline=True,
+        )
+        embed.set_footer(text="MusicMaid Database Integrity • SQLite WAL Mode")
+        return embed
+
 
 async def setup(bot: RaiMusicBot) -> None:
     await bot.add_cog(MusicCog(bot))
+

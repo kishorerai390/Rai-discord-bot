@@ -361,6 +361,7 @@ class MusicPlayerService:
 
             session.voice_client.play(playable_source, after=after_playback)
             session.state = PlaybackState.PLAYING
+            session.skip_votes.clear()
 
             # Launch real-time progress bar updater loop (every 5 seconds)
             if session.progress_updater_task and not session.progress_updater_task.done():
@@ -1125,6 +1126,7 @@ class MusicPlayerService:
 
         session._is_skipping = True
         session.playback_generation += 1
+        session.skip_votes.clear()
 
         try:
             skipped_track = session.current_track

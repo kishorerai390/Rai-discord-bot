@@ -385,6 +385,45 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         dead_vc.disconnect.assert_awaited_once_with(force=True)
         dead_vc.cleanup.assert_called()
 
+    async def test_15_pynacl_dependency_missing(self):
+        """Scenario 15: Missing PyNaCl dependency fast-fails Stage 1 in 0ms with explicit diagnosis."""
+        with patch("discord.voice_client.has_nacl", False):
+            vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+
+        self.assertIsNone(vc)
+        self.assertEqual(self.session.state, PlaybackState.ERROR)
+        self.assertIn("Voice Dependency Missing (PyNaCl)", self.session.last_error)
+        self.assertNotIn("timed out", self.session.last_error.lower())
+        self.voice_channel.connect.assert_not_called()
+
+    async def test_16_opus_dependency_missing(self):
+        """Scenario 16: Missing Opus library exception is accurately classified as Opus missing."""
+        mock_conn = MagicMock()
+        mock_conn.state = None
+        mock_vc = MagicMock()
+        mock_vc._connection = mock_conn
+        self.guild.voice_client = mock_vc
+
+        stage_name, advice, _ = VoiceManager._inspect_failed_stage(self.guild, RuntimeError("opus library not loaded"))
+        self.assertEqual(stage_name, "Voice Dependency Missing (Opus)")
+        self.assertIn("libopus", advice)
+
+    async def test_17_immediate_runtime_error_not_labeled_timeout(self):
+        """Scenario 17: Immediate failure inside connect() fast-breaks and is never labeled as a timeout."""
+        self.voice_channel.connect = AsyncMock(side_effect=RuntimeError("PyNaCl library needed in order to use voice"))
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+
+        self.assertIsNone(vc)
+        self.assertEqual(self.session.state, PlaybackState.ERROR)
+        self.assertIn("Voice Dependency Missing (PyNaCl)", self.session.last_error)
+        self.assertNotIn("timed out", self.session.last_error.lower())
+        # Should fast-break after 1 attempt instead of retrying 3 times
+        self.assertEqual(self.voice_channel.connect.await_count, 1)
+        mock_sleep.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
+

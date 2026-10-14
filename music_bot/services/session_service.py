@@ -69,6 +69,10 @@ class GuildMusicSession:
         self.eq_preset: str = "Flat"
         self.ducking_enabled: bool = True
         self.skip_votes: set[int] = set()
+        self.dj_mood: str = "balanced"
+        self.listening_party_active: bool = False
+        self.listening_party_host: Optional[int] = None
+        self.request_cooldowns: dict[int, float] = {}
 
         self.track_start_time: float = 0.0
         self.pause_time: float = 0.0

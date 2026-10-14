@@ -181,6 +181,37 @@ class VoiceManager:
                     flow_name,
                 )
 
+        # Check explicit dependency missing exceptions
+        exc_str = str(exc or "").lower()
+        if (isinstance(exc, RuntimeError) and "pynacl" in exc_str) or "nacl" in exc_str:
+            return (
+                "Voice Dependency Missing (PyNaCl)",
+                "The PyNaCl cryptographic library is not installed or failed to initialize. "
+                "Discord voice connections require PyNaCl for packet encryption. Please ensure PyNaCl is installed.",
+                flow_name,
+            )
+
+        try:
+            from discord.opus import OpusNotLoaded
+            is_opus_err = isinstance(exc, OpusNotLoaded)
+        except ImportError:
+            is_opus_err = False
+
+        if is_opus_err or (isinstance(exc, RuntimeError) and "opus" in exc_str) or "opus" in exc_str:
+            return (
+                "Voice Dependency Missing (Opus)",
+                "The Opus audio codec library (libopus) is not loaded or missing on this system. "
+                "Voice streaming requires libopus. Please ensure libopus is installed in the hosting environment.",
+                flow_name,
+            )
+
+        if isinstance(exc, discord.errors.Forbidden) or "permission" in exc_str:
+            return (
+                "Discord Permission Denied",
+                "MusicMaid was rejected with 403 Forbidden. Please verify that the bot has 'Connect' and 'Speak' permissions.",
+                flow_name,
+            )
+
         if isinstance(exc, discord.ClientException):
             return (
                 "Gateway Voice State Desynchronization",
@@ -335,6 +366,28 @@ class VoiceManager:
                 telemetry.last_error = err
                 telemetry.stage = "Missing Speak Permission"
                 return None
+
+        # Dependency check: Fast-fail if PyNaCl or Opus is missing in the runtime
+        try:
+            from discord.voice_client import has_nacl
+        except ImportError:
+            has_nacl = False
+
+        if not has_nacl:
+            err = "PyNaCl library is missing in the bot environment. Discord voice requires PyNaCl."
+            logger.error(f"[Voice] [Stage 1: Pre-flight FAIL] Guild {guild_id}: {err}")
+            err_msg = (
+                f"Voice connection failed: Missing required voice dependency (PyNaCl).\n"
+                f"• **Failed Stage:** `Voice Dependency Missing (PyNaCl)`\n"
+                f"• **Target Channel:** {target_channel.mention}\n\n"
+                f"💡 **Recommended Action:**\nInstall `PyNaCl>=1.5.0` in the hosting environment to enable voice support."
+            )
+            session.state = PlaybackState.ERROR
+            session.last_error = err_msg
+            telemetry.last_error = err
+            telemetry.stage = "Voice Dependency Missing (PyNaCl)"
+            telemetry.success = False
+            return None
 
         stage1_ms = (time.monotonic() - t_start) * 1000
         logger.info(
@@ -513,6 +566,18 @@ class VoiceManager:
                 logger.error(f"[Voice] [Attempt {attempt} Error] Unexpected error at '{current_stage}': {e}", exc_info=True)
                 await cls._purge_voice_client_state(member.guild)
 
+                # Fast-fail without retries on unrecoverable/permanent errors
+                e_str = str(e).lower()
+                is_permanent = (
+                    isinstance(e, discord.errors.Forbidden)
+                    or "pynacl" in e_str
+                    or "opus" in e_str
+                    or "not installed" in e_str
+                )
+                if is_permanent:
+                    logger.info(f"[Voice] Non-retriable error '{stage_name}' detected. Fast-failing attempt loop.")
+                    break
+
                 if attempt < max_attempts:
                     backoff = (attempt * 1.5) + random.uniform(0.2, 0.5)
                     await asyncio.sleep(backoff)
@@ -521,8 +586,15 @@ class VoiceManager:
         total_fail_ms = (time.monotonic() - t_start) * 1000
         stage_title, stage_advice, flow_name = cls._inspect_failed_stage(member.guild, last_exception)
 
+        attempts_made = telemetry.attempt or 1
+        if isinstance(last_exception, asyncio.TimeoutError):
+            fail_header = f"Voice connection timed out after {attempts_made} attempt{'s' if attempts_made > 1 else ''} ({total_fail_ms:.0f}ms)."
+        else:
+            err_detail = str(last_exception) if last_exception else "Connection failure"
+            fail_header = f"Voice connection failed after {attempts_made} attempt{'s' if attempts_made > 1 else ''} ({total_fail_ms:.0f}ms): {err_detail}."
+
         err_msg = (
-            f"Voice connection failed: Voice connection timed out after {max_attempts} attempts ({total_fail_ms:.0f}ms).\n"
+            f"Voice connection failed: {fail_header}\n"
             f"• **Failed Stage:** `{stage_title}`\n"
             f"• **Target Channel:** {target_channel.mention}\n\n"
             f"💡 **Recommended Action:**\n{stage_advice}"
