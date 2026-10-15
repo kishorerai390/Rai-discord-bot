@@ -70,9 +70,23 @@ class RaiCommunityOSServer:
             return web.json_response([])
 
     async def handle_health(self, request: web.Request) -> web.Response:
-        """Lightweight health check endpoint for Render & UptimeRobot."""
+        """Lightweight health check endpoint for Render & UptimeRobot with safe runtime diagnostics."""
         bot_ready = bool(self.bot and getattr(self.bot, "is_ready", lambda: False)())
         music_status = "online" if bot_ready else "starting"
+
+        import sys
+        import discord
+        from discord.voice_client import has_nacl
+        has_dave = getattr(discord.voice_client, "has_dave", False)
+        try:
+            import davey
+            davey_ver = getattr(davey, "__version__", "loaded")
+            davey_ok = True
+        except ImportError:
+            davey_ver = None
+            davey_ok = False
+
+        opus_ok = discord.opus.is_loaded()
 
         return web.json_response({
             "status": "healthy",
@@ -80,6 +94,16 @@ class RaiCommunityOSServer:
             "bot_status": music_status,
             "platform": "MusicMaid Web Player & Platform",
             "timestamp": int(time.time()),
+            "voice_engine": {
+                "python": sys.version.split()[0],
+                "discord_py": discord.__version__,
+                "has_dave": bool(has_dave),
+                "davey_imported": davey_ok,
+                "davey_version": davey_ver,
+                "has_nacl": bool(has_nacl),
+                "opus_loaded": bool(opus_ok),
+                "voice_ready": bool(has_dave and has_nacl and opus_ok),
+            },
         })
 
     async def handle_terms(self, request: web.Request) -> web.Response:

@@ -326,6 +326,24 @@ class NekoSongsBot(commands.Bot):
             f"🎵 {BOT_NAME} online as {self.user.name}#{self.user.discriminator} (ID: {self.user.id})"
         )
         logger.info(f"Serving {len(self.guilds)} guilds with independent audio architecture.")
+
+        # Voice Protocol Runtime Diagnostics (Safe audit for Render logs)
+        import sys
+        from discord.voice_client import has_nacl
+        has_dave = getattr(discord.voice_client, "has_dave", False)
+        try:
+            import davey
+            d_ver = f"v{getattr(davey, '__version__', 'loaded')}"
+        except ImportError:
+            d_ver = "NOT INSTALLED"
+
+        logger.info(
+            f"✦ [Voice Runtime Audit] Python: {sys.version.split()[0]} | "
+            f"discord.py: v{discord.__version__} | "
+            f"DAVE E2EE: {'ACTIVE ✅' if has_dave else 'INACTIVE ❌'} ({d_ver}) | "
+            f"PyNaCl: {'LOADED ✅' if has_nacl else 'MISSING ❌'} | "
+            f"Opus: {'LOADED ✅' if discord.opus.is_loaded() else 'MISSING ❌'} ✦"
+        )
         await self.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.listening,
