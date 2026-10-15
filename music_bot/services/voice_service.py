@@ -183,6 +183,14 @@ class VoiceManager:
 
         # Check explicit dependency missing exceptions
         exc_str = str(exc or "").lower()
+        if (isinstance(exc, RuntimeError) and ("davey" in exc_str or "dave" in exc_str)) or "davey" in exc_str:
+            return (
+                "Voice Dependency Missing (davey)",
+                "The 'davey' library is missing in the bot hosting environment. Discord voice channels require the DAVE protocol for voice encryption. "
+                "Add `davey>=0.1.0` or `discord.py[voice]` to requirements.txt and re-deploy.",
+                flow_name,
+            )
+
         if (isinstance(exc, RuntimeError) and "pynacl" in exc_str) or "nacl" in exc_str:
             return (
                 "Voice Dependency Missing (PyNaCl)",
@@ -367,11 +375,16 @@ class VoiceManager:
                 telemetry.stage = "Missing Speak Permission"
                 return None
 
-        # Dependency check: Fast-fail if PyNaCl or Opus is missing in the runtime
+        # Dependency check: Fast-fail if PyNaCl, davey, or Opus is missing in the runtime
         try:
-            from discord.voice_client import has_nacl
+            from discord.voice_client import has_nacl, has_dave
         except ImportError:
-            has_nacl = False
+            try:
+                from discord.voice_client import has_nacl  # type: ignore
+                has_dave = True
+            except ImportError:
+                has_nacl = False
+                has_dave = False
 
         if not has_nacl:
             err = "PyNaCl library is missing in the bot environment. Discord voice requires PyNaCl."
@@ -386,6 +399,22 @@ class VoiceManager:
             session.last_error = err_msg
             telemetry.last_error = err
             telemetry.stage = "Voice Dependency Missing (PyNaCl)"
+            telemetry.success = False
+            return None
+
+        if not has_dave:
+            err = "The 'davey' library is missing in the bot environment. Discord requires davey for voice encryption."
+            logger.error(f"[Voice] [Stage 1: Pre-flight FAIL] Guild {guild_id}: {err}")
+            err_msg = (
+                f"Voice connection failed: Missing required voice dependency (davey).\n"
+                f"• **Failed Stage:** `Voice Dependency Missing (davey)`\n"
+                f"• **Target Channel:** {target_channel.mention}\n\n"
+                f"💡 **Recommended Action:**\nInstall `davey>=0.1.0` (or `pip install \"discord.py[voice]\"`) in the bot hosting environment to enable Discord E2EE voice support."
+            )
+            session.state = PlaybackState.ERROR
+            session.last_error = err_msg
+            telemetry.last_error = err
+            telemetry.stage = "Voice Dependency Missing (davey)"
             telemetry.success = False
             return None
 
@@ -571,6 +600,8 @@ class VoiceManager:
                 is_permanent = (
                     isinstance(e, discord.errors.Forbidden)
                     or "pynacl" in e_str
+                    or "davey" in e_str
+                    or "dave" in e_str
                     or "opus" in e_str
                     or "not installed" in e_str
                 )

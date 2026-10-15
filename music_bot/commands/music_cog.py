@@ -724,13 +724,20 @@ class MusicCog(commands.Cog, name="Music"):
                 if not vc:
                     err_detail = getattr(session, "last_error", None) or "Bot lacks Connect or Speak permissions in this channel."
                     ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
-                    embed_conn_err = discord.Embed(
-                        title="❌ COULD NOT CONNECT TO VOICE",
-                        description=(
+                    if "Voice connection failed:" in err_detail:
+                        desc = f"Could not connect to **{ch_name}**.\n\n{err_detail}"
+                    elif "permission" in err_detail.lower():
+                        desc = (
                             f"Could not connect to **{ch_name}**.\n"
                             f"• **Reason:** {err_detail}\n\n"
                             f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
-                        ),
+                        )
+                    else:
+                        desc = f"Could not connect to **{ch_name}**.\n• **Reason:** {err_detail}"
+
+                    embed_conn_err = discord.Embed(
+                        title="❌ COULD NOT CONNECT TO VOICE",
+                        description=desc,
                         color=0xED4245,
                     )
                     try:

@@ -423,7 +423,33 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.voice_channel.connect.await_count, 1)
         mock_sleep.assert_not_called()
 
+    async def test_18_davey_dependency_missing(self):
+        """Scenario 18: Missing davey dependency fast-fails Stage 1 in 0ms with explicit diagnosis."""
+        with patch("discord.voice_client.has_dave", False, create=True):
+            vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+
+        self.assertIsNone(vc)
+        self.assertEqual(self.session.state, PlaybackState.ERROR)
+        self.assertIn("Voice Dependency Missing (davey)", self.session.last_error)
+        self.assertNotIn("timed out", self.session.last_error.lower())
+        self.voice_channel.connect.assert_not_called()
+
+    async def test_19_davey_runtime_error_fast_breaks(self):
+        """Scenario 19: davey missing error during connect() fast-breaks without retrying."""
+        self.voice_channel.connect = AsyncMock(side_effect=RuntimeError("davey library needed in order to use voice"))
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            vc = await VoiceManager.join_voice_channel(self.member, self.text_channel, self.session)
+
+        self.assertIsNone(vc)
+        self.assertEqual(self.session.state, PlaybackState.ERROR)
+        self.assertIn("Voice Dependency Missing (davey)", self.session.last_error)
+        self.assertNotIn("timed out", self.session.last_error.lower())
+        self.assertEqual(self.voice_channel.connect.await_count, 1)
+        mock_sleep.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
