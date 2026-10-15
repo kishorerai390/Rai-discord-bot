@@ -4253,9 +4253,21 @@ class MusicCog(commands.Cog, name="Music"):
             value=f"• **Version:** `{sys.version.split()[0]}`\n• **Platform:** `{sys.platform}`",
             inline=True,
         )
+        dave_loaded = getattr(discord.voice_client, "has_dave", False)
+        try:
+            import davey
+            davey_str = f"v{getattr(davey, '__version__', 'loaded')} ✅"
+        except ImportError:
+            davey_str = "Missing ❌"
+
         embed.add_field(
             name="📦 Discord Engine",
-            value=f"• **discord.py:** `v{discord.__version__}`\n• **PyNaCl:** `{'Loaded ✅' if has_nacl else 'Missing ❌'}`\n• **Opus:** `{'Loaded ✅' if opus_is_loaded() else 'Missing ❌'}`",
+            value=(
+                f"• **discord.py:** `v{discord.__version__}`\n"
+                f"• **PyNaCl:** `{'Loaded ✅' if has_nacl else 'Missing ❌'}`\n"
+                f"• **DAVE (E2EE):** `{'Active ✅' if dave_loaded else 'Inactive ❌'}` ({davey_str})\n"
+                f"• **Opus:** `{'Loaded ✅' if opus_is_loaded() else 'Missing ❌'}`"
+            ),
             inline=True,
         )
         ytdl_ver = getattr(yt_dlp, "__version__", "Unknown")

@@ -624,13 +624,16 @@ class VoiceManager:
             err_detail = str(last_exception) if last_exception else "Connection failure"
             fail_header = f"Voice connection failed after {attempts_made} attempt{'s' if attempts_made > 1 else ''} ({total_fail_ms:.0f}ms): {err_detail}."
 
+        import uuid
+        corr_id = uuid.uuid4().hex[:8].upper()
         err_msg = (
             f"Voice connection failed: {fail_header}\n"
+            f"• **Diagnostic ID:** `VC-{corr_id}`\n"
             f"• **Failed Stage:** `{stage_title}`\n"
             f"• **Target Channel:** {target_channel.mention}\n\n"
             f"💡 **Recommended Action:**\n{stage_advice}"
         )
-        logger.error(f"[Voice] [Connection Exhausted] Guild {guild_id}: {err_msg} (Last error: {last_exception})")
+        logger.error(f"[Voice] [Connection Exhausted] [ID: VC-{corr_id}] Guild {guild_id}: {err_msg} (Last error: {last_exception})")
 
         telemetry.stage = stage_title
         telemetry.elapsed_ms = total_fail_ms
