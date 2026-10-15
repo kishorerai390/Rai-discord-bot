@@ -18,14 +18,13 @@ from music.provider import (
     TrackCandidate,
 )
 from music.providers.direct import DirectAudioProvider
-from music.providers.soundcloud import SoundCloudMusicProvider
 from music.providers.youtube import YouTubeMusicProvider
 
 logger = logging.getLogger("Rai.MusicSearchService")
 
 
 class MusicSearchService:
-    """Manages music search providers, query parsing, and fallback ranking."""
+    """Manages music search providers, query parsing, and fallback ranking. YouTube only."""
 
     _instance: Optional["MusicSearchService"] = None
 
@@ -33,10 +32,9 @@ class MusicSearchService:
         self.providers: List[MusicProvider] = providers or [
             DirectAudioProvider(),
             YouTubeMusicProvider(),
-            SoundCloudMusicProvider(),
         ]
         self._youtube_provider = next((p for p in self.providers if isinstance(p, YouTubeMusicProvider)), YouTubeMusicProvider())
-        self._sc_provider = next((p for p in self.providers if isinstance(p, SoundCloudMusicProvider)), SoundCloudMusicProvider())
+        self._sc_provider = None
 
     @classmethod
     def get_instance(cls) -> "MusicSearchService":
@@ -89,13 +87,5 @@ class MusicSearchService:
             candidates = await primary_provider.search(clean_query, limit=limit, requester=requester)
         except Exception as exc:
             logger.warning(f"Primary search failed on {primary_provider.name} for '{clean_query}': {exc}")
-
-        # If primary failed or returned nothing, fallback to SoundCloud
-        if not candidates and fallback_provider:
-            logger.info(f"Triggering fallback search on {fallback_provider.name} for '{clean_query}'")
-            try:
-                candidates = await fallback_provider.search(clean_query, limit=limit, requester=requester)
-            except Exception as exc:
-                logger.error(f"Fallback search failed on {fallback_provider.name} for '{clean_query}': {exc}")
 
         return candidates

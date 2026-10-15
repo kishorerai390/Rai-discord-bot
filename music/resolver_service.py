@@ -23,7 +23,6 @@ from music.provider import (
     generate_music_diagnostic_id,
 )
 from music.providers.direct import DirectAudioProvider
-from music.providers.soundcloud import SoundCloudMusicProvider
 from music.providers.youtube import YouTubeMusicProvider
 from music.search_service import MusicSearchService
 

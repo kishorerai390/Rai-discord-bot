@@ -1,9 +1,8 @@
 """
 Audio Track Search and Stream Resolution Engine for Rai Music Bot.
 Operates asynchronously with yt-dlp in a thread pool to avoid blocking the event loop.
-Engineered for Render free tier resilience with dynamic cookies syncing, multi-client
-fallback profiles (Android, TV, iOS, Safari, Web), robust SoundCloud recovery, and
-transparent exception diagnostics.
+Engineered for YouTube-only audio resolution and Spotify metadata identification.
+SoundCloud is completely disabled.
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
 import time
@@ -38,6 +38,173 @@ CACHE_TTL = 3600
 # Redis client singleton for optional distributed track caching
 _redis_client: Any = None
 _redis_init_attempted: bool = False
+
+# Regex for detecting Tamil Unicode script (\u0B80-\u0BFF)
+TAMIL_SCRIPT_REGEX = re.compile(r"[\u0B80-\u0BFF]")
+
+# Explicit version intent keywords
+REMIX_KEYWORDS = {"remix", "remixed", "mashup", "dj mix", "club mix"}
+SLOWED_KEYWORDS = {"slowed", "reverb", "slowed+reverb", "slowed reverb", "sped up", "speed up", "nightcore", "daycore"}
+COVER_KEYWORDS = {"cover", "acoustic", "live cover", "karaoke", "instrumental"}
+OTHER_MOD_KEYWORDS = {"edit", "fan edit", "lofi flip", "bass boosted", "8d audio", "tiktok version"}
+
+ALL_ALT_VERSION_KEYWORDS = (
+    REMIX_KEYWORDS | SLOWED_KEYWORDS | COVER_KEYWORDS | OTHER_MOD_KEYWORDS
+)
+
+# Supported language keywords
+LANGUAGE_HINTS = {
+    "tamil": ["tamil", "தமிழ்"],
+    "hindi": ["hindi", "हिंदी"],
+    "telugu": ["telugu", "తెలుగు"],
+    "malayalam": ["malayalam", "മലയാളം"],
+    "kannada": ["kannada", "ಕನ್ನಡ"],
+    "english": ["english"],
+}
+
+
+def analyze_query_intent(query: str) -> Dict[str, Any]:
+    """
+    Analyze user query intent:
+    - Checks for explicit version requests (remix, slowed, cover, etc.).
+    - Detects Tamil script or transliteration and language keywords.
+    """
+    q_lower = query.lower()
+    has_tamil_script = bool(TAMIL_SCRIPT_REGEX.search(query))
+
+    detected_language = "tamil" if has_tamil_script else None
+    for lang, markers in LANGUAGE_HINTS.items():
+        if any(re.search(rf"\b{re.escape(m)}\b", q_lower) for m in markers):
+            detected_language = lang
+            break
+
+    # Check for explicit alternative version requests
+    wants_remix = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in REMIX_KEYWORDS)
+    wants_slowed = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in SLOWED_KEYWORDS)
+    wants_cover = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in COVER_KEYWORDS)
+    wants_other_mod = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in OTHER_MOD_KEYWORDS)
+
+    user_requested_alternate = wants_remix or wants_slowed or wants_cover or wants_other_mod
+
+    return {
+        "raw_query": query,
+        "clean_query": q_lower,
+        "has_tamil_script": has_tamil_script,
+        "detected_language": detected_language,
+        "wants_remix": wants_remix,
+        "wants_slowed": wants_slowed,
+        "wants_cover": wants_cover,
+        "user_requested_alternate": user_requested_alternate,
+    }
+
+
+def score_candidate(
+    candidate: Dict[str, Any],
+    query_intent: Dict[str, Any],
+    spotify_meta: Optional[Dict[str, Any]] = None,
+) -> float:
+    """
+    Rank search candidates:
+    - Base score = 100.0
+    - Heavy penalty (-70) for unrequested remixes, mashups, covers, sped up, slowed, fan edits.
+    - If user explicitly requested a remix/version, boost matching candidates (+40).
+    - Boost verified official music video, audio, or official channel (+30).
+    - Boost exact title/artist matching.
+    - If Tamil query/script, boost Tamil metadata and heavily penalize unrelated languages.
+    """
+    score = 100.0
+    title = (candidate.get("title") or "").lower()
+    uploader = (candidate.get("uploader") or candidate.get("channel") or "").lower()
+    desc = (candidate.get("description") or "").lower()
+    duration = candidate.get("duration") or 0
+    combined_text = f"{title} {uploader}"
+
+    # 1. Alternative Version Evaluation
+    cand_has_remix = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in REMIX_KEYWORDS)
+    cand_has_slowed = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in SLOWED_KEYWORDS)
+    cand_has_cover = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in COVER_KEYWORDS)
+    cand_has_mod = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in OTHER_MOD_KEYWORDS)
+    cand_is_alt = cand_has_remix or cand_has_slowed or cand_has_cover or cand_has_mod
+
+    if not query_intent["user_requested_alternate"]:
+        if cand_is_alt:
+            score -= 75.0  # Strongly penalize unrequested remix/slowed/cover
+        if "fan edit" in combined_text or "nightcore" in combined_text or "slowed" in combined_text:
+            score -= 25.0
+    else:
+        # User explicitly wanted a remix or alternate version
+        if (query_intent["wants_remix"] and cand_has_remix) or (query_intent["wants_slowed"] and cand_has_slowed) or (query_intent["wants_cover"] and cand_has_cover):
+            score += 45.0
+        elif not cand_is_alt:
+            score -= 30.0
+
+    # 2. Official Audio / Video Source Preference
+    is_official = (
+        "official audio" in title
+        or "official video" in title
+        or "official music video" in title
+        or "lyric video" in title
+        or "vevo" in uploader
+        or "topic" in uploader  # YouTube Topic channels are official distributor tracks
+        or "official" in uploader
+    )
+    if is_official and not cand_is_alt:
+        score += 25.0
+
+    # Words like remastered or official audio are legitimate originals
+    if "remastered" in title or "original mix" in title or "original soundtrack" in title:
+        score += 15.0
+
+    # 3. Language & Regional Accuracy
+    det_lang = query_intent["detected_language"]
+    has_tamil_script = query_intent["has_tamil_script"]
+
+    if has_tamil_script:
+        # Strongly reward Tamil script matches
+        if TAMIL_SCRIPT_REGEX.search(candidate.get("title") or ""):
+            score += 50.0
+        if "tamil" in combined_text:
+            score += 35.0
+        # Penalize if it explicitly advertises Hindi, Telugu, etc. without mentioning Tamil
+        if any(l in combined_text for l in ["hindi", "telugu", "punjabi"]) and "tamil" not in combined_text:
+            score -= 60.0
+    elif det_lang:
+        if det_lang in combined_text:
+            score += 30.0
+        # Penalize candidate if another conflicting language is prominently specified
+        other_langs = [l for l in LANGUAGE_HINTS if l != det_lang and l != "english"]
+        if any(re.search(rf"\b{re.escape(ol)}\b", combined_text) for ol in other_langs) and det_lang not in combined_text:
+            score -= 40.0
+
+    # 4. Spotify metadata matching
+    if spotify_meta:
+        sp_title = (spotify_meta.get("title") or "").lower()
+        sp_artist = (spotify_meta.get("artist") or "").lower()
+        sp_dur = spotify_meta.get("duration") or 0
+
+        if sp_title and sp_title in title:
+            score += 35.0
+        if sp_artist and sp_artist != "unknown artist" and (sp_artist in uploader or sp_artist in title):
+            score += 30.0
+
+        if sp_dur > 0 and duration > 0:
+            diff = abs(sp_dur - duration)
+            if diff <= 5:
+                score += 20.0
+            elif diff <= 15:
+                score += 10.0
+            elif diff > 60:
+                score -= 25.0  # Suspicious duration mismatch
+
+    # 5. Reasonable duration checks (avoid 10-hour loops or short 15s snippets)
+    if 60 <= duration <= 600:
+        score += 10.0
+    elif duration > 900:
+        score -= 40.0
+    elif 0 < duration < 30:
+        score -= 50.0
+
+    return score
 
 
 async def get_redis_client() -> Any:
@@ -412,29 +579,12 @@ def _load_po_tokens_and_cookies() -> Dict[str, Any]:
 
 def _build_ytdl_options(
     player_clients: Optional[List[str]] = None,
-    for_soundcloud: bool = False,
     extract_flat: bool = False,
 ) -> Dict[str, Any]:
     """
     Build yt-dlp extractor configuration options.
-    SoundCloud options are isolated from YouTube-specific cookie and client arguments.
+    Optimized strictly for authorized YouTube stream resolution.
     """
-    if for_soundcloud:
-        sc_opts: Dict[str, Any] = {
-            "format": "bestaudio/best",
-            "noplaylist": True,
-            "quiet": True,
-            "logtostderr": False,
-            "nocheckcertificate": True,
-            "socket_timeout": 15,
-            "source_address": "0.0.0.0",
-            "extractaudio": True,
-            "audioformat": "mp3",
-        }
-        if extract_flat:
-            sc_opts["extract_flat"] = True
-        return sc_opts
-
     clients = player_clients or ["mweb", "web"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
@@ -595,7 +745,7 @@ class AudioResolver:
             res = {
                 "operational": True,
                 "youtube_operational": True,
-                "soundcloud_operational": True,
+                "soundcloud_operational": False,
                 "active_source": "YouTube",
                 "profile": "+".join(profile),
                 "latency_ms": latency,
@@ -606,54 +756,17 @@ class AudioResolver:
             cls._last_probe_result = res
             return res
 
-        # 2. YouTube failed - Test already-supported SoundCloud fallback (bounded 3.5s timeout)
-        sc_start = time.time()
-        sc_ok = False
-        sc_reason = "No stream format"
-        sc_latency = 0.0
-        try:
-            sc_target = "scsearch1:lofi beats"
-            sc_opts = _build_ytdl_options(for_soundcloud=True)
-            sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
-            sc_data = await asyncio.wait_for(
-                loop.run_in_executor(
-                    _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
-                ),
-                timeout=3.5,
-            )
-            sc_entry = sc_data["entries"][0] if "entries" in sc_data and sc_data["entries"] else sc_data
-            sc_stream = sc_entry.get("url") if sc_entry else None
-            if not sc_stream and sc_entry and "formats" in sc_entry:
-                for fmt in sc_entry["formats"]:
-                    if fmt.get("acodec") != "none" and fmt.get("url"):
-                        sc_stream = fmt["url"]
-                        break
-            if sc_stream:
-                sc_ok = True
-                sc_latency = round((time.time() - sc_start) * 1000, 1)
-        except Exception as sc_e:
-            sc_reason = _format_error(sc_e)[:80]
-
-        if sc_ok:
-            res = {
-                "operational": True,
-                "youtube_operational": False,
-                "soundcloud_operational": True,
-                "active_fallback": "SoundCloud",
-                "profile": "+".join(profile),
-                "latency_ms": sc_latency,
-                "message": f"YouTube restricted ({yt_reason}). SoundCloud fallback operational ({sc_latency}ms).",
-                "cookie_status": cookie_diag.get("status"),
-            }
-        else:
-            res = {
-                "operational": False,
-                "youtube_operational": False,
-                "soundcloud_operational": False,
-                "profile": "+".join(profile),
-                "message": f"All extractors restricted. YouTube: {yt_reason}. SoundCloud: {sc_reason}.",
-                "cookie_status": cookie_diag.get("status"),
-            }
+        # 2. YouTube failed - SoundCloud is completely disabled by configuration
+        res = {
+            "operational": False,
+            "youtube_operational": False,
+            "soundcloud_operational": False,
+            "active_source": None,
+            "profile": "+".join(profile),
+            "latency_ms": 0.0,
+            "message": f"YouTube playback unavailable ({yt_reason}). SoundCloud is disabled by configuration.",
+            "cookie_status": cookie_diag.get("status"),
+        }
 
         cls._last_probe_time = now
         cls._last_probe_result = res
@@ -724,13 +837,15 @@ class AudioResolver:
 
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Search YouTube for tracks matching query with in-memory caching and SoundCloud fallback."""
+        """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
         cache_key = f"{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
         loop = asyncio.get_running_loop()
-        search_query = f"ytsearch{limit}:{query}" if not query.startswith("http") else query
+        # Query up to 10 candidates from YouTube for intelligent re-ranking
+        fetch_count = max(limit * 2, 8) if not query.startswith("http") else limit
+        search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
 
         data = None
         # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast <2s response)
@@ -741,40 +856,22 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=4.0,
+                timeout=4.5,
             )
         except Exception as e:
             err_msg = _format_error(e)
-            logger.info(
-                f"YouTube search notice for '{query}': {err_msg}. Using SoundCloud search fallback..."
-            )
-            # 2. SoundCloud Search Fallback (fast 3.5s timeout)
-            try:
-                sc_query = f"scsearch{limit + 3}:{query}"
-                sc_opts = _build_ytdl_options(for_soundcloud=True, extract_flat=True)
-                sc_ydl = yt_dlp.YoutubeDL(sc_opts)
-                data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(sc_ydl.extract_info, sc_query, download=False)
-                    ),
-                    timeout=3.5,
-                )
-            except Exception as sc_err:
-                sc_msg = _format_error(sc_err)
-                logger.warning(
-                    f"SoundCloud search fallback also failed for '{query}': {sc_msg}"
-                )
-                return []
+            logger.warning(f"[Search] YouTube search failure for '{query}': {err_msg}")
+            return []
 
         if not data:
             return []
 
         entries = data.get("entries") if "entries" in data else [data]
-        results = []
+        raw_candidates = []
         for entry in entries:
             if not entry or entry.get("has_drm"):
                 continue
-            results.append({
+            raw_candidates.append({
                 "title": entry.get("title", "Unknown Track"),
                 "url": entry.get("webpage_url") or entry.get("url", ""),
                 "duration": int(entry.get("duration", 0) or 0),
@@ -782,9 +879,16 @@ class AudioResolver:
                 "thumbnail": entry.get("thumbnail"),
                 "id": entry.get("id"),
             })
-            if len(results) >= limit:
-                break
 
+        # Rank candidates using query intent analysis
+        intent = analyze_query_intent(query)
+        ranked = sorted(
+            raw_candidates,
+            key=lambda c: score_candidate(c, intent),
+            reverse=True,
+        )
+
+        results = ranked[:limit]
         cls._search_cache[cache_key] = results
         return results
 
@@ -1023,32 +1127,14 @@ class AudioResolver:
 
 
     @classmethod
-    async def resolve_soundcloud_track(cls, query: str) -> Optional[QueuedTrack]:
-        """Directly resolve track from SoundCloud for instant audio stream recovery."""
-        try:
-            loop = asyncio.get_running_loop()
-            sc_target = f"scsearch1:{query}"
-            sc_opts = _build_ytdl_options(for_soundcloud=True)
-            sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
-            data = await asyncio.wait_for(
-                loop.run_in_executor(
-                    _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
-                ),
-                timeout=8.0,
-            )
-            if data:
-                entry = data["entries"][0] if "entries" in data and data["entries"] else data
-                if entry:
-                    return cls._parse_entry(entry, 0, "MusicMaid")
-        except Exception as e:
-            logger.debug(f"[Resolver] resolve_soundcloud_track error for '{query}': {e}")
-        return None
-
-    @classmethod
     async def _execute_resolution_pipeline(
         cls, query_or_url: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
-        """Internal multi-tiered resolution pipeline with profile fallbacks and SoundCloud failover."""
+        """
+        Internal multi-tiered resolution pipeline strictly utilizing authorized YouTube clients.
+        SoundCloud is completely disabled.
+        Ranks top candidates using title, artist, language, and original song preference.
+        """
         start_t = time.time()
         loop = asyncio.get_running_loop()
 
@@ -1063,7 +1149,10 @@ class AudioResolver:
         elif "apple.com" in query_or_url:
             cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
-        target = cleaned_query if (cleaned_query.startswith("http") and not is_spotify) else f"ytsearch1:{cleaned_query}"
+        intent = analyze_query_intent(cleaned_query)
+
+        # For text search, fetch 5 candidates so we can score and select the best original match
+        target = cleaned_query if (cleaned_query.startswith("http") and not is_spotify) else f"ytsearch5:{cleaned_query}"
 
         def _apply_metadata_enhancements(t: Optional[QueuedTrack]) -> Optional[QueuedTrack]:
             if t and spotify_info:
@@ -1081,63 +1170,47 @@ class AudioResolver:
 
         cls.last_resolver_error = None
 
-        # Concurrent Search: For song queries, race YouTube and SoundCloud simultaneously!
-        # SoundCloud is never blocked by cloud hosts and finishes in 2-3s.
-        if not cleaned_query.startswith("http") or spotify_info is not None:
-            async def _try_yt() -> Optional[QueuedTrack]:
-                try:
-                    t_opts = _build_ytdl_options(["mweb", "web"])
-                    ydl_i = yt_dlp.YoutubeDL(t_opts)
-                    d = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            _audio_executor, functools.partial(ydl_i.extract_info, target, download=False)
-                        ),
-                        timeout=4.0,
-                    )
-                    t = cls._parse_entry(d, requester_id, requester_name)
-                    if t and t.stream_url:
-                        return _apply_metadata_enhancements(t)
-                except Exception as e:
-                    logger.debug(f"[Resolver] Concurrent YT search notice: {e}")
+        def _pick_best_entry(data: Any) -> Optional[Dict[str, Any]]:
+            if not data:
                 return None
-
-            async def _try_sc() -> Optional[QueuedTrack]:
-                try:
-                    sc_t = f"scsearch5:{cleaned_query}"
-                    s_opts = _build_ytdl_options(for_soundcloud=True)
-                    s_ydl = yt_dlp.YoutubeDL(s_opts)
-                    d = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            _audio_executor, functools.partial(s_ydl.extract_info, sc_t, download=False)
-                        ),
-                        timeout=4.0,
-                    )
-                    if d:
-                        entries = d.get("entries") if "entries" in d else [d]
-                        for entry in entries:
-                            if not entry:
-                                continue
-                            t = cls._parse_entry(entry, requester_id, requester_name)
-                            if t and t.stream_url:
-                                return _apply_metadata_enhancements(t)
-                except Exception as e:
-                    logger.debug(f"[Resolver] Concurrent SC search notice: {e}")
+            entries = data.get("entries") if isinstance(data, dict) and "entries" in data else ([data] if isinstance(data, dict) else [])
+            valid_entries = [e for e in entries if e and not e.get("has_drm")]
+            if not valid_entries:
                 return None
+            if len(valid_entries) == 1:
+                return valid_entries[0]
+            # Rank entries using score_candidate
+            scored = sorted(
+                valid_entries,
+                key=lambda e: score_candidate(e, intent, spotify_meta=spotify_info),
+                reverse=True,
+            )
+            return scored[0]
 
-            # Race both tasks concurrently
-            tasks = [asyncio.create_task(_try_yt()), asyncio.create_task(_try_sc())]
-            for fut in asyncio.as_completed(tasks):
-                winner = await fut
-                if winner and winner.stream_url:
-                    for t in tasks:
-                        if not t.done():
-                            t.cancel()
+        # Tier 1: Primary Profile (mweb/web) - 5s timeout
+        try:
+            tier1_opts = _build_ytdl_options(["mweb", "web"])
+            tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(tier1_ydl.extract_info, target, download=False)
+                ),
+                timeout=5.0,
+            )
+            best_entry = _pick_best_entry(data)
+            if best_entry:
+                track = cls._parse_entry(best_entry, requester_id, requester_name)
+                if track and track.stream_url:
+                    track = _apply_metadata_enhancements(track)
                     dur = time.time() - start_t
-                    logger.info(f"[Resolver] Concurrent search race resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{winner.title}'")
-                    return winner
+                    logger.info(f"[Resolver] Tier 1 (mweb/web) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                    return track
+        except Exception as e:
+            err_msg = _format_error(e)
+            cls.last_resolver_error = f"Tier 1 (mweb/web) notice: {err_msg}"
+            logger.info(f"[Resolver] Tier 1 failed for '{cleaned_query[:60]}': {err_msg}")
 
-
-        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 4s timeout
+        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 4.5s timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 2 (TV client) for '{cleaned_query[:60]}'")
             tier2_opts = _build_ytdl_options(["tv"])
@@ -1146,20 +1219,22 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier2_ydl.extract_info, target, download=False)
                 ),
-                timeout=4.0,
+                timeout=4.5,
             )
-            track = cls._parse_entry(data, requester_id, requester_name)
-            if track and track.stream_url:
-                track = _apply_metadata_enhancements(track)
-                dur = time.time() - start_t
-                logger.info(f"[Resolver] Tier 2 (TV) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
-                return track
+            best_entry = _pick_best_entry(data)
+            if best_entry:
+                track = cls._parse_entry(best_entry, requester_id, requester_name)
+                if track and track.stream_url:
+                    track = _apply_metadata_enhancements(track)
+                    dur = time.time() - start_t
+                    logger.info(f"[Resolver] Tier 2 (TV) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                    return track
         except Exception as fb_err:
             fb_msg = _format_error(fb_err)
             cls.last_resolver_error = f"Tier 2 (TV) failed: {fb_msg}"
             logger.warning(f"[Resolver] Tier 2 (TV) failed for '{cleaned_query[:60]}': {fb_msg}")
 
-        # Tier 3: Safari / iOS Embedded Profile - 4s timeout
+        # Tier 3: Safari / iOS Embedded Profile - 4.5s timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 3 (Safari+iOS) for '{cleaned_query[:60]}'")
             tier3_opts = _build_ytdl_options(["web_safari", "ios"])
@@ -1168,49 +1243,22 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier3_ydl.extract_info, target, download=False)
                 ),
-                timeout=4.0,
+                timeout=4.5,
             )
-            track = cls._parse_entry(data, requester_id, requester_name)
-            if track and track.stream_url:
-                track = _apply_metadata_enhancements(track)
-                dur = time.time() - start_t
-                logger.info(f"[Resolver] Tier 3 (Safari) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
-                return track
+            best_entry = _pick_best_entry(data)
+            if best_entry:
+                track = cls._parse_entry(best_entry, requester_id, requester_name)
+                if track and track.stream_url:
+                    track = _apply_metadata_enhancements(track)
+                    dur = time.time() - start_t
+                    logger.info(f"[Resolver] Tier 3 (Safari) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                    return track
         except Exception as t3_err:
             t3_msg = _format_error(t3_err)
             cls.last_resolver_error = f"Tier 3 (Safari) failed: {t3_msg}"
             logger.warning(f"[Resolver] Tier 3 (Safari) failed for '{cleaned_query[:60]}': {t3_msg}")
 
-
-        # Tier 4: SoundCloud Fallback (Isolated options, 6s timeout)
-        if not cleaned_query.startswith("http") or spotify_info is not None:
-            try:
-                sc_target = f"scsearch5:{cleaned_query}"
-                logger.info(f"[Resolver] Failing over to SoundCloud for '{cleaned_query[:60]}'...")
-                sc_opts = _build_ytdl_options(for_soundcloud=True)
-                sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
-                data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
-                    ),
-                    timeout=6.0,
-                )
-                if data:
-                    entries = data.get("entries") if "entries" in data else [data]
-                    for entry in entries:
-                        if not entry:
-                            continue
-                        track = cls._parse_entry(entry, requester_id, requester_name)
-                        if track and track.stream_url:
-                            track = _apply_metadata_enhancements(track)
-                            dur = time.time() - start_t
-                            logger.info(f"[Resolver] Successfully recovered track from SoundCloud in {dur:.2f}s: {track.title}")
-                            return track
-            except Exception as sc_err:
-                sc_msg = _format_error(sc_err)
-                cls.last_resolver_error = f"YouTube and SoundCloud both exhausted: {sc_msg}"
-                logger.error(f"[Resolver] SoundCloud failover failed for '{cleaned_query[:60]}': {sc_msg}", exc_info=True)
-
         dur = time.time() - start_t
+        cls.last_resolver_error = "YouTube resolution exhausted and SoundCloud is disabled by configuration."
         logger.warning(f"[Resolver] All audio resolution tiers completely exhausted for '{cleaned_query[:60]}' in {dur:.2f}s")
         return None

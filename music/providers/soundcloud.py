@@ -49,13 +49,7 @@ class SoundCloudMusicProvider(MusicProvider):
         return self._name
 
     def supports(self, query: str, query_type: QueryType) -> bool:
-        clean = query.strip()
-        parsed = urlparse(clean)
-        if "soundcloud.com" in parsed.netloc.lower():
-            return True
-        # If query explicitly targets soundcloud via prefix
-        if clean.lower().startswith("scsearch:"):
-            return True
+        # Completely disabled by configuration
         return False
 
     async def search(self, query: str, limit: int = 5, requester: Optional[discord.Member] = None) -> List[TrackCandidate]:

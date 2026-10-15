@@ -101,30 +101,21 @@ async def test_probe_extractor_health_cooldown():
 
 
 @pytest.mark.asyncio
-async def test_probe_extractor_health_fallback_to_soundcloud():
-    """Verify that when YouTube probe encounters restriction, SoundCloud fallback is checked."""
+async def test_probe_extractor_health_soundcloud_disabled():
+    """Verify that when YouTube probe encounters restriction, SoundCloud is NOT called and reported disabled."""
     AudioResolver._last_probe_time = 0.0
     AudioResolver._last_probe_result = None
 
-    mock_sc_entry = {
-        "url": "https://cf-media.sndcdn.com/stream/test_pcm",
-        "title": "lofi beats",
-        "formats": [{"acodec": "mp3", "url": "https://cf-media.sndcdn.com/stream/test_pcm"}],
-    }
-
     mock_ydl_instance = MagicMock()
-    mock_ydl_instance.extract_info.side_effect = [
-        Exception("No video formats found!"),
-        {"entries": [mock_sc_entry]},
-    ]
+    mock_ydl_instance.extract_info.side_effect = Exception("No video formats found!")
 
     with patch.object(AudioResolver, "PROFILE_PRESETS", [["mweb", "web"]]), \
          patch("yt_dlp.YoutubeDL", return_value=mock_ydl_instance):
         res = await AudioResolver.probe_extractor_health(force=True)
-        assert res["operational"] is True
+        assert res["operational"] is False
         assert res["youtube_operational"] is False
-        assert res["soundcloud_operational"] is True
-        assert res["active_fallback"] == "SoundCloud"
+        assert res["soundcloud_operational"] is False
+        assert "SoundCloud is disabled" in res["message"]
 
 
 # =============================================================================

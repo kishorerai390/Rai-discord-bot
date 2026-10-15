@@ -76,9 +76,7 @@ class MusicSessionMemoryService:
                 title = session.current_track.title
                 duration = session.current_track.duration
                 url = session.current_track.url
-                if "soundcloud" in url.lower():
-                    provider = "soundcloud"
-                elif "spotify" in url.lower():
+                if "spotify" in url.lower():
                     provider = "spotify"
 
             # Determine recovery mode from guild settings
@@ -179,9 +177,7 @@ class MusicSessionMemoryService:
         url = session.current_track.url if session.current_track else ""
         duration = session.current_track.duration if session.current_track else 0
         provider = "youtube"
-        if "soundcloud" in url.lower():
-            provider = "soundcloud"
-        elif "spotify" in url.lower():
+        if "spotify" in url.lower():
             provider = "spotify"
 
         vc_id = session.voice_client.channel.id if session.voice_client and session.voice_client.channel else None

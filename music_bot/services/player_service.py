@@ -224,18 +224,17 @@ class MusicPlayerService:
             if not first_frame:
                 logger.warning(
                     f"Audio source produced empty audio for '{track.title}' (stream URL blocked or restricted on host). "
-                    f"Attempting instant SoundCloud audio stream recovery..."
+                    f"Attempting YouTube audio stream re-resolution recovery..."
                 )
                 try:
                     volume_transformer.cleanup()
                 except Exception:
                     pass
 
-                # 1. Primary Recovery: Recover stream URL from SoundCloud (bypasses datacenter IP blocks)
-                sc_track = await AudioResolver.resolve_soundcloud_track(f"{track.title} {track.artist or ''}")
-                if sc_track and sc_track.stream_url:
-                    logger.info(f"[Recovery] Successfully recovered alternative audio stream from SoundCloud for '{track.title}'")
-                    track.stream_url = sc_track.stream_url
+                # YouTube stream re-resolution recovery with profile rotation
+                fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+                if fresh and fresh.stream_url:
+                    track.stream_url = fresh.stream_url
                     try:
                         audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
                         volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
@@ -243,25 +242,9 @@ class MusicPlayerService:
                             loop.run_in_executor(None, volume_transformer.read),
                             timeout=10.0,
                         )
-                    except Exception as sc_read_err:
-                        logger.warning(f"SoundCloud fallback frame read failed: {sc_read_err}")
+                    except Exception as re_read_err:
+                        logger.warning(f"Secondary YouTube frame read failed for '{track.title}': {re_read_err}")
                         first_frame = b""
-
-                # 2. Secondary Recovery: Re-resolve track if SoundCloud recovery didn't produce a frame
-                if not first_frame:
-                    fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
-                    if fresh and fresh.stream_url:
-                        track.stream_url = fresh.stream_url
-                        try:
-                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
-                            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
-                            first_frame = await asyncio.wait_for(
-                                loop.run_in_executor(None, volume_transformer.read),
-                                timeout=10.0,
-                            )
-                        except Exception as re_read_err:
-                            logger.warning(f"Secondary frame read failed for '{track.title}': {re_read_err}")
-                            first_frame = b""
 
                 if not first_frame:
                     try:
@@ -271,8 +254,8 @@ class MusicPlayerService:
                     session.state = PlaybackState.ERROR
                     session.last_error = (
                         f"FFmpeg received no audio data for '{track.title}'. "
-                        f"The audio stream may be restricted by YouTube (HTTP 403 / IP blocked on cloud host). "
-                        f"Try playing with a SoundCloud URL or add YouTube cookies."
+                        f"The audio stream is restricted or blocked on YouTube (HTTP 403 / datacenter IP restriction). "
+                        f"No supported alternative playback source is available."
                     )
 
                     if session.text_channel:
@@ -282,7 +265,8 @@ class MusicPlayerService:
                                     title="❌ NO AUDIO STREAM",
                                     description=(
                                         f"FFmpeg received no audio data for **{track.title}** (stream blocked or unavailable).\n\n"
-                                        f"💡 *YouTube frequently blocks Render datacenter IPs with HTTP 403. Try playing with a SoundCloud URL, or add your YouTube cookies via `YOUTUBE_COOKIES` on Render.*"
+                                        f"💡 *YouTube is currently restricting stream extraction from this server's IP address. "
+                                        f"Add fresh YouTube cookies via `YOUTUBE_COOKIES` or Render Secret Files (`/etc/secrets/cookies.txt`).*"
                                     ),
                                     color=0xED4245,
                                 )
@@ -1540,8 +1524,6 @@ class MusicPlayerService:
                 missing.append("Send Messages")
             if not getattr(perms, "embed_links", True):
                 missing.append("Embed Links")
-            if not getattr(perms, "read_message_history", True):
-                missing.append("Read Message History")
 
             if not missing:
                 # Channel is 100% accessible and has all permissions

@@ -398,7 +398,7 @@ class MusicControlPanelView(discord.ui.View):
                 description="Precision streaming audio controls for crystal clear sound:",
                 color=COLOR_NEON_BLUE,
             )
-            embed.add_field(name="`/music play <query>`", value="Streams audio from YouTube, Spotify links, Soundcloud, or direct search.", inline=False)
+            embed.add_field(name="`/music play <query>`", value="Streams audio from YouTube or Spotify links.", inline=False)
             embed.add_field(name="`/skip` (or `/music skip`)", value="Skips the current song to the next queued track.", inline=True)
             embed.add_field(name="`/pause` & `/resume`", value="Pause or resume audio playback on demand.", inline=True)
             embed.add_field(name="`/queue` (or `/music queue`)", value="View paginated list of upcoming tracks with durations.", inline=True)
@@ -758,7 +758,7 @@ class MusicCog(commands.Cog, name="Music"):
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
             embed_loading = discord.Embed(
                 title="🔍 SEARCHING TRACK",
-                description=f"Resolving: `{query[:100]}`...\n*Contacting audio sources (YouTube & SoundCloud)...*",
+                description=f"Resolving: `{query[:100]}`...\n*Contacting YouTube audio resolver...*",
                 color=COLOR_NEON_BLUE,
             )
             try:
@@ -769,7 +769,6 @@ class MusicCog(commands.Cog, name="Music"):
             search_start = time.time()
             is_timed_out = False
             try:
-                # 60s timeout accommodates multi-tier profile fallbacks and SoundCloud failover on Render
                 track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=60.0)
             except asyncio.TimeoutError:
                 track = None
@@ -786,9 +785,9 @@ class MusicCog(commands.Cog, name="Music"):
                         title="⏱️ AUDIO SEARCH TIMED OUT (60s)",
                         description=(
                             f"The music search for `{query[:100]}` exceeded 60s.\n\n"
-                            f"• **Diagnostic:** The resolver is still running in the background. If it finishes, the track will be cached for your next `/play` attempt.\n"
-                            f"• **Render Tip:** YouTube frequently blocks datacenter IPs. Upload a fresh `cookies.txt` file as a Render Secret File (`/etc/secrets/cookies.txt`) or set `YOUTUBE_COOKIES` in environment variables.\n"
-                            f"• **Instant Playback:** You can also play directly from SoundCloud (e.g. paste a SoundCloud URL)."
+                            f"• **Diagnostic:** The YouTube resolver timed out while querying audio profiles.\n"
+                            f"• **Notice:** No alternative playback source is enabled (SoundCloud is disabled by configuration).\n"
+                            f"• **Tip:** Upload fresh YouTube cookies to Render Secret Files (`/etc/secrets/cookies.txt`) or configure `YOUTUBE_COOKIES`."
                         ),
                         color=0xED4245,
                     )
@@ -798,7 +797,8 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
-                            f"• If YouTube is blocking Render's IP, upload fresh YouTube cookies to Render Secret Files (`/etc/secrets/cookies.txt`) or paste a direct SoundCloud link."
+                            f"• **Supported Sources:** YouTube playback and Spotify metadata lookup only.\n"
+                            f"• If YouTube is restricting datacenter IPs, upload fresh YouTube cookies to Render Secret Files (`/etc/secrets/cookies.txt`) or set `YOUTUBE_COOKIES`."
                         ),
                         color=0xED4245,
                     )
@@ -889,11 +889,17 @@ class MusicCog(commands.Cog, name="Music"):
                     )
                     if success:
                         try:
-                            await interaction.edit_original_response(
+                            # Deploy the interactive player panel directly to the slash command interaction
+                            from music_bot.services.player_service import NowPlayingControlView
+                            player_embed = MusicPlayerService.build_now_playing_embed(session)
+                            player_view = NowPlayingControlView(session)
+                            msg = await interaction.edit_original_response(
                                 content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*",
-                                embed=None,
-                                view=None,
+                                embed=player_embed,
+                                view=player_view,
                             )
+                            session.now_playing_message = msg
+                            session.now_playing_message_id = msg.id
                         except Exception as edit_err:
                             logger.warning(f"[Playback] Could not edit original response on play success: {edit_err}")
                             try:
@@ -908,9 +914,9 @@ class MusicCog(commands.Cog, name="Music"):
                             description=(
                                 f"Encountered an error while starting audio stream for **{track.title}**:\n"
                                 f"```\n{err_detail[:800]}\n```\n"
-                                f"💡 **Render Deployment Notes:**\n"
+                                f"💡 **Deployment Notes:**\n"
                                 f"• Ensure FFmpeg is available (`apt-get install -y ffmpeg` via Docker, or static-ffmpeg).\n"
-                                f"• If YouTube is blocking Render's IP (HTTP 403), play with a SoundCloud URL or add `YOUTUBE_COOKIES`."
+                                f"• If YouTube is restricting datacenter IPs (HTTP 403), add fresh YouTube cookies via `YOUTUBE_COOKIES` or Render Secret Files (`/etc/secrets/cookies.txt`)."
                             ),
                             color=0xED4245,
                         )
@@ -998,21 +1004,21 @@ class MusicCog(commands.Cog, name="Music"):
 
     @music_group.command(name="pause", description="Pause current music playback")
     async def music_pause(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         success, msg = await MusicPlayerService.pause(session)
         await interaction.followup.send(msg)
 
     @music_group.command(name="resume", description="Resume paused music playback")
     async def music_resume(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         success, msg = await MusicPlayerService.resume(self.bot, session)
         await interaction.followup.send(msg)
 
     @music_group.command(name="skip", description="Skip the currently playing song (or vote-to-skip)")
     async def music_skip(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
             await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
@@ -1057,21 +1063,21 @@ class MusicCog(commands.Cog, name="Music"):
 
     @music_group.command(name="previous", description="Return to the previous song in history")
     async def music_previous(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         success, msg, _ = await MusicPlayerService.previous(self.bot, session)
         await interaction.followup.send(msg)
 
     @music_group.command(name="stop", description="Stop playback, clear queue, and leave voice")
     async def music_stop(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         success, msg = await MusicPlayerService.stop(self.bot, session)
         await interaction.followup.send(msg)
 
     @music_group.command(name="nowplaying", description="View the official Neko Songs Now Playing dashboard")
     async def music_nowplaying(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         embed = MusicPlayerService.build_now_playing_embed(session)
         from music_bot.services.player_service import NowPlayingControlView
@@ -1081,7 +1087,7 @@ class MusicCog(commands.Cog, name="Music"):
     @music_group.command(name="queue", description="Display the current music queue")
     @app_commands.describe(page="Queue page number (default 1)")
     async def music_queue(self, interaction: discord.Interaction, page: Optional[int] = 1) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         tracks = list(session.queue)
         if not tracks and not session.current_track:
@@ -1126,7 +1132,7 @@ class MusicCog(commands.Cog, name="Music"):
     async def music_volume(
         self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 150]
     ) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
 
         is_prem = False
@@ -1149,7 +1155,7 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.command(name="seek", description="Seek to a specific timestamp in the current song")
     @app_commands.describe(seconds="Target time in seconds")
     async def music_seek(self, interaction: discord.Interaction, seconds: int) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await self.ensure_deferred(interaction, ephemeral=True)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         if not session.current_track or not (session.is_playing or session.is_paused or session.has_active_track):
             await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
@@ -1165,7 +1171,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @music_group.command(name="shuffle", description="Shuffle songs in the current queue")
     async def music_shuffle(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         if len(session.queue) < 2:
             await interaction.followup.send("❌ Need at least 2 tracks in queue to shuffle.", ephemeral=True)
@@ -1184,7 +1190,7 @@ class MusicCog(commands.Cog, name="Music"):
         app_commands.Choice(name="Whole Queue", value="queue"),
     ])
     async def music_loop(self, interaction: discord.Interaction, mode: app_commands.Choice[str]) -> None:
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         session.loop_mode = LoopMode(mode.value)
         await MusicPlayerService.send_now_playing_panel(session)
@@ -2135,17 +2141,13 @@ class MusicCog(commands.Cog, name="Music"):
             health = await MusicAutoUpdater.check_extractor_health(bot=self.bot)
             is_ok = health.get("operational", False)
             yt_ok = health.get("youtube_operational", False)
-            sc_ok = health.get("soundcloud_operational", False)
 
             if is_ok and yt_ok:
-                probe_status = "🟢 Operational (YouTube & SoundCloud)"
+                probe_status = "🟢 Operational (YouTube)"
                 recovery_status = "Active (YouTube primary)"
-            elif is_ok and sc_ok:
-                probe_status = "🟡 Degraded (SoundCloud Fallback Active; YouTube Restricted)"
-                recovery_status = "Active (SoundCloud fallback operational)"
             else:
                 probe_status = "🔴 Issue Detected"
-                recovery_status = "Action Required (Fresh cookies or PO-Token needed)"
+                recovery_status = "Action Required (Fresh cookies or PO-Token needed; SoundCloud disabled)"
 
             embed_result = discord.Embed(
                 title="🩺 EXTRACTOR HEALTH & SELF-HEAL",
@@ -2864,7 +2866,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @commands.command(name="play", aliases=["p"])
     async def pfx_play(self, ctx: commands.Context, *, query: str = "") -> None:
-        """Plays audio from YouTube, Spotify, or SoundCloud via prefix command."""
+        """Plays audio from YouTube or Spotify links via prefix command."""
         if not ctx.guild or not hasattr(ctx.author, "id"):
             return
 
@@ -3711,7 +3713,7 @@ class MusicCog(commands.Cog, name="Music"):
             title="⏱️ AUDIO PIPELINE DIAGNOSTIC NOTICE",
             description=(
                 f"Diagnostic probe reached execution deadline (**11.0s**) while testing `{query[:50]}`.\n"
-                "External audio extractors (YouTube / SoundCloud) or network endpoints experienced high latency."
+                "External audio extractors (YouTube) or network endpoints experienced high latency."
             ),
             color=0xFEE75C,
         )
@@ -3723,7 +3725,7 @@ class MusicCog(commands.Cog, name="Music"):
                 f"• **Correlation ID:** `DBG-{corr_id}`\n"
                 f"• **Active Profile:** `{AudioResolver.get_current_profile_name()}`\n"
                 f"• **Cookie Status:** `{cookie_diag.get('status')}` ({cookie_diag.get('source')})\n"
-                f"• **Safe Recovery:** SoundCloud fallback operational for playback\n"
+                f"• **SoundCloud:** ⚪ Disabled by configuration\n"
                 "• **Recommendation:** Run `/autoupdate action:self_heal` or check network health."
             ),
             inline=False,
@@ -3796,7 +3798,12 @@ class MusicCog(commands.Cog, name="Music"):
                 expired = cookie_diag.get("expired_tokens", [])
                 cookie_status = f"🔴 Expired ({', '.join(expired)}). Fresh cookies required."
         else:
-            cookie_status = "🔴 Missing (YouTube datacenter IP blocks likely; SoundCloud fallback active)"
+            cookie_status = "🔴 Missing (YouTube cookies recommended via `YOUTUBE_COOKIES` or Secret Files)"
+
+        # Check Spotify credentials status
+        from music_bot.services.spotify_service import SpotifyService
+        sp_configured = SpotifyService.is_configured()
+        sp_str = "🟢 Configured (Client Credentials)" if sp_configured else "⚪ Not configured (Optional metadata only, YouTube playback active)"
 
         env_val = (
             f"• **Python:** `{sys.version.split()[0]} ({sys.platform})`\n"
@@ -3804,11 +3811,13 @@ class MusicCog(commands.Cog, name="Music"):
             f"• **FFmpeg:** {'🟢' if ffmpeg_ok else '🔴'} `{ffmpeg_exe}`\n"
             f"  *Version:* `{ffmpeg_ver[:50]}`\n"
             f"• **JS Runtime:** `{'🟢 ' + list(js_runtimes.keys())[0] if js_runtimes else '🟡 None detected'}`\n"
-            f"• **Cookies:** {cookie_status}"
+            f"• **YouTube Cookies:** {cookie_status}\n"
+            f"• **Spotify API:** {sp_str}\n"
+            f"• **SoundCloud:** ⚪ Disabled by configuration"
         )
-        embed.add_field(name="1. Environment & Dependencies", value=env_val, inline=False)
+        embed.add_field(name="1. Environment & Supported Sources", value=env_val, inline=False)
 
-        # 2. Stage 1: Search Provider Probe (Bounded to 3.5s)
+        # 2. Stage 1: YouTube Search Provider Probe (Bounded to 3.5s)
         s_t0 = time.time()
         search_results = []
         search_err = None
@@ -3820,10 +3829,10 @@ class MusicCog(commands.Cog, name="Music"):
 
         if search_results:
             first = search_results[0]
-            s_val = f"🟢 **PASS** ({s_dur:.0f}ms)\n• Found: `{first.get('title', 'Unknown')[:50]}`\n• Provider URL: `{first.get('url', '')[:45]}...`"
+            s_val = f"🟢 **PASS** ({s_dur:.0f}ms)\n• Found: `{first.get('title', 'Unknown')[:50]}`\n• YouTube URL: `{first.get('url', '')[:45]}...`"
         else:
             s_val = f"🔴 **FAIL** ({s_dur:.0f}ms)\n• Error: `{search_err or 'No search results returned'}`"
-        embed.add_field(name="2. Stage 1: Search Provider", value=s_val, inline=False)
+        embed.add_field(name="2. Stage 1: YouTube Search Provider", value=s_val, inline=False)
 
         # 3. Stage 2: Track & Stream Resolution Probe (Bounded to 4.0s)
         r_t0 = time.time()
@@ -3842,15 +3851,15 @@ class MusicCog(commands.Cog, name="Music"):
                 f"• Title: `{track.title[:50]}`\n"
                 f"• Stream Host: `{host[:40]}`\n"
                 f"• Duration: `{track.duration}s`\n"
-                f"• Profile Used: `{AudioResolver.get_current_profile_name()}`"
+                f"• YouTube Profile: `{AudioResolver.get_current_profile_name()}`"
             )
         else:
             r_val = (
                 f"🔴 **FAIL** ({r_dur:.0f}ms)\n"
                 f"• Error: `{resolve_err or AudioResolver.last_resolver_error or 'Stream resolution returned None'}`\n"
-                f"• Profile Used: `{AudioResolver.get_current_profile_name()}`"
+                f"• YouTube Profile: `{AudioResolver.get_current_profile_name()}`"
             )
-        embed.add_field(name="3. Stage 2: Audio Stream Resolution", value=r_val, inline=False)
+        embed.add_field(name="3. Stage 2: YouTube Audio Stream Resolution", value=r_val, inline=False)
 
         # 4. Stage 3: FFmpeg PCM Decode Probe (Bounded to 2.5s with DEVNULL stderr to prevent pipe deadlocks)
         f_val = "⚪ Skipped (Stream resolution failed)"
@@ -4133,13 +4142,16 @@ class MusicCog(commands.Cog, name="Music"):
         app_commands.Choice(name="🔴 Turn Off", value="off"),
         app_commands.Choice(name="📊 Status", value="status"),
     ])
-    async def cmd_autodj(self, interaction: discord.Interaction, action: str = "status") -> None:
+    async def cmd_autodj(self, interaction: discord.Interaction, action: Optional[app_commands.Choice[str]] = None) -> None:
         """Slash command to configure smart automatic music recommendations."""
         await self.ensure_deferred(interaction, ephemeral=False)
         guild_id = interaction.guild_id
         session = await self.session_manager.get_session(guild_id)  # type: ignore
 
-        act_val = action.value if hasattr(action, "value") else str(action)
+        if action is not None:
+            act_val = action.value if hasattr(action, "value") else str(action)
+        else:
+            act_val = "status"
         act_val = act_val.lower().strip()
 
         settings = None
