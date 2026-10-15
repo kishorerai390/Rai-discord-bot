@@ -16,7 +16,7 @@ import math
 import random
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Union
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -2546,71 +2546,10 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_clear.callback(self, interaction)
 
-    @app_commands.command(name="autodj", description="Configure individual-song Auto-DJ mode")
-    @app_commands.describe(action="Turn Auto-DJ on, off, or check status")
-    @app_commands.choices(action=[
-        app_commands.Choice(name="On (Recommend individual tracks automatically)", value="on"),
-        app_commands.Choice(name="Off (Disable Auto-DJ)", value="off"),
-        app_commands.Choice(name="Status (Check current Auto-DJ state)", value="status"),
-    ])
-    async def alias_autodj(self, interaction: discord.Interaction, action: app_commands.Choice[str]) -> None:
-        await self.ensure_deferred(interaction, ephemeral=False)
-        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        settings = await self.bot.db.get_dj_settings(interaction.guild_id)  # type: ignore
-
-        if action.value == "on":
-            settings.enabled = True
-            await self.bot.db.update_dj_settings(settings)
-            session.dj_enabled = True
-            started_msg = ""
-            member = interaction.user
-            if not session.is_playing and isinstance(member, discord.Member) and member.voice and member.voice.channel:
-                from music_bot.services.voice_service import VoiceManager
-                text_channel = interaction.channel if isinstance(interaction.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
-                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
-                if vc:
-                    from music_bot.services.dj_service import NekoDJService
-                    rec = await NekoDJService.get_recommendation(self.bot, session)
-                    if rec:
-                        track, rationale = rec
-                        if await MusicPlayerService.start_playback(self.bot, session, track):
-                            started_msg = f"\n🎧 Started first recommendation: **{track.title}**"
-            if session.now_playing_message:
-                try:
-                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
-                except Exception:
-                    pass
-            await interaction.edit_original_response(
-                content=f"🎧 **Auto-DJ is now ON!** (Individual songs will be recommended automatically when the manual queue is empty){started_msg}"
-            )
-
-        elif action.value == "off":
-            settings.enabled = False
-            await self.bot.db.update_dj_settings(settings)
-            session.dj_enabled = False
-            if session.now_playing_message:
-                try:
-                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
-                except Exception:
-                    pass
-            await interaction.edit_original_response(content="⏹️ **Auto-DJ is now OFF.**")
-
-        else:
-            status_str = "ON 🎧" if (settings.enabled or getattr(session, "dj_enabled", False)) else "OFF ⏹️"
-            from music_bot.services.dj_service import NekoDJService
-            rec = await NekoDJService.get_recommendation(self.bot, session) if settings.enabled else None
-            next_sugg = f"{rec[0].artist} — {rec[0].title}" if rec else "None ready"
-            embed = discord.Embed(
-                title="🎧 Auto-DJ Status",
-                description=(
-                    f"• **Auto-DJ:** `{status_str}`\n"
-                    f"• **Queue Mode:** Individual-Song Radio\n"
-                    f"• **Next Suggestion:** `{next_sugg}`\n"
-                    f"• **Manual Queue Priority:** Active (manual queue always plays first)"
-                ),
-                color=COLOR_ELECTRIC_CYAN,
-            )
-            await interaction.edit_original_response(embed=embed)
+    @property
+    def alias_autodj(self):
+        """Backward-compatible property referencing authoritative cmd_autodj without duplicate slash command registration."""
+        return self.cmd_autodj
 
 
     # =========================================================================
@@ -3235,17 +3174,26 @@ class MusicCog(commands.Cog, name="Music"):
             await ctx.reply(f"⚠️ Failed to apply preset **{d_name}**. Preserved previous audio filter.", mention_author=False)
 
     @commands.command(name="autodj", aliases=["dj", "autoplay", "nonstop"])
-    async def pfx_autodj(self, ctx: commands.Context, action: str = "status") -> None:
+    async def pfx_autodj(self, ctx: commands.Context, action: Optional[str] = "status") -> None:
         """Control individual-song Auto-DJ mode: on, off, status."""
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        action = action.lower().strip()
-        settings = await self.bot.db.get_dj_settings(ctx.guild.id)
+        action_clean = (action or "status").lower().strip()
+        settings = None
+        if hasattr(self.bot, "db") and self.bot.db and hasattr(self.bot.db, "get_dj_settings"):
+            try:
+                settings = await self.bot.db.get_dj_settings(ctx.guild.id)
+            except Exception:
+                settings = None
 
-        if action in ("on", "enable", "start"):
-            settings.enabled = True
-            await self.bot.db.update_dj_settings(settings)
+        if action_clean in ("on", "enable", "start"):
+            if settings and hasattr(self.bot.db, "update_dj_settings"):
+                try:
+                    settings.enabled = True
+                    await self.bot.db.update_dj_settings(settings)
+                except Exception:
+                    pass
             session.dj_enabled = True
             started_msg = ""
             if not session.is_playing and isinstance(ctx.author, discord.Member) and ctx.author.voice and ctx.author.voice.channel:
@@ -3262,28 +3210,36 @@ class MusicCog(commands.Cog, name="Music"):
                     await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
                 except Exception:
                     pass
-            await ctx.reply(f"🎧 **Auto-DJ is now ON!** (Individual songs will be recommended automatically when the manual queue is empty){started_msg}", mention_author=False)
+            mood = getattr(session, "dj_mood", "balanced").title()
+            await ctx.reply(f"🎧 **Auto-DJ is now ON!** (Individual songs will be recommended automatically when the manual queue is empty | Mood: `{mood}`){started_msg}", mention_author=False)
 
-        elif action in ("off", "disable", "stop"):
-            settings.enabled = False
-            await self.bot.db.update_dj_settings(settings)
+        elif action_clean in ("off", "disable", "stop"):
+            if settings and hasattr(self.bot.db, "update_dj_settings"):
+                try:
+                    settings.enabled = False
+                    await self.bot.db.update_dj_settings(settings)
+                except Exception:
+                    pass
             session.dj_enabled = False
             if session.now_playing_message:
                 try:
                     await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
                 except Exception:
                     pass
-            await ctx.reply("⏹️ **Auto-DJ is now OFF.**", mention_author=False)
+            await ctx.reply("⏹️ **Auto-DJ is now OFF.** Playback will pause when your queue is finished.", mention_author=False)
 
         else:
-            status_str = "ON 🎧" if (settings.enabled or getattr(session, "dj_enabled", False)) else "OFF ⏹️"
+            is_enabled = getattr(session, "dj_enabled", False) or (settings.enabled if settings else False)
+            status_str = "🟢 Enabled" if is_enabled else "🔴 Disabled"
+            mood = getattr(session, "dj_mood", "balanced").title()
             from music_bot.services.dj_service import NekoDJService
-            rec = await NekoDJService.get_recommendation(self.bot, session) if settings.enabled else None
+            rec = await NekoDJService.get_recommendation(self.bot, session) if is_enabled else None
             next_sugg = f"{rec[0].artist} — {rec[0].title}" if rec else "None ready"
             embed = discord.Embed(
                 title="🎧 Auto-DJ Status",
                 description=(
-                    f"• **Auto-DJ:** `{status_str}`\n"
+                    f"• **Status:** `{status_str}`\n"
+                    f"• **Current Mood:** `{mood}`\n"
                     f"• **Queue Mode:** Individual-Song Radio\n"
                     f"• **Next Suggestion:** `{next_sugg}`\n"
                     f"• **Manual Queue Priority:** Active (manual queue always plays first)"
@@ -4041,39 +3997,89 @@ class MusicCog(commands.Cog, name="Music"):
         app_commands.Choice(name="🔴 Turn Off", value="off"),
         app_commands.Choice(name="📊 Status", value="status"),
     ])
-    async def cmd_autodj(self, interaction: discord.Interaction, action: str) -> None:
-        """Slash command to toggle Auto-DJ."""
-        await self.ensure_deferred(interaction, ephemeral=True)
-        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
-        if action == "on":
-            session.dj_enabled = True
-            msg = "🟢 **Auto-DJ Enabled!** When your manual queue finishes, MusicMaid will seamlessly recommend songs matching your vibe."
-        elif action == "off":
-            session.dj_enabled = False
-            msg = "🔴 **Auto-DJ Disabled.** Playback will stop when the manual queue finishes."
-        else:
-            status = "🟢 Enabled" if getattr(session, "dj_enabled", False) else "🔴 Disabled"
-            mood = getattr(session, "dj_mood", "balanced").title()
-            msg = f"🎧 **Auto-DJ Status:** {status} | **Mood:** `{mood}`"
-        await interaction.edit_original_response(content=msg)
+    async def cmd_autodj(self, interaction: discord.Interaction, action: str = "status") -> None:
+        """Slash command to configure smart automatic music recommendations."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        guild_id = interaction.guild_id
+        session = await self.session_manager.get_session(guild_id)  # type: ignore
 
-    @commands.command(name="autodj")
-    async def pfx_autodj(self, ctx: commands.Context, action: Optional[str] = None) -> None:
-        """Prefix command to toggle Auto-DJ."""
-        session = await self.session_manager.get_session(ctx.guild.id)
-        if not action or action.lower() == "status":
-            status = "🟢 Enabled" if getattr(session, "dj_enabled", False) else "🔴 Disabled"
-            mood = getattr(session, "dj_mood", "balanced").title()
-            await ctx.send(f"🎧 **Auto-DJ Status:** {status} | **Mood:** `{mood}`\nUse `!autodj on` or `!autodj off` to toggle.")
-            return
-        if action.lower() in ("on", "enable", "start"):
+        act_val = action.value if hasattr(action, "value") else str(action)
+        act_val = act_val.lower().strip()
+
+        settings = None
+        if hasattr(self.bot, "db") and self.bot.db and hasattr(self.bot.db, "get_dj_settings") and guild_id:
+            try:
+                settings = await self.bot.db.get_dj_settings(guild_id)
+            except Exception:
+                settings = None
+
+        if act_val in ("on", "enable", "start"):
+            if settings and hasattr(self.bot.db, "update_dj_settings"):
+                try:
+                    settings.enabled = True
+                    await self.bot.db.update_dj_settings(settings)
+                except Exception:
+                    pass
             session.dj_enabled = True
-            await ctx.send("🟢 **Auto-DJ Enabled!** Continuous music will play when the queue empties. 🐾")
-        elif action.lower() in ("off", "disable", "stop"):
+            started_msg = ""
+            member = getattr(interaction, "user", None)
+            if not session.is_playing and isinstance(member, discord.Member) and member.voice and member.voice.channel:
+                from music_bot.services.voice_service import VoiceManager
+                text_channel = interaction.channel if isinstance(interaction.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
+                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+                if vc:
+                    from music_bot.services.dj_service import NekoDJService
+                    rec = await NekoDJService.get_recommendation(self.bot, session)
+                    if rec:
+                        track, rationale = rec
+                        if await MusicPlayerService.start_playback(self.bot, session, track):
+                            started_msg = f"\n🎧 Started first recommendation: **{track.title}**"
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                except Exception:
+                    pass
+            mood = getattr(session, "dj_mood", "balanced").title()
+            await interaction.edit_original_response(
+                content=f"🟢 **Auto-DJ is now ON!** (Smart individual songs will be recommended automatically when the manual queue is empty | Mood: `{mood}`){started_msg}"
+            )
+
+        elif act_val in ("off", "disable", "stop"):
+            if settings and hasattr(self.bot.db, "update_dj_settings"):
+                try:
+                    settings.enabled = False
+                    await self.bot.db.update_dj_settings(settings)
+                except Exception:
+                    pass
             session.dj_enabled = False
-            await ctx.send("🔴 **Auto-DJ Disabled.** Playback will pause when your queue is finished.")
+            if session.now_playing_message:
+                try:
+                    await session.now_playing_message.edit(embed=MusicPlayerService.build_now_playing_embed(session))
+                except Exception:
+                    pass
+            await interaction.edit_original_response(
+                content="🔴 **Auto-DJ is now OFF.** Playback will stop when the manual queue finishes."
+            )
+
         else:
-            await ctx.send("Usage: `!autodj on`, `!autodj off`, or `!autodj status`")
+            is_enabled = getattr(session, "dj_enabled", False) or (settings.enabled if settings else False)
+            status_str = "🟢 Enabled" if is_enabled else "🔴 Disabled"
+            mood = getattr(session, "dj_mood", "balanced").title()
+            from music_bot.services.dj_service import NekoDJService
+            rec = await NekoDJService.get_recommendation(self.bot, session) if is_enabled else None
+            next_sugg = f"{rec[0].artist} — {rec[0].title}" if rec else "None ready"
+            embed = discord.Embed(
+                title="🎧 Auto-DJ Status",
+                description=(
+                    f"• **Status:** `{status_str}`\n"
+                    f"• **Current Mood:** `{mood}`\n"
+                    f"• **Queue Mode:** Individual-Song Radio\n"
+                    f"• **Next Suggestion:** `{next_sugg}`\n"
+                    f"• **Manual Queue Priority:** Active (manual queue always plays first)"
+                ),
+                color=COLOR_ELECTRIC_CYAN,
+            )
+            await interaction.edit_original_response(embed=embed)
 
     # =========================================================================
     # FEATURE GROUP 5: LISTENING PARTY & DEMOCRATIC SKIP VOTING
