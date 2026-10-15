@@ -479,13 +479,19 @@ class MusicAutoUpdater:
             from music_bot.services.resolver_service import AudioResolver
             health = await AudioResolver.probe_extractor_health()
             if not health.get("operational"):
-                logger.warning(f"[AutoUpdater] Extractor issue: {health.get('message')}. Triggering autonomous healing...")
-                # Attempt PO-token rotation first
-                rotated, rot_msg = AudioResolver.rotate_po_token()
-                if rotated:
-                    logger.info(f"[AutoUpdater] Rotated PO-Token: {rot_msg}")
+                logger.warning(f"[AutoUpdater] Extractor issue: {health.get('message')}")
+                # Only attempt PO-token rotation if secondary tokens are actually configured
+                token_data = AudioResolver._load_po_tokens_and_cookies() if hasattr(AudioResolver, "_load_po_tokens_and_cookies") else {}
+                if token_data.get("tokens"):
+                    rotated, rot_msg = AudioResolver.rotate_po_token()
+                    if rotated:
+                        logger.info(f"[AutoUpdater] Rotated PO-Token: {rot_msg}")
                 else:
-                    asyncio.create_task(cls.update_ytdl(force=True, bot=bot))
+                    # Check PyPI before attempting pip install to avoid repeated useless installs
+                    check = await cls.check_ytdl_version()
+                    if check.get("update_available"):
+                        logger.info("[AutoUpdater] yt-dlp update available on PyPI, triggering upgrade...")
+                        asyncio.create_task(cls.update_ytdl(force=False, bot=bot))
             return health
         except Exception as e:
             return {"operational": False, "message": str(e)}

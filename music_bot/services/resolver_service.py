@@ -197,6 +197,85 @@ def _validate_cookies_content(content: str) -> Tuple[bool, str]:
     return True, f"Valid YouTube cookies present ({len(set(found_keys))} session tokens verified)."
 
 
+def get_cookie_diagnostics() -> Dict[str, Any]:
+    """
+    Safely inspect configured YouTube cookie sources without exposing sensitive contents or values.
+    Returns safe metadata: presence, source, file size, token counts, expired token names, and guidance.
+    """
+    secrets_dir = Path("/etc/secrets")
+    render_secret_path = secrets_dir / "cookies.txt"
+    render_secret_exists = render_secret_path.exists() and render_secret_path.stat().st_size > 0
+
+    cookie_file = get_active_cookie_file()
+    if not cookie_file or not Path(cookie_file).exists() or Path(cookie_file).stat().st_size == 0:
+        return {
+            "present": False,
+            "source": "None",
+            "size_bytes": 0,
+            "token_count": 0,
+            "expired_tokens": [],
+            "is_valid": False,
+            "status": "Missing",
+            "summary": "No YouTube cookies configured",
+            "guidance": "Add cookies.txt in Render Dashboard under Secret Files (/etc/secrets/cookies.txt) or set YOUTUBE_COOKIES.",
+        }
+
+    c_path = Path(cookie_file)
+    c_size = c_path.stat().st_size
+    try:
+        content = c_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        content = ""
+
+    is_valid, msg = _validate_cookies_content(content)
+
+    if render_secret_exists:
+        src = "/etc/secrets/cookies.txt (Render Secret File)"
+    elif os.environ.get("YOUTUBE_COOKIES") or os.environ.get("YOUTUBE_COOKIES_BASE64"):
+        src = "YOUTUBE_COOKIES Environment Variable"
+    else:
+        src = f"Local ({c_path.name})"
+
+    now = time.time()
+    found_keys: List[str] = []
+    expired_keys: List[str] = []
+    target_keys = {"SAPISID", "__Secure-3PSID", "__Secure-1PSID", "LOGIN_INFO", "SID", "HSID", "SSID"}
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) >= 7:
+            name = parts[5]
+            if name in target_keys:
+                found_keys.append(name)
+                try:
+                    exp_val = float(parts[4])
+                    if 0 < exp_val < now:
+                        expired_keys.append(name)
+                except ValueError:
+                    pass
+
+    unique_found = sorted(list(set(found_keys)))
+    unique_expired = sorted(list(set(expired_keys)))
+
+    status = "Valid" if is_valid else "Expired/Restricted"
+    guidance = "Cookies active." if is_valid else f"Expired tokens: {', '.join(unique_expired)}. Fresh export required."
+
+    return {
+        "present": True,
+        "source": src,
+        "size_bytes": c_size,
+        "token_count": len(unique_found),
+        "tokens_found": unique_found,
+        "expired_tokens": unique_expired,
+        "is_valid": is_valid,
+        "status": status,
+        "summary": f"{status} ({len(unique_found)} tokens, {c_size} bytes)",
+        "guidance": guidance,
+    }
+
+
 def sync_and_prepare_cookies() -> Optional[str]:
     """
     Discovers, validates, and prepares YouTube cookies in a writable temp location.
@@ -334,25 +413,29 @@ def _load_po_tokens_and_cookies() -> Dict[str, Any]:
 def _build_ytdl_options(
     player_clients: Optional[List[str]] = None,
     for_soundcloud: bool = False,
+    extract_flat: bool = False,
 ) -> Dict[str, Any]:
     """
     Build yt-dlp extractor configuration options.
     SoundCloud options are isolated from YouTube-specific cookie and client arguments.
     """
     if for_soundcloud:
-        return {
+        sc_opts: Dict[str, Any] = {
             "format": "bestaudio/best",
             "noplaylist": True,
             "quiet": True,
             "logtostderr": False,
             "nocheckcertificate": True,
-            "socket_timeout": 20,
+            "socket_timeout": 15,
             "source_address": "0.0.0.0",
             "extractaudio": True,
             "audioformat": "mp3",
         }
+        if extract_flat:
+            sc_opts["extract_flat"] = True
+        return sc_opts
 
-    clients = player_clients or ["android", "ios"]
+    clients = player_clients or ["mweb", "web"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "extractaudio": True,
@@ -366,7 +449,7 @@ def _build_ytdl_options(
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
-        "socket_timeout": 15,
+        "socket_timeout": 10,
         "extractor_retries": 1,
         "extractor_args": {
             "youtube": {
@@ -375,6 +458,8 @@ def _build_ytdl_options(
             }
         },
     }
+    if extract_flat:
+        opts["extract_flat"] = True
 
     # Automatically attach JavaScript runtime for EJS challenge solving
     js_runtimes = _detect_js_runtimes()
@@ -427,13 +512,16 @@ class AudioResolver:
     _pending_tasks: Dict[str, asyncio.Task[Optional[QueuedTrack]]] = {}
 
     PROFILE_PRESETS: List[List[str]] = [
-        ["android", "ios"],
-        ["tv"],
-        ["web_safari", "ios"],
         ["mweb", "web"],
+        ["web_safari", "ios"],
+        ["tv"],
+        ["android", "ios"],
     ]
     _active_profile_index: int = 0
     last_resolver_error: Optional[str] = None
+    _last_probe_time: float = 0.0
+    _last_probe_result: Optional[Dict[str, Any]] = None
+    PROBE_COOLDOWN_SECONDS: float = 45.0
 
     @classmethod
     def get_current_profile_name(cls) -> str:
@@ -450,50 +538,126 @@ class AudioResolver:
         return profile_name
 
     @classmethod
-    async def probe_extractor_health(cls) -> Dict[str, Any]:
-        """Canary Probe: Tests resolving a 5-second test audio clip. Rotates clients if issues detected."""
+    async def probe_extractor_health(cls, force: bool = False) -> Dict[str, Any]:
+        """
+        Canary Probe: Tests resolving capability on audio stream.
+        Bounded with 45s cooldown, tight timeouts, and SoundCloud fallback verification.
+        Never bypasses access controls, invents fake tokens, or loops indefinitely.
+        """
+        now = time.monotonic()
+        if not force and cls._last_probe_result and (now - cls._last_probe_time) < cls.PROBE_COOLDOWN_SECONDS:
+            return dict(cls._last_probe_result)
+
         start_t = time.time()
         test_target = "ytsearch1:lofi beats"
         loop = asyncio.get_running_loop()
+        cookie_diag = get_cookie_diagnostics()
 
-        for attempt in range(len(cls.PROFILE_PRESETS)):
-            profile = cls.PROFILE_PRESETS[cls._active_profile_index]
-            try:
-                opts = _build_ytdl_options(profile)
-                ytdl_inst = yt_dlp.YoutubeDL(opts)
-                data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(ytdl_inst.extract_info, test_target, download=False)
-                    ),
-                    timeout=10.0,
-                )
-                entry = data["entries"][0] if "entries" in data and data["entries"] else data
-                stream_url = entry.get("url") if entry else None
-                if not stream_url and entry and "formats" in entry:
-                    for fmt in entry["formats"]:
-                        if fmt.get("acodec") != "none" and fmt.get("url"):
-                            stream_url = fmt["url"]
-                            break
-                if stream_url:
-                    latency = round((time.time() - start_t) * 1000, 2)
-                    return {
-                        "operational": True,
-                        "profile": "+".join(profile),
-                        "latency_ms": latency,
-                        "message": f"Healthy ({latency}ms latency)",
-                    }
-            except Exception as e:
-                err_msg = _format_error(e)
-                logger.warning(
-                    f"[CanaryProbe] Profile '{'+'.join(profile)}' failed: {err_msg}. Auto-rotating..."
-                )
-                cls.rotate_client_profile()
+        yt_ok = False
+        yt_reason = "No stream format"
+        latency = 0.0
 
-        return {
-            "operational": False,
-            "profile": cls.get_current_profile_name(),
-            "message": "All extractor profiles encountered restrictions. Fresh cookies or PO-Token required.",
-        }
+        # 1. Bounded YouTube probe (4.0s timeout with mweb/web profile)
+        profile = cls.PROFILE_PRESETS[cls._active_profile_index]
+        try:
+            opts = _build_ytdl_options(profile)
+            ytdl_inst = yt_dlp.YoutubeDL(opts)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(ytdl_inst.extract_info, test_target, download=False)
+                ),
+                timeout=4.0,
+            )
+            entry = data["entries"][0] if "entries" in data and data["entries"] else data
+            stream_url = entry.get("url") if entry else None
+            if not stream_url and entry and "formats" in entry:
+                for fmt in entry["formats"]:
+                    if fmt.get("acodec") != "none" and fmt.get("url"):
+                        stream_url = fmt["url"]
+                        break
+            if stream_url:
+                yt_ok = True
+                latency = round((time.time() - start_t) * 1000, 1)
+        except Exception as e:
+            raw_err = _format_error(e)
+            logger.debug(f"[ExtractorProbe] YouTube probe notice: {raw_err}")
+            if not cookie_diag.get("present"):
+                yt_reason = "YouTube datacenter IP restriction (Render Secret /etc/secrets/cookies.txt required)"
+            elif not cookie_diag.get("is_valid"):
+                expired = cookie_diag.get("expired_tokens", [])
+                yt_reason = f"Expired YouTube cookies ({', '.join(expired)}). Fresh cookies required."
+            elif "PO-Token" in raw_err or "Sign in" in raw_err or "bot" in raw_err.lower():
+                yt_reason = "YouTube anti-bot verification (GVS / PO-Token required)"
+            else:
+                yt_reason = raw_err[:80]
+
+        if yt_ok:
+            res = {
+                "operational": True,
+                "youtube_operational": True,
+                "soundcloud_operational": True,
+                "active_source": "YouTube",
+                "profile": "+".join(profile),
+                "latency_ms": latency,
+                "message": f"Operational ({latency}ms latency via YouTube)",
+                "cookie_status": cookie_diag.get("status"),
+            }
+            cls._last_probe_time = now
+            cls._last_probe_result = res
+            return res
+
+        # 2. YouTube failed - Test already-supported SoundCloud fallback (bounded 3.5s timeout)
+        sc_start = time.time()
+        sc_ok = False
+        sc_reason = "No stream format"
+        sc_latency = 0.0
+        try:
+            sc_target = "scsearch1:lofi beats"
+            sc_opts = _build_ytdl_options(for_soundcloud=True)
+            sc_ytdl = yt_dlp.YoutubeDL(sc_opts)
+            sc_data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
+                ),
+                timeout=3.5,
+            )
+            sc_entry = sc_data["entries"][0] if "entries" in sc_data and sc_data["entries"] else sc_data
+            sc_stream = sc_entry.get("url") if sc_entry else None
+            if not sc_stream and sc_entry and "formats" in sc_entry:
+                for fmt in sc_entry["formats"]:
+                    if fmt.get("acodec") != "none" and fmt.get("url"):
+                        sc_stream = fmt["url"]
+                        break
+            if sc_stream:
+                sc_ok = True
+                sc_latency = round((time.time() - sc_start) * 1000, 1)
+        except Exception as sc_e:
+            sc_reason = _format_error(sc_e)[:80]
+
+        if sc_ok:
+            res = {
+                "operational": True,
+                "youtube_operational": False,
+                "soundcloud_operational": True,
+                "active_fallback": "SoundCloud",
+                "profile": "+".join(profile),
+                "latency_ms": sc_latency,
+                "message": f"YouTube restricted ({yt_reason}). SoundCloud fallback operational ({sc_latency}ms).",
+                "cookie_status": cookie_diag.get("status"),
+            }
+        else:
+            res = {
+                "operational": False,
+                "youtube_operational": False,
+                "soundcloud_operational": False,
+                "profile": "+".join(profile),
+                "message": f"All extractors restricted. YouTube: {yt_reason}. SoundCloud: {sc_reason}.",
+                "cookie_status": cookie_diag.get("status"),
+            }
+
+        cls._last_probe_time = now
+        cls._last_probe_result = res
+        return res
 
     @classmethod
     def rotate_po_token(cls) -> Tuple[bool, str]:
@@ -569,38 +733,36 @@ class AudioResolver:
         search_query = f"ytsearch{limit}:{query}" if not query.startswith("http") else query
 
         data = None
-        # 1. Primary YouTube Search in executor
+        # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast <2s response)
         try:
-            primary_opts = _build_ytdl_options(["android", "ios"])
+            primary_opts = _build_ytdl_options(["mweb", "web"], extract_flat=True)
             ydl_instance = yt_dlp.YoutubeDL(primary_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
                     _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=30.0,
+                timeout=4.0,
             )
         except Exception as e:
             err_msg = _format_error(e)
-            logger.warning(
-                f"YouTube search failed for '{query}': {err_msg}. Attempting SoundCloud search fallback...",
-                exc_info=True,
+            logger.info(
+                f"YouTube search notice for '{query}': {err_msg}. Using SoundCloud search fallback..."
             )
-            # 2. SoundCloud Search Fallback
+            # 2. SoundCloud Search Fallback (fast 3.5s timeout)
             try:
                 sc_query = f"scsearch{limit + 3}:{query}"
-                sc_opts = _build_ytdl_options(for_soundcloud=True)
+                sc_opts = _build_ytdl_options(for_soundcloud=True, extract_flat=True)
                 sc_ydl = yt_dlp.YoutubeDL(sc_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ydl.extract_info, sc_query, download=False)
                     ),
-                    timeout=25.0,
+                    timeout=3.5,
                 )
             except Exception as sc_err:
                 sc_msg = _format_error(sc_err)
-                logger.error(
-                    f"SoundCloud search fallback also failed for '{query}': {sc_msg}",
-                    exc_info=True,
+                logger.warning(
+                    f"SoundCloud search fallback also failed for '{query}': {sc_msg}"
                 )
                 return []
 
@@ -924,13 +1086,13 @@ class AudioResolver:
         if not cleaned_query.startswith("http") or spotify_info is not None:
             async def _try_yt() -> Optional[QueuedTrack]:
                 try:
-                    t_opts = _build_ytdl_options(["android", "ios"])
+                    t_opts = _build_ytdl_options(["mweb", "web"])
                     ydl_i = yt_dlp.YoutubeDL(t_opts)
                     d = await asyncio.wait_for(
                         loop.run_in_executor(
                             _audio_executor, functools.partial(ydl_i.extract_info, target, download=False)
                         ),
-                        timeout=8.0,
+                        timeout=4.0,
                     )
                     t = cls._parse_entry(d, requester_id, requester_name)
                     if t and t.stream_url:
@@ -948,7 +1110,7 @@ class AudioResolver:
                         loop.run_in_executor(
                             _audio_executor, functools.partial(s_ydl.extract_info, sc_t, download=False)
                         ),
-                        timeout=8.0,
+                        timeout=4.0,
                     )
                     if d:
                         entries = d.get("entries") if "entries" in d else [d]
@@ -975,7 +1137,7 @@ class AudioResolver:
                     return winner
 
 
-        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 10s timeout
+        # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 4s timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 2 (TV client) for '{cleaned_query[:60]}'")
             tier2_opts = _build_ytdl_options(["tv"])
@@ -984,7 +1146,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier2_ydl.extract_info, target, download=False)
                 ),
-                timeout=10.0,
+                timeout=4.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track and track.stream_url:
@@ -997,7 +1159,7 @@ class AudioResolver:
             cls.last_resolver_error = f"Tier 2 (TV) failed: {fb_msg}"
             logger.warning(f"[Resolver] Tier 2 (TV) failed for '{cleaned_query[:60]}': {fb_msg}")
 
-        # Tier 3: Safari / iOS Embedded Profile - 8s timeout
+        # Tier 3: Safari / iOS Embedded Profile - 4s timeout
         try:
             logger.info(f"[Resolver] Attempting Tier 3 (Safari+iOS) for '{cleaned_query[:60]}'")
             tier3_opts = _build_ytdl_options(["web_safari", "ios"])
@@ -1006,7 +1168,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(tier3_ydl.extract_info, target, download=False)
                 ),
-                timeout=8.0,
+                timeout=4.0,
             )
             track = cls._parse_entry(data, requester_id, requester_name)
             if track and track.stream_url:
@@ -1020,7 +1182,7 @@ class AudioResolver:
             logger.warning(f"[Resolver] Tier 3 (Safari) failed for '{cleaned_query[:60]}': {t3_msg}")
 
 
-        # Tier 4: SoundCloud Fallback (Isolated options, 25s timeout)
+        # Tier 4: SoundCloud Fallback (Isolated options, 6s timeout)
         if not cleaned_query.startswith("http") or spotify_info is not None:
             try:
                 sc_target = f"scsearch5:{cleaned_query}"
@@ -1031,7 +1193,7 @@ class AudioResolver:
                     loop.run_in_executor(
                         _audio_executor, functools.partial(sc_ytdl.extract_info, sc_target, download=False)
                     ),
-                    timeout=25.0,
+                    timeout=6.0,
                 )
                 if data:
                     entries = data.get("entries") if "entries" in data else [data]

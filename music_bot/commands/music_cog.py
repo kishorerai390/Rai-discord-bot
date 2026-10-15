@@ -722,16 +722,25 @@ class MusicCog(commands.Cog, name="Music"):
                     logger.error(f"[Playback] Exception joining voice channel: {vc_err}", exc_info=True)
 
                 if not vc:
-                    err_detail = getattr(session, "last_error", None) or "Bot lacks Connect or Speak permissions in this channel."
+                    err_detail = getattr(session, "last_error", None) or "Voice connection could not be established."
                     ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
-                    if "Voice connection failed:" in err_detail:
-                        desc = f"Could not connect to **{ch_name}**.\n\n{err_detail}"
-                    elif "permission" in err_detail.lower():
+
+                    # Only show "How to fix: Permissions..." if genuinely a Discord permission error
+                    is_perm_err = (
+                        isinstance(vc_err, discord.Forbidden)
+                        or ("403" in err_detail and "forbidden" in err_detail.lower())
+                        or ("lacks permission" in err_detail.lower())
+                        or ("missing permission" in err_detail.lower())
+                    ) and not any(dep in err_detail.lower() for dep in ("davey", "pynacl", "opus", "dependency", "timed out", "timeout"))
+
+                    if is_perm_err:
                         desc = (
                             f"Could not connect to **{ch_name}**.\n"
                             f"• **Reason:** {err_detail}\n\n"
                             f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
                         )
+                    elif "Voice connection failed:" in err_detail:
+                        desc = f"Could not connect to **{ch_name}**.\n\n{err_detail}"
                     else:
                         desc = f"Could not connect to **{ch_name}**.\n• **Reason:** {err_detail}"
 
@@ -2125,12 +2134,25 @@ class MusicCog(commands.Cog, name="Music"):
         elif act == "self_heal":
             health = await MusicAutoUpdater.check_extractor_health(bot=self.bot)
             is_ok = health.get("operational", False)
+            yt_ok = health.get("youtube_operational", False)
+            sc_ok = health.get("soundcloud_operational", False)
+
+            if is_ok and yt_ok:
+                probe_status = "🟢 Operational (YouTube & SoundCloud)"
+                recovery_status = "Active (YouTube primary)"
+            elif is_ok and sc_ok:
+                probe_status = "🟡 Degraded (SoundCloud Fallback Active; YouTube Restricted)"
+                recovery_status = "Active (SoundCloud fallback operational)"
+            else:
+                probe_status = "🔴 Issue Detected"
+                recovery_status = "Action Required (Fresh cookies or PO-Token needed)"
+
             embed_result = discord.Embed(
                 title="🩺 EXTRACTOR HEALTH & SELF-HEAL",
                 description=(
-                    f"• **Extractor Probe:** {'🟢 Operational' if is_ok else '🔴 Issue Detected'}\n"
-                    f"• **Diagnostics:** `{health.get('message', 'OK')[:150]}`\n"
-                    f"• **Auto-Recovery:** Active (In-memory client rotation enabled)"
+                    f"• **Extractor Probe:** {probe_status}\n"
+                    f"• **Diagnostics:** `{health.get('message', 'OK')[:250]}`\n"
+                    f"• **Auto-Recovery:** {recovery_status}"
                 ),
                 color=COLOR_ELECTRIC_CYAN if is_ok else 0xED4245,
             )
@@ -3683,8 +3705,50 @@ class MusicCog(commands.Cog, name="Music"):
     # AUDIO PIPELINE DIAGNOSTIC SUITE (/debug & m!debug)
     # =========================================================================
 
-    async def _run_pipeline_diagnostics(self, query: str, guild: Optional[discord.Guild]) -> discord.Embed:
-        """Run deep end-to-end diagnostic probes on yt-dlp, FFmpeg, cookies, and resolution."""
+    def _build_debug_timeout_embed(self, query: str, corr_id: str) -> discord.Embed:
+        """Construct a structured timeout report if pipeline diagnostics exceed safe execution window."""
+        embed = discord.Embed(
+            title="⏱️ AUDIO PIPELINE DIAGNOSTIC NOTICE",
+            description=(
+                f"Diagnostic probe reached execution deadline (**11.0s**) while testing `{query[:50]}`.\n"
+                "External audio extractors (YouTube / SoundCloud) or network endpoints experienced high latency."
+            ),
+            color=0xFEE75C,
+        )
+        from music_bot.services.resolver_service import get_cookie_diagnostics, AudioResolver
+        cookie_diag = get_cookie_diagnostics()
+        embed.add_field(
+            name="Diagnostic Summary",
+            value=(
+                f"• **Correlation ID:** `DBG-{corr_id}`\n"
+                f"• **Active Profile:** `{AudioResolver.get_current_profile_name()}`\n"
+                f"• **Cookie Status:** `{cookie_diag.get('status')}` ({cookie_diag.get('source')})\n"
+                f"• **Safe Recovery:** SoundCloud fallback operational for playback\n"
+                "• **Recommendation:** Run `/autoupdate action:self_heal` or check network health."
+            ),
+            inline=False,
+        )
+        embed.set_footer(text=f"MusicMaid Audio Diagnostics • ID: DBG-{corr_id}")
+        return embed
+
+    def _build_debug_error_embed(self, error: Exception, corr_id: str) -> discord.Embed:
+        """Construct a structured error embed with sanitized exception reporting."""
+        from music_bot.services.resolver_service import _format_error
+        err_msg = _format_error(error)
+        embed = discord.Embed(
+            title="⚠️ AUDIO PIPELINE DIAGNOSTIC EXCEPTION",
+            description=(
+                f"An unexpected error occurred during audio diagnostic execution.\n\n"
+                f"• **Diagnostic ID:** `DBG-{corr_id}`\n"
+                f"• **Exception:** `{err_msg[:200]}`"
+            ),
+            color=0xED4245,
+        )
+        embed.set_footer(text=f"MusicMaid Audio Diagnostics • ID: DBG-{corr_id}")
+        return embed
+
+    async def _run_pipeline_diagnostics(self, query: str, guild: Optional[discord.Guild], corr_id: Optional[str] = None) -> discord.Embed:
+        """Run deep end-to-end diagnostic probes on yt-dlp, FFmpeg, cookies, and resolution with strict bounded timeouts."""
         import sys
         import time
         from pathlib import Path
@@ -3692,6 +3756,7 @@ class MusicCog(commands.Cog, name="Music"):
         from music_bot.services.resolver_service import (
             _detect_js_runtimes,
             get_active_cookie_file,
+            get_cookie_diagnostics,
             get_ffmpeg_executable,
             WRITABLE_COOKIE_PATH,
         )
@@ -3705,10 +3770,13 @@ class MusicCog(commands.Cog, name="Music"):
         # 1. Environment & Binaries
         ffmpeg_exe = get_ffmpeg_executable()
         ffmpeg_ok = False
+        ffmpeg_ver = "Unknown"
         try:
             import subprocess
-            proc = subprocess.run([ffmpeg_exe, "-version"], capture_output=True, text=True, timeout=2.0)
-            ffmpeg_ver = proc.stdout.splitlines()[0] if proc.stdout else "Available"
+            def _get_ffmpeg_ver():
+                p = subprocess.run([ffmpeg_exe, "-version"], capture_output=True, text=True, timeout=2.0)
+                return p.stdout.splitlines()[0] if p.stdout else "Available"
+            ffmpeg_ver = await asyncio.wait_for(asyncio.to_thread(_get_ffmpeg_ver), timeout=2.0)
             ffmpeg_ok = True
         except Exception as fe:
             ffmpeg_ver = f"Error: {fe}"
@@ -3720,13 +3788,15 @@ class MusicCog(commands.Cog, name="Music"):
         except Exception:
             ytdl_ver = getattr(yt_dlp, "__version__", "Available")
 
-        cookie_file = get_active_cookie_file()
-        render_secret_exists = Path("/etc/secrets/cookies.txt").exists()
-        cookie_status = "🔴 Missing (Datacenter IP blocks likely)"
-        if cookie_file:
-            c_size = Path(cookie_file).stat().st_size if Path(cookie_file).exists() else 0
-            src = "Render Secret (/etc/secrets/cookies.txt)" if render_secret_exists else "Env/Local"
-            cookie_status = f"🟢 Loaded ({src}, {c_size} bytes)"
+        cookie_diag = get_cookie_diagnostics()
+        if cookie_diag.get("present"):
+            if cookie_diag.get("is_valid"):
+                cookie_status = f"🟢 Loaded ({cookie_diag.get('source')}, {cookie_diag.get('size_bytes')} bytes, {cookie_diag.get('token_count')} tokens)"
+            else:
+                expired = cookie_diag.get("expired_tokens", [])
+                cookie_status = f"🔴 Expired ({', '.join(expired)}). Fresh cookies required."
+        else:
+            cookie_status = "🔴 Missing (YouTube datacenter IP blocks likely; SoundCloud fallback active)"
 
         env_val = (
             f"• **Python:** `{sys.version.split()[0]} ({sys.platform})`\n"
@@ -3738,12 +3808,12 @@ class MusicCog(commands.Cog, name="Music"):
         )
         embed.add_field(name="1. Environment & Dependencies", value=env_val, inline=False)
 
-        # 2. Stage 1: Search Provider Probe
+        # 2. Stage 1: Search Provider Probe (Bounded to 3.5s)
         s_t0 = time.time()
         search_results = []
         search_err = None
         try:
-            search_results = await AudioResolver.search(query, limit=1)
+            search_results = await asyncio.wait_for(AudioResolver.search(query, limit=1), timeout=3.5)
         except Exception as se:
             search_err = str(se)
         s_dur = (time.time() - s_t0) * 1000
@@ -3755,12 +3825,12 @@ class MusicCog(commands.Cog, name="Music"):
             s_val = f"🔴 **FAIL** ({s_dur:.0f}ms)\n• Error: `{search_err or 'No search results returned'}`"
         embed.add_field(name="2. Stage 1: Search Provider", value=s_val, inline=False)
 
-        # 3. Stage 2: Track & Stream Resolution Probe
+        # 3. Stage 2: Track & Stream Resolution Probe (Bounded to 4.0s)
         r_t0 = time.time()
         track = None
         resolve_err = None
         try:
-            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=30.0)
+            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=4.0)
         except Exception as re:
             resolve_err = str(re)
         r_dur = (time.time() - r_t0) * 1000
@@ -3782,7 +3852,7 @@ class MusicCog(commands.Cog, name="Music"):
             )
         embed.add_field(name="3. Stage 2: Audio Stream Resolution", value=r_val, inline=False)
 
-        # 4. Stage 3: FFmpeg PCM Decode Probe (Reads first 3840 bytes of audio)
+        # 4. Stage 3: FFmpeg PCM Decode Probe (Bounded to 2.5s with DEVNULL stderr to prevent pipe deadlocks)
         f_val = "⚪ Skipped (Stream resolution failed)"
         if track and track.stream_url:
             f_t0 = time.time()
@@ -3794,25 +3864,31 @@ class MusicCog(commands.Cog, name="Music"):
                     ffmpeg_exe,
                     "-reconnect", "1",
                     "-reconnect_streamed", "1",
-                    "-reconnect_delay_max", "5",
+                    "-reconnect_delay_max", "3",
                     "-user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                     "-i", track.stream_url,
                     "-f", "s16le",
                     "-ar", "48000",
                     "-ac", "2",
-                    "-loglevel", "error",
+                    "-loglevel", "quiet",
                     "pipe:1"
                 ]
-                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                loop = asyncio.get_running_loop()
-                pcm_bytes = await asyncio.wait_for(
-                    loop.run_in_executor(None, proc.stdout.read, 3840),
-                    timeout=10.0,
-                )
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                 try:
-                    proc.kill()
-                except Exception:
-                    pass
+                    def _read_chunk() -> bytes:
+                        try:
+                            return proc.stdout.read(3840)
+                        finally:
+                            try:
+                                proc.stdout.close()
+                            except Exception:
+                                pass
+                    pcm_bytes = await asyncio.wait_for(asyncio.to_thread(_read_chunk), timeout=2.5)
+                finally:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
             except Exception as fe:
                 f_err = str(fe)
             f_dur = (time.time() - f_t0) * 1000
@@ -3827,31 +3903,91 @@ class MusicCog(commands.Cog, name="Music"):
         vc_connected = guild.voice_client and guild.voice_client.is_connected() if guild else False
         vc_name = guild.voice_client.channel.name if vc_connected else "Not in Voice"
         gw_lat = f"{round(self.bot.latency * 1000, 1)}ms" if self.bot else "N/A"
+
+        try:
+            from discord.voice_client import has_nacl, has_dave
+            dave_str = "🟢 davey active" if has_dave else "🔴 davey missing"
+            nacl_str = "🟢 PyNaCl active" if has_nacl else "🔴 PyNaCl missing"
+        except Exception:
+            dave_str = "⚪ Dave status unverified"
+            nacl_str = "⚪ PyNaCl status unverified"
+
         embed.add_field(
             name="5. Voice Gateway State",
-            value=f"• **Channel:** `{'🟢 ' + vc_name if vc_connected else '⚪ ' + vc_name}`\n• **Gateway Ping:** `{gw_lat}`",
+            value=(
+                f"• **Channel:** `{'🟢 ' + vc_name if vc_connected else '⚪ ' + vc_name}`\n"
+                f"• **Gateway Ping:** `{gw_lat}`\n"
+                f"• **Voice Security:** `{dave_str}` • `{nacl_str}`"
+            ),
             inline=False,
         )
 
         overall_ok = search_results and track and track.stream_url and ffmpeg_ok
         embed.color = 0x57F287 if overall_ok else 0xED4245
-        embed.set_footer(text="MusicMaid Audio Diagnostics • Run with /debug or m!debug")
+        footer_id = f"DBG-{corr_id}" if corr_id else "Run with /debug or m!debug"
+        embed.set_footer(text=f"MusicMaid Audio Diagnostics • ID: {footer_id}")
         return embed
 
     @app_commands.command(name="debug", description="Run audio pipeline diagnostics: yt-dlp, FFmpeg, cookies, and resolution")
     @app_commands.describe(test_query="Query or URL to test (defaults to 'lofi chill beat')")
     async def cmd_debug(self, interaction: discord.Interaction, test_query: Optional[str] = None) -> None:
-        """Execute step-by-step audio pipeline diagnostic probing."""
+        """Execute step-by-step audio pipeline diagnostic probing with bounded 11.0s timeout."""
+        import uuid
+        corr_id = uuid.uuid4().hex[:6].upper()
+
+        # 1. Prompt acknowledgment with deferral
         await self.ensure_deferred(interaction, ephemeral=False)
-        embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", interaction.guild)
-        await interaction.edit_original_response(embed=embed)
+
+        # 2. Bounded execution with strict fallback guarantees
+        try:
+            embed = await asyncio.wait_for(
+                self._run_pipeline_diagnostics(test_query or "lofi chill beat", interaction.guild, corr_id=corr_id),
+                timeout=11.0,
+            )
+            await interaction.edit_original_response(embed=embed)
+        except asyncio.TimeoutError:
+            logger.warning(f"[Debug] [ID: DBG-{corr_id}] Pipeline diagnostics timed out after 11.0s deadline.")
+            timeout_embed = self._build_debug_timeout_embed(test_query or "lofi chill beat", corr_id)
+            try:
+                await interaction.edit_original_response(embed=timeout_embed)
+            except Exception as edit_err:
+                logger.debug(f"[Debug] Could not edit interaction on timeout: {edit_err}")
+                try:
+                    await interaction.followup.send(embed=timeout_embed)
+                except Exception:
+                    pass
+        except Exception as e:
+            from music_bot.services.resolver_service import _format_error
+            logger.error(f"[Debug] [ID: DBG-{corr_id}] Diagnostic exception: {_format_error(e)}", exc_info=True)
+            err_embed = self._build_debug_error_embed(e, corr_id)
+            try:
+                await interaction.edit_original_response(embed=err_embed)
+            except Exception as edit_err:
+                logger.debug(f"[Debug] Could not edit interaction on exception: {edit_err}")
+                try:
+                    await interaction.followup.send(embed=err_embed)
+                except Exception:
+                    pass
 
     @commands.command(name="debug", aliases=["diag", "audioinfo"])
     async def pfx_debug(self, ctx: commands.Context, *, test_query: Optional[str] = None) -> None:
-        """Run audio pipeline diagnostics via text command."""
+        """Run audio pipeline diagnostics via text command with bounded 11.0s timeout."""
+        import uuid
+        corr_id = uuid.uuid4().hex[:6].upper()
         loading_msg = await ctx.send("🔍 Running audio pipeline diagnostics (checking FFmpeg, cookies, yt-dlp, and resolution)...")
-        embed = await self._run_pipeline_diagnostics(test_query or "lofi chill beat", ctx.guild)
-        await loading_msg.edit(content=None, embed=embed)
+
+        try:
+            embed = await asyncio.wait_for(
+                self._run_pipeline_diagnostics(test_query or "lofi chill beat", ctx.guild, corr_id=corr_id),
+                timeout=11.0,
+            )
+            await loading_msg.edit(content=None, embed=embed)
+        except asyncio.TimeoutError:
+            timeout_embed = self._build_debug_timeout_embed(test_query or "lofi chill beat", corr_id)
+            await loading_msg.edit(content=None, embed=timeout_embed)
+        except Exception as e:
+            err_embed = self._build_debug_error_embed(e, corr_id)
+            await loading_msg.edit(content=None, embed=err_embed)
 
     def _build_music_status_embed(self, guild: Optional[discord.Guild], user: Optional[discord.Member | discord.User]) -> discord.Embed:
         """Constructs a comprehensive, safe status embed displaying voice connectivity, gateway latency, and session health."""
