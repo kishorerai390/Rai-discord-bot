@@ -2921,7 +2921,13 @@ class MusicCog(commands.Cog, name="Music"):
             vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)  # type: ignore
             if not vc:
                 err = getattr(session, "last_error", None) or "Could not connect to voice channel."
-                await ctx.reply(f"❌ {err}\n💡 Please check voice channel permissions for MusicMaid.", mention_author=False)
+                if "Voice connection failed:" in err:
+                    reply_text = f"❌ {err}"
+                elif "permission" in err.lower():
+                    reply_text = f"❌ {err}\n💡 Please check voice channel permissions for MusicMaid."
+                else:
+                    reply_text = f"❌ {err}"
+                await ctx.reply(reply_text, mention_author=False)
                 return
 
         status_msg = await ctx.reply(f"🔍 Searching for `{query[:60]}`... 🐾", mention_author=False)
