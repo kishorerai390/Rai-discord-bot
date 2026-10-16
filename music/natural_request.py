@@ -22,6 +22,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import discord
+from discord.ext import commands
 
 from config import Colors, MUSIC_DUPLICATE_REQUEST_WINDOW_SECONDS, MUSIC_USER_RATE_LIMIT_COUNT, MUSIC_USER_RATE_LIMIT_WINDOW
 from music.provider import MusicErrorCode, QueryType, TrackCandidate, generate_music_diagnostic_id
@@ -162,7 +163,7 @@ class MusicRequestConfirmView(discord.ui.View):
     def __init__(
         self,
         service: "NaturalMusicService",
-        bot: "SentinelBot",
+        bot: commands.Bot,
         requester: discord.Member,
         query: str,
         target_channel: discord.VoiceChannel,
@@ -261,7 +262,7 @@ class NaturalMusicService:
         self._recent_song_requests[user_id] = user_history
         return False
 
-    async def process_message(self, bot: "SentinelBot", message: discord.Message) -> bool:
+    async def process_message(self, bot: commands.Bot, message: discord.Message) -> bool:
         """
         Main entry point for incoming Discord messages.
         Returns True if the message was handled as a natural music request.
@@ -416,7 +417,7 @@ class NaturalMusicService:
 
     async def execute_play_request(
         self,
-        bot: "SentinelBot",
+        bot: commands.Bot,
         guild: discord.Guild,
         channel: discord.abc.Messageable,
         user: discord.Member,
