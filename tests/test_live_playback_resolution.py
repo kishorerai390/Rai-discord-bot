@@ -52,6 +52,8 @@ class TestLivePlaybackResolution(unittest.IsolatedAsyncioTestCase):
         no_track = await AudioResolver.resolve_track("zzzzzzzzzzzz129837192837192873192837129873", 12345, "Tester")
         self.assertIsNone(no_track)
         err = AudioResolver.last_resolver_error or ""
+        self.assertIn("[NO_RESULTS]", err)
+        self.assertIn("Ref: MM-", err)
         self.assertIn("No search results", err)
         self.assertNotIn("cookie", err.lower(), "Diagnostic must not claim cookies are required for empty search")
 

@@ -98,12 +98,31 @@ class RaiCommunityOSServer:
 
         opus_ok = discord.opus.is_loaded()
 
+        git_commit = os.getenv("RENDER_GIT_COMMIT")
+        if not git_commit:
+            try:
+                import subprocess
+                git_commit = subprocess.check_output(["git", "rev-parse", "HEAD"], timeout=1.0).decode().strip()
+            except Exception:
+                git_commit = "unknown"
+
+        import yt_dlp
+        from music_bot.services.resolver_service import get_cookie_diagnostics
+        cookie_diag = get_cookie_diagnostics()
+
         return web.json_response({
             "status": "healthy",
             "bot_name": "MusicMaid (Neko Songs)",
             "bot_status": music_status,
             "platform": "MusicMaid Web Player & Platform",
             "timestamp": int(time.time()),
+            "commit": git_commit[:8] if git_commit else "unknown",
+            "git_commit": git_commit,
+            "yt_dlp_version": yt_dlp.version.__version__,
+            "cookies": {
+                "present": cookie_diag.get("present", False),
+                "status": cookie_diag.get("status", "Missing"),
+            },
             "voice_engine": {
                 "python": sys.version.split()[0],
                 "discord_py": discord.__version__,

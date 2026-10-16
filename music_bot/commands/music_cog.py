@@ -943,9 +943,9 @@ class MusicCog(commands.Cog, name="Music"):
                             description=(
                                 f"Encountered an error while starting audio stream for **{track.title}**:\n"
                                 f"```\n{err_detail[:800]}\n```\n"
-                                f"💡 **Deployment Notes:**\n"
-                                f"• Ensure FFmpeg is available (`apt-get install -y ffmpeg` via Docker, or static-ffmpeg).\n"
-                                f"• If YouTube is restricting datacenter IPs (HTTP 403), add fresh YouTube cookies via `YOUTUBE_COOKIES` or Render Secret Files (`/etc/secrets/cookies.txt`)."
+                                f"💡 **Playback Diagnostics:**\n"
+                                f"• Audio stream or decoding issue: `{err_detail[:200]}`\n"
+                                f"• Try another track or provide a direct YouTube track URL."
                             ),
                             color=0xED4245,
                         )
@@ -3832,7 +3832,7 @@ class MusicCog(commands.Cog, name="Music"):
                 expired = cookie_diag.get("expired_tokens", [])
                 cookie_status = f"🔴 Expired ({', '.join(expired)}). Fresh cookies required."
         else:
-            cookie_status = "🔴 Missing (YouTube cookies recommended via `YOUTUBE_COOKIES` or Secret Files)"
+            cookie_status = "⚪ Not configured (Optional fallback; public playback active)"
 
         # Check Spotify credentials status
         from music_bot.services.spotify_service import SpotifyService

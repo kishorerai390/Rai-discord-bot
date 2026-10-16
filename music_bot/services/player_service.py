@@ -265,8 +265,8 @@ class MusicPlayerService:
                                     title="❌ NO AUDIO STREAM",
                                     description=(
                                         f"FFmpeg received no audio data for **{track.title}** (stream blocked or unavailable).\n\n"
-                                        f"💡 *YouTube is currently restricting stream extraction from this server's IP address. "
-                                        f"Add fresh YouTube cookies via `YOUTUBE_COOKIES` or Render Secret Files (`/etc/secrets/cookies.txt`).*"
+                                        f"• **Diagnostic:** {session.last_error}\n"
+                                        f"• Try requesting another track or provide a direct YouTube URL."
                                     ),
                                     color=0xED4245,
                                 )

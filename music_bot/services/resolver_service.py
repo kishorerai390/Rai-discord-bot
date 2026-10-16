@@ -20,6 +20,7 @@ import tempfile
 import time
 import traceback
 import urllib.parse
+import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 import yt_dlp
@@ -599,10 +600,12 @@ def _load_po_tokens_and_cookies() -> Dict[str, Any]:
 def _build_ytdl_options(
     player_clients: Optional[List[str]] = None,
     extract_flat: bool = False,
+    use_cookies: bool = False,
 ) -> Dict[str, Any]:
     """
     Build yt-dlp extractor configuration options.
     Optimized strictly for authorized YouTube stream resolution.
+    Cookies are strictly optional and only attached when use_cookies is True.
     """
     clients = player_clients or ["android", "web"]
     opts: Dict[str, Any] = {
@@ -644,10 +647,11 @@ def _build_ytdl_options(
     if visitor_data:
         opts["extractor_args"]["youtube"]["visitor_data"] = [visitor_data]
 
-    # Attach verified writable cookiefile
-    cookie_path = get_active_cookie_file()
-    if cookie_path:
-        opts["cookiefile"] = cookie_path
+    # Attach verified writable cookiefile ONLY when explicitly requested as a fallback
+    if use_cookies:
+        cookie_path = get_active_cookie_file()
+        if cookie_path:
+            opts["cookiefile"] = cookie_path
 
     return opts
 
@@ -1208,6 +1212,8 @@ class AudioResolver:
             return t
 
         cls.last_resolver_error = None
+        corr_id = uuid.uuid4().hex[:6].upper()
+        failed_stage = "init"
         is_direct_url = cleaned_query.startswith("http://") or cleaned_query.startswith("https://")
 
         candidate_urls: List[str] = []
@@ -1215,12 +1221,13 @@ class AudioResolver:
         if is_direct_url and not is_spotify:
             candidate_urls = [cleaned_query]
         else:
-            # Stage 1: Ultra-fast flat search for candidate selection (<1.5s)
+            # Stage 1: Ultra-fast flat search for candidate selection without cookies (<1.5s)
+            failed_stage = "search"
             search_query = f"ytsearch8:{cleaned_query}"
             search_entries: List[Dict[str, Any]] = []
             search_error: Optional[str] = None
             try:
-                flat_opts = _build_ytdl_options(["mweb", "web"], extract_flat=True)
+                flat_opts = _build_ytdl_options(["mweb", "web"], extract_flat=True, use_cookies=False)
                 flat_ydl = yt_dlp.YoutubeDL(flat_opts)
                 search_data = await asyncio.wait_for(
                     loop.run_in_executor(
@@ -1233,19 +1240,29 @@ class AudioResolver:
                     search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
             except Exception as search_exc:
                 search_error = _format_error(search_exc)
-                logger.warning(f"[Resolver] Search stage notice for '{cleaned_query[:50]}': {search_error}")
+                logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
 
             if not search_entries:
+                dur = time.time() - start_t
                 if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
-                    cls.last_resolver_error = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
+                    cat = "TIMEOUT"
+                    reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
                 elif search_error:
-                    cls.last_resolver_error = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
+                    cat = "SEARCH_FAILURE"
+                    reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
                 else:
-                    cls.last_resolver_error = f"No search results returned from YouTube for '{cleaned_query[:60]}'."
-                logger.warning(f"[Resolver] {cls.last_resolver_error}")
+                    cat = "NO_RESULTS"
+                    reason = f"No search results returned from YouTube for '{cleaned_query[:60]}'."
+
+                cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
+                logger.warning(
+                    f"[Resolver] [Ref: MM-{corr_id}] Search returned 0 candidates | query='{cleaned_query[:40]}' | "
+                    f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
+                )
                 return None
 
             # Stage 2: Rank candidates using query intent (Tamil/language matching & remix preference)
+            failed_stage = "ranking"
             scored = sorted(
                 search_entries,
                 key=lambda e: score_candidate(e, intent, spotify_meta=spotify_info),
@@ -1259,12 +1276,13 @@ class AudioResolver:
                 if c_url and c_url not in candidate_urls:
                     candidate_urls.append(c_url)
 
-        # Stage 3: Stream format extraction on selected candidate(s)
+        # Stage 3: Public stream format extraction on selected candidate(s) without cookies
+        failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         for cand_idx, target_url in enumerate(candidate_urls, 1):
-            # Tier 1: Primary Profile (android/web) - 8.0s timeout
+            # Tier 1: Primary Public Profile (android/web, no cookies) - 8.0s timeout
             try:
-                tier1_opts = _build_ytdl_options(["android", "web"])
+                tier1_opts = _build_ytdl_options(["android", "web"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
@@ -1278,17 +1296,17 @@ class AudioResolver:
                         track = _apply_metadata_enhancements(track)
                         dur = time.time() - start_t
                         logger.info(
-                            f"[Resolver] Tier 1 resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                            f"[Resolver] [Ref: MM-{corr_id}] Public Tier 1 resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                         )
                         return track
             except Exception as t1_err:
                 t1_msg = _format_error(t1_err)
                 last_failure_reason = t1_msg
-                logger.info(f"[Resolver] Candidate #{cand_idx} Tier 1 notice for '{target_url}': {t1_msg}")
+                logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
 
-            # Tier 2: Fallback Profile (mweb/web) - 6.0s timeout
+            # Tier 2: Fallback Public Profile (mweb/web, no cookies) - 6.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["mweb", "web"])
+                tier2_opts = _build_ytdl_options(["mweb", "web"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
@@ -1302,24 +1320,59 @@ class AudioResolver:
                         track = _apply_metadata_enhancements(track)
                         dur = time.time() - start_t
                         logger.info(
-                            f"[Resolver] Tier 2 (mweb) resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                            f"[Resolver] [Ref: MM-{corr_id}] Public Tier 2 (mweb) resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                         )
                         return track
             except Exception as t2_err:
                 t2_msg = _format_error(t2_err)
                 last_failure_reason = t2_msg
-                logger.warning(f"[Resolver] Candidate #{cand_idx} Tier 2 failed for '{target_url}': {t2_msg}")
+                logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 2 public failed for '{target_url}': {t2_msg}")
+
+        # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist)
+        if candidate_urls and get_active_cookie_file():
+            failed_stage = "cookie_fallback"
+            top_target = candidate_urls[0]
+            try:
+                logger.info(f"[Resolver] [Ref: MM-{corr_id}] Public tiers exhausted; attempting optional cookie fallback for '{top_target}'")
+                tier3_opts = _build_ytdl_options(["android", "web"], use_cookies=True)
+                tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor, functools.partial(tier3_ydl.extract_info, top_target, download=False)
+                    ),
+                    timeout=8.0,
+                )
+                if data:
+                    track = cls._parse_entry(data, requester_id, requester_name)
+                    if track and track.stream_url:
+                        track = _apply_metadata_enhancements(track)
+                        dur = time.time() - start_t
+                        logger.info(
+                            f"[Resolver] [Ref: MM-{corr_id}] Cookie fallback resolved '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                        )
+                        return track
+            except Exception as t3_err:
+                last_failure_reason = _format_error(t3_err)
+                logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Cookie fallback attempt failed: {last_failure_reason}")
 
         dur = time.time() - start_t
-        # Accurately classify the error
+        # Accurately categorize and classify the error
         if "TimeoutError" in last_failure_reason or "timed out" in last_failure_reason.lower():
-            cls.last_resolver_error = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
+            cat = "TIMEOUT"
+            reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
         elif any(k in last_failure_reason.lower() for k in ("sign in", "bot", "captcha", "confirm your age")):
-            cls.last_resolver_error = f"YouTube access restriction encountered: {last_failure_reason}"
+            cat = "ACCESS_RESTRICTION"
+            reason = f"YouTube access restriction encountered: {last_failure_reason}"
         elif "No playable" in last_failure_reason or "format is not available" in last_failure_reason.lower():
-            cls.last_resolver_error = f"No playable audio streams found for '{cleaned_query[:50]}' ({last_failure_reason})."
+            cat = "UNAVAILABLE_FORMAT"
+            reason = f"No playable audio streams found for '{cleaned_query[:50]}' ({last_failure_reason})."
         else:
-            cls.last_resolver_error = f"YouTube audio resolution exhausted for '{cleaned_query[:50]}' ({last_failure_reason}). SoundCloud is disabled by configuration."
+            cat = "RESOLUTION_EXHAUSTED"
+            reason = f"YouTube audio resolution exhausted for '{cleaned_query[:50]}' ({last_failure_reason}). SoundCloud is disabled by configuration."
 
-        logger.warning(f"[Resolver] All audio resolution tiers exhausted for '{cleaned_query[:60]}' in {dur:.2f}s: {cls.last_resolver_error}")
+        cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
+        logger.warning(
+            f"[Resolver] [Ref: MM-{corr_id}] All resolution tiers exhausted | query='{cleaned_query[:40]}' | "
+            f"stage={failed_stage} | extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s | error={last_failure_reason}"
+        )
         return None
