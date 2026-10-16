@@ -715,50 +715,69 @@ class MusicCog(commands.Cog, name="Music"):
 
             session = await self.session_manager.get_session(guild.id)
             session.is_intentional_stop = False
+            session.last_error = None
 
             # 1. Connect to voice with resilient bounded connection handling
             async with session.lock:
-                vc_err = None
+                vc = None
+                voice_join_error: Optional[Exception] = None
                 try:
                     vc = await VoiceManager.join_voice_channel(member, text_channel, session)
-                except Exception as e:
-                    vc_err = e
+                except Exception as join_exc:
+                    voice_join_error = join_exc
                     vc = None
-                    session.last_error = str(vc_err)
-                    logger.error(f"[Playback] Exception joining voice channel: {vc_err}", exc_info=True)
+                    session.last_error = str(join_exc)
+                    logger.error(f"[Playback] Exception joining voice channel: {join_exc}", exc_info=True)
 
                 if not vc:
-                    err_detail = getattr(session, "last_error", None) or "Voice connection could not be established."
-                    ch_name = member.voice.channel.name if member.voice and member.voice.channel else "your voice channel"
+                    err_detail = getattr(session, "last_error", None) or (str(voice_join_error) if voice_join_error else "Voice connection could not be established.")
+                    ch = getattr(getattr(member, "voice", None), "channel", None)
+                    ch_name = getattr(ch, "name", "your voice channel")
 
                     # Only show "How to fix: Permissions..." if genuinely a Discord permission error
                     is_perm_err = (
-                        (vc_err is not None and isinstance(vc_err, discord.Forbidden))
+                        (voice_join_error is not None and isinstance(voice_join_error, discord.Forbidden))
                         or ("403" in err_detail and "forbidden" in err_detail.lower())
                         or ("lacks permission" in err_detail.lower())
                         or ("missing permission" in err_detail.lower())
+                        or ("permission denied" in err_detail.lower())
                     ) and not any(dep in err_detail.lower() for dep in ("davey", "pynacl", "opus", "dependency", "timed out", "timeout"))
 
-                    if is_perm_err:
-                        desc = (
-                            f"Could not connect to **{ch_name}**.\n"
-                            f"• **Reason:** {err_detail}\n\n"
-                            f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
-                        )
-                    elif "Voice connection failed:" in err_detail:
-                        desc = f"Could not connect to **{ch_name}**.\n\n{err_detail}"
-                    else:
-                        desc = f"Could not connect to **{ch_name}**.\n• **Reason:** {err_detail}"
-
-                    embed_conn_err = discord.Embed(
-                        title="❌ COULD NOT CONNECT TO VOICE",
-                        description=desc,
-                        color=0xED4245,
-                    )
                     try:
-                        await interaction.edit_original_response(embed=embed_conn_err)
+                        if is_perm_err:
+                            desc = (
+                                f"Could not connect to **{ch_name}**.\n"
+                                f"• **Reason:** {err_detail}\n\n"
+                                f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
+                            )
+                        elif "Voice connection failed:" in err_detail:
+                            desc = f"Could not connect to **{ch_name}**.\n\n{err_detail}"
+                        else:
+                            desc = f"Could not connect to **{ch_name}**.\n• **Reason:** {err_detail}"
+
+                        embed_conn_err = discord.Embed(
+                            title="❌ COULD NOT CONNECT TO VOICE",
+                            description=desc,
+                            color=0xED4245,
+                        )
+                    except Exception as fmt_err:
+                        logger.error(f"[Playback] Error formatting voice error embed: {fmt_err}", exc_info=True)
+                        embed_conn_err = discord.Embed(
+                            title="❌ COULD NOT CONNECT TO VOICE",
+                            description=f"Could not connect to voice channel.\n• **Reason:** {err_detail}",
+                            color=0xED4245,
+                        )
+
+                    try:
+                        if interaction.response.is_done():
+                            await interaction.edit_original_response(embed=embed_conn_err, content=None, view=None)
+                        else:
+                            await interaction.response.send_message(embed=embed_conn_err, ephemeral=True)
                     except Exception:
-                        await interaction.followup.send(embed=embed_conn_err, ephemeral=True)
+                        try:
+                            await interaction.followup.send(embed=embed_conn_err, ephemeral=True)
+                        except Exception as send_err:
+                            logger.error(f"[Playback] Failed sending voice connection error embed: {send_err}")
                     return
 
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')

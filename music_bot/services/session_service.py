@@ -97,6 +97,7 @@ class GuildMusicSession:
         self.last_checkpoint_time: float = 0.0
         self.recovery_attempts: int = 0
         self.recovery_status: Optional[str] = None
+        self.last_error: Optional[str] = None
 
     @property
     def has_active_track(self) -> bool:
