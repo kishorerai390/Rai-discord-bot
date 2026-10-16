@@ -35,13 +35,14 @@ def safe_json_dumps(obj: Any) -> str:
     return json.dumps(obj, default=default_serializer)
 
 
-def json_success(data: Any, status: int = 200, request_id: Optional[str] = None) -> web.Response:
+def json_success(data: Any, status: int = 200, request_id: Optional[str] = None, **kwargs: Any) -> web.Response:
     """Return standard success response."""
     payload = {
         "success": True,
         "data": data,
         "requestId": request_id or str(uuid.uuid4())[:8],
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        **kwargs,
     }
     return web.json_response(payload, status=status, dumps=safe_json_dumps)
 
