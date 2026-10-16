@@ -16,7 +16,7 @@ import math
 import random
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -634,6 +634,10 @@ class MusicControlPanelView(discord.ui.View):
     async def refresh_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         embed = self.build_embed()
         await interaction.response.edit_message(embed=embed, view=self)
+
+
+# Alias for backward compatibility
+MasterControlPanelView = MusicControlPanelView
 
 
 # =============================================================================
@@ -3038,7 +3042,7 @@ class MusicCog(commands.Cog, name="Music"):
         if not ctx.guild:
             return
         session = await self.session_manager.get_session(ctx.guild.id)
-        view = MasterControlPanelView(self.bot, ctx.guild, session)
+        view = MusicControlPanelView(self.bot, ctx.guild, session)
         embed = view.build_embed()
         await ctx.reply(embed=embed, view=view, mention_author=False)
 

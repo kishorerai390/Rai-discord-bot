@@ -30,7 +30,7 @@ from music.resolver_service import MusicResolverService
 from utils.embeds import create_embed, error_embed, info_embed, success_embed, warning_embed
 
 if TYPE_CHECKING:
-    from core.bot import SentinelBot
+    from discord.ext import commands
     from cogs.music import MusicCog, GuildMusicPlayer, Song
 
 logger = logging.getLogger("Rai.NaturalMusicRequest")
