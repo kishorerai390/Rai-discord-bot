@@ -1240,6 +1240,8 @@ class Database:
         category_id: Optional[int] = None,
         chat_channel_id: Optional[int] = None,
         voice_channel_id: Optional[int] = None,
+        description: Optional[str] = None,
+        **kwargs: Any,
     ) -> int:
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         cur = await self._db.execute(
@@ -2528,6 +2530,36 @@ class Database:
             row = await cursor.fetchone()
             await self._db.commit()
             return row[0] if row else 0
+
+    async def create_lfg(
+        self,
+        guild_id: int,
+        user_id: int,
+        game_name: Optional[str] = None,
+        mode: Optional[str] = None,
+        max_players: int = 4,
+        description: Optional[str] = None,
+        game: Optional[str] = None,
+        role: Optional[str] = None,
+        note: Optional[str] = None,
+        channel_id: Optional[int] = None,
+        message_id: Optional[int] = None,
+        **kwargs: Any,
+    ) -> int:
+        """Alias & web compatibility wrapper for create_gaming_lfg."""
+        resolved_game = game or game_name or "Custom"
+        resolved_role = role or mode
+        resolved_note = note or description
+        return await self.create_gaming_lfg(
+            guild_id=guild_id,
+            user_id=user_id,
+            game=resolved_game,
+            role=resolved_role,
+            note=resolved_note,
+            max_players=max_players,
+            channel_id=channel_id,
+            message_id=message_id,
+        )
 
     async def get_gaming_lfg(self, lfg_id: int) -> Optional[GamingLFG]:
         if not self._db:
@@ -7944,6 +7976,8 @@ class Database:
         name: str,
         project_type: str = "creator",
         owner_id: int = 0,
+        description: Optional[str] = None,
+        **kwargs: Any,
     ) -> int:
         await self.get_or_create_guild_config(guild_id)
         now = utcnow_iso()

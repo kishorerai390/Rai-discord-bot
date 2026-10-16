@@ -6,6 +6,7 @@ Provides typed, validated, and authorized endpoints for all community modules.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import datetime
 import json
 import logging
@@ -1596,7 +1597,10 @@ class ApiRouter:
         return json_success({
             "community": matched,
             "projects": projects[:6],
-            "events": [e.to_dict() if hasattr(e, "to_dict") else dict(e) for e in events[:4]],
+            "events": [
+                e.to_dict() if hasattr(e, "to_dict") else (dataclasses.asdict(e) if dataclasses.is_dataclass(e) else dict(e))  # type: ignore
+                for e in events[:4]
+            ],
             "creators": creators,
             "resources": resources,
         })
