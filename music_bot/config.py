@@ -20,26 +20,41 @@ if ENV_PATH.exists():
 else:
     load_dotenv()
 
-# Neko Songs Brand Identity
-BOT_NAME: str = "Neko Songs"
-BOT_BRAND_TAG: str = "🎵 NEKO SONGS"
+# Neko Songs / MusicMaid Brand Identity
+BOT_NAME: str = "MusicMaid"
+BOT_BRAND_TAG: str = "🐾 MUSICMAID"
 MUSIC_BOT_VERSION: str = "2.2.0"
 
-# Brand Palette
-COLOR_MIDNIGHT_BLACK: int = 0x0B0E14
-COLOR_NEON_BLUE: int = 0x00B0FF
-COLOR_ELECTRIC_CYAN: int = 0x00E5FF
-COLOR_WHITE: int = 0xFFFFFF
-COLOR_VIOLET_ACCENT: int = 0x9B59B6
+# Import Theme & Emoji Tokens
+from music_bot.theme import (
+    COLOR_PRIMARY,
+    COLOR_CYAN,
+    COLOR_MIDNIGHT,
+    COLOR_SUCCESS,
+    COLOR_WARNING,
+    COLOR_ERROR,
+    COLOR_INFO,
+    COLOR_PREMIUM,
+    COLOR_VIOLET,
+)
+from music_bot.emojis import EmojiManager
 
-# Neko Personality Dialogues
-DIALOGUE_JOIN: str = "🐱 Neko has entered the listening room!"
+# Brand Palette (Backward-Compatible + Premium Theme Aliases)
+COLOR_MIDNIGHT_BLACK: int = COLOR_MIDNIGHT
+COLOR_NEON_BLUE: int = COLOR_INFO
+COLOR_ELECTRIC_CYAN: int = COLOR_CYAN
+COLOR_WHITE: int = 0xFFFFFF
+COLOR_VIOLET_ACCENT: int = COLOR_PRIMARY
+
+# Neko / MusicMaid Personality Dialogues
+DIALOGUE_JOIN: str = "🐾 MusicMaid has entered the listening room!"
 DIALOGUE_START: str = "🎵 Found it! Let's listen."
-DIALOGUE_EMPTY_QUEUE: str = "🐾 The queue is empty. Give Neko another song?"
+DIALOGUE_EMPTY_QUEUE: str = "🐾 The queue is empty. Ready for another song!"
 DIALOGUE_UNPLAYABLE: str = "😿 I found the request, but couldn't resolve a playable audio source."
 DIALOGUE_NOTHING_PLAYABLE: str = DIALOGUE_UNPLAYABLE
-DIALOGUE_UNAVAILABLE: str = "🐱 Neko's music source is temporarily unavailable. Please try again later."
+DIALOGUE_UNAVAILABLE: str = "🐾 Music source is temporarily unavailable. Please try again later."
 DIALOGUE_PLAYBACK_END: str = "🎶 That was a good one!"
+
 
 def _clean_token(t: Optional[str]) -> str:
     if not t:

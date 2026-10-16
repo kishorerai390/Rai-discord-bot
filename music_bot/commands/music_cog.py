@@ -39,6 +39,24 @@ from music_bot.config import (
     DIALOGUE_UNAVAILABLE,
     MUSIC_BOT_VERSION,
 )
+from music_bot.emojis import EmojiManager
+from music_bot.theme import (
+    COLOR_PRIMARY,
+    COLOR_CYAN,
+    COLOR_MIDNIGHT,
+    COLOR_SUCCESS,
+    COLOR_WARNING,
+    COLOR_ERROR,
+    COLOR_INFO,
+    COLOR_PREMIUM,
+    create_branded_embed,
+    success_embed,
+    error_embed,
+    warning_embed,
+    loading_embed,
+    info_embed,
+    premium_embed,
+)
 from music_bot.database.models import QueuedTrack
 from music_bot.services.diagnostics_service import MusicDiagnosticsService
 from music_bot.services.dj_service import NekoDJService
@@ -82,12 +100,12 @@ class TrackSelectView(discord.ui.View):
                     label=c["title"][:95],
                     description=f"Artist: {c['artist'][:50]} • {format_duration(c['duration'])}",
                     value=str(i),
-                    emoji="🐱",
+                    emoji="🎵",
                 )
             )
 
         select = discord.ui.Select(
-            placeholder="Select a song for Neko to play...",
+            placeholder="Select a song for MusicMaid to play...",
             min_values=1,
             max_values=1,
             options=options,
@@ -104,6 +122,32 @@ class TrackSelectView(discord.ui.View):
         await interaction.response.defer()
         await self.on_select_coro(interaction, selected_idx)
         self.stop()
+
+
+def get_public_web_url() -> str:
+    """Return the configured public MusicMaid web dashboard URL."""
+    url = (
+        os.getenv("RENDER_EXTERNAL_URL", "").strip()
+        or os.getenv("PUBLIC_URL", "").strip()
+        or os.getenv("WEB_BASE_URL", "").strip()
+        or "https://rai-discord-bot.onrender.com"
+    )
+    return url.rstrip("/")
+
+
+class PremiumLinkView(discord.ui.View):
+    """Interactive link button view to the public MusicMaid web platform."""
+
+    def __init__(self, web_url: str):
+        super().__init__(timeout=None)
+        self.add_item(
+            discord.ui.Button(
+                label="MusicMaid Web Platform",
+                url=web_url,
+                style=discord.ButtonStyle.link,
+                emoji="🌐",
+            )
+        )
 
 
 # =============================================================================
@@ -782,9 +826,9 @@ class MusicCog(commands.Cog, name="Music"):
 
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
             embed_loading = discord.Embed(
-                title="🔍 SEARCHING TRACK",
-                description=f"Resolving: `{query[:100]}`...\n*Contacting YouTube audio resolver...*",
-                color=COLOR_NEON_BLUE,
+                title=f"{EmojiManager.get('SEARCH', self.bot)} MusicMaid ✦ Resolving Track",
+                description=f"Searching: `{query[:100]}`...\n*Contacting audio resolver without delay...*",
+                color=COLOR_CYAN,
             )
             try:
                 await interaction.edit_original_response(embed=embed_loading)
@@ -807,14 +851,14 @@ class MusicCog(commands.Cog, name="Music"):
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
                 if is_timed_out:
                     embed_fail = discord.Embed(
-                        title="⏱️ AUDIO SEARCH TIMED OUT",
+                        title=f"{EmojiManager.get('LOADING', self.bot)} MusicMaid ✦ SEARCH TIMED OUT",
                         description=(
                             f"The music search for `{query[:100]}` exceeded the search deadline.\n\n"
                             f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting YouTube.'}`\n"
                             f"• **Notice:** No alternative playback source is enabled (SoundCloud is disabled by configuration).\n"
                             f"• **Tip:** Try repeating your search or use a direct YouTube URL."
                         ),
-                        color=0xED4245,
+                        color=COLOR_ERROR,
                     )
                 else:
                     cookie_hint = ""
@@ -822,14 +866,14 @@ class MusicCog(commands.Cog, name="Music"):
                         cookie_hint = "\n• **Optional Fallback:** If YouTube is restricting datacenter IPs, optional YouTube cookies can be placed in Render Secret Files (`/etc/secrets/cookies.txt`) or configured via `YOUTUBE_COOKIES`."
 
                     embed_fail = discord.Embed(
-                        title="😿 NO AUDIO TRACK FOUND",
+                        title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ No Audio Track Found",
                         description=(
                             f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
                             f"• **Supported Sources:** YouTube playback and Spotify metadata lookup only."
                             f"{cookie_hint}"
                         ),
-                        color=0xED4245,
+                        color=COLOR_ERROR,
                     )
                 try:
                     await interaction.edit_original_response(embed=embed_fail, content=None, view=None)
@@ -847,9 +891,9 @@ class MusicCog(commands.Cog, name="Music"):
             if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
                 await interaction.edit_original_response(
                     embed=discord.Embed(
-                        title="⚠️ TRACK DURATION EXCEEDED",
+                        title=f"{EmojiManager.get('WARNING', self.bot)} MusicMaid ✦ Track Duration Exceeded",
                         description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
-                        color=0xED4245,
+                        color=COLOR_WARNING,
                     )
                 )
                 return
@@ -885,11 +929,11 @@ class MusicCog(commands.Cog, name="Music"):
                     )
 
                     embed_queued = discord.Embed(
-                        title="🐱 ADDED TO QUEUE",
+                        title=f"{EmojiManager.get('QUEUE', self.bot)} MusicMaid ✦ Track Queued",
                         description=f"### [{track.title}]({track.url})\n"
-                                    f"**Artist:** `{track.artist}` • **Duration:** `{format_duration(track.duration)}`\n"
-                                    f"**Position in Queue:** `#{len(session.queue)}`",
-                        color=COLOR_ELECTRIC_CYAN,
+                                    f"👤 **Artist:** `{track.artist}` • ⏱️ **Duration:** `{format_duration(track.duration)}`\n"
+                                    f"📜 **Position in Queue:** `#{len(session.queue)}`",
+                        color=COLOR_CYAN,
                     )
                     if track.thumbnail:
                         embed_queued.set_thumbnail(url=track.thumbnail)
@@ -921,7 +965,7 @@ class MusicCog(commands.Cog, name="Music"):
                             # Deploy the interactive player panel directly to the slash command interaction
                             from music_bot.services.player_service import NowPlayingControlView
                             player_embed = MusicPlayerService.build_now_playing_embed(session)
-                            player_view = NowPlayingControlView(session)
+                            player_view = NowPlayingControlView(session, bot=self.bot)
                             msg = await interaction.edit_original_response(
                                 content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*",
                                 embed=player_embed,
@@ -2740,8 +2784,9 @@ class MusicCog(commands.Cog, name="Music"):
         user_prem = await self.bot.db.is_premium(0, member.id)
         is_active = guild_prem or user_prem
 
+        prem_icon = EmojiManager.get("PREMIUM", self.bot)
         embed = discord.Embed(
-            title="💎 MusicMaid Premium Status",
+            title=f"{prem_icon} MusicMaid ✦ Premium Status",
             description=(
                 f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
                 f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
@@ -2751,12 +2796,14 @@ class MusicCog(commands.Cog, name="Music"):
                 f"• 🕒 **24/7 Voice Channel Persistence** (`/247` or `/stay`)\n"
                 f"• 🎛️ **Studio DSP Equalizer Presets** (Bass Boost, 8D Audio, Nightcore, Lo-Fi)\n"
                 f"• ⚡ **Priority In-Memory & Redis Caching** (Instant sub-100ms playback)\n"
-                f"• 🐱 **Lookahead Pre-Resolver** (Zero wait time between queued songs)"
+                f"• 🐾 **Lookahead Pre-Resolver** (Zero wait time between queued songs)\n\n"
+                f"*Visit the web dashboard below to manage playlists, DSP filters, and queue controls.*"
             ),
-            color=0x00E5FF if is_active else 0x9333EA,
+            color=COLOR_CYAN if is_active else COLOR_PREMIUM,
         )
-        embed.set_footer(text="MusicMaid • Premium Audio Suite")
-        await interaction.edit_original_response(embed=embed)
+        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        view = PremiumLinkView(get_public_web_url())
+        await interaction.edit_original_response(embed=embed, view=view)
 
     @premium_group.command(name="activate", description="Activate premium using a license key")
     @app_commands.describe(key="Secret activation key")
@@ -3313,20 +3360,22 @@ class MusicCog(commands.Cog, name="Music"):
             return
         pref = await self.bot.get_guild_prefix(ctx.guild.id)
         embed = discord.Embed(
-            title="🐾 MusicMaid • Commands & Prefix Guide",
+            title=f"{EmojiManager.get('LOGO', self.bot)} MusicMaid ✦ Commands & Features Guide",
             description=(
-                f"**Current Server Prefix:** `{pref}` *(Customizable!)*\n"
-                f"You can also use Discord **Slash Commands** (`/`) for all features!\n\n"
-                f"🎵 **Playback:** `{pref}play <song>` (`{pref}p`), `{pref}skip` (`{pref}s`), `{pref}pause`, `{pref}resume`, `{pref}stop`\n"
-                f"📜 **Queue:** `{pref}queue` (`{pref}q`), `{pref}np`, `{pref}volume <0-150>` (`{pref}v`), `{pref}loop`, `{pref}shuffle`, `{pref}clear`\n"
-                f"🎛️ **Audio & Filters:** `{pref}filter <preset>` (`{pref}eq`), `{pref}c` *(Master Control Panel)*\n"
-                f"📻 **24/7 Voice:** `{pref}247` or `{pref}stay` *(Keep bot in voice channel 24/7)*\n"
-                f"⚙️ **Prefix Customization:** `{pref}prefix <symbol>` *(e.g. `{pref}prefix !`)*"
+                f"**Current Server Prefix:** `{pref}` *(Configurable!)*\n"
+                f"Use Discord **Slash Commands** (`/`) or text prefixes for all controls.\n\n"
+                f"{EmojiManager.get('NOTE', self.bot)} **Playback:** `{pref}play <song>` (`{pref}p`), `{pref}skip` (`{pref}s`), `{pref}pause`, `{pref}resume`, `{pref}stop`\n"
+                f"{EmojiManager.get('QUEUE', self.bot)} **Queue:** `{pref}queue` (`{pref}q`), `{pref}np`, `{pref}volume <0-150>` (`{pref}v`), `{pref}loop`, `{pref}shuffle`, `{pref}clear`\n"
+                f"{EmojiManager.get('EQUALIZER', self.bot)} **Audio & Filters:** `{pref}filter <preset>` (`{pref}eq`), `{pref}c` *(Master Control Panel)*\n"
+                f"{EmojiManager.get('AUTODJ', self.bot)} **Smart Radio:** `{pref}autodj on/off` *(Endless song recommendations)*\n"
+                f"{EmojiManager.get('RADIO', self.bot)} **24/7 Voice:** `{pref}247` or `{pref}stay` *(Keep bot in voice channel 24/7)*\n"
+                f"{EmojiManager.get('SETTINGS', self.bot)} **Prefix Config:** `{pref}prefix <symbol>` *(e.g. `{pref}prefix !`)*"
             ),
-            color=COLOR_ELECTRIC_CYAN,
+            color=COLOR_PRIMARY,
         )
-        embed.set_footer(text=f"Change prefix anytime with: {pref}prefix <symbol> or /prefix symbol:<symbol>")
-        await ctx.reply(embed=embed, mention_author=False)
+        embed.set_footer(text=f"MusicMaid ✦ Lossless Anime Audio Platform • {pref}prefix <symbol>")
+        view = PremiumLinkView(get_public_web_url())
+        await ctx.reply(embed=embed, view=view, mention_author=False)
 
     @commands.command(name="reload", aliases=["hotreload"])
     async def pfx_reload(self, ctx: commands.Context) -> None:
@@ -4432,9 +4481,9 @@ class MusicCog(commands.Cog, name="Music"):
         from discord.opus import is_loaded as opus_is_loaded
 
         embed = discord.Embed(
-            title="🔍 MusicMaid • Dependency & Update Audit",
+            title=f"{EmojiManager.get('DOCTOR', self.bot)} MusicMaid ✦ Dependency & Update Audit",
             description="Read-only runtime check comparing installed components against verified baseline requirements.",
-            color=COLOR_ELECTRIC_CYAN,
+            color=COLOR_CYAN,
         )
         embed.add_field(
             name="🐍 Python Runtime",

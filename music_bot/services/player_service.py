@@ -15,8 +15,20 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import discord
 
 from music_bot.database.models import QueuedTrack
+from music_bot.emojis import EmojiManager
 from music_bot.services.resolver_service import FFMPEG_OPTIONS, AudioResolver, get_ffmpeg_executable
 from music_bot.services.session_service import GuildMusicSession, LoopMode, PlaybackState, SessionManager
+from music_bot.theme import (
+    COLOR_PRIMARY,
+    COLOR_CYAN,
+    COLOR_MIDNIGHT,
+    COLOR_SUCCESS,
+    COLOR_WARNING,
+    COLOR_ERROR,
+    COLOR_INFO,
+    COLOR_PREMIUM,
+    DEFAULT_FOOTER,
+)
 
 if TYPE_CHECKING:
     from music_bot.bot import RaiMusicBot
@@ -730,13 +742,13 @@ class MusicPlayerService:
         track = session.current_track
         if not track:
             embed = discord.Embed(
-                title="🎶 MusicMaid • Master Player",
+                title=f"{EmojiManager.get('LOGO')} MusicMaid ✦ Master Player",
                 description=(
-                    "`⏹️ IDLE`  `📜 Queue: 0`  `🎛️ EQ: Balanced`  `🕒 24/7`\n\n"
+                    f"`{EmojiManager.get('STOP')} IDLE`  `{EmojiManager.get('QUEUE')} Queue: 0`  `{EmojiManager.get('EQUALIZER')} EQ: Balanced`  `{EmojiManager.get('RADIO')} 24/7`\n\n"
                     "### Ready to play music 🐾\n"
                     "*Join a voice channel and use `/music play <song>` or `m!play` to start listening.*"
                 ),
-                color=0x0B0E14,
+                color=COLOR_MIDNIGHT,
             )
             embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  MusicMaid  ✦  Lossless Audio Engine")
             return embed
@@ -795,12 +807,15 @@ class MusicPlayerService:
         recovery_line = f"\n• **Recovery:** `{session.recovery_status}`" if getattr(session, "recovery_status", None) else ""
         error_line = f"\n• **Error:** `{session.last_error[:80]}`" if session.state == PlaybackState.ERROR and session.last_error else ""
 
+        # Voice channel display
+        vc_channel_str = f" • 📍 {session.voice_client.channel.mention}" if session.voice_client and getattr(session.voice_client, "channel", None) else ""
+
         # Next track preview
         is_autodj_on = getattr(session, "dj_enabled", False) or session.autoplay
         if session.queue:
             next_info_line = f"\n• **Next Track:** [{session.queue[0].title[:38]}]({session.queue[0].url})"
         elif is_autodj_on:
-            next_info_line = "\n• **Next Track:** `Auto-DJ Recommendation` 🎧"
+            next_info_line = f"\n• **Next Track:** `Auto-DJ Recommendation` {EmojiManager.get('AUTODJ')}"
         else:
             next_info_line = ""
 
@@ -808,17 +823,17 @@ class MusicPlayerService:
         is_spotify = ("spotify.com" in (track.url or "")) or (getattr(track, "source", None) == "spotify")
         spotify_source_tag = " • 🟢 `Spotify Source`" if is_spotify else ""
 
-        embed_color = 0xED4245 if session.state == PlaybackState.ERROR else (0xFEE75C if is_server_muted else (0x00E5FF if session.is_playing else 0x9333EA))
+        embed_color = COLOR_ERROR if session.state == PlaybackState.ERROR else (COLOR_WARNING if is_server_muted else (COLOR_CYAN if session.is_playing else COLOR_PRIMARY))
 
         badge_247 = "🕒 24/7" if getattr(session, "stay_in_vc", False) else "🕒 Normal"
         badges_header = f"`{badge_state}`  `📜 Queue: {len(session.queue)}`  `🎛️ EQ: {preset_name}`  `{badge_247}`"
 
         embed = discord.Embed(
-            title="🎶 MusicMaid • Now Playing",
+            title=f"{EmojiManager.get('NOTE')} MusicMaid ✦ Now Playing",
             description=(
                 f"{badges_header}\n\n"
                 f"### [{track.title}]({track.url})\n"
-                f"👤 **Artist:** `{track.artist}`{spotify_source_tag}\n\n"
+                f"👤 **Artist:** `{track.artist}`{spotify_source_tag}{vc_channel_str}\n\n"
                 f"**Progress:**\n{progress_str}\n\n"
                 f"• **Requested by:** {requester_str}\n"
                 f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
@@ -838,9 +853,10 @@ class MusicPlayerService:
     def build_queue_embed(cls, session: GuildMusicSession) -> discord.Embed:
         """Construct separate, compact Queue Management sub-panel embed."""
         tracks = list(session.queue)
+        q_icon = EmojiManager.get("QUEUE")
         embed = discord.Embed(
-            title=f"📜 MusicMaid • Queue ({len(tracks)} tracks)",
-            color=0x00E5FF,
+            title=f"{q_icon} MusicMaid ✦ Queue ({len(tracks)} tracks)",
+            color=COLOR_CYAN,
         )
         if session.current_track:
             embed.description = f"**Now Playing:** [{session.current_track.title}]({session.current_track.url}) (`{format_duration(session.current_track.duration)}`)\n\n"
@@ -858,16 +874,17 @@ class MusicPlayerService:
             embed.description += "*The queue is currently empty. Add tracks using `/music play` or search.*"
 
         total_sec = sum(t.duration or 0 for t in tracks)
-        embed.set_footer(text=f"Total Queue Duration: {format_duration(total_sec)} • Safe bounded queue")
+        embed.set_footer(text=f"Total Queue Duration: {format_duration(total_sec)} • Safe Bounded Queue")
         return embed
 
     @classmethod
     def build_audio_embed(cls, session: GuildMusicSession) -> discord.Embed:
         """Construct separate, compact Audio Settings & DSP sub-panel embed."""
         preset_name = session.eq_preset if session.eq_preset else "Flat / Normal"
+        eq_icon = EmojiManager.get("EQUALIZER")
         embed = discord.Embed(
-            title="🎛️ MusicMaid • Audio Settings & DSP Filters",
-            color=0x00E5FF,
+            title=f"{eq_icon} MusicMaid ✦ Audio Settings & DSP Filters",
+            color=COLOR_PRIMARY,
             description=(
                 f"• **Master Volume:** `{session.volume}%`\n"
                 f"• **Active Equalizer Filter:** `{preset_name}`\n"
@@ -876,7 +893,7 @@ class MusicPlayerService:
                 f"Select a volume preset or DSP equalizer filter below to apply in real-time."
             ),
         )
-        embed.set_footer(text="MusicMaid • Studio DSP Audio Engine")
+        embed.set_footer(text="MusicMaid ✦ Studio DSP Audio Engine")
         return embed
 
     @classmethod
@@ -885,9 +902,10 @@ class MusicPlayerService:
         is_on = getattr(session, "dj_enabled", False) or session.autoplay
         status_str = "🟢 Active" if is_on else "⚪ Disabled"
         mode_str = getattr(session, "dj_mode", "Energy Match")
+        dj_icon = EmojiManager.get("AUTODJ")
         embed = discord.Embed(
-            title="🎧 MusicMaid • Auto-DJ Controls",
-            color=0x00E5FF,
+            title=f"{dj_icon} MusicMaid ✦ Auto-DJ Controls",
+            color=COLOR_CYAN,
             description=(
                 f"• **Auto-DJ Status:** {status_str}\n"
                 f"• **Recommendation Mode:** `{mode_str}`\n\n"
@@ -898,7 +916,7 @@ class MusicPlayerService:
                 f"4. Skipping an Auto-DJ track keeps Auto-DJ enabled."
             ),
         )
-        embed.set_footer(text="MusicMaid • Smart Dynamic Recommendation Engine")
+        embed.set_footer(text="MusicMaid ✦ Smart Dynamic Recommendation Engine")
         return embed
 
     @classmethod
@@ -906,9 +924,10 @@ class MusicPlayerService:
         """Construct separate, compact Settings & Diagnostics sub-panel embed."""
         is_247 = "Active 🛡️" if getattr(session, "twenty_four_seven", False) else "Off"
         loop_str = session.loop_mode.value.title()
+        set_icon = EmojiManager.get("SETTINGS")
         embed = discord.Embed(
-            title="⚙️ MusicMaid • Settings & Diagnostics",
-            color=0x00E5FF,
+            title=f"{set_icon} MusicMaid ✦ Settings & Diagnostics",
+            color=COLOR_INFO,
             description=(
                 f"• **24/7 Voice Persistence:** `{is_247}`\n"
                 f"• **Loop Mode:** `{loop_str}`\n"
@@ -918,7 +937,7 @@ class MusicPlayerService:
                 f"Use the buttons below to toggle 24/7 mode or run full diagnostics."
             ),
         )
-        embed.set_footer(text="MusicMaid • System Diagnostics & Persistence")
+        embed.set_footer(text="MusicMaid ✦ System Diagnostics & Persistence")
         return embed
 
 
@@ -2240,11 +2259,12 @@ class VolumeModal(discord.ui.Modal, title="🔊 MusicMaid Volume Control"):
 class NowPlayingControlView(discord.ui.View):
     """Reference-grade 4-Row Master Control Panel for MusicMaid (13 Buttons)."""
 
-    def __init__(self, session: Optional[GuildMusicSession] = None):
+    def __init__(self, session: Optional[GuildMusicSession] = None, bot: Optional[discord.Client] = None):
         super().__init__(timeout=None)
         self.session = session
+        self.bot = bot
         if self.session:
-            self._update_button_states()
+            self._update_button_states(self.session, bot=self.bot)
 
     def _get_session(self, interaction: discord.Interaction) -> Optional[GuildMusicSession]:
         if self.session is not None and interaction.guild and self.session.guild_id == interaction.guild.id:
@@ -2254,28 +2274,50 @@ class NowPlayingControlView(discord.ui.View):
             return SessionManager.get_instance().get_session_sync(interaction.guild.id)
         return self.session
 
-    def _update_button_states(self, session: Optional[GuildMusicSession] = None):
+    def _update_button_states(self, session: Optional[GuildMusicSession] = None, bot: Optional[discord.Client] = None):
         target = session or self.session
         if not target:
             return
+        bot_client = bot or getattr(self, "bot", None)
         for child in self.children:
             if isinstance(child, discord.ui.Button):
-                if child.custom_id == "music_btn_play_pause":
+                if child.custom_id == "music_btn_prev":
+                    child.emoji = EmojiManager.get_button_emoji("PREVIOUS", bot_client)
+                elif child.custom_id == "music_btn_rewind_10":
+                    child.emoji = EmojiManager.get_button_emoji("REWIND_10", bot_client)
+                elif child.custom_id == "music_btn_play_pause":
                     child.label = "Resume" if target.is_paused else "Pause"
-                    child.emoji = "▶" if target.is_paused else "⏸"
+                    child.emoji = EmojiManager.get_button_emoji("PLAY" if target.is_paused else "PAUSE", bot_client)
                     child.style = discord.ButtonStyle.success if target.is_paused else discord.ButtonStyle.primary
+                elif child.custom_id == "music_btn_forward_10":
+                    child.emoji = EmojiManager.get_button_emoji("FORWARD_10", bot_client)
+                elif child.custom_id == "music_btn_skip":
+                    child.emoji = EmojiManager.get_button_emoji("SKIP", bot_client)
                 elif child.custom_id == "music_btn_queue":
                     count = len(target.queue)
                     child.label = f"Queue ({count})" if count > 0 else "Queue"
-                elif child.custom_id == "music_btn_volume":
-                    child.label = f"Volume ({target.volume}%)"
+                    child.emoji = EmojiManager.get_button_emoji("QUEUE", bot_client)
+                elif child.custom_id == "music_btn_shuffle":
+                    child.emoji = EmojiManager.get_button_emoji("SHUFFLE", bot_client)
                 elif child.custom_id == "music_btn_loop":
+                    child.emoji = EmojiManager.get_button_emoji("LOOP", bot_client)
                     if target.loop_mode != LoopMode.OFF:
                         child.label = f"Loop: {target.loop_mode.value.title()}"
                         child.style = discord.ButtonStyle.primary
                     else:
                         child.label = "Loop"
                         child.style = discord.ButtonStyle.secondary
+                elif child.custom_id == "music_btn_volume":
+                    child.label = f"Volume ({target.volume}%)"
+                    child.emoji = EmojiManager.get_button_emoji("VOLUME", bot_client)
+                elif child.custom_id == "music_btn_stop":
+                    child.emoji = EmojiManager.get_button_emoji("STOP", bot_client)
+                elif child.custom_id == "music_btn_favorite":
+                    child.emoji = EmojiManager.get_button_emoji("FAVORITE", bot_client)
+                elif child.custom_id == "music_btn_filters":
+                    child.emoji = EmojiManager.get_button_emoji("EQUALIZER", bot_client)
+                elif child.custom_id == "music_btn_lyrics":
+                    child.emoji = EmojiManager.get_button_emoji("LYRICS", bot_client)
 
     def _check_user_voice(self, interaction: discord.Interaction, session: Optional[GuildMusicSession]) -> Tuple[bool, Optional[str]]:
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
