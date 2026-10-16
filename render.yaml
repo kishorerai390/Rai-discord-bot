@@ -14,7 +14,7 @@ services:
       - key: NEKO_SONGS_BOT_TOKEN
         sync: false
       - key: APPLICATION_ID
-        value: 1554626865958887444
+        value: 1556676516274905218
       - key: BOT_NAME
         value: MusicMaid
       - key: EMBED_COLOR
@@ -28,7 +28,7 @@ services:
       - key: YOUTUBE_COOKIES
         sync: false
       - key: DISCORD_CLIENT_ID
-        value: 1554626865958887444
+        value: 1556676516274905218
       - key: DISCORD_CLIENT_SECRET
         sync: false
       - key: DISCORD_REDIRECT_URI
