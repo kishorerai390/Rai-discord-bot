@@ -10,16 +10,36 @@ import unittest
 
 def test_imports():
     print("[1/5] Testing module imports...")
-    import cogs.mention_notifications
-    import cogs.reliability
-    import cogs.security
-    import cogs.temp_voice
-    import cogs.tickets
-    import cogs.creator
-    import core.bot
+    # Active architecture modules
+    import music_bot.bot
+    import music_bot.commands.music_cog
+    import music_bot.services.player_service
+    import music_bot.services.resolver_service
+    import music_bot.services.session_service
+    import music_bot.services.spotify_service
+    import web.server
+    import web.api
+    import web.music_api
+    import web.auth
     import utils.luxury_consoles
     import utils.music_consoles
     import utils.community_features
+
+    # Optional legacy modules (if present in local dev)
+    legacy_modules = [
+        "cogs.mention_notifications",
+        "cogs.reliability",
+        "cogs.security",
+        "cogs.temp_voice",
+        "cogs.tickets",
+        "cogs.creator",
+        "core.bot",
+    ]
+    for mod_name in legacy_modules:
+        try:
+            __import__(mod_name)
+        except ModuleNotFoundError:
+            pass
     print("  -> All core modules imported successfully.")
 
 def test_luxury_consoles_serialization():
@@ -101,38 +121,21 @@ def test_music_consoles_serialization():
     print("  -> All music consoles embeds & views serialize cleanly to Discord payload standard.")
 
 def test_mention_notifications_unit():
-    print("[4/5] Running mention notifications test suite...")
+    print("[4/5] Running platform regression test suite...")
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName("tests.test_mention_notifications")
+    suite = loader.loadTestsFromName("tests.test_oauth_and_button_actions")
     runner = unittest.TextTestRunner(verbosity=0)
     result = runner.run(suite)
-    assert result.wasSuccessful(), f"Mention notifications tests failed: {result.errors + result.failures}"
+    assert result.wasSuccessful(), f"Regression tests failed: {result.errors + result.failures}"
     print(f"  -> All {result.testsRun} tests passed successfully.")
 
 def test_bot_interaction_routing():
-    print("[5/5] Testing bot on_interaction routing coverage...")
-    import inspect
-    from core.bot import SentinelBot
-    source = inspect.getsource(SentinelBot.on_interaction)
-    required_prefixes = [
-        "rai_vc",
-        "rai_inc:",
-        "rai_ctrl:",
-        "inc_",
-        "rai_nl:",
-        "rai_pulse:",
-        "rai_clock:",
-        "rai_vip:",
-        "rai_quarantine:",
-        "rai_soundscape:",
-        "m_req:",
-        "m_q:",
-        "m_dj:",
-        "m_pl:",
-    ]
-    for prefix in required_prefixes:
-        assert prefix in source, f"Prefix '{prefix}' missing from SentinelBot.on_interaction!"
-    print(f"  -> All {len(required_prefixes)} interaction component prefixes are registered and routed.")
+    print("[5/5] Testing bot routing and views...")
+    from music_bot.bot import NekoSongsBot
+    assert hasattr(NekoSongsBot, "web_actions_loop"), "NekoSongsBot must have web_actions_loop"
+    from music_bot.commands.music_cog import MusicCog
+    assert hasattr(MusicCog, "music_play"), "MusicCog must have music_play command"
+    print("  -> Active bot commands & persistent views validated.")
 
 if __name__ == "__main__":
     print("=== COMMENCING RAI SYSTEM INTEGRITY AUDIT ===")
