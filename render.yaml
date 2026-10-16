@@ -27,3 +27,11 @@ services:
         value: global
       - key: YOUTUBE_COOKIES
         sync: false
+      - key: DISCORD_CLIENT_ID
+        value: 1554626865958887444
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: SESSION_SECRET
+        sync: false

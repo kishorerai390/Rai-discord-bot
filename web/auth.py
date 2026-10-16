@@ -201,18 +201,34 @@ class AuthManager:
             "guilds": user_guilds or [],
         }
 
-        await self.db.create_web_session(
-            session_id=session_id,
-            user_id=discord_id,
-            discord_user_id=discord_id,
-            username=username,
-            discriminator=discriminator,
-            avatar=avatar,
-            access_token=access_token,
-            refresh_token=refresh_token,
-            expires_at=expires_at,
-            user_data_dict=user_data,
-        )
+        if hasattr(self.db, "create_web_session"):
+            await self.db.create_web_session(
+                session_id=session_id,
+                user_id=discord_id,
+                discord_user_id=discord_id,
+                username=username,
+                discriminator=discriminator,
+                avatar=avatar,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=expires_at,
+                user_data_dict=user_data,
+            )
+        else:
+            from database.database import Database
+            app_db = Database()
+            await app_db.create_web_session(
+                session_id=session_id,
+                user_id=discord_id,
+                discord_user_id=discord_id,
+                username=username,
+                discriminator=discriminator,
+                avatar=avatar,
+                access_token=access_token,
+                refresh_token=refresh_token,
+                expires_at=expires_at,
+                user_data_dict=user_data,
+            )
 
         return session_id
 
@@ -227,7 +243,13 @@ class AuthManager:
         if not session_id:
             return None
 
-        session = await self.db.get_web_session(session_id)
+        if hasattr(self.db, "get_web_session"):
+            session = await self.db.get_web_session(session_id)
+        else:
+            from database.database import Database
+            app_db = Database()
+            session = await app_db.get_web_session(session_id)
+
         if not session:
             return None
 
@@ -238,7 +260,12 @@ class AuthManager:
                 expires_at = datetime.datetime.fromisoformat(expires_at_str)
                 now = datetime.datetime.now(datetime.timezone.utc)
                 if now > expires_at:
-                    await self.db.delete_web_session(session_id)
+                    if hasattr(self.db, "delete_web_session"):
+                        await self.db.delete_web_session(session_id)
+                    else:
+                        from database.database import Database
+                        app_db = Database()
+                        await app_db.delete_web_session(session_id)
                     return None
             except Exception:
                 pass

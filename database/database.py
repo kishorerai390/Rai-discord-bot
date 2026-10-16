@@ -1192,6 +1192,11 @@ class Database:
         expires_at: str = "",
         user_data_dict: Optional[Dict[str, Any]] = None,
     ) -> None:
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return
+
         now = datetime.datetime.now(datetime.timezone.utc).isoformat()
         data_json = json.dumps(user_data_dict or {})
         await self._db.execute(
@@ -1211,6 +1216,11 @@ class Database:
         await self._db.commit()
 
     async def get_web_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return None
+
         async with self._db.execute("SELECT * FROM web_sessions WHERE session_id = ?", (session_id,)) as cur:
             row = await cur.fetchone()
             if not row:
@@ -1223,6 +1233,11 @@ class Database:
             return res
 
     async def delete_web_session(self, session_id: str) -> bool:
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
         cur = await self._db.execute("DELETE FROM web_sessions WHERE session_id = ?", (session_id,))
         await self._db.commit()
         return (cur.rowcount or 0) > 0

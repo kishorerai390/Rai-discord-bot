@@ -37,7 +37,17 @@ class RaiCommunityOSServer:
         port: Optional[int] = None,
     ):
         self.bot = bot
-        self.db = db or (bot.db if bot else Database())
+        if db is not None and hasattr(db, "create_web_session"):
+            self.db = db
+        elif bot is not None and hasattr(bot, "app_db") and hasattr(bot.app_db, "create_web_session"):
+            self.db = bot.app_db
+        elif bot is not None and hasattr(bot, "database") and hasattr(bot.database, "create_web_session"):
+            self.db = bot.database
+        elif bot is not None and hasattr(bot, "db") and hasattr(bot.db, "create_web_session"):
+            self.db = bot.db
+        else:
+            from database.database import Database
+            self.db = Database()
         self.port = port or WEB_PORT
         self.app: Optional[web.Application] = None
         self.runner: Optional[web.AppRunner] = None

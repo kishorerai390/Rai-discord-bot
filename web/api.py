@@ -10,6 +10,7 @@ import dataclasses
 import datetime
 import json
 import logging
+import os
 import secrets
 import time
 import urllib.parse
@@ -143,54 +144,70 @@ class ApiRouter:
 
     async def auth_callback(self, request: web.Request) -> web.Response:
         """Handle Discord OAuth2 code exchange and create authenticated web session."""
-        oauth_err = request.query.get("error")
-        if oauth_err:
-            desc = request.query.get("error_description", "Authorization was denied or cancelled.")
-            logger.info(f"Discord OAuth2 returned error: {oauth_err} - {desc}")
-            raise web.HTTPFound(f"/?error={oauth_err}&message={urllib.parse.quote(desc)}")
+        try:
+            oauth_err = request.query.get("error")
+            if oauth_err:
+                desc = request.query.get("error_description", "Authorization was denied or cancelled.")
+                logger.info(f"Discord OAuth2 returned error: {oauth_err} - {desc}")
+                raise web.HTTPFound(f"/?error={oauth_err}&message={urllib.parse.quote(desc)}")
 
-        code = request.query.get("code")
-        if not code:
-            raise web.HTTPFound("/?error=missing_code")
+            code = request.query.get("code")
+            if not code:
+                raise web.HTTPFound("/?error=missing_code")
 
-        # Validate CSRF state parameter against cookie
-        state = request.query.get("state")
-        cookie_state = request.cookies.get("oauth_state")
-        if cookie_state and state and cookie_state != state:
-            logger.warning("OAuth2 state parameter mismatch (possible CSRF attack).")
-            raise web.HTTPFound("/?error=csrf_validation_failed")
+            # Validate CSRF state parameter against cookie
+            state = request.query.get("state")
+            cookie_state = request.cookies.get("oauth_state")
+            if cookie_state and state and cookie_state != state:
+                logger.warning("OAuth2 state parameter mismatch (possible CSRF attack).")
+                raise web.HTTPFound("/?error=csrf_validation_failed")
 
-        redirect_uri = self.auth.get_redirect_uri(request)
-        token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
-        if not token_data or "access_token" not in token_data:
-            raise web.HTTPFound("/?error=oauth_exchange_failed")
+            redirect_uri = self.auth.get_redirect_uri(request)
+            token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
+            if not token_data or "access_token" not in token_data:
+                logger.warning("OAuth token exchange failed or returned invalid response.")
+                raise web.HTTPFound("/?error=oauth_exchange_failed")
 
-        user_info = await self.auth.fetch_discord_user(token_data["access_token"])
-        if not user_info or "id" not in user_info:
-            raise web.HTTPFound("/?error=failed_to_fetch_user")
+            user_info = await self.auth.fetch_discord_user(token_data["access_token"])
+            if not user_info or "id" not in user_info:
+                logger.warning("Failed to fetch Discord user information via access token.")
+                raise web.HTTPFound("/?error=failed_to_fetch_user")
 
-        # Fetch accessible guilds for permission verification
-        user_guilds = await self.auth.fetch_discord_guilds(token_data["access_token"])
+            # Fetch accessible guilds for permission verification
+            user_guilds = await self.auth.fetch_discord_guilds(token_data["access_token"])
 
-        session_id = await self.auth.create_session_for_user(
-            discord_user=user_info,
-            access_token=token_data.get("access_token"),
-            refresh_token=token_data.get("refresh_token"),
-            expires_in=token_data.get("expires_in", 604800),
-            user_guilds=user_guilds,
-        )
+            session_id = await self.auth.create_session_for_user(
+                discord_user=user_info,
+                access_token=token_data.get("access_token"),
+                refresh_token=token_data.get("refresh_token"),
+                expires_in=token_data.get("expires_in", 604800),
+                user_guilds=user_guilds,
+            )
 
-        resp = web.HTTPFound("/?auth=success")
-        resp.set_cookie(
-            SESSION_COOKIE_NAME,
-            session_id,
-            max_age=604800,
-            httponly=True,
-            samesite="Lax",
-            path="/",
-        )
-        resp.del_cookie("oauth_state", path="/")
-        raise resp
+            is_secure = (
+                request.scheme == "https"
+                or request.headers.get("X-Forwarded-Proto") == "https"
+                or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+            )
+
+            resp = web.HTTPFound("/?auth=success")
+            resp.set_cookie(
+                SESSION_COOKIE_NAME,
+                session_id,
+                max_age=604800,
+                httponly=True,
+                secure=is_secure,
+                samesite="Lax",
+                path="/",
+            )
+            resp.del_cookie("oauth_state", path="/")
+            raise resp
+        except (web.HTTPFound, web.HTTPRedirection):
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error in OAuth2 callback handler: {e}", exc_info=True)
+            err_msg = urllib.parse.quote("An internal server error occurred during sign-in. Please try again.")
+            raise web.HTTPFound(f"/?error=server_error&message={err_msg}")
 
     async def auth_me(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)

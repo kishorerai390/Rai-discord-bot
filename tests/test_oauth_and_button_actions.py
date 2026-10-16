@@ -212,3 +212,71 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
             data = await resp.json()
             assert data["success"] is False
             assert data["error"]["code"] == "UNAUTHORIZED_GUILD"
+
+    async def test_10_auth_callback_missing_code(self):
+        """10. GET /api/auth/callback without authorization code redirects with error=missing_code."""
+        resp = await self.client.get("/api/auth/callback", allow_redirects=False)
+        assert resp.status == 302
+        assert "error=missing_code" in resp.headers.get("Location", "")
+
+    async def test_11_auth_callback_exchange_failure(self):
+        """11. GET /api/auth/callback when code exchange fails redirects with error=oauth_exchange_failed."""
+        test_state = "csrf_state_for_exchange_fail"
+        self.client.session.cookie_jar.update_cookies({"oauth_state": test_state})
+        with patch.object(self.rai_server.api_router.auth, "exchange_code", AsyncMock(return_value=None)):
+            resp = await self.client.get(f"/api/auth/callback?code=bad_code&state={test_state}", allow_redirects=False)
+            assert resp.status == 302
+            assert "error=oauth_exchange_failed" in resp.headers.get("Location", "")
+
+    async def test_12_auth_callback_user_fetch_failure(self):
+        """12. GET /api/auth/callback when user fetch fails redirects with error=failed_to_fetch_user."""
+        test_state = "csrf_state_for_user_fail"
+        self.client.session.cookie_jar.update_cookies({"oauth_state": test_state})
+        with patch.object(self.rai_server.api_router.auth, "exchange_code", AsyncMock(return_value={"access_token": "valid_token"})), \
+             patch.object(self.rai_server.api_router.auth, "fetch_discord_user", AsyncMock(return_value=None)):
+            resp = await self.client.get(f"/api/auth/callback?code=any_code&state={test_state}", allow_redirects=False)
+            assert resp.status == 302
+            assert "error=failed_to_fetch_user" in resp.headers.get("Location", "")
+
+    async def test_13_auth_callback_server_exception_graceful_redirect(self):
+        """13. GET /api/auth/callback does NOT return HTTP 500 when unexpected error occurs; redirects gracefully."""
+        test_state = "csrf_state_for_err"
+        self.client.session.cookie_jar.update_cookies({"oauth_state": test_state})
+        with patch.object(self.rai_server.api_router.auth, "exchange_code", AsyncMock(side_effect=RuntimeError("Database failure"))):
+            resp = await self.client.get(f"/api/auth/callback?code=crash_code&state={test_state}", allow_redirects=False)
+            assert resp.status == 302
+            assert "error=server_error" in resp.headers.get("Location", "")
+
+    async def test_14_music_database_native_web_session_crud(self):
+        """14. Verify MusicDatabase natively supports create_web_session, get_web_session, and delete_web_session."""
+        from music_bot.database.db import MusicDatabase
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "test_music.db"
+            music_db = MusicDatabase(db_path)
+            await music_db.connect()
+            assert music_db.is_connected is True
+
+            # Create session
+            session_id = "test_music_session_xyz"
+            await music_db.create_web_session(
+                session_id=session_id,
+                user_id=1457382179981099090,
+                discord_user_id=1457382179981099090,
+                username="TestUser",
+                user_data_dict={"username": "TestUser", "is_admin": True},
+            )
+
+            # Get session
+            saved = await music_db.get_web_session(session_id)
+            assert saved is not None
+            assert saved["session_id"] == session_id
+            assert saved["username"] == "TestUser"
+            assert saved["user_data"]["is_admin"] is True
+
+            # Delete session
+            deleted = await music_db.delete_web_session(session_id)
+            assert deleted is True
+            assert await music_db.get_web_session(session_id) is None
+            await music_db.close()

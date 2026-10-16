@@ -45,7 +45,7 @@ LAVALINK_ENABLED: bool = os.getenv("LAVALINK_ENABLED", "false").lower() == "true
 
 # Web Platform & Discord OAuth2 Settings
 WEB_PORT: int = int(os.getenv("PORT", os.getenv("WEB_PORT", "8080")))
-_raw_client_id = os.getenv("DISCORD_CLIENT_ID", "").strip()
+_raw_client_id = os.getenv("DISCORD_CLIENT_ID", "").strip() or os.getenv("APPLICATION_ID", "").strip() or os.getenv("DISCORD_APPLICATION_ID", "").strip()
 if not _raw_client_id and DISCORD_TOKEN and "." in DISCORD_TOKEN:
     try:
         import base64

@@ -36,6 +36,11 @@ class MusicDatabase:
         self._db: Optional[aiosqlite.Connection] = None
         self._lock = asyncio.Lock()
 
+    @property
+    def is_connected(self) -> bool:
+        """Returns True if database connection is established and alive."""
+        return self._db is not None
+
     def backup_database(self, reason: str = "pre_migration", max_backups: int = 5) -> Optional[Path]:
         """Create a timestamped backup of music.db with bounded retention."""
         if not self.db_path.exists():
@@ -305,6 +310,20 @@ class MusicDatabase:
                     is_premium INTEGER DEFAULT 1,
                     tier TEXT DEFAULT 'premium',
                     activated_by INTEGER,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS web_sessions (
+                    session_id TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    discord_user_id INTEGER NOT NULL,
+                    username TEXT NOT NULL,
+                    discriminator TEXT DEFAULT '0',
+                    avatar TEXT,
+                    access_token TEXT,
+                    refresh_token TEXT,
+                    expires_at TEXT,
+                    user_data_json TEXT DEFAULT '{}',
                     created_at TEXT NOT NULL
                 );
             """)
@@ -1440,6 +1459,79 @@ class MusicDatabase:
             ) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(r) for r in rows]
+
+    # ==========================================
+    # WEB SESSIONS & AUTHENTICATION
+    # ==========================================
+
+    async def create_web_session(
+        self,
+        session_id: str,
+        user_id: int,
+        discord_user_id: int,
+        username: str,
+        discriminator: str = "0",
+        avatar: Optional[str] = None,
+        access_token: Optional[str] = None,
+        refresh_token: Optional[str] = None,
+        expires_at: str = "",
+        user_data_dict: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Create or update a web authenticated session."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return
+
+        now = datetime.now(timezone.utc).isoformat()
+        data_json = json.dumps(user_data_dict or {})
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT INTO web_sessions (
+                    session_id, user_id, discord_user_id, username, discriminator,
+                    avatar, access_token, refresh_token, expires_at, user_data_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(session_id) DO UPDATE SET
+                    access_token = excluded.access_token,
+                    refresh_token = excluded.refresh_token,
+                    expires_at = excluded.expires_at,
+                    user_data_json = excluded.user_data_json
+                """,
+                (session_id, user_id, discord_user_id, username, discriminator, avatar, access_token, refresh_token, expires_at, data_json, now),
+            )
+            await self._db.commit()
+
+    async def get_web_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve web session by session ID."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return None
+
+        async with self._db.execute("SELECT * FROM web_sessions WHERE session_id = ?", (session_id,)) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return None
+            columns = [c[0] for c in cur.description]
+            res = dict(zip(columns, row))
+            try:
+                res["user_data"] = json.loads(res.get("user_data_json", "{}"))
+            except Exception:
+                res["user_data"] = {}
+            return res
+
+    async def delete_web_session(self, session_id: str) -> bool:
+        """Remove a web session upon logout or invalidation."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
+        async with self._lock:
+            cur = await self._db.execute("DELETE FROM web_sessions WHERE session_id = ?", (session_id,))
+            await self._db.commit()
+            return (cur.rowcount or 0) > 0
 
 
 
