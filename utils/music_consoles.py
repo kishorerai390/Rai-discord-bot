@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import datetime
 import random
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 import discord
 from discord import ui
 
 if TYPE_CHECKING:
     from discord.ext import commands
+    from music_bot.services.session_service import GuildMusicSession as GuildMusicPlayer
 
 # ==========================================
 # 1. MUSIC REQUESTS & SEARCH HUB
