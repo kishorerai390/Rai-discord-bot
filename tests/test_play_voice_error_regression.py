@@ -25,6 +25,7 @@ from music_bot.services.session_service import GuildMusicSession, LoopMode, Play
 def mock_bot():
     bot = MagicMock()
     bot.session_manager = MagicMock()
+    # Create fresh session for each test to avoid state bleeding
     session = GuildMusicSession(guild_id=123456789)
     bot.session_manager.get_session = AsyncMock(return_value=session)
     bot.db = AsyncMock()
@@ -64,6 +65,14 @@ def mock_interaction():
     return inter
 
 
+def mock_voice_manager_fail(err_msg: str):
+    """Simulates VoiceManager.join_voice_channel setting session.last_error and returning None."""
+    async def _fail(member, text_channel, session):
+        session.last_error = err_msg
+        return None
+    return _fail
+
+
 @pytest.mark.asyncio
 async def test_play_voice_connection_succeeds(mock_bot, mock_interaction):
     """Test 1: Voice connection succeeds and proceeds to track resolution and playback."""
@@ -99,7 +108,7 @@ async def test_play_voice_connection_succeeds(mock_bot, mock_interaction):
         mock_start.assert_awaited_once()
         mock_interaction.edit_original_response.assert_awaited()
         # Verify no UnboundLocalError occurred
-        assert session.last_error is None or "UnboundLocalError" not in str(session.last_error)
+        assert getattr(session, "last_error", None) is None or "UnboundLocalError" not in str(session.last_error)
 
 
 @pytest.mark.asyncio
@@ -128,16 +137,14 @@ async def test_play_voice_connection_missing_dependency(mock_bot, mock_interacti
     bot, session = mock_bot
     cog = MusicCog(bot)
 
-    session.last_error = (
+    dep_err = (
         "Voice connection failed: Missing required voice dependency (davey).\n"
         "• **Failed Stage:** `Voice Dependency Missing (davey)`\n"
         "• **Target Channel:** <#555666777>\n\n"
         "💡 **Recommended Action:**\nInstall `davey>=0.1.0` in the bot hosting environment."
     )
 
-    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join:
-        mock_join.return_value = None
-
+    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(dep_err)):
         await cog._play_query(mock_interaction, "kalyani song")
 
         mock_interaction.edit_original_response.assert_awaited_once()
@@ -156,14 +163,12 @@ async def test_play_voice_connection_timeout(mock_bot, mock_interaction):
     bot, session = mock_bot
     cog = MusicCog(bot)
 
-    session.last_error = (
+    timeout_err = (
         "Voice connection failed: Voice connection timed out after 3 attempts (45000ms).\n"
         "• **Failed Stage:** `Gateway & Voice WebSocket Handshake`"
     )
 
-    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join:
-        mock_join.return_value = None
-
+    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(timeout_err)):
         await cog._play_query(mock_interaction, "kalyani song")
 
         mock_interaction.edit_original_response.assert_awaited_once()
@@ -181,11 +186,9 @@ async def test_play_voice_connection_permission_branch(mock_bot, mock_interactio
     bot, session = mock_bot
     cog = MusicCog(bot)
 
-    session.last_error = "Missing **Connect** permission in <#555666777>"
+    perm_err = "Missing **Connect** permission in <#555666777>"
 
-    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join:
-        mock_join.return_value = None
-
+    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(perm_err)):
         await cog._play_query(mock_interaction, "kalyani song")
 
         mock_interaction.edit_original_response.assert_awaited_once()
@@ -227,11 +230,9 @@ async def test_play_voice_formatter_resilience_on_exception(mock_bot, mock_inter
 
     # Cause member.voice to raise an unexpected attribute error when inspecting
     mock_interaction.user.voice = "invalid_string_not_voice_state"
-    session.last_error = "Network route dropped"
+    route_err = "Network route dropped"
 
-    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join:
-        mock_join.return_value = None
-
+    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(route_err)):
         await cog._play_query(mock_interaction, "test query")
 
         mock_interaction.edit_original_response.assert_awaited_once()
@@ -248,11 +249,9 @@ async def test_play_no_unbound_local_error_on_preflight_none(mock_bot, mock_inte
     bot, session = mock_bot
     cog = MusicCog(bot)
 
-    session.last_error = "Cannot play music in the server's AFK voice channel."
+    afk_err = "Cannot play music in the server's AFK voice channel."
 
-    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join:
-        mock_join.return_value = None
-
+    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(afk_err)):
         # Should execute cleanly without raising UnboundLocalError
         await cog._play_query(mock_interaction, "tamil melody song")
 
@@ -271,11 +270,9 @@ async def test_play_interaction_single_acknowledgment(mock_bot, mock_interaction
 
     # When response is already done, only edit_original_response is called
     mock_interaction.response.is_done.return_value = True
-    session.last_error = "Voice connection could not be established."
+    conn_err = "Voice connection could not be established."
 
-    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join:
-        mock_join.return_value = None
-
+    with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(conn_err)):
         await cog._play_query(mock_interaction, "song")
 
         assert mock_interaction.edit_original_response.await_count == 1

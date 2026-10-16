@@ -738,9 +738,7 @@ class MusicCog(commands.Cog, name="Music"):
                     is_perm_err = (
                         (voice_join_error is not None and isinstance(voice_join_error, discord.Forbidden))
                         or ("403" in err_detail and "forbidden" in err_detail.lower())
-                        or ("lacks permission" in err_detail.lower())
-                        or ("missing permission" in err_detail.lower())
-                        or ("permission denied" in err_detail.lower())
+                        or ("permission" in err_detail.lower())
                     ) and not any(dep in err_detail.lower() for dep in ("davey", "pynacl", "opus", "dependency", "timed out", "timeout"))
 
                     try:
