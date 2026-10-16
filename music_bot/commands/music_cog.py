@@ -807,23 +807,27 @@ class MusicCog(commands.Cog, name="Music"):
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
                 if is_timed_out:
                     embed_fail = discord.Embed(
-                        title="⏱️ AUDIO SEARCH TIMED OUT (60s)",
+                        title="⏱️ AUDIO SEARCH TIMED OUT",
                         description=(
-                            f"The music search for `{query[:100]}` exceeded 60s.\n\n"
-                            f"• **Diagnostic:** The YouTube resolver timed out while querying audio profiles.\n"
+                            f"The music search for `{query[:100]}` exceeded the search deadline.\n\n"
+                            f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting YouTube.'}`\n"
                             f"• **Notice:** No alternative playback source is enabled (SoundCloud is disabled by configuration).\n"
-                            f"• **Tip:** Upload fresh YouTube cookies to Render Secret Files (`/etc/secrets/cookies.txt`) or configure `YOUTUBE_COOKIES`."
+                            f"• **Tip:** Try repeating your search or use a direct YouTube URL."
                         ),
                         color=0xED4245,
                     )
                 else:
+                    cookie_hint = ""
+                    if res_err and any(k in res_err.lower() for k in ("sign in", "bot", "captcha", "confirm your age", "access restriction")):
+                        cookie_hint = "\n• **Optional Fallback:** If YouTube is restricting datacenter IPs, optional YouTube cookies can be placed in Render Secret Files (`/etc/secrets/cookies.txt`) or configured via `YOUTUBE_COOKIES`."
+
                     embed_fail = discord.Embed(
                         title="😿 NO AUDIO TRACK FOUND",
                         description=(
                             f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
-                            f"• **Supported Sources:** YouTube playback and Spotify metadata lookup only.\n"
-                            f"• If YouTube is restricting datacenter IPs, upload fresh YouTube cookies to Render Secret Files (`/etc/secrets/cookies.txt`) or set `YOUTUBE_COOKIES`."
+                            f"• **Supported Sources:** YouTube playback and Spotify metadata lookup only."
+                            f"{cookie_hint}"
                         ),
                         color=0xED4245,
                     )
@@ -2521,6 +2525,11 @@ class MusicCog(commands.Cog, name="Music"):
     ) -> List[app_commands.Choice[str]]:
         return await self.music_play_autocomplete(interaction, current)
 
+    @app_commands.command(name="search", description="Search YouTube and pick from top matching songs")
+    @app_commands.describe(query="Song search query")
+    async def alias_search(self, interaction: discord.Interaction, query: str) -> None:
+        await self.music_search.callback(self, interaction, query)
+
     @app_commands.command(name="pause", description="Pause music playback (Shortcut for /music pause)")
     async def alias_pause(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
@@ -3864,7 +3873,7 @@ class MusicCog(commands.Cog, name="Music"):
         track = None
         resolve_err = None
         try:
-            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=4.0)
+            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=6.0)
         except Exception as re:
             resolve_err = str(re)
         r_dur = (time.time() - r_t0) * 1000
