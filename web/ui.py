@@ -1034,7 +1034,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <span>🔊</span> <span id="sidebar-vc-text">Connecting to Voice Engine...</span>
         </div>
         <div id="auth-box-sidebar">
-          <a class="btn-login-discord" id="btn-login-link" href="/api/auth/url">
+          <a class="btn-login-discord" id="btn-login-link" href="/api/auth/login" onclick="startDiscordLogin(event)">
             <span>👾 Sign in with Discord</span>
           </a>
         </div>
@@ -1078,6 +1078,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue">🔀</button>
         <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
         <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause">▶</button>
+        <button class="p-btn" onclick="dispatchCmd('STOP')" title="Stop Playback">⏹</button>
         <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
         <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)">🔁</button>
       </div>
@@ -1137,6 +1138,21 @@ UI_HTML = r"""<!DOCTYPE html>
     // INITIALIZATION & REAL-TIME WEBSOCKET
     // =========================================================================
     document.addEventListener("DOMContentLoaded", async () => {
+      // Check for OAuth redirect query parameters
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('auth') === 'success') {
+        showToast("Signed in with Discord successfully! ✦");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (params.get('logout') === 'success') {
+        showToast("Logged out successfully");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (params.get('error')) {
+        const err = params.get('error');
+        const msg = params.get('message') || err;
+        showToast(`Auth notice: ${decodeURIComponent(msg)}`, "danger");
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+
       setupRealtimeWebSocket();
       await fetchAuthStatus();
       await fetchGuilds();
@@ -1209,10 +1225,25 @@ UI_HTML = r"""<!DOCTYPE html>
         `;
       } else {
         el.innerHTML = `
-          <a class="btn-login-discord" href="/api/auth/url">
+          <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)">
             <span>👾 Sign in with Discord</span>
           </a>
         `;
+      }
+    }
+
+    async function startDiscordLogin(e) {
+      if (e) e.preventDefault();
+      try {
+        const res = await fetch('/api/auth/url');
+        const json = await res.json();
+        if (json.success && json.data && json.data.url) {
+          window.location.href = json.data.url;
+        } else {
+          window.location.href = '/api/auth/login';
+        }
+      } catch (err) {
+        window.location.href = '/api/auth/login';
       }
     }
 
@@ -1221,6 +1252,8 @@ UI_HTML = r"""<!DOCTYPE html>
       currentUser = null;
       renderAuthBox(null);
       showToast("Logged out successfully");
+      await fetchGuilds();
+      await syncAll();
     }
 
     // =========================================================================
@@ -1233,7 +1266,9 @@ UI_HTML = r"""<!DOCTYPE html>
         if (json.success && json.data.guilds) {
           activeGuilds = json.data.guilds;
           if (activeGuilds.length > 0 && !activeGuilds.some(g => g.id === currentGuildId)) {
-            currentGuildId = activeGuilds[0].id;
+            // Find first authorized guild
+            const firstAuth = activeGuilds.find(g => g.authorized !== false) || activeGuilds[0];
+            currentGuildId = firstAuth.id;
           }
           renderGuildDropdown();
         }
@@ -1247,10 +1282,10 @@ UI_HTML = r"""<!DOCTYPE html>
 
       const menu = document.getElementById('server-dropdown-menu');
       menu.innerHTML = activeGuilds.map(g => `
-        <div class="server-opt ${g.id === currentGuildId ? 'selected' : ''}" onclick="selectServer('${g.id}')">
+        <div class="server-opt ${g.id === currentGuildId ? 'selected' : ''} ${g.authorized === false ? 'unauthorized' : ''}" onclick="selectServer('${g.id}')">
           <div class="server-icon" style="width:24px; height:24px; font-size:0.75rem;">${g.name.charAt(0)}</div>
           <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</span>
-          ${g.has_active_playback ? '<span style="color:var(--emerald); margin-left:auto;">▶</span>' : ''}
+          ${g.bot_in_guild === false ? '<span style="color:var(--danger); font-size:0.68rem; margin-left:auto;">Not in server</span>' : (g.authorized === false ? '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">🔒</span>' : (g.has_active_playback ? '<span style="color:var(--emerald); margin-left:auto;">▶</span>' : ''))}
         </div>
       `).join('');
     }
@@ -1264,9 +1299,18 @@ UI_HTML = r"""<!DOCTYPE html>
     });
 
     async function selectServer(guildId) {
+      const target = activeGuilds.find(g => g.id === guildId);
+      if (target && target.authorized === false) {
+        showToast("You lack permissions to control music in this server.", "danger");
+        return;
+      }
+      if (target && target.bot_in_guild === false) {
+        showToast("MusicMaid is not in this server. Invite the bot first!", "danger");
+        return;
+      }
       currentGuildId = guildId;
       renderGuildDropdown();
-      showToast(`Switched active server`);
+      showToast(`Switched active server to ${target ? target.name : guildId}`);
       await syncAll();
     }
 
@@ -1569,6 +1613,9 @@ UI_HTML = r"""<!DOCTYPE html>
                 <button class="btn btn-primary btn-sm" onclick="togglePlayPause()" id="hero-play-btn">
                   <span>${isPlaying && !isPaused ? '⏸ Pause' : '▶ Play'}</span>
                 </button>
+                <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('STOP')">
+                  <span>⏹ Stop</span>
+                </button>
                 <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SKIP')">
                   <span>⏭ Skip</span>
                 </button>
@@ -1713,7 +1760,7 @@ UI_HTML = r"""<!DOCTYPE html>
             <!-- SEARCH BAR -->
             <div class="search-hero-box">
               <span style="font-size:1.2rem; color:var(--cyan);">🔍</span>
-              <input type="text" id="live-search-input" class="search-input" placeholder="Type song name, artist, YouTube URL, or Spotify link..." oninput="onSearchInput(this.value)" autocomplete="off">
+              <input type="text" id="live-search-input" class="search-input" placeholder="Type song name, artist, YouTube URL, or Spotify link..." oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') triggerSearch()" autocomplete="off">
               <button class="btn btn-primary btn-sm" onclick="triggerSearch()">Search</button>
             </div>
 
@@ -1845,6 +1892,14 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
+          <!-- QUICK ADD INPUT BAR -->
+          <div class="glass-card" style="padding:1rem 1.4rem;">
+            <div style="display:flex; gap:0.8rem; align-items:center;">
+              <input type="text" id="queue-quick-input" class="search-input" placeholder="Quickly add a song title or YouTube/Spotify URL to queue..." style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-md); padding:0.6rem 1rem; flex:1;" onkeydown="if(event.key==='Enter') quickAddToQueue()">
+              <button class="btn btn-primary btn-sm" onclick="quickAddToQueue()">➕ Add to Queue</button>
+            </div>
+          </div>
+
           <!-- FULL QUEUE LIST -->
           <div class="glass-card">
             <div class="section-header">
@@ -1890,6 +1945,15 @@ UI_HTML = r"""<!DOCTYPE html>
         badge.innerText = currentQueue.length;
         container.innerHTML = renderFullQueueRows();
       }
+    }
+
+    async function quickAddToQueue() {
+      const input = document.getElementById('queue-quick-input');
+      const val = input ? input.value.trim() : '';
+      if (!val) return;
+      showToast(`Adding "${val}" to queue...`);
+      input.value = '';
+      await dispatchCmd('ENQUEUE', { query: val });
     }
 
     async function moveTrack(fromIdx, toIdx) {

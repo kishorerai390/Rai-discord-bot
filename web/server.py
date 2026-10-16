@@ -130,7 +130,7 @@ class RaiCommunityOSServer:
             "/creators", "/creators/{id}", "/gaming", "/music", "/media",
             "/resources", "/events", "/events/{id}", "/ideas", "/ideas/{id}",
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
-            "/status", "/wiki", "/mission-control", "/login",
+            "/status", "/wiki", "/mission-control",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites"
         ]
@@ -144,10 +144,14 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/leaderboard", self.handle_legacy_leaderboard)
 
         # Authentication API
+        app.router.add_get("/api/auth/login", r.auth_login)
+        app.router.add_get("/login", r.auth_login)
         app.router.add_get("/api/auth/url", r.auth_url)
         app.router.add_get("/api/auth/callback", r.auth_callback)
         app.router.add_get("/api/auth/me", r.auth_me)
+        app.router.add_get("/api/auth/logout", r.auth_logout)
         app.router.add_post("/api/auth/logout", r.auth_logout)
+        app.router.add_get("/logout", r.auth_logout)
         app.router.add_post("/api/auth/dev-login", r.auth_dev_login)
         app.router.add_post("/api/auth/discord-id-login", r.auth_dev_login)
 

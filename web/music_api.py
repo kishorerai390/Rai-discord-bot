@@ -69,16 +69,15 @@ class MusicApiRouter:
     # 1. GUILD DISCOVERY & STATE
     # ==========================================
     async def get_guilds(self, request: web.Request) -> web.Response:
-        """Fetch accessible guilds where the music bot is active."""
+        """Fetch accessible guilds where the music bot is active, validating user access."""
         await self._ensure_db()
         sm = SessionManager.get_instance()
         active_guild_ids = list(sm._sessions.keys())
 
-        # If user is logged in, optionally correlate with user's mutual guilds
         user = await self._get_current_user(request)
         guilds_data = []
 
-        # Default community fallback guilds
+        # Default fallback servers
         known_guilds = [
             {"id": 1525030316845301781, "name": "THOR APEX ⚡", "icon": None, "active": True},
             {"id": 1457382179981099090, "name": "✦ ʀᴀɪ ʀᴀᴍ ✦", "icon": None, "active": True},
@@ -96,13 +95,55 @@ class MusicApiRouter:
         except Exception:
             db_guild_ids = set()
 
-        for g in known_guilds:
-            g_id = g["id"]
+        # Map live guilds from Discord bot instance
+        bot_guilds = {}
+        if self.bot and hasattr(self.bot, "guilds"):
+            for bg in self.bot.guilds:
+                bot_guilds[bg.id] = bg
+
+        # Inspect authenticated user's mutual guilds if available
+        user_guild_ids = None
+        user_admin = False
+        if user:
+            user_admin = bool(user.get("is_admin", False))
+            raw_guilds = user.get("guilds") or []
+            if raw_guilds:
+                user_guild_ids = set()
+                for ug in raw_guilds:
+                    try:
+                        user_guild_ids.add(int(ug["id"]))
+                    except (ValueError, TypeError):
+                        pass
+
+        # Build consolidated candidate list
+        source_list = []
+        if bot_guilds:
+            for g_id, g_obj in bot_guilds.items():
+                source_list.append({
+                    "id": g_id,
+                    "name": g_obj.name,
+                    "icon": g_obj.icon.url if g_obj.icon else None,
+                    "bot_in_guild": True,
+                })
+        else:
+            source_list = known_guilds
+
+        for g in source_list:
+            g_id = int(g["id"])
             is_active = g_id in active_guild_ids or g_id in db_guild_ids
             session = sm.get_session_nowait(g_id) if hasattr(sm, "get_session_nowait") else None
             voice_name = None
             if session and session.voice_client and session.voice_client.channel:
                 voice_name = session.voice_client.channel.name
+
+            # Determine authorization
+            is_authorized = True
+            if user_guild_ids is not None and not user_admin:
+                is_authorized = g_id in user_guild_ids
+
+            bot_present = True
+            if self.bot and hasattr(self.bot, "get_guild"):
+                bot_present = self.bot.get_guild(g_id) is not None
 
             guilds_data.append({
                 "id": str(g_id),
@@ -110,7 +151,13 @@ class MusicApiRouter:
                 "icon": g.get("icon"),
                 "has_active_playback": is_active,
                 "voice_channel": voice_name or ("#❄️. Fun Time !" if g_id == 1525030316845301781 else None),
+                "authorized": is_authorized,
+                "bot_in_guild": bot_present,
             })
+
+        # If user is authenticated, prioritize authorized guilds
+        if user:
+            guilds_data.sort(key=lambda x: (not x["authorized"], not x["has_active_playback"], x["name"]))
 
         return json_success({"guilds": guilds_data, "user": user})
 
@@ -331,6 +378,16 @@ class MusicApiRouter:
         user = await self._get_current_user(request)
         user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
 
+        # Verify server-side authorization if user is authenticated
+        if user and self.bot and hasattr(self.bot, "get_guild"):
+            g_obj = self.bot.get_guild(int(guild_id_val))
+            if g_obj:
+                member_obj = g_obj.get_member(user_id)
+                if member_obj is None and not user.get("is_admin", False):
+                    user_guild_ids = {int(g["id"]) for g in user.get("guilds", []) if "id" in g}
+                    if user_guild_ids and int(guild_id_val) not in user_guild_ids:
+                        return json_error("UNAUTHORIZED_GUILD", "You are not authorized to control music in this server.", status=403)
+
         # Submit action to SQLite WAL queue for immediate bot pickup
         action_id = await self.db.submit_web_action(
             guild_id=int(guild_id_val),
@@ -408,6 +465,18 @@ class MusicApiRouter:
                         session.queue.insert(to_pos, item)
                         await MusicPlayerService.send_now_playing_panel(session)
                         await self.db.mark_web_action_completed(action_id, {"status": "moved", "from": from_pos, "to": to_pos})
+
+                elif action == "ENQUEUE":
+                    query = payload.get("query", "").strip()
+                    if query:
+                        from music_bot.services.resolver_service import AudioResolver
+                        track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                        if track:
+                            session.queue.append(track)
+                            if not session.is_playing and not session.has_active_track:
+                                await MusicPlayerService.start_playback(self.bot, session, track)
+                            await MusicPlayerService.send_now_playing_panel(session)
+                            await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title})
 
                 elif action == "PLAY_NEXT":
                     query = payload.get("query", "").strip()

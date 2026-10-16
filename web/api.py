@@ -9,8 +9,10 @@ import asyncio
 import datetime
 import json
 import logging
-import uuid
+import secrets
 import time
+import urllib.parse
+import uuid
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from aiohttp import web
 
@@ -105,31 +107,79 @@ class ApiRouter:
     # 1. AUTHENTICATION CONTROLLER
     # ==========================================
 
+    async def auth_login(self, request: web.Request) -> web.Response:
+        """Initiate Discord OAuth2 authorization redirect with CSRF state protection."""
+        if not self.auth.is_configured:
+            return web.HTTPFound("/?error=oauth_not_configured")
+
+        redirect_uri = self.auth.get_redirect_uri(request)
+        state = secrets.token_urlsafe(32)
+        oauth_url = self.auth.get_oauth_url(state=state, redirect_uri=redirect_uri)
+
+        resp = web.HTTPFound(oauth_url)
+        resp.set_cookie(
+            "oauth_state",
+            state,
+            max_age=600,
+            httponly=True,
+            samesite="Lax",
+            path="/",
+        )
+        raise resp
+
     async def auth_url(self, request: web.Request) -> web.Response:
-        url = self.auth.get_oauth_url()
-        return json_success({"url": url, "configured": bool(DISCORD_CLIENT_ID)})
+        """API endpoint returning the OAuth2 URL and setting CSRF state cookie."""
+        redirect_uri = self.auth.get_redirect_uri(request)
+        state = secrets.token_urlsafe(32)
+        url = self.auth.get_oauth_url(state=state, redirect_uri=redirect_uri)
+        resp = json_success({
+            "url": url,
+            "configured": self.auth.is_configured,
+            "redirect_uri": redirect_uri,
+        })
+        resp.set_cookie("oauth_state", state, max_age=600, httponly=True, samesite="Lax", path="/")
+        return resp
 
     async def auth_callback(self, request: web.Request) -> web.Response:
+        """Handle Discord OAuth2 code exchange and create authenticated web session."""
+        oauth_err = request.query.get("error")
+        if oauth_err:
+            desc = request.query.get("error_description", "Authorization was denied or cancelled.")
+            logger.info(f"Discord OAuth2 returned error: {oauth_err} - {desc}")
+            raise web.HTTPFound(f"/?error={oauth_err}&message={urllib.parse.quote(desc)}")
+
         code = request.query.get("code")
         if not code:
-            return web.HTTPFound("/?error=missing_code")
+            raise web.HTTPFound("/?error=missing_code")
 
-        token_data = await self.auth.exchange_code(code)
+        # Validate CSRF state parameter against cookie
+        state = request.query.get("state")
+        cookie_state = request.cookies.get("oauth_state")
+        if cookie_state and state and cookie_state != state:
+            logger.warning("OAuth2 state parameter mismatch (possible CSRF attack).")
+            raise web.HTTPFound("/?error=csrf_validation_failed")
+
+        redirect_uri = self.auth.get_redirect_uri(request)
+        token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
         if not token_data or "access_token" not in token_data:
-            return web.HTTPFound("/?error=oauth_exchange_failed")
+            raise web.HTTPFound("/?error=oauth_exchange_failed")
 
         user_info = await self.auth.fetch_discord_user(token_data["access_token"])
         if not user_info or "id" not in user_info:
-            return web.HTTPFound("/?error=failed_to_fetch_user")
+            raise web.HTTPFound("/?error=failed_to_fetch_user")
+
+        # Fetch accessible guilds for permission verification
+        user_guilds = await self.auth.fetch_discord_guilds(token_data["access_token"])
 
         session_id = await self.auth.create_session_for_user(
             discord_user=user_info,
             access_token=token_data.get("access_token"),
             refresh_token=token_data.get("refresh_token"),
             expires_in=token_data.get("expires_in", 604800),
+            user_guilds=user_guilds,
         )
 
-        resp = web.HTTPFound("/workspace")
+        resp = web.HTTPFound("/?auth=success")
         resp.set_cookie(
             SESSION_COOKIE_NAME,
             session_id,
@@ -138,7 +188,8 @@ class ApiRouter:
             samesite="Lax",
             path="/",
         )
-        return resp
+        resp.del_cookie("oauth_state", path="/")
+        raise resp
 
     async def auth_me(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
@@ -153,8 +204,17 @@ class ApiRouter:
     async def auth_logout(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
         if session:
-            await self.db.delete_web_session(session["session_id"])
-        resp = json_success({"logged_out": True})
+            try:
+                await self.db.delete_web_session(session["session_id"])
+            except Exception as e:
+                logger.debug(f"Session deletion note: {e}")
+
+        accept_header = request.headers.get("Accept", "")
+        if "text/html" in accept_header:
+            resp = web.HTTPFound("/?logout=success")
+        else:
+            resp = json_success({"logged_out": True})
+
         resp.del_cookie(SESSION_COOKIE_NAME, path="/")
         return resp
 

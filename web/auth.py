@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("Rai.WebAuth")
 
+import os
+
 SESSION_COOKIE_NAME = "rai_session"
 DISCORD_API_BASE = "https://discord.com/api/v10"
 
@@ -36,39 +38,71 @@ class AuthManager:
         self.db = db
         self.bot = bot
 
-    def get_oauth_url(self, state: Optional[str] = None) -> str:
+    @property
+    def is_configured(self) -> bool:
+        """Returns True if Discord OAuth2 credentials are configured."""
+        return bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET)
+
+    def get_redirect_uri(self, request: Optional[web.Request] = None) -> str:
+        """
+        Dynamically determine the valid Discord OAuth2 redirect URI.
+        Supports localhost for development and Render production domains seamlessly.
+        """
+        # 1. Check explicit DISCORD_REDIRECT_URI environment variable
+        env_uri = os.getenv("DISCORD_REDIRECT_URI", "").strip() or DISCORD_REDIRECT_URI
+
+        # 2. Check if deployed on Render (Render automatically exposes RENDER_EXTERNAL_URL)
+        render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+        if render_url:
+            # If deployed on Render and DISCORD_REDIRECT_URI is default localhost, use the Render production URL
+            if not env_uri or "localhost" in env_uri or "127.0.0.1" in env_uri:
+                return f"{render_url.rstrip('/')}/api/auth/callback"
+
+        # 3. If request is provided, inspect X-Forwarded-Host / Host header if not on default localhost
+        if request:
+            forwarded_proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+            forwarded_host = request.headers.get("X-Forwarded-Host", request.host)
+            if forwarded_host and not forwarded_host.startswith("0.0.0.0"):
+                # If host is an actual remote domain (e.g. onrender.com) and env_uri is still localhost
+                if "onrender.com" in forwarded_host and ("localhost" in env_uri or not env_uri):
+                    return f"{forwarded_proto}://{forwarded_host}/api/auth/callback"
+
+        return env_uri or "http://localhost:8080/api/auth/callback"
+
+    def get_oauth_url(self, state: Optional[str] = None, redirect_uri: Optional[str] = None) -> str:
         """Generate Discord OAuth2 authorization URL."""
         if not DISCORD_CLIENT_ID:
-            return "/login?error=oauth_not_configured"
+            return "/?error=oauth_not_configured"
 
         client_id = DISCORD_CLIENT_ID
-        redirect_uri = DISCORD_REDIRECT_URI
+        uri = redirect_uri or self.get_redirect_uri()
         scope = "identify guilds"
-        state = state or secrets.token_urlsafe(16)
+        state = state or secrets.token_urlsafe(24)
 
         params = {
             "client_id": client_id,
-            "redirect_uri": redirect_uri,
+            "redirect_uri": uri,
             "response_type": "code",
             "scope": scope,
             "state": state,
             "prompt": "consent",
         }
-        return f"{DISCORD_API_BASE}/oauth2/authorize?{urllib.parse.urlencode(params)}"
+        return f"https://discord.com/oauth2/authorize?{urllib.parse.urlencode(params)}"
 
-    async def exchange_code(self, code: str) -> Optional[Dict[str, Any]]:
+    async def exchange_code(self, code: str, redirect_uri: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Exchange authorization code for Discord access and refresh tokens."""
         if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
             logger.warning("Discord OAuth2 credentials are not configured.")
             return None
 
+        uri = redirect_uri or self.get_redirect_uri()
         token_url = f"{DISCORD_API_BASE}/oauth2/token"
         data = {
             "client_id": DISCORD_CLIENT_ID,
             "client_secret": DISCORD_CLIENT_SECRET,
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": DISCORD_REDIRECT_URI,
+            "redirect_uri": uri,
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
@@ -98,6 +132,20 @@ class AuthManager:
             logger.error(f"Failed to fetch Discord user: {e}", exc_info=True)
             return None
 
+    async def fetch_discord_guilds(self, access_token: str) -> List[Dict[str, Any]]:
+        """Fetch Discord user mutual/accessible guilds using bearer access token."""
+        guilds_url = f"{DISCORD_API_BASE}/users/@me/guilds"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(guilds_url, headers=headers) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    return []
+        except Exception as e:
+            logger.error(f"Failed to fetch Discord user guilds: {e}", exc_info=True)
+            return []
+
     async def create_session_for_user(
         self,
         discord_user: Dict[str, Any],
@@ -105,6 +153,7 @@ class AuthManager:
         refresh_token: Optional[str] = None,
         expires_in: int = 604800,
         is_admin_override: Optional[bool] = None,
+        user_guilds: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """Create a new session in database and return session_id."""
         session_id = secrets.token_urlsafe(32)
@@ -149,6 +198,7 @@ class AuthManager:
             ),
             "is_admin": is_admin,
             "is_staff": is_staff,
+            "guilds": user_guilds or [],
         }
 
         await self.db.create_web_session(
