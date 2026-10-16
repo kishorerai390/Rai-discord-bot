@@ -585,7 +585,7 @@ def _build_ytdl_options(
     Build yt-dlp extractor configuration options.
     Optimized strictly for authorized YouTube stream resolution.
     """
-    clients = player_clients or ["mweb", "web"]
+    clients = player_clients or ["android", "web"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "extractaudio": True,
@@ -604,7 +604,7 @@ def _build_ytdl_options(
         "extractor_args": {
             "youtube": {
                 "player_client": clients,
-                "skip": ["translated_subs", "dash", "hls"],
+                "skip": ["translated_subs"],
             }
         },
     }
@@ -662,10 +662,10 @@ class AudioResolver:
     _pending_tasks: Dict[str, asyncio.Task[Optional[QueuedTrack]]] = {}
 
     PROFILE_PRESETS: List[List[str]] = [
+        ["android", "web"],
         ["mweb", "web"],
-        ["web_safari", "ios"],
         ["tv"],
-        ["android", "ios"],
+        ["web_safari", "ios"],
     ]
     _active_profile_index: int = 0
     last_resolver_error: Optional[str] = None
@@ -856,12 +856,23 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=4.5,
+                timeout=6.0,
             )
         except Exception as e:
             err_msg = _format_error(e)
-            logger.warning(f"[Search] YouTube search failure for '{query}': {err_msg}")
-            return []
+            logger.warning(f"[Search] YouTube primary search failure for '{query}': {err_msg}")
+            try:
+                fb_opts = _build_ytdl_options(["web"], extract_flat=True)
+                fb_ydl = yt_dlp.YoutubeDL(fb_opts)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor, functools.partial(fb_ydl.extract_info, search_query, download=False)
+                    ),
+                    timeout=6.0,
+                )
+            except Exception as fb_err:
+                logger.warning(f"[Search] YouTube fallback search failure for '{query}': {_format_error(fb_err)}")
+                return []
 
         if not data:
             return []
@@ -1187,9 +1198,9 @@ class AudioResolver:
             )
             return scored[0]
 
-        # Tier 1: Primary Profile (mweb/web) - 5s timeout
+        # Tier 1: Primary Profile (android/web) - 5s timeout
         try:
-            tier1_opts = _build_ytdl_options(["mweb", "web"])
+            tier1_opts = _build_ytdl_options(["android", "web"])
             tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
@@ -1203,11 +1214,11 @@ class AudioResolver:
                 if track and track.stream_url:
                     track = _apply_metadata_enhancements(track)
                     dur = time.time() - start_t
-                    logger.info(f"[Resolver] Tier 1 (mweb/web) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
+                    logger.info(f"[Resolver] Tier 1 (android/web) resolved '{cleaned_query[:60]}' in {dur:.2f}s -> '{track.title}'")
                     return track
         except Exception as e:
             err_msg = _format_error(e)
-            cls.last_resolver_error = f"Tier 1 (mweb/web) notice: {err_msg}"
+            cls.last_resolver_error = f"Tier 1 (android/web) notice: {err_msg}"
             logger.info(f"[Resolver] Tier 1 failed for '{cleaned_query[:60]}': {err_msg}")
 
         # Tier 2: TV Profile (Bypasses most datacenter blocks and bot challenges) - 4.5s timeout
