@@ -386,6 +386,67 @@ class MusicApiRouter:
                     success, msg = await MusicPlayerService.stop(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "stopped", "message": msg})
 
+                elif action == "REMOVE":
+                    idx = int(payload.get("index", 0))
+                    if 0 <= idx < len(session.queue):
+                        removed = session.queue[idx]
+                        del session.queue[idx]
+                        await MusicPlayerService.send_now_playing_panel(session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "removed", "title": removed.title})
+
+                elif action == "CLEAR":
+                    session.queue.clear()
+                    await MusicPlayerService.send_now_playing_panel(session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "cleared"})
+
+                elif action == "MOVE":
+                    from_pos = int(payload.get("from_index", 0))
+                    to_pos = int(payload.get("to_index", 0))
+                    if 0 <= from_pos < len(session.queue) and 0 <= to_pos < len(session.queue):
+                        item = session.queue[from_pos]
+                        del session.queue[from_pos]
+                        session.queue.insert(to_pos, item)
+                        await MusicPlayerService.send_now_playing_panel(session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "moved", "from": from_pos, "to": to_pos})
+
+                elif action == "PLAY_NEXT":
+                    query = payload.get("query", "").strip()
+                    if query:
+                        from music_bot.services.resolver_service import AudioResolver
+                        track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                        if track:
+                            session.queue.appendleft(track)
+                            await MusicPlayerService.send_now_playing_panel(session)
+                            await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title})
+
+                elif action == "PLAY_NOW":
+                    query = payload.get("query", "").strip()
+                    if query:
+                        from music_bot.services.resolver_service import AudioResolver
+                        track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                        if track:
+                            if session.is_playing:
+                                session.queue.appendleft(track)
+                                await MusicPlayerService.skip(self.bot, session)
+                            else:
+                                await MusicPlayerService.start_playback(self.bot, session, track)
+                            await MusicPlayerService.send_now_playing_panel(session)
+                            await self.db.mark_web_action_completed(action_id, {"status": "playing_now", "title": track.title})
+
+                elif action == "AUTODJ_TOGGLE":
+                    session.dj_enabled = not getattr(session, "dj_enabled", False)
+                    session.autoplay = session.dj_enabled
+                    await self.db.mark_web_action_completed(action_id, {"status": "autodj_toggled", "enabled": session.dj_enabled})
+
+                elif action == "AUTODJ_MOOD":
+                    mood = payload.get("mood", "balanced").lower()
+                    session.dj_mood = mood
+                    await self.db.mark_web_action_completed(action_id, {"status": "autodj_mood_set", "mood": mood})
+
+                elif action == "247_TOGGLE":
+                    session.twenty_four_seven = not session.twenty_four_seven
+                    await self.db.mark_web_action_completed(action_id, {"status": "247_toggled", "enabled": session.twenty_four_seven})
+
                 elif action == "FAVORITE":
                     success, is_fav, msg = await MusicPlayerService.toggle_favorite(self.bot, user_id, session.current_track)
                     await self.db.mark_web_action_completed(action_id, {"status": "favorited" if is_fav else "unfavorited", "message": msg})
@@ -395,6 +456,20 @@ class MusicApiRouter:
                     name = payload.get("name", preset.title())
                     await MusicPlayerService.apply_filter_or_eq(self.bot, session, preset, name)
                     await self.db.mark_web_action_completed(action_id, {"status": "filter_applied", "preset": preset})
+
+                # Instant real-time broadcast to all connected WebSocket clients & SSE listeners
+                try:
+                    from web.realtime import RealtimeGateway
+                    rt = RealtimeGateway.get_instance()
+                    if rt:
+                        asyncio.create_task(rt.broadcast("MUSIC_UPDATED", {
+                            "guild_id": str(guild_id_val),
+                            "action": action,
+                            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                        }))
+                except Exception:
+                    pass
+
             except Exception as direct_err:
                 logger.debug(f"Direct dispatch note (delegating to worker): {direct_err}")
 
@@ -510,3 +585,193 @@ class MusicApiRouter:
             "last_heartbeat": heartbeat.last_heartbeat if heartbeat else None,
         }
         return json_success(data)
+
+    # ==========================================
+    # 8. PLAYLISTS (SAVE / LOAD / DELETE / LIST)
+    # ==========================================
+    async def get_playlists(self, request: web.Request) -> web.Response:
+        """List personal and server playlists for the active guild."""
+        await self._ensure_db()
+        guild_id = int(request.query.get("guild_id", "1525030316845301781"))
+        user = await self._get_current_user(request)
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+
+        playlists = await self.db.get_playlists(guild_id, user_id)
+        result = []
+        for p in playlists:
+            result.append({
+                "id": p.id,
+                "name": p.name,
+                "is_server": p.is_server,
+                "track_count": getattr(p, "track_count", len(p.tracks)),
+                "created_at": p.created_at,
+            })
+        return json_success({"guild_id": str(guild_id), "playlists": result})
+
+    async def save_playlist(self, request: web.Request) -> web.Response:
+        """Save the current queue and current song as a named playlist."""
+        await self._ensure_db()
+        body = await request.json()
+        guild_id = int(body.get("guild_id", 1525030316845301781))
+        name = body.get("name", "").strip()
+        is_server = bool(body.get("is_server", False))
+
+        if not name:
+            return json_error("MISSING_NAME", "Playlist name is required")
+
+        user = await self._get_current_user(request)
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+
+        tracks_to_save = []
+        if session:
+            if session.current_track:
+                tracks_to_save.append(session.current_track)
+            tracks_to_save.extend(list(session.queue))
+
+        if not tracks_to_save:
+            return json_error("EMPTY_QUEUE", "Current queue is empty; nothing to save to playlist")
+
+        pl_id = await self.db.create_playlist(guild_id, user_id, name, is_server=is_server)
+        if not pl_id:
+            return json_error("CREATE_FAILED", f"A playlist named '{name}' already exists in this server")
+
+        for idx, t in enumerate(tracks_to_save[:100]):
+            await self.db.add_playlist_track(
+                playlist_id=pl_id,
+                title=t.title,
+                url=t.url,
+                duration=t.duration or 0,
+                track_index=idx,
+                artist=t.artist or "Unknown",
+                thumbnail=t.thumbnail,
+            )
+
+        return json_success({"playlist_id": pl_id, "name": name, "track_count": len(tracks_to_save)})
+
+    async def load_playlist(self, request: web.Request) -> web.Response:
+        """Load a saved playlist into the guild's current music queue."""
+        await self._ensure_db()
+        body = await request.json()
+        guild_id = int(body.get("guild_id", 1525030316845301781))
+        name = body.get("name", "").strip()
+
+        if not name:
+            return json_error("MISSING_NAME", "Playlist name is required")
+
+        user = await self._get_current_user(request)
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+
+        playlist = await self.db.get_playlist(guild_id, name, user_id)
+        if not playlist or not playlist.tracks:
+            return json_error("NOT_FOUND", f"Playlist '{name}' not found or has no tracks")
+
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+
+        if session:
+            for t in playlist.tracks:
+                session.queue.append(t)
+            if not session.is_playing and not session.is_paused and session.queue and self.bot:
+                from music_bot.services.player_service import MusicPlayerService
+                await MusicPlayerService.start_playback(self.bot, session, session.queue.popleft())
+
+        return json_success({"name": playlist.name, "tracks_loaded": len(playlist.tracks)})
+
+    async def delete_playlist(self, request: web.Request) -> web.Response:
+        """Delete a saved playlist."""
+        await self._ensure_db()
+        body = await request.json()
+        guild_id = int(body.get("guild_id", 1525030316845301781))
+        name = body.get("name", "").strip()
+
+        user = await self._get_current_user(request)
+        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+
+        deleted = await self.db.delete_playlist(guild_id, user_id, name)
+        return json_success({"deleted": bool(deleted), "name": name})
+
+    # ==========================================
+    # 9. AUTO-DJ (STATUS, SETTINGS, RECOMMENDATIONS)
+    # ==========================================
+    async def get_autodj_status(self, request: web.Request) -> web.Response:
+        """Fetch live Auto-DJ state, mode, mood, and queue-fill status."""
+        guild_id = int(request.query.get("guild_id", "1525030316845301781"))
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+
+        enabled = bool(getattr(session, "dj_enabled", False) or (session.autoplay if session else False))
+        mood = getattr(session, "dj_mood", "balanced") if session else "balanced"
+
+        return json_success({
+            "guild_id": str(guild_id),
+            "enabled": enabled,
+            "mood": mood,
+            "supported_moods": ["balanced", "energetic", "chill", "gaming", "party", "lofi"],
+            "queue_fill_threshold": 1,
+            "station": getattr(session, "radio_station", None) if session else None,
+        })
+
+    async def set_autodj_settings(self, request: web.Request) -> web.Response:
+        """Update Auto-DJ settings: toggle on/off, change mood, or clear recommendations."""
+        body = await request.json()
+        guild_id = int(body.get("guild_id", 1525030316845301781))
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+
+        if not session:
+            return json_error("SESSION_NOT_FOUND", "No active session for guild")
+
+        if "enabled" in body:
+            session.dj_enabled = bool(body["enabled"])
+            session.autoplay = session.dj_enabled
+
+        if "mood" in body:
+            mood_val = str(body["mood"]).lower().strip()
+            if mood_val in ["balanced", "energetic", "chill", "gaming", "party", "lofi"]:
+                session.dj_mood = mood_val
+
+        # Broadcast update
+        try:
+            from web.realtime import RealtimeGateway
+            rt = RealtimeGateway.get_instance()
+            if rt:
+                asyncio.create_task(rt.broadcast("MUSIC_UPDATED", {"guild_id": str(guild_id), "action": "AUTODJ_CONFIG"}))
+        except Exception:
+            pass
+
+        return json_success({"enabled": session.dj_enabled, "mood": session.dj_mood})
+
+    async def get_autodj_recommendations(self, request: web.Request) -> web.Response:
+        """Fetch intelligent metadata-based recommendations based on current playing song and history."""
+        guild_id = int(request.query.get("guild_id", "1525030316845301781"))
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+
+        if not session:
+            return json_success([])
+
+        from music_bot.services.dj_service import NekoDJService
+        from music_bot.services.resolver_service import AudioResolver
+
+        rec_query_data = await NekoDJService.recommend_next_track(session)
+        recommendations = []
+        if rec_query_data:
+            q = rec_query_data.get("query", "")
+            try:
+                results = await AudioResolver.search(q, limit=5)
+                for r in results:
+                    recommendations.append({
+                        "title": r.get("title"),
+                        "artist": r.get("artist") or "Suggested Artist",
+                        "url": r.get("url"),
+                        "duration": r.get("duration"),
+                        "thumbnail": r.get("thumbnail"),
+                        "reason": rec_query_data.get("reason", "Similar musical style"),
+                    })
+            except Exception as e:
+                logger.debug(f"Auto-DJ recommendation search note: {e}")
+
+        return json_success(recommendations)

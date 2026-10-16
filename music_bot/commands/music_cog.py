@@ -718,9 +718,11 @@ class MusicCog(commands.Cog, name="Music"):
 
             # 1. Connect to voice with resilient bounded connection handling
             async with session.lock:
+                vc_err = None
                 try:
                     vc = await VoiceManager.join_voice_channel(member, text_channel, session)
-                except Exception as vc_err:
+                except Exception as e:
+                    vc_err = e
                     vc = None
                     session.last_error = str(vc_err)
                     logger.error(f"[Playback] Exception joining voice channel: {vc_err}", exc_info=True)
@@ -731,7 +733,7 @@ class MusicCog(commands.Cog, name="Music"):
 
                     # Only show "How to fix: Permissions..." if genuinely a Discord permission error
                     is_perm_err = (
-                        isinstance(vc_err, discord.Forbidden)
+                        (vc_err is not None and isinstance(vc_err, discord.Forbidden))
                         or ("403" in err_detail and "forbidden" in err_detail.lower())
                         or ("lacks permission" in err_detail.lower())
                         or ("missing permission" in err_detail.lower())

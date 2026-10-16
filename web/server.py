@@ -272,6 +272,13 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/music/enqueue", m.enqueue_track)
         app.router.add_get("/api/music/lyrics", m.get_lyrics)
         app.router.add_get("/api/music/stats", m.get_stats)
+        app.router.add_get("/api/music/playlists", m.get_playlists)
+        app.router.add_post("/api/music/playlists/save", m.save_playlist)
+        app.router.add_post("/api/music/playlists/load", m.load_playlist)
+        app.router.add_post("/api/music/playlists/delete", m.delete_playlist)
+        app.router.add_get("/api/music/autodj", m.get_autodj_status)
+        app.router.add_post("/api/music/autodj/settings", m.set_autodj_settings)
+        app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
 
     async def _outbox_worker_loop(self) -> None:
         """Background worker for asynchronous, idempotent Discord channel synchronization."""
