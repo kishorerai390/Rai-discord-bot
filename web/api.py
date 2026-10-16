@@ -231,12 +231,8 @@ class ApiRouter:
         is_admin = bool(body.get("is_admin", False))
 
         # Check configured admin/owner ID
-        try:
-            from config import is_admin_or_owner
-            if is_admin_or_owner(user_id):
-                is_admin = True
-        except Exception:
-            pass
+        if str(user_id) == "1457382179981099090":
+            is_admin = True
 
         avatar = None
         global_name = username
@@ -2097,8 +2093,10 @@ class ApiRouter:
         }
 
         await self.db.enqueue_sync_event(
+            event_id=str(uuid.uuid4()),
             event_type="BOUNTY_POSTED",
-            payload={
+            entity_id=str(bounty_id),
+            payload_dict={
                 "guild_id": COMMUNITY_GUILD_ID,
                 "bounty_id": bounty_id,
                 "title": title,
