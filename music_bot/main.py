@@ -88,7 +88,16 @@ def main():
         logger.info("🐾 Keyboard interrupt received. Stopping Neko Songs.")
     except Exception as e:
         if "LoginFailure" in type(e).__name__:
-            print("\n[ERROR] Discord rejected the bot token! Please verify NEKO_SONGS_BOT_TOKEN.")
+            print("\n" + "=" * 60)
+            print("[ERROR] Discord rejected the bot token (HTTP 401 Unauthorized)!")
+            print(f"Active Token: {get_masked_music_token()} (length: {len(MUSIC_BOT_TOKEN)})")
+            print("To fix this in your Render Dashboard / .env:")
+            print("1. Open Discord Developer Portal -> Applications -> [Your Bot Application].")
+            print("2. In the left sidebar, click 'Bot' (NOT OAuth2).")
+            print("3. Click 'Reset Token' and copy the freshly generated Bot Token.")
+            print("4. In Render Dashboard -> Environment, set MUSIC_BOT_TOKEN to that token.")
+            print("5. Ensure there are no surrounding quotes or extra spaces.")
+            print("=" * 60 + "\n")
             sys.exit(2)
         logger.critical(f"Critical Neko Songs failure: {e}", exc_info=True)
         sys.exit(1)
