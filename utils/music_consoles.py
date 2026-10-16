@@ -15,8 +15,7 @@ import discord
 from discord import ui
 
 if TYPE_CHECKING:
-    from core.bot import SentinelBot
-    from cogs.music import MusicCog, GuildMusicPlayer
+    from discord.ext import commands
 
 # ==========================================
 # 1. MUSIC REQUESTS & SEARCH HUB
@@ -372,7 +371,7 @@ class MusicConsolesDispatcher:
     """Handles interactions for all 4 music consoles with real-time feedback."""
 
     @classmethod
-    async def handle_interaction(cls, bot: "SentinelBot", interaction: discord.Interaction) -> bool:
+    async def handle_interaction(cls, bot: commands.Bot, interaction: discord.Interaction) -> bool:
         cid = interaction.data.get("custom_id", "") if interaction.data else ""
         if not cid:
             return False
@@ -393,7 +392,7 @@ class MusicConsolesDispatcher:
         return False
 
     @classmethod
-    async def _handle_requests(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_requests(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         music_cog = bot.get_cog("Music")
 
@@ -434,7 +433,7 @@ class MusicConsolesDispatcher:
             await interaction.response.send_message(embed=q_embed, ephemeral=True)
 
     @classmethod
-    async def _handle_queue(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_queue(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         guild = interaction.guild
         if not guild:
@@ -476,7 +475,7 @@ class MusicConsolesDispatcher:
             await interaction.response.send_message(f"🗑️ Cleared {cleared_count} tracks from the queue.", ephemeral=True)
 
     @classmethod
-    async def _handle_dj(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_dj(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         guild = interaction.guild
         music_cog = bot.get_cog("Music")
@@ -503,7 +502,7 @@ class MusicConsolesDispatcher:
             await interaction.response.send_message("🔄 **Equalizer Reset**: Returned to flat Ultra-HD studio fidelity.", ephemeral=True)
 
     @classmethod
-    async def _handle_playlists(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_playlists(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not member or not member.voice or not member.voice.channel:

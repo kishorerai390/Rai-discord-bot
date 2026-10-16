@@ -25,7 +25,7 @@ import discord
 from discord import ui
 
 if TYPE_CHECKING:
-    from core.bot import SentinelBot
+    from discord.ext import commands
 
 logger = logging.getLogger("Rai.LuxuryConsoles")
 
@@ -506,7 +506,7 @@ class LuxuryConsolesDispatcher:
     """Handles interactions for all luxury consoles with resilient execution."""
 
     @classmethod
-    async def handle_interaction(cls, bot: "SentinelBot", interaction: discord.Interaction) -> bool:
+    async def handle_interaction(cls, bot: commands.Bot, interaction: discord.Interaction) -> bool:
         cid = interaction.data.get("custom_id", "") if interaction.data else ""
         if not cid:
             return False
@@ -539,7 +539,7 @@ class LuxuryConsolesDispatcher:
         return False
 
     @classmethod
-    async def _handle_pulse(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_pulse(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         guild = interaction.guild
         if not guild:
             await interaction.response.send_message("❌ Guild context required.", ephemeral=True)
@@ -592,7 +592,7 @@ class LuxuryConsolesDispatcher:
             await interaction.response.send_message(embed=r_embed, ephemeral=True)
 
     @classmethod
-    async def _handle_clock(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_clock(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         guild = interaction.guild
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not guild or not member:
@@ -651,7 +651,7 @@ class LuxuryConsolesDispatcher:
             await interaction.response.send_message(embed=cal_embed, ephemeral=True)
 
     @classmethod
-    async def _handle_vip(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_vip(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         guild = interaction.guild
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not guild or not member:
@@ -711,7 +711,7 @@ class LuxuryConsolesDispatcher:
             await interaction.response.send_message(embed=g_embed, ephemeral=True)
 
     @classmethod
-    async def _handle_quarantine(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_quarantine(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         guild = interaction.guild
         if not guild:
             await interaction.response.send_message("❌ Guild context required.", ephemeral=True)
@@ -754,7 +754,7 @@ class LuxuryConsolesDispatcher:
             await interaction.response.send_message(embed=s_embed, ephemeral=True)
 
     @classmethod
-    async def _handle_soundscape(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_soundscape(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not member:
             await interaction.response.send_message("❌ User context required.", ephemeral=True)

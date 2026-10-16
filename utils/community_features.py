@@ -15,7 +15,7 @@ import discord
 from discord import ui
 
 if TYPE_CHECKING:
-    from core.bot import SentinelBot
+    from discord.ext import commands
 
 MEDIA_CHANNEL_ID = 1551184138932068373
 GENERAL_CHAT_ID = 1545502730699808768
@@ -423,7 +423,7 @@ class CommunityFeaturesDispatcher:
     """Handles interactions across all community feature consoles."""
 
     @classmethod
-    async def handle_interaction(cls, bot: "SentinelBot", interaction: discord.Interaction) -> bool:
+    async def handle_interaction(cls, bot: commands.Bot, interaction: discord.Interaction) -> bool:
         cid = interaction.data.get("custom_id", "") if interaction.data else ""
         if not cid:
             return False
@@ -447,7 +447,7 @@ class CommunityFeaturesDispatcher:
         return False
 
     @classmethod
-    async def _handle_welcome(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_welcome(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         routes = {
             "verify": (f"✨ Head to <#{VERIFY_CHANNEL_ID}> to accept guidelines and unlock your member role.", VERIFY_CHANNEL_ID),
@@ -460,7 +460,7 @@ class CommunityFeaturesDispatcher:
             await interaction.response.send_message(msg, ephemeral=True)
 
     @classmethod
-    async def _handle_media(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_media(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         if action == "upvote_info":
             await interaction.response.send_message(
@@ -493,7 +493,7 @@ class CommunityFeaturesDispatcher:
             await interaction.response.send_message(embed=h_embed, ephemeral=True)
 
     @classmethod
-    async def _handle_commands(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_commands(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         action = cid.split(":", 1)[1]
         if action == "music":
             embed = discord.Embed(
@@ -547,7 +547,7 @@ class CommunityFeaturesDispatcher:
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @classmethod
-    async def _handle_mod(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_mod(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not member or not (member.guild_permissions.manage_channels or member.guild_permissions.administrator):
             await interaction.response.send_message("❌ Administrator or Manage Channels permission required.", ephemeral=True)
@@ -618,7 +618,7 @@ class CommunityFeaturesDispatcher:
             )
 
     @classmethod
-    async def _handle_theme(cls, bot: "SentinelBot", interaction: discord.Interaction, cid: str) -> None:
+    async def _handle_theme(cls, bot: commands.Bot, interaction: discord.Interaction, cid: str) -> None:
         member = interaction.user if isinstance(interaction.user, discord.Member) else None
         if not member or not member.voice or not member.voice.channel:
             await interaction.response.send_message("❌ You must be connected to your created voice channel to apply a theme!", ephemeral=True)
