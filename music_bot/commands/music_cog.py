@@ -636,6 +636,8 @@ class MusicControlPanelView(discord.ui.View):
 
             settings.twenty_four_seven_enabled = True
             self.session.twenty_four_seven = True
+            self.session.is_intentional_stop = False
+            self.session.is_intentional_disconnect = False
             if target_vc:
                 settings.twenty_four_seven_channel_id = target_vc.id
 
@@ -649,6 +651,7 @@ class MusicControlPanelView(discord.ui.View):
         else:
             settings.twenty_four_seven_enabled = False
             self.session.twenty_four_seven = False
+            self.session.is_intentional_disconnect = True
             settings.twenty_four_seven_channel_id = None
             await self.bot.db.update_guild_settings(settings)
 
@@ -1568,6 +1571,8 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.is_intentional_stop = False
+        session.is_intentional_disconnect = False
         vc = await VoiceManager.join_voice_channel(interaction.user, interaction.channel, session)  # type: ignore
         if vc:
             await interaction.followup.send(DIALOGUE_JOIN)
@@ -1577,12 +1582,31 @@ class MusicCog(commands.Cog, name="Music"):
     @music_group.command(name="leave", description="Disconnect Neko Songs from voice")
     async def music_leave(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
-        await self.music_stop.callback(self, interaction)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        session.is_intentional_disconnect = True
+        session.is_intentional_stop = True
+        if session.auto_leave_task and not session.auto_leave_task.done():
+            session.auto_leave_task.cancel()
+            session.auto_leave_task = None
+
+        if session.voice_client:
+            try:
+                if session.voice_client.is_playing() or session.voice_client.is_paused():
+                    session.voice_client.stop()
+                await session.voice_client.disconnect(force=True)
+            except Exception:
+                pass
+            session.voice_client = None
+
+        session.queue.clear()
+        session.current_track = None
+        session.state = PlaybackState.IDLE
+        await interaction.followup.send("👋 Disconnected from voice channel. Goodbye! (Use `/play` or `/247 reconnect` to rejoin)")
 
     @app_commands.command(name="disconnect", description="Disconnect Neko Songs from voice")
     async def music_disconnect(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
-        await self.music_stop.callback(self, interaction)
+        await self.music_leave.callback(self, interaction)
 
     # --- 2. RECOMMENDATIONS & NEKO DJ ---
 
@@ -2163,6 +2187,7 @@ class MusicCog(commands.Cog, name="Music"):
             await self.bot.db.update_guild_settings(settings)
             session.twenty_four_seven = True
             session.is_intentional_stop = False
+            session.is_intentional_disconnect = False
 
             if is_connected:
                 embed = discord.Embed(
@@ -2204,6 +2229,7 @@ class MusicCog(commands.Cog, name="Music"):
             settings.twenty_four_seven_channel_id = None
             await self.bot.db.update_guild_settings(settings)
             session.twenty_four_seven = False
+            session.is_intentional_disconnect = True
 
             if session.voice_client and session.voice_client.is_connected():
                 humans = [m for m in session.voice_client.channel.members if not m.bot]
@@ -3679,6 +3705,30 @@ class MusicCog(commands.Cog, name="Music"):
         success, msg = await MusicPlayerService.stop(self.bot, session)
         await ctx.reply(msg, mention_author=False)
 
+    @commands.command(name="leave", aliases=["disconnect", "dc"])
+    async def pfx_leave(self, ctx: commands.Context) -> None:
+        """Disconnects the bot from voice channel."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        session.is_intentional_disconnect = True
+        session.is_intentional_stop = True
+        if session.auto_leave_task and not session.auto_leave_task.done():
+            session.auto_leave_task.cancel()
+            session.auto_leave_task = None
+        if session.voice_client:
+            try:
+                if session.voice_client.is_playing() or session.voice_client.is_paused():
+                    session.voice_client.stop()
+                await session.voice_client.disconnect(force=True)
+            except Exception:
+                pass
+            session.voice_client = None
+        session.queue.clear()
+        session.current_track = None
+        session.state = PlaybackState.IDLE
+        await ctx.reply("👋 Disconnected from voice channel. Goodbye! (Use `/play` or `/247 reconnect` to rejoin)", mention_author=False)
+
     @commands.command(name="queue", aliases=["q"])
     async def pfx_queue(self, ctx: commands.Context) -> None:
         """Views upcoming songs in queue."""
@@ -3776,6 +3826,8 @@ class MusicCog(commands.Cog, name="Music"):
 
             if target_vc:
                 settings.twenty_four_seven_channel_id = target_vc.id
+            session.is_intentional_stop = False
+            session.is_intentional_disconnect = False
             if session.auto_leave_task and not session.auto_leave_task.done():
                 session.auto_leave_task.cancel()
                 session.auto_leave_task = None
@@ -3783,6 +3835,7 @@ class MusicCog(commands.Cog, name="Music"):
             await ctx.reply(f"📻 **24/7 Mode ACTIVATED** in **{target_vc.name if target_vc else 'voice'}**! MusicMaid will stay connected indefinitely.", mention_author=False)
         else:
             settings.twenty_four_seven_channel_id = None
+            session.is_intentional_disconnect = True
             await self.bot.db.update_guild_settings(settings)
             await ctx.reply("📻 **24/7 Mode DEACTIVATED**.", mention_author=False)
 

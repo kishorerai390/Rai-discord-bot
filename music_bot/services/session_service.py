@@ -95,6 +95,7 @@ class GuildMusicSession:
         self.recent_skipped_urls: set[str] = set()
         self.playback_generation: int = 0
         self.is_intentional_stop: bool = False
+        self.is_intentional_disconnect: bool = False
         self.last_checkpoint_pos: int = 0
         self.last_checkpoint_time: float = 0.0
         self.recovery_attempts: int = 0
@@ -158,7 +159,8 @@ class GuildMusicSession:
         self.paused_duration = 0.0
         self.skip_votes.clear()
         self.recovery_status = None
-        self.is_intentional_stop = True
+        # Natural track/queue completion is not an intentional user disconnect
+        self.is_intentional_stop = False
 
 
 class SessionManager:

@@ -36,6 +36,10 @@ wheels/
 *.egg
 
 # Database & Runtime Data
+*.db
+*.db-wal
+*.db-shm
+backups/
 database/*.db
 database/*.db-wal
 database/*.db-shm

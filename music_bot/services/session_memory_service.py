@@ -362,47 +362,112 @@ class MusicSessionMemoryService:
         cls,
         bot: RaiMusicBot,
         guild_id: int,
+        channel_id: Optional[int] = None,
     ) -> None:
         """Handles sudden voice disconnection with bounded exponential backoff and jitter."""
         session = bot.session_manager.get_session_sync(guild_id)
         if not session:
             return
 
-        # Do NOT reconnect if the stop was intentionally triggered by a user command (/stop, /disconnect)
-        if session.is_intentional_stop:
-            logger.info(f"[SessionMemory] Guild {guild_id} voice disconnect was intentional; skipping recovery.")
+        # Do NOT reconnect if the disconnect was explicitly commanded by the user (/leave, /disconnect, /247 disable)
+        if getattr(session, "is_intentional_disconnect", False):
+            logger.info(f"[SessionMemory] Guild {guild_id} voice disconnect was intentional user leave; skipping recovery.")
             return
 
+        # Check authoritative 24/7 status
+        is_247 = getattr(session, "twenty_four_seven", False)
+        g_set = None
+        if bot and getattr(bot, "db", None) and hasattr(bot.db, "get_guild_settings"):
+            try:
+                g_set = await bot.db.get_guild_settings(guild_id)
+                if g_set and g_set.twenty_four_seven_enabled:
+                    is_247 = True
+                    session.twenty_four_seven = True
+            except Exception:
+                pass
+
         if guild_id in cls._reconnecting_guilds:
+            logger.debug(f"[SessionMemory] Guild {guild_id} already has a reconnect task in-flight; skipping duplicate.")
             return
         cls._reconnecting_guilds.add(guild_id)
 
         try:
-            logger.warning(f"[SessionMemory] Unexpected voice disconnect detected in guild {guild_id}! Initiating recovery...")
+            logger.warning(
+                f"[SessionMemory] Unexpected voice disconnect detected in guild {guild_id} "
+                f"(24/7: {is_247})! Initiating bounded recovery..."
+            )
             session.state = PlaybackState.RECOVERING
 
             # 1. Immediate checkpoint of last known position
-            await cls.checkpoint_session(bot, session, reason="unexpected_disconnect")
+            try:
+                await cls.checkpoint_session(bot, session, reason="unexpected_disconnect")
+            except Exception as cp_err:
+                logger.debug(f"[SessionMemory] Checkpoint on disconnect notice: {cp_err}")
 
             guild = bot.get_guild(guild_id)
             if not guild:
                 return
 
-            saved = await bot.db.get_persistent_session(guild_id)
-            if not saved or not saved.voice_channel_id:
+            saved = None
+            if bot.db:
+                try:
+                    saved = await bot.db.get_persistent_session(guild_id)
+                except Exception:
+                    pass
+
+            # Resolve target voice channel: parameter > saved session > guild settings > previous channel
+            target_ch_id = channel_id
+            if not target_ch_id and saved and saved.voice_channel_id:
+                target_ch_id = saved.voice_channel_id
+            if not target_ch_id and g_set and g_set.twenty_four_seven_channel_id:
+                target_ch_id = g_set.twenty_four_seven_channel_id
+            if not target_ch_id and session.voice_client and session.voice_client.channel:
+                target_ch_id = session.voice_client.channel.id
+
+            # If neither 24/7 mode nor an active saved session exists, abort recovery
+            if not is_247 and (not saved or not saved.current_track):
+                logger.info(f"[SessionMemory] Guild {guild_id}: Neither 24/7 mode nor active queue exists. Recovery not required.")
+                session.state = PlaybackState.IDLE
                 return
 
-            vc_channel = guild.get_channel(saved.voice_channel_id)
+            if not target_ch_id:
+                # If target channel unknown but 24/7 is on, look for any accessible voice channel
+                if is_247:
+                    for ch in guild.voice_channels:
+                        if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                            target_ch_id = ch.id
+                            break
+                if not target_ch_id:
+                    logger.warning(f"[SessionMemory] Guild {guild_id}: Target voice channel cannot be determined. Aborting reconnect.")
+                    session.state = PlaybackState.IDLE
+                    return
+
+            vc_channel = guild.get_channel(target_ch_id)
+            if not vc_channel:
+                try:
+                    vc_channel = await guild.fetch_channel(target_ch_id)
+                except Exception:
+                    pass
+
             if not isinstance(vc_channel, (discord.VoiceChannel, discord.StageChannel)):
-                logger.warning(f"[SessionMemory] Voice channel {saved.voice_channel_id} no longer exists. Aborting reconnect.")
-                return
+                if is_247:
+                    for ch in guild.voice_channels:
+                        if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                            vc_channel = ch
+                            break
+                if not vc_channel:
+                    logger.warning(f"[SessionMemory] Voice channel {target_ch_id} no longer exists. Aborting reconnect.")
+                    session.state = PlaybackState.IDLE
+                    return
 
-            perms = vc_channel.permissions_for(guild.me)
-            if not perms.connect or not perms.speak:
-                logger.warning(f"[SessionMemory] Lacking permissions in #{vc_channel.name}. Aborting reconnect.")
-                return
+            if guild.me:
+                perms = vc_channel.permissions_for(guild.me)
+                if not perms.connect or not perms.speak:
+                    logger.warning(f"[SessionMemory] Lacking Connect/Speak permissions in #{vc_channel.name}. Aborting reconnect.")
+                    session.state = PlaybackState.ERROR
+                    return
 
-            text_ch = guild.get_channel(saved.text_channel_id or 0) or session.text_channel
+            text_ch = (guild.get_channel(saved.text_channel_id or 0) if saved else None) or session.text_channel
 
             # 2. Bounded Exponential Backoff with Jitter (e.g. 2s, 4s, 8s, max 3 attempts)
             delays = [2.0, 4.0, 8.0]
@@ -412,7 +477,7 @@ class MusicSessionMemoryService:
                 session.recovery_attempts = attempt
                 jitter = random.uniform(0.1, 0.9)
                 delay = base_delay + jitter
-                logger.info(f"[SessionMemory] Reconnection attempt {attempt}/3 for guild {guild_id} in {delay:.2f}s...")
+                logger.info(f"[SessionMemory] Reconnection attempt {attempt}/3 for guild {guild_id} to #{vc_channel.name} in {delay:.2f}s...")
                 await asyncio.sleep(delay)
 
                 try:
@@ -428,14 +493,16 @@ class MusicSessionMemoryService:
                     logger.debug(f"[SessionMemory] Attempt {attempt} failed: {e}")
 
             if not reconnected:
-                logger.error(f"[SessionMemory] All reconnection attempts failed for guild {guild_id}.")
+                logger.error(f"[SessionMemory] All 3 bounded reconnection attempts failed for guild {guild_id}.")
                 session.state = PlaybackState.ERROR
+                session.recovery_status = "Disconnected (Will retry in 24/7 guardian loop)"
                 return
 
             logger.info(f"[SessionMemory] Successfully reconnected to #{vc_channel.name} in {guild.name}!")
+            session.recovery_status = "Connected (24/7 active)"
 
-            # 3. Resume playback at checkpoint
-            if saved.current_track and saved.session_status != "PAUSED":
+            # 3. Resume playback at checkpoint if track was playing
+            if saved and saved.current_track and saved.session_status != "PAUSED":
                 from music_bot.services.player_service import MusicPlayerService
                 pos = saved.last_known_position
                 if pos > 3:
@@ -443,7 +510,7 @@ class MusicSessionMemoryService:
                 else:
                     await MusicPlayerService.start_playback(bot, session, saved.current_track)
 
-            session.state = PlaybackState.PLAYING if session.voice_client and session.voice_client.is_playing() else PlaybackState.CONNECTED
+            session.state = PlaybackState.PLAYING if (session.voice_client and session.voice_client.is_playing()) else PlaybackState.CONNECTED
         except Exception as err:
             logger.error(f"[SessionMemory] Disconnect recovery handler error for guild {guild_id}: {err}", exc_info=True)
         finally:

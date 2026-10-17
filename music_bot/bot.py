@@ -515,11 +515,20 @@ class NekoSongsBot(commands.Bot):
         # Phase 7: Unexpected voice disconnect detection & backoff recovery
         if member.id == self.user.id and not after.channel and before.channel:
             session = await self.session_manager.get_session(member.guild.id)
-            if not session.is_intentional_stop:
+            if not getattr(session, "is_intentional_disconnect", False):
                 from music_bot.services.session_memory_service import MusicSessionMemoryService
-                logger.warning(f"Involuntary voice disconnect for {member.guild.name}. Scheduling recovery...")
+                logger.warning(
+                    f"[Voice] Involuntary voice disconnect for guild '{member.guild.name}' (ID: {member.guild.id}) "
+                    f"from #{before.channel.name} ({before.channel.id}). Scheduling bounded recovery..."
+                )
                 asyncio.create_task(
-                    MusicSessionMemoryService.handle_unexpected_disconnect(self, member.guild.id)
+                    MusicSessionMemoryService.handle_unexpected_disconnect(
+                        self, member.guild.id, channel_id=before.channel.id
+                    )
+                )
+            else:
+                logger.info(
+                    f"[Voice] Intentional user disconnect for guild '{member.guild.name}'; skipping recovery."
                 )
             return
 
@@ -723,17 +732,26 @@ class NekoSongsBot(commands.Bot):
                 session = await self.session_manager.get_session(guild.id)
                 session.twenty_four_seven = True
 
-                # If intentionally stopped, allow explicit disconnect until resumed
-                if session.is_intentional_stop:
+                # Only skip if the user explicitly commanded the bot to leave the voice channel
+                if getattr(session, "is_intentional_disconnect", False):
                     continue
 
                 vc = guild.voice_client
-                if vc and vc.is_connected():
+                if vc and vc.is_connected() and getattr(vc, "channel", None):
                     session.voice_client = vc
                     continue
+                elif vc:
+                    # Stale / dead voice client state; purge before attempting clean reconnect
+                    from music_bot.services.voice_service import VoiceManager
+                    await VoiceManager._purge_voice_client_state(guild)
 
                 target_vc_id = g_set.twenty_four_seven_channel_id
                 target_vc = guild.get_channel(target_vc_id) if target_vc_id else None
+                if not target_vc and target_vc_id:
+                    try:
+                        target_vc = await guild.fetch_channel(target_vc_id)
+                    except Exception:
+                        pass
                 if not target_vc:
                     for ch in guild.voice_channels:
                         if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
@@ -769,6 +787,8 @@ class NekoSongsBot(commands.Bot):
                     if reconnected_vc and reconnected_vc.is_connected():
                         session.voice_client = reconnected_vc
                         session.is_intentional_stop = False
+                        session.is_intentional_disconnect = False
+                        session.recovery_status = "Connected (24/7 active)"
                         logger.info(
                             f"[Voice] [24/7 Guardian SUCCESS] Reconnected 24/7 voice client in {guild.name} "
                             f"to #{target_vc.name}"

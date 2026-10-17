@@ -102,6 +102,9 @@ class MusicPlayerService:
         cls, bot: RaiMusicBot, session: GuildMusicSession, track: QueuedTrack
     ) -> bool:
         """Start playing track on session's voice client."""
+        session.is_intentional_stop = False
+        session.is_intentional_disconnect = False
+
         if not session.voice_client or not session.voice_client.is_connected():
             logger.warning(f"Cannot start playback in guild {session.guild_id}: voice client not connected.")
             session.state = PlaybackState.DISCONNECTED
@@ -1363,6 +1366,24 @@ class MusicPlayerService:
                 session.progress_updater_task.cancel()
                 session.progress_updater_task = None
 
+            # Check in-memory and persistent 24/7 settings
+            is_247 = getattr(session, "twenty_four_seven", False) is True
+            if not is_247 and bot and getattr(bot, "db", None) and hasattr(bot.db, "get_guild_settings"):
+                try:
+                    g_set = await bot.db.get_guild_settings(session.guild_id)
+                    if g_set and getattr(g_set, "twenty_four_seven_enabled", None) is True:
+                        is_247 = True
+                        session.twenty_four_seven = True
+                except Exception:
+                    pass
+
+            session.is_intentional_stop = True
+            if is_247:
+                # In 24/7 mode, stopping playback leaves the bot in the voice channel without poisoning voice recovery
+                session.is_intentional_disconnect = False
+            else:
+                session.is_intentional_disconnect = True
+
             if session.voice_client:
                 if session.voice_client.is_playing() or session.voice_client.is_paused():
                     try:
@@ -1370,18 +1391,7 @@ class MusicPlayerService:
                     except Exception:
                         pass
 
-                # Check in-memory and persistent 24/7 settings
-                is_247 = getattr(session, "twenty_four_seven", False)
-                if not is_247 and bot and getattr(bot, "db", None) and hasattr(bot.db, "get_guild_settings"):
-                    try:
-                        g_set = await bot.db.get_guild_settings(session.guild_id)
-                        if g_set and g_set.twenty_four_seven_enabled:
-                            is_247 = True
-                            session.twenty_four_seven = True
-                    except Exception:
-                        pass
-
-                # If 24/7 mode is NOT enabled, disconnect
+                # If 24/7 mode is NOT enabled, disconnect from voice
                 if not is_247:
                     try:
                         await session.voice_client.disconnect()
@@ -1401,6 +1411,8 @@ class MusicPlayerService:
                     session.now_playing_message = None
 
             session.reset()
+            session.is_intentional_stop = True
+            session.is_intentional_disconnect = not is_247
 
             if bot and getattr(bot, "db", None) and hasattr(bot.db, "delete_session"):
                 try:
