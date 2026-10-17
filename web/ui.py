@@ -1344,8 +1344,8 @@ UI_HTML = r"""<!DOCTYPE html>
       <a class="brand-box" onclick="navigate('/')">
         <div class="brand-avatar">🎵</div>
         <div class="brand-title-wrap">
-          <h1>MusicMaid</h1>
-          <p>320kbps Lossless</p>
+          <h1>Noctyra Studio</h1>
+          <p>Powered by NyxTune</p>
         </div>
       </a>
 
@@ -1375,7 +1375,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Playlists & Library</a></li>
         <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & DSP</a></li>
         <li><a class="nav-link" id="nav-stats" onclick="navigate('/stats')"><span class="nav-icon">📊</span> Telemetry & Health</a></li>
-        <li><a class="nav-link" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> MusicMaid Premium</a></li>
+        <li><a class="nav-link" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> NyxTune Premium</a></li>
       </ul>
 
       <!-- SIDEBAR FOOTER -->
@@ -1397,7 +1397,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="mobile-top-bar">
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
-          <span style="font-weight:800; font-size:1.1rem; color:#fff;">MusicMaid</span>
+          <span style="font-weight:800; font-size:1.1rem; color:#fff;">Noctyra Studio</span>
         </div>
         <div id="mobile-voice-status" style="font-size:0.78rem; color:var(--cyan); font-weight:700;">320kbps Online</div>
       </div>
@@ -3067,6 +3067,8 @@ UI_HTML = r"""<!DOCTYPE html>
         const faqs = pData.faqs || [];
         const currency = pData.currency || 'USD';
         const isConfigured = pData.configured;
+        const paymentsEnabled = Boolean(pData.payments_enabled);
+        window.__PAYMENTS_ENABLED = paymentsEnabled;
 
         const entitlement = (statusJson.success && statusJson.data && statusJson.data.entitlement) ? statusJson.data.entitlement : null;
         const isUserSubscribed = entitlement && entitlement.is_premium;
@@ -3080,12 +3082,12 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <!-- HERO HEADER -->
             <div class="pricing-hero">
-              <span class="pricing-hero-badge">💎 MUSICMAID PREMIUM TIERS</span>
+              <span class="pricing-hero-badge">💎 NYXTUNE / NOCTYRA STUDIO PREMIUM</span>
               <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
-                Elevate Your Server Audio to <span style="background:linear-gradient(135deg, #ec4899, #00e5ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Studio Lossless</span>
+                Elevate Your Server Audio to <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Studio Lossless</span>
               </h1>
               <p style="max-width:680px; font-size:1.05rem; color:var(--text-muted); line-height:1.5;">
-                Unlock 320kbps lossless audio, 150% volume cap, 24/7 staying mode, AI Anime Maid Voice DJ, and cross-platform playlist importing across all your Discord servers.
+                Unlock 320kbps lossless audio, 150% volume booster, 24/7 staying mode, AI Anime Voice DJ, and cross-platform playlist importing across all your Discord servers.
               </p>
 
               ${isUserSubscribed ? `
@@ -3095,11 +3097,18 @@ UI_HTML = r"""<!DOCTYPE html>
                 </div>
               ` : ''}
 
-              ${!isConfigured ? `
+              ${!paymentsEnabled ? `
+                <div style="background:rgba(121, 40, 202, 0.18); border:1px solid rgba(167, 139, 250, 0.4); padding:0.85rem 1.3rem; border-radius:var(--radius-md); max-width:740px; margin-top:0.75rem; font-size:0.88rem; color:#e2e8f0; text-align:left;">
+                  <div style="display:flex; align-items:center; gap:0.5rem; font-weight:800; color:#c084fc; margin-bottom:0.25rem;">
+                    <span>🛠️ STUDENT DEVELOPER SHOWCASE PREVIEW</span>
+                  </div>
+                  <span>Payment processing is currently in demonstration mode (<code>PAYMENTS_ENABLED=false</code>). Explore features, plan architecture, and audio comparisons below. Real checkouts and billing accounts are completely disabled.</span>
+                </div>
+              ` : (!isConfigured ? `
                 <div style="background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.4); padding:0.75rem 1.2rem; border-radius:var(--radius-md); max-width:720px; margin-top:0.5rem; font-size:0.85rem; color:#fde68a;">
                   ⚙️ <strong>Payment Gateway Setup Required:</strong> To enable real checkout on this deployment, configure <code>STRIPE_SECRET_KEY</code> and <code>STRIPE_WEBHOOK_SECRET</code> in your server environment.
                 </div>
-              ` : ''}
+              ` : '')}
             </div>
 
             <!-- PRICING CARDS GRID -->
@@ -3107,7 +3116,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- PLAN 1: FREE -->
               <div class="pricing-card">
-                <div class="pricing-title">MusicMaid Free</div>
+                <div class="pricing-title">NyxTune Free</div>
                 <div class="pricing-desc">Everything you need for casual listening with friends in Discord.</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">$0</span>
@@ -3148,17 +3157,21 @@ UI_HTML = r"""<!DOCTYPE html>
                 </ul>
                 ${userPlan === 'monthly' && isUserSubscribed ? `
                   <button class="pricing-btn pricing-btn-current" onclick="navigate('/premium/manage')">✓ Active Monthly Plan</button>
+                ` : (!paymentsEnabled ? `
+                  <button class="pricing-btn pricing-btn-secondary" disabled style="opacity:0.75; cursor:not-allowed; background:rgba(255,255,255,0.06); border:1px dashed rgba(255,255,255,0.25);" title="Subscriptions are in developer preview mode.">
+                    🔒 Subscriptions Coming Soon (Preview)
+                  </button>
                 ` : `
                   <button class="pricing-btn pricing-btn-primary" onclick="initiateCheckout('monthly', this)">
                     <span>Upgrade to Monthly ➔</span>
                   </button>
-                `}
+                `)}
               </div>
 
               <!-- PLAN 3: YEARLY (FEATURED) -->
               <div class="pricing-card featured">
                 <span class="pricing-badge-corner">★ 2 MONTHS FREE</span>
-                <div class="pricing-title" style="color:#f472b6;">Premium Yearly</div>
+                <div class="pricing-title" style="color:#a78bfa;">Premium Yearly</div>
                 <div class="pricing-desc">Maximum value for serious listeners & servers. Save over 16% annually!</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">${yearlyPrice}</span>
@@ -3168,18 +3181,22 @@ UI_HTML = r"""<!DOCTYPE html>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>All Premium Monthly Perks Included</strong></li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>2 Months Completely Free</strong> ($10/yr savings)</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Priority Resolution Pipeline</strong> (Lowest latency)</li>
-                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Exclusive 👑 Anime Supporter Role</strong></li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Exclusive 👑 Supporter Role</strong></li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> 150% Boosted Volume & 24/7 Voice Stay</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> Full AI Maid DJ & Playlist Importer</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> Friend Blend & Cross-Platform Importer</li>
                 </ul>
                 ${userPlan === 'yearly' && isUserSubscribed ? `
                   <button class="pricing-btn pricing-btn-current" onclick="navigate('/premium/manage')">✓ Active Yearly Plan</button>
+                ` : (!paymentsEnabled ? `
+                  <button class="pricing-btn pricing-btn-secondary" disabled style="opacity:0.75; cursor:not-allowed; background:rgba(255,255,255,0.06); border:1px dashed rgba(255,255,255,0.25);" title="Subscriptions are in developer preview mode.">
+                    🔒 Subscriptions Coming Soon (Preview)
+                  </button>
                 ` : `
-                  <button class="pricing-btn pricing-btn-primary" style="background:linear-gradient(135deg, #00e5ff, #9333ea);" onclick="initiateCheckout('yearly', this)">
+                  <button class="pricing-btn pricing-btn-primary" style="background:linear-gradient(135deg, #a78bfa, #7928ca);" onclick="initiateCheckout('yearly', this)">
                     <span>Upgrade Yearly (Save 16%) ➔</span>
                   </button>
-                `}
+                `)}
               </div>
 
             </div>
@@ -3288,7 +3305,9 @@ UI_HTML = r"""<!DOCTYPE html>
           const errCode = json.error?.code;
           const errMsg = json.error?.message || "Failed to initiate checkout.";
 
-          if (errCode === 'GATEWAY_NOT_CONFIGURED') {
+          if (errCode === 'PAYMENTS_DISABLED') {
+            renderPaymentsDisabledPreview(errMsg);
+          } else if (errCode === 'GATEWAY_NOT_CONFIGURED') {
             renderPaymentGatewayNotConfigured(errMsg);
           } else {
             showToast(errMsg, "danger");
@@ -3305,6 +3324,23 @@ UI_HTML = r"""<!DOCTYPE html>
           btnElement.innerHTML = origText;
         }
       }
+    }
+
+    function renderPaymentsDisabledPreview(msg) {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div style="max-width:640px; margin:3rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+          <div style="font-size:3rem; margin-bottom:1rem;">🛠️</div>
+          <h2 style="color:#c084fc; font-weight:800;">Student Developer Showcase Preview</h2>
+          <p style="color:var(--text-muted); margin:1rem 0; line-height:1.6;">
+            ${msg || "Payment processing is currently in developer preview mode. Real subscriptions cannot be purchased at this time."}
+          </p>
+          <div style="background:rgba(121, 40, 202, 0.12); border:1px solid rgba(167, 139, 250, 0.25); padding:1rem; border-radius:var(--radius-sm); text-align:left; font-size:0.85rem; color:#e2e8f0; margin-bottom:1.5rem;">
+            ✦ <strong>Individual Developer Notice:</strong> Real payment integration requires merchant gateway verification (such as Razorpay, Cashfree, or Stripe India). For safe student testing and review, checkout remains safely locked in preview mode.
+          </div>
+          <button class="btn btn-secondary" onclick="navigate('/premium')">Back to Pricing</button>
+        </div>
+      `;
     }
 
     function renderPaymentGatewayNotConfigured(msg) {

@@ -709,6 +709,46 @@ class MusicControlPanelView(discord.ui.View):
 MasterControlPanelView = MusicControlPanelView
 
 
+class Reconnect247View(discord.ui.View):
+    """Interactive button to attempt immediate voice reconnection for 24/7 guilds."""
+
+    def __init__(self, bot: Any, guild: discord.Guild, channel_id: Optional[int]):
+        super().__init__(timeout=180.0)
+        self.bot = bot
+        self.guild = guild
+        self.channel_id = channel_id
+
+    @discord.ui.button(label="Reconnect Voice", style=discord.ButtonStyle.primary, emoji="📻")
+    async def btn_reconnect(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.defer(ephemeral=True)
+        if not self.channel_id:
+            await interaction.followup.send("❌ No saved 24/7 channel ID found for this server.", ephemeral=True)
+            return
+
+        ch = self.guild.get_channel(self.channel_id)
+        if not isinstance(ch, (discord.VoiceChannel, discord.StageChannel)):
+            await interaction.followup.send("❌ Saved voice channel no longer exists.", ephemeral=True)
+            return
+
+        session = await self.bot.session_manager.get_session(self.guild.id)
+        from music_bot.services.voice_service import VoiceManager
+        vc = await VoiceManager.join_voice_channel(
+            self.guild.me, interaction.channel, session, target_channel=ch  # type: ignore
+        )
+        if vc and vc.is_connected():
+            session.voice_client = vc
+            session.twenty_four_seven = True
+            session.is_intentional_stop = False
+            await interaction.followup.send(
+                f"✅ **Reconnected!** NyxTune is now in {ch.mention} in 24/7 mode.", ephemeral=True
+            )
+        else:
+            err = session.last_error or "Reconnection failed."
+            await interaction.followup.send(
+                f"❌ **Reconnection failed:** {err}", ephemeral=True
+            )
+
+
 # =============================================================================
 # MASTER COG
 # =============================================================================
@@ -2000,45 +2040,6 @@ class MusicCog(commands.Cog, name="Music"):
     # =========================================================================
     # 24/7 & AUTONOMOUS MAINTENANCE ROOT COMMANDS
     # =========================================================================
-
-class Reconnect247View(discord.ui.View):
-    """Interactive button to attempt immediate voice reconnection for 24/7 guilds."""
-
-    def __init__(self, bot: Any, guild: discord.Guild, channel_id: Optional[int]):
-        super().__init__(timeout=180.0)
-        self.bot = bot
-        self.guild = guild
-        self.channel_id = channel_id
-
-    @discord.ui.button(label="Reconnect Voice", style=discord.ButtonStyle.primary, emoji="📻")
-    async def btn_reconnect(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await interaction.response.defer(ephemeral=True)
-        if not self.channel_id:
-            await interaction.followup.send("❌ No saved 24/7 channel ID found for this server.", ephemeral=True)
-            return
-
-        ch = self.guild.get_channel(self.channel_id)
-        if not isinstance(ch, (discord.VoiceChannel, discord.StageChannel)):
-            await interaction.followup.send("❌ Saved voice channel no longer exists.", ephemeral=True)
-            return
-
-        session = await self.bot.session_manager.get_session(self.guild.id)
-        from music_bot.services.voice_service import VoiceManager
-        vc = await VoiceManager.join_voice_channel(
-            self.guild.me, interaction.channel, session, target_channel=ch  # type: ignore
-        )
-        if vc and vc.is_connected():
-            session.voice_client = vc
-            session.twenty_four_seven = True
-            session.is_intentional_stop = False
-            await interaction.followup.send(
-                f"✅ **Reconnected!** NyxTune is now in {ch.mention} in 24/7 mode.", ephemeral=True
-            )
-        else:
-            err = session.last_error or "Reconnection failed."
-            await interaction.followup.send(
-                f"❌ **Reconnection failed:** {err}", ephemeral=True
-            )
 
 
     @app_commands.command(name="247", description="Configure or toggle 24/7 mode to keep NyxTune in voice channel indefinitely")
