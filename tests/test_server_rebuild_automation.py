@@ -60,8 +60,8 @@ class TestServerRebuildSuite:
         """Confirm permanent voice rooms are protected from deletion."""
         assert TempVoiceRoomManager.is_permanent(CREATE_ROOM_CHANNEL_ID) is True
         # Solo, Duo, Trio, Squad, Game Lobby, Ranked Grind, Chill Gaming, Editing Studio, Creator Collab, Music Lounge, Movie, AFK
-        assert TempVoiceRoomManager.is_permanent(1558675717552611360) is True  # Solo
-        assert TempVoiceRoomManager.is_permanent(1558675725114937445) is True  # Duo
+        assert TempVoiceRoomManager.is_permanent(1554905807240302652) is True  # Solo
+        assert TempVoiceRoomManager.is_permanent(1554905810574774286) is True  # Duo
         assert TempVoiceRoomManager.is_permanent(1554891485818921042) is True  # AFK
         assert TempVoiceRoomManager.is_permanent(999999999999999999) is False
 
@@ -134,7 +134,7 @@ class TestServerRebuildSuite:
         user_interaction = MagicMock(spec=discord.Interaction)
         user_interaction.user.guild_permissions.manage_messages = False
         user_interaction.response.send_message = AsyncMock()
-        await view.btn_claim(user_interaction, btn)
+        await btn.callback(user_interaction)
         assert view.claimed_by is None
         user_interaction.response.send_message.assert_awaited_once()
 
@@ -146,7 +146,7 @@ class TestServerRebuildSuite:
         staff_interaction.user.guild_permissions.manage_messages = True
         staff_interaction.response.edit_message = AsyncMock()
         staff_interaction.followup.send = AsyncMock()
-        await view.btn_claim(staff_interaction, btn)
+        await btn.callback(staff_interaction)
         assert view.claimed_by == 77777
         assert "Claimed by StaffLead" in btn.label
 

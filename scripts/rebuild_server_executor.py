@@ -56,7 +56,7 @@ TARGET_CATEGORIES = [
             {"id": "1545502730699808768", "name": "general-chat", "type": 0},
             {"id": "1551184138932068373", "name": "media-share", "type": 0},
             {"id": "1557475853175234660", "name": "gaming-chat", "type": 0},
-            {"id": "1558482941817004143", "name": "creator-chat", "type": 0},
+            {"id": "1557481233246584892", "name": "creator-chat", "type": 0},
         ]
     },
     {
@@ -64,10 +64,10 @@ TARGET_CATEGORIES = [
         "key": "cat_04",
         "channels": [
             {"id": "1557461916144767046", "name": "➕ Create a Room", "type": 2, "limit": 0},
-            {"id": "1558675717552611360", "name": "Solo", "type": 2, "limit": 1},
-            {"id": "1558675725114937445", "name": "Duo", "type": 2, "limit": 2},
-            {"id": "1558675733075853436", "name": "Trio", "type": 2, "limit": 3},
-            {"id": "1558675741468528822", "name": "Squad", "type": 2, "limit": 4},
+            {"id": "1554905807240302652", "name": "Solo", "type": 2, "limit": 1},
+            {"id": "1554905810574774286", "name": "Duo", "type": 2, "limit": 2},
+            {"id": "1554905813737545770", "name": "Trio", "type": 2, "limit": 3},
+            {"id": "1554905842300485642", "name": "Squad", "type": 2, "limit": 4},
             {"id": "1554905829033902151", "name": "Game Lobby", "type": 2, "limit": 0},
             {"id": "1554905836768469032", "name": "Ranked Grind", "type": 2, "limit": 5},
             {"id": "1554905825544241302", "name": "Chill Gaming", "type": 2, "limit": 0},
