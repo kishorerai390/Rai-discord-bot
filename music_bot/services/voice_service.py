@@ -458,6 +458,10 @@ class VoiceManager:
         if existing_vc and existing_vc.is_connected():
             session.voice_client = existing_vc
             if existing_vc.channel and existing_vc.channel.id == target_channel.id:
+                try:
+                    await guild.change_voice_state(channel=existing_vc.channel, self_deaf=False)
+                except Exception:
+                    pass
                 stage2_ms = (time.monotonic() - t_start) * 1000
                 logger.info(
                     f"[Voice] [Stage 2: Existing Connection Reused] Guild {guild_id} | "
@@ -475,6 +479,10 @@ class VoiceManager:
             )
             try:
                 await asyncio.wait_for(existing_vc.move_to(target_channel), timeout=15.0)
+                try:
+                    await guild.change_voice_state(channel=target_channel, self_deaf=False)
+                except Exception:
+                    pass
                 session.voice_client = existing_vc
                 stage2_ms = (time.monotonic() - t_start) * 1000
                 logger.info(f"[Voice] [Stage 2: Channel Move PASS] Total: {stage2_ms:.1f}ms")
@@ -523,7 +531,7 @@ class VoiceManager:
                 telemetry.stage = current_stage
 
                 vc = await asyncio.wait_for(
-                    target_channel.connect(timeout=connect_timeout, reconnect=True, self_deaf=True),
+                    target_channel.connect(timeout=connect_timeout, reconnect=True, self_deaf=False),
                     timeout=connect_timeout + 3.0,
                 )
 
