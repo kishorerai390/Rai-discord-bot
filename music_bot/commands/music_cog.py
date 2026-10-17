@@ -778,6 +778,40 @@ class MusicCog(commands.Cog, name="Music"):
                 return False
         return True
 
+    async def is_bot_developer_or_owner(self, user: Optional[discord.abc.User | discord.Member | int | str]) -> bool:
+        """Return True if user matches bot creator/developer, application owner, or team developer."""
+        if not user:
+            return False
+        uid = getattr(user, "id", user)
+        try:
+            uid_int = int(uid)
+        except (ValueError, TypeError):
+            return False
+
+        if config.is_bot_owner(uid_int):
+            return True
+
+        # Check via bot.is_owner coroutine if available
+        try:
+            target_user = user if isinstance(user, (discord.User, discord.Member)) else self.bot.get_user(uid_int)
+            if not target_user and hasattr(self.bot, "fetch_user"):
+                target_user = await self.bot.fetch_user(uid_int)
+            if target_user and hasattr(self.bot, "is_owner") and await self.bot.is_owner(target_user):
+                config.register_bot_owner(uid_int)
+                if getattr(self.bot, "db", None):
+                    await self.bot.db.set_premium(
+                        uid_int,
+                        entity_type="user",
+                        is_premium=True,
+                        tier="owner",
+                        activated_by=uid_int,
+                    )
+                return True
+        except Exception:
+            pass
+
+        return False
+
     async def _check_permissions(self, interaction: discord.Interaction) -> bool:
         """Verify user is in voice channel and allowed to use music commands."""
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
@@ -1270,7 +1304,7 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
 
-        is_prem = config.is_bot_owner(interaction.user.id)
+        is_prem = await self.is_bot_developer_or_owner(interaction.user)
         if not is_prem and interaction.guild:
             is_prem = await self.bot.db.is_premium(interaction.guild.id, interaction.user.id)
 
@@ -2100,7 +2134,7 @@ class MusicCog(commands.Cog, name="Music"):
                 new_state = not settings.twenty_four_seven_enabled
 
         if new_state:
-            is_owner = config.is_bot_owner(member.id)
+            is_owner = await self.is_bot_developer_or_owner(member)
             is_prem = is_owner or await self.bot.db.is_premium(guild.id, member.id)
             is_admin = is_owner or getattr(member.guild_permissions, "administrator", False) or (member.id == guild.owner_id)
             if not is_prem and not is_admin:
@@ -2259,7 +2293,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         act = action.value if action else "check"
         is_admin = getattr(interaction.user.guild_permissions, "administrator", False) if interaction.guild else False
-        is_owner = str(interaction.user.id) in ("1457380609641938981",)
+        is_owner = await self.is_bot_developer_or_owner(interaction.user)
 
         if act == "update":
             if not is_admin and not is_owner:
@@ -2398,8 +2432,8 @@ class MusicCog(commands.Cog, name="Music"):
 
     @app_commands.command(name="reload", description="Zero-downtime hot reload: update bot modules while music keeps playing")
     async def cmd_reload(self, interaction: discord.Interaction) -> None:
-        """Hot reloads bot modules and cogs without dropping voice connections."""
-        if str(interaction.user.id) not in ("1457380609641938981",):
+        is_owner = await self.is_bot_developer_or_owner(interaction.user)
+        if not is_owner:
             if not getattr(interaction.user, "guild_permissions", None) or not interaction.user.guild_permissions.administrator:  # type: ignore
                 await interaction.response.send_message("❌ Administrator permissions required to hot-reload bot.", ephemeral=True)
                 return
@@ -3175,10 +3209,20 @@ class MusicCog(commands.Cog, name="Music"):
         prem_icon = EmojiManager.get("PREMIUM", self.bot)
         web_url = get_public_web_url()
         plans_url = get_premium_plans_url()
+        is_owner = await self.is_bot_developer_or_owner(interaction.user)
+
+        vip_banner = ""
+        if is_owner:
+            vip_banner = (
+                "👑 **Bot Creator & Developer VIP Active!**\n"
+                "You are recognized as the bot creator. All Premium perks (150% volume, 24/7 persistence, studio DSP, smart DJ) "
+                "are permanently unlocked for your account across every server and the web platform.\n\n"
+            )
 
         embed = discord.Embed(
-            title=f"{prem_icon} MusicMaid Premium",
+            title=f"{prem_icon} MusicMaid Premium{' ✦ 👑 Developer VIP' if is_owner else ''}",
             description=(
+                f"{vip_banner}"
                 "Unlock the MusicMaid experience and explore available plans and features on our website.\n\n"
                 "🌐 Visit the website to learn more and manage your account.\n\n"
                 "### 🌟 Premium Features Currently Available:\n"
@@ -3187,11 +3231,11 @@ class MusicCog(commands.Cog, name="Music"):
                 "• 🎛️ **Studio DSP Equalizer Presets** — Bass Boost, 8D Audio, Nightcore, Vaporwave, and Lo-Fi acoustics\n"
                 "• ⚡ **Priority Gapless Pre-Resolver** — Zero latency between songs with lookahead stream precaching\n"
                 "• 🐾 **Smart Auto-DJ & Infinite Autoplay** — Non-stop queue generation tailored to your server's vibe\n\n"
-                "💳 **Plans & Subscriptions:** Online subscription checkout is coming soon! "
-                "Server administrators and beta testers can currently activate license keys using `/premium action:Activate License Key`.\n\n"
+                "💳 **Plans & Subscriptions:** Visit the Web Dashboard to view plans or subscribe with Razorpay. "
+                "Server administrators and beta testers can also activate license keys using `/premium action:Activate License Key`.\n\n"
                 "🔒 *Need to manage your account or playlists? Log in securely using Discord OAuth2 on our web platform.*"
             ),
-            color=COLOR_PREMIUM,
+            color=COLOR_CYAN if is_owner else COLOR_PREMIUM,
         )
 
         if not web_url:
@@ -3215,16 +3259,16 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         guild = interaction.guild
         member = interaction.user
-        is_owner = config.is_bot_owner(member.id)
+        is_owner = await self.is_bot_developer_or_owner(member)
         guild_prem = await self.bot.db.is_premium(guild.id) if guild else False
         user_prem = is_owner or await self.bot.db.is_premium(0, member.id)
-        is_active = guild_prem or user_prem
+        is_active = is_owner or guild_prem or user_prem
 
         prem_icon = EmojiManager.get("PREMIUM", self.bot)
         web_url = get_public_web_url()
         plans_url = get_premium_plans_url()
 
-        owner_line = "\n• **Developer License:** `👑 Bot Owner VIP Pass (Lifetime Unlocked)`" if is_owner else ""
+        owner_line = "\n• **Developer License:** `👑 Bot Creator & Developer VIP Pass (Lifetime Unlocked)`" if is_owner else ""
         embed = discord.Embed(
             title=f"{prem_icon} MusicMaid ✦ Premium Status",
             description=(
@@ -3309,10 +3353,11 @@ class MusicCog(commands.Cog, name="Music"):
     ) -> None:
         """Admin shortcut to grant or revoke premium."""
         await self.ensure_deferred(interaction, ephemeral=True)
-        is_admin = getattr(interaction.user.guild_permissions, "administrator", False) if interaction.guild else False
-        is_owner = interaction.guild and interaction.user.id == interaction.guild.owner_id
+        is_dev = await self.is_bot_developer_or_owner(interaction.user)
+        is_admin = is_dev or (getattr(interaction.user.guild_permissions, "administrator", False) if interaction.guild else False)
+        is_owner = is_dev or (interaction.guild and interaction.user.id == interaction.guild.owner_id)
         if not is_admin and not is_owner:
-            msg = "❌ Only Server Administrators can manage premium grants."
+            msg = "❌ Only Server Administrators or Bot Developers can manage premium grants."
             if interaction.response.is_done():
                 await interaction.edit_original_response(content=msg)
             else:
@@ -4130,8 +4175,9 @@ class MusicCog(commands.Cog, name="Music"):
         """Hot-reloads bot code and preserves playback without restarting from the beginning."""
         if not ctx.guild:
             return
-        is_admin = getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False
-        is_owner = str(ctx.author.id) in ("1457380609641938981",)
+        is_dev = await self.is_bot_developer_or_owner(ctx.author)
+        is_admin = is_dev or (getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False)
+        is_owner = is_dev or (ctx.guild and ctx.author.id == ctx.guild.owner_id)
         if not is_admin and not is_owner:
             await ctx.reply("❌ Administrator permissions required to hot-reload code.", mention_author=False)
             return
@@ -4151,8 +4197,9 @@ class MusicCog(commands.Cog, name="Music"):
         """Updates yt-dlp extractor in background."""
         if not ctx.guild:
             return
-        is_admin = getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False
-        is_owner = str(ctx.author.id) in ("1457380609641938981",)
+        is_dev = await self.is_bot_developer_or_owner(ctx.author)
+        is_admin = is_dev or (getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False)
+        is_owner = is_dev or (ctx.guild and ctx.author.id == ctx.guild.owner_id)
         if not is_admin and not is_owner:
             await ctx.reply("❌ Administrator permissions required to update dependencies.", mention_author=False)
             return

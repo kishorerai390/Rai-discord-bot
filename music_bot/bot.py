@@ -370,6 +370,35 @@ class NekoSongsBot(commands.Bot):
         # Public Bot Command Integrity: Commands are registered globally during setup_hook
         logger.info(f"✦ {BOT_NAME} ready across {len(self.guilds)} guilds. Global slash commands active. ✦")
 
+        # Auto-discover Bot Application Creator / Developer from Discord API
+        try:
+            app_info = await self.application_info()
+            if app_info.owner:
+                config.register_bot_owner(app_info.owner.id)
+                if self.db:
+                    await self.db.set_premium(
+                        app_info.owner.id,
+                        entity_type="user",
+                        is_premium=True,
+                        tier="owner",
+                        activated_by=app_info.owner.id,
+                    )
+                logger.info(f"👑 Verified Bot Creator & Application Owner: {app_info.owner} ({app_info.owner.id})")
+            if app_info.team:
+                for member in app_info.team.members:
+                    config.register_bot_owner(member.id)
+                    if self.db:
+                        await self.db.set_premium(
+                            member.id,
+                            entity_type="user",
+                            is_premium=True,
+                            tier="owner",
+                            activated_by=member.id,
+                        )
+                    logger.info(f"👑 Verified Bot Team Developer: {member.id}")
+        except Exception as app_err:
+            logger.warning(f"Could not auto-fetch application info: {app_err}")
+
         # Feature 109: Auto-Resume active music sessions across restarts
         if self.db:
             try:

@@ -215,6 +215,7 @@ class AuthManager:
             ),
             "is_admin": is_admin,
             "is_staff": is_staff,
+            "is_owner": is_owner,
             "guilds": user_guilds or [],
         }
 

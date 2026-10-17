@@ -86,13 +86,33 @@ MUSIC_PREFIX: str = os.getenv("MUSIC_BOT_PREFIX", "m!").strip()
 LOG_LEVEL_STR: str = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Bot Owner & Founder IDs (Full unconditional VIP bypass for all Premium features)
-_raw_owners = os.getenv("BOT_OWNER_IDS") or os.getenv("BOT_OWNER_ID") or os.getenv("OWNER_ID") or "1457380609641938981"
+_raw_owners = (
+    os.getenv("BOT_CREATOR_ID")
+    or os.getenv("CREATOR_ID")
+    or os.getenv("DEVELOPER_ID")
+    or os.getenv("BOT_OWNER_IDS")
+    or os.getenv("BOT_OWNER_ID")
+    or os.getenv("OWNER_ID")
+    or os.getenv("FOUNDER_ID")
+    or "1457380609641938981"
+)
 BOT_OWNER_IDS: set[int] = {
     int(x.strip()) for x in _raw_owners.replace(";", ",").split(",") if x.strip().isdigit()
 }
 # Guarantee primary developer / founder Rai is always included
 BOT_OWNER_IDS.add(1457380609641938981)
-BOT_OWNER_ID: int = 1457380609641938981
+BOT_OWNER_ID: int = next(iter(BOT_OWNER_IDS), 1457380609641938981)
+
+
+def register_bot_owner(user_id: Optional[int | str]) -> None:
+    """Dynamically register a bot owner/creator ID (e.g. from Discord application_info)."""
+    if not user_id:
+        return
+    try:
+        uid = int(user_id)
+        BOT_OWNER_IDS.add(uid)
+    except (ValueError, TypeError):
+        pass
 
 
 def is_bot_owner(user_id: Optional[int | str]) -> bool:

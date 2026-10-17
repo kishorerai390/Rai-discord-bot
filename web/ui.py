@@ -80,9 +80,26 @@ UI_HTML = r"""<!DOCTYPE html>
       left: 0;
       bottom: var(--player-height);
       z-index: 50;
-      padding: 1.25rem 1rem;
-      gap: 1.2rem;
+      padding: 1rem 0.85rem;
+      gap: 0.85rem;
       backdrop-filter: blur(20px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(147, 51, 234, 0.4) transparent;
+    }
+    aside.sidebar::-webkit-scrollbar {
+      width: 5px;
+    }
+    aside.sidebar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    aside.sidebar::-webkit-scrollbar-thumb {
+      background: rgba(147, 51, 234, 0.35);
+      border-radius: 4px;
+    }
+    aside.sidebar::-webkit-scrollbar-thumb:hover {
+      background: rgba(147, 51, 234, 0.7);
     }
 
     .brand-box {
@@ -245,12 +262,12 @@ UI_HTML = r"""<!DOCTYPE html>
     .nav-link {
       display: flex;
       align-items: center;
-      gap: 0.85rem;
-      padding: 0.7rem 0.85rem;
+      gap: 0.75rem;
+      padding: 0.58rem 0.8rem;
       border-radius: var(--radius-md);
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.92rem;
+      font-size: 0.88rem;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -266,11 +283,71 @@ UI_HTML = r"""<!DOCTYPE html>
       border: 1px solid rgba(147, 51, 234, 0.45);
       box-shadow: 0 4px 15px rgba(147, 51, 234, 0.15);
     }
+    .nav-link-premium {
+      background: linear-gradient(90deg, rgba(236, 72, 153, 0.15) 0%, rgba(147, 51, 234, 0.2) 100%);
+      border: 1px solid rgba(236, 72, 153, 0.35);
+      color: #f472b6 !important;
+    }
+    .nav-link-premium:hover {
+      background: linear-gradient(90deg, rgba(236, 72, 153, 0.25) 0%, rgba(147, 51, 234, 0.35) 100%) !important;
+      border-color: rgba(236, 72, 153, 0.6) !important;
+      color: #fff !important;
+    }
     .nav-icon {
       font-size: 1.15rem;
       width: 22px;
       display: flex;
       justify-content: center;
+    }
+
+    /* SIDEBAR PREMIUM PROMO CARD */
+    .sidebar-premium-promo {
+      background: linear-gradient(135deg, rgba(147, 51, 234, 0.2) 0%, rgba(236, 72, 153, 0.2) 100%);
+      border: 1px solid rgba(236, 72, 153, 0.4);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 0.85rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+      margin: 0.2rem 0;
+    }
+    .sidebar-premium-promo:hover {
+      transform: translateY(-2px);
+      border-color: rgba(236, 72, 153, 0.7);
+      box-shadow: 0 4px 20px rgba(236, 72, 153, 0.25);
+    }
+    .promo-sparkle {
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #f472b6;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .promo-title {
+      font-size: 0.88rem;
+      font-weight: 800;
+      color: #fff;
+    }
+    .promo-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      line-height: 1.3;
+    }
+    .promo-btn {
+      align-self: flex-start;
+      margin-top: 0.2rem;
+      padding: 0.28rem 0.65rem;
+      background: linear-gradient(135deg, #ec4899, #9333ea);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 800;
+      border: none;
+      border-radius: var(--radius-full);
+      cursor: pointer;
     }
 
     /* SIDEBAR FOOTER (VOICE BADGE & AUTH) */
@@ -1364,10 +1441,21 @@ UI_HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- PROMINENT SIDEBAR PREMIUM CARD -->
+      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to NyxTune Premium">
+        <div class="promo-sparkle">✨ 150% Boost • 24/7 Voice</div>
+        <div class="promo-content">
+          <span class="promo-title">💎 NyxTune Premium</span>
+          <span class="promo-sub">Studio DSP, 24/7 staying mode & zero queue limits</span>
+        </div>
+        <button class="promo-btn">View Plans ⚡</button>
+      </div>
+
       <!-- MAIN NAVIGATION -->
       <span class="nav-group-title">Music Engine</span>
       <ul class="nav-list">
         <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">🏠</span> Dashboard</a></li>
+        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> NyxTune Premium</a></li>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Discover</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">🎵</span> Queue & Live Player</a></li>
         <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Stage Visualizer</a></li>
@@ -1375,7 +1463,6 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Playlists & Library</a></li>
         <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & DSP</a></li>
         <li><a class="nav-link" id="nav-stats" onclick="navigate('/stats')"><span class="nav-icon">📊</span> Telemetry & Health</a></li>
-        <li><a class="nav-link" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> NyxTune Premium</a></li>
       </ul>
 
       <!-- SIDEBAR FOOTER -->
@@ -1399,7 +1486,10 @@ UI_HTML = r"""<!DOCTYPE html>
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
           <span style="font-weight:800; font-size:1.1rem; color:#fff;">Noctyra Studio</span>
         </div>
-        <div id="mobile-voice-status" style="font-size:0.78rem; color:var(--cyan); font-weight:700;">320kbps Online</div>
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <button class="btn btn-sm btn-primary" style="padding:0.3rem 0.65rem; font-size:0.75rem; border-radius:20px; font-weight:800;" onclick="navigate('/premium')">💎 Premium</button>
+          <div id="mobile-voice-status" style="font-size:0.78rem; color:var(--cyan); font-weight:700;">320kbps Online</div>
+        </div>
       </div>
 
       <!-- DYNAMIC VIEW CONTAINER -->
@@ -1583,7 +1673,21 @@ UI_HTML = r"""<!DOCTYPE html>
       const actionBtn = document.getElementById('btn-upgrade-sidebar');
       if (!badgeEl || !currentUser) return;
 
-      if (userSubscription && userSubscription.is_premium) {
+      const isOwner = Boolean(currentUser && (currentUser.is_owner || (userSubscription && userSubscription.plan === 'owner')));
+
+      if (isOwner) {
+        badgeEl.className = 'user-badge-sub premium';
+        badgeEl.style.background = 'linear-gradient(135deg, #ffd700, #f59e0b)';
+        badgeEl.style.color = '#000';
+        badgeEl.style.fontWeight = '800';
+        badgeEl.innerHTML = `👑 CREATOR VIP`;
+        if (actionBtn) {
+          actionBtn.innerHTML = `<span>👑 Creator VIP Active</span>`;
+          actionBtn.style.background = 'rgba(255, 215, 0, 0.18)';
+          actionBtn.style.borderColor = 'rgba(255, 215, 0, 0.55)';
+          actionBtn.onclick = () => navigate('/premium');
+        }
+      } else if (userSubscription && userSubscription.is_premium) {
         badgeEl.className = 'user-badge-sub premium';
         badgeEl.innerHTML = `💎 ${userSubscription.plan.toUpperCase()}`;
         if (actionBtn) {
@@ -3073,6 +3177,7 @@ UI_HTML = r"""<!DOCTYPE html>
         const entitlement = (statusJson.success && statusJson.data && statusJson.data.entitlement) ? statusJson.data.entitlement : null;
         const isUserSubscribed = entitlement && entitlement.is_premium;
         const userPlan = entitlement ? (entitlement.plan || 'free').toLowerCase() : 'free';
+        const isOwner = Boolean(currentUser && (currentUser.is_owner || userPlan === 'owner'));
 
         const monthlyPrice = plans.monthly ? `$${plans.monthly.amount.toFixed(2)}` : '$4.99';
         const yearlyPrice = plans.yearly ? `$${plans.yearly.amount.toFixed(2)}` : '$49.99';
@@ -3090,12 +3195,17 @@ UI_HTML = r"""<!DOCTYPE html>
                 Unlock 320kbps lossless audio, 150% volume booster, 24/7 staying mode, AI Anime Voice DJ, and cross-platform playlist importing across all your Discord servers.
               </p>
 
-              ${isUserSubscribed ? `
+              ${isOwner ? `
+                <div style="display:inline-flex; align-items:center; gap:0.75rem; background:rgba(255, 215, 0, 0.15); border:1px solid rgba(255, 215, 0, 0.55); padding:0.6rem 1.2rem; border-radius:var(--radius-full); margin-top:0.6rem;">
+                  <span style="color:#ffd700; font-weight:800; font-size:0.9rem;">👑 BOT CREATOR & DEVELOPER VIP: LIFETIME UNLOCKED</span>
+                  <span style="color:#cbd5e1; font-size:0.82rem;">All Premium features (150% volume, 24/7 voice, DSP filters) active for your account</span>
+                </div>
+              ` : (isUserSubscribed ? `
                 <div style="display:inline-flex; align-items:center; gap:0.75rem; background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.4); padding:0.6rem 1.2rem; border-radius:var(--radius-full); margin-top:0.6rem;">
                   <span style="color:#10b981; font-weight:800; font-size:0.9rem;">● ACTIVE SUBSCRIPTION: ${userPlan.toUpperCase()}</span>
                   <button class="btn btn-sm btn-secondary" onclick="navigate('/premium/manage')" style="padding:0.25rem 0.65rem; font-size:0.75rem;">Manage Subscription</button>
                 </div>
-              ` : ''}
+              ` : '')}
 
               ${!paymentsEnabled ? `
                 <div style="background:rgba(121, 40, 202, 0.18); border:1px solid rgba(167, 139, 250, 0.4); padding:0.85rem 1.3rem; border-radius:var(--radius-md); max-width:740px; margin-top:0.75rem; font-size:0.88rem; color:#e2e8f0; text-align:left;">
