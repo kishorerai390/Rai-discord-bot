@@ -13,3 +13,4 @@ psutil>=5.9.0
 mutagen>=1.47.0
 prometheus-client
 redis>=5.0.0
+stripe>=16.0.0
