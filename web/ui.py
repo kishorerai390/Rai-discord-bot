@@ -3242,12 +3242,21 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
             </div>
 
-            <!-- SECURITY ASSURANCE BADGE -->
+            <!-- SECURITY ASSURANCE BADGE & COMPLIANCE -->
             <div style="text-align:center; padding:1.5rem; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; gap:1.5rem; flex-wrap:wrap; font-size:0.85rem; color:var(--text-muted);">
               <span>🔒 256-Bit SSL Encryption</span>
-              <span>⚡ Verified by Stripe</span>
+              <span>⚡ Verified by Razorpay / Stripe</span>
               <span>💳 Zero Raw Card Storage</span>
               <span>🔄 Cancel Anytime With 1-Click</span>
+            </div>
+
+            <!-- MANDATORY LEGAL COMPLIANCE FOOTER (Razorpay & Consumer Protection) -->
+            <div style="text-align:center; margin-top:1.5rem; font-size:0.85rem; color:var(--text-muted); line-height:1.8;">
+              By subscribing, you agree to our 
+              <a href="/terms" target="_blank" style="color:var(--cyan); text-decoration:underline;">Terms of Service</a> • 
+              <a href="/privacy" target="_blank" style="color:var(--cyan); text-decoration:underline;">Privacy Policy</a> • 
+              <a href="/refund" target="_blank" style="color:var(--cyan); text-decoration:underline;">Refund & Cancellation Policy</a> • 
+              <a href="/contact" target="_blank" style="color:var(--cyan); text-decoration:underline;">Contact Us</a>
             </div>
 
           </div>
@@ -3276,6 +3285,17 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    async function loadRazorpaySdk() {
+      if (window.Razorpay) return true;
+      return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+      });
+    }
+
     async function initiateCheckout(planId, btnElement) {
       if (!currentUser) {
         showToast("Please sign in with Discord first to subscribe!", "warning");
@@ -3288,7 +3308,7 @@ UI_HTML = r"""<!DOCTYPE html>
       const origText = btnElement ? btnElement.innerHTML : '';
       if (btnElement) {
         btnElement.disabled = true;
-        btnElement.innerHTML = `<span>⏳ Opening Secure Stripe Checkout...</span>`;
+        btnElement.innerHTML = `<span>⏳ Preparing Secure Checkout...</span>`;
       }
 
       try {
@@ -3299,22 +3319,98 @@ UI_HTML = r"""<!DOCTYPE html>
         });
         const json = await res.json();
 
-        if (json.success && json.data && json.data.checkout_url) {
-          window.location.href = json.data.checkout_url;
-        } else {
-          const errCode = json.error?.code;
-          const errMsg = json.error?.message || "Failed to initiate checkout.";
-
-          if (errCode === 'PAYMENTS_DISABLED') {
-            renderPaymentsDisabledPreview(errMsg);
-          } else if (errCode === 'GATEWAY_NOT_CONFIGURED') {
-            renderPaymentGatewayNotConfigured(errMsg);
-          } else {
-            showToast(errMsg, "danger");
-            if (btnElement) {
-              btnElement.disabled = false;
-              btnElement.innerHTML = origText;
+        if (json.success && json.data) {
+          // Case 1: Razorpay Order Creation
+          if (json.data.order_id) {
+            const sdkLoaded = await loadRazorpaySdk();
+            if (!sdkLoaded) {
+              showToast("Failed to load Razorpay SDK. Please check your network connection.", "danger");
+              if (btnElement) {
+                btnElement.disabled = false;
+                btnElement.innerHTML = origText;
+              }
+              return;
             }
+
+            const options = {
+              key: json.data.key_id,
+              amount: json.data.amount,
+              currency: json.data.currency || "INR",
+              name: "NyxTune / MusicMaid",
+              description: json.data.plan_name || "Premium Subscription",
+              order_id: json.data.order_id,
+              prefill: {
+                name: json.data.user_name || "",
+                email: json.data.user_email || ""
+              },
+              theme: {
+                color: "#7c3aed"
+              },
+              handler: async function (response) {
+                showToast("Verifying payment with secure server...", "info");
+                try {
+                  const verifyRes = await fetch('/api/premium/verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_signature: response.razorpay_signature,
+                      plan: planId
+                    })
+                  });
+                  const verifyJson = await verifyRes.json();
+                  if (verifyJson.success) {
+                    showToast("🎉 Payment successfully verified! Premium unlocked.", "success");
+                    navigate('/premium/success');
+                  } else {
+                    showToast(verifyJson.error?.message || "Payment verification failed.", "danger");
+                    if (btnElement) {
+                      btnElement.disabled = false;
+                      btnElement.innerHTML = origText;
+                    }
+                  }
+                } catch (verifyErr) {
+                  showToast("Network error verifying payment receipt.", "danger");
+                  if (btnElement) {
+                    btnElement.disabled = false;
+                    btnElement.innerHTML = origText;
+                  }
+                }
+              },
+              modal: {
+                ondismiss: function() {
+                  if (btnElement) {
+                    btnElement.disabled = false;
+                    btnElement.innerHTML = origText;
+                  }
+                }
+              }
+            };
+            const rzp = new window.Razorpay(options);
+            rzp.open();
+            return;
+          }
+
+          // Case 2: Stripe Checkout URL
+          if (json.data.checkout_url) {
+            window.location.href = json.data.checkout_url;
+            return;
+          }
+        }
+
+        const errCode = json.error?.code;
+        const errMsg = json.error?.message || "Failed to initiate checkout.";
+
+        if (errCode === 'PAYMENTS_DISABLED') {
+          renderPaymentsDisabledPreview(errMsg);
+        } else if (errCode === 'GATEWAY_NOT_CONFIGURED') {
+          renderPaymentGatewayNotConfigured(errMsg);
+        } else {
+          showToast(errMsg, "danger");
+          if (btnElement) {
+            btnElement.disabled = false;
+            btnElement.innerHTML = origText;
           }
         }
       } catch (e) {

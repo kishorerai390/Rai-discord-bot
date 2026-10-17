@@ -43,4 +43,14 @@ services:
         sync: false
       - key: SESSION_SECRET
         sync: false
+      - key: PAYMENTS_ENABLED
+        value: "false"
+      - key: PAYMENT_PROVIDER
+        value: "razorpay"
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
 
