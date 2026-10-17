@@ -1375,6 +1375,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Playlists & Library</a></li>
         <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & DSP</a></li>
         <li><a class="nav-link" id="nav-stats" onclick="navigate('/stats')"><span class="nav-icon">📊</span> Telemetry & Health</a></li>
+        <li><a class="nav-link" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> MusicMaid Premium</a></li>
       </ul>
 
       <!-- SIDEBAR FOOTER -->
@@ -1561,19 +1562,71 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    let userSubscription = null;
+
+    async function checkUserSubscription() {
+      if (!currentUser) return null;
+      try {
+        const res = await fetch('/api/premium/status');
+        const json = await res.json();
+        if (json.success && json.data) {
+          userSubscription = json.data.entitlement;
+          updateAuthBoxBadge();
+        }
+      } catch (err) {
+        console.debug("Subscription status check note:", err);
+      }
+    }
+
+    function updateAuthBoxBadge() {
+      const badgeEl = document.getElementById('user-sub-badge');
+      const actionBtn = document.getElementById('btn-upgrade-sidebar');
+      if (!badgeEl || !currentUser) return;
+
+      if (userSubscription && userSubscription.is_premium) {
+        badgeEl.className = 'user-badge-sub premium';
+        badgeEl.innerHTML = `💎 ${userSubscription.plan.toUpperCase()}`;
+        if (actionBtn) {
+          actionBtn.innerHTML = `<span>👑 Manage Subscription</span>`;
+          actionBtn.style.background = 'rgba(147, 51, 234, 0.25)';
+          actionBtn.style.borderColor = 'rgba(147, 51, 234, 0.5)';
+          actionBtn.onclick = () => navigate('/premium/manage');
+        }
+      } else {
+        badgeEl.className = 'user-badge-sub free';
+        badgeEl.innerHTML = `Free Plan`;
+        if (actionBtn) {
+          actionBtn.innerHTML = `<span>💎 Upgrade to Premium</span>`;
+          actionBtn.style.background = 'linear-gradient(135deg, #ec4899, #9333ea)';
+          actionBtn.style.borderColor = 'rgba(236, 72, 153, 0.4)';
+          actionBtn.onclick = () => navigate('/premium');
+        }
+      }
+    }
+
     function renderAuthBox(user) {
       const el = document.getElementById('auth-box-sidebar');
       if (user) {
         el.innerHTML = `
-          <div class="user-pill">
-            <div class="user-meta">
-              <img src="${user.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="user-avatar" alt="Avatar">
-              <span class="user-name">${user.display_name || user.username}</span>
+          <div class="user-pill-wrap">
+            <div class="user-pill">
+              <div class="user-meta">
+                <img src="${user.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" class="user-avatar" alt="Avatar">
+                <div style="display:flex; flex-direction:column; gap:0.15rem; min-width:0;">
+                  <span class="user-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:130px;">${user.display_name || user.username}</span>
+                  <span id="user-sub-badge" class="user-badge-sub free">Free Plan</span>
+                </div>
+              </div>
+              <button class="btn-logout" onclick="logoutUser()" title="Logout">🚪</button>
             </div>
-            <button class="btn-logout" onclick="logoutUser()" title="Logout">🚪</button>
+            <button class="btn-upgrade-sidebar" id="btn-upgrade-sidebar" onclick="navigate('/premium')">
+              <span>💎 Upgrade to Premium</span>
+            </button>
           </div>
         `;
+        checkUserSubscription();
       } else {
+        userSubscription = null;
         el.innerHTML = `
           <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)">
             <span>👾 Sign in with Discord</span>
