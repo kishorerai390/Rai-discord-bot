@@ -18,6 +18,13 @@ from datetime import datetime
 import aiohttp
 from dotenv import load_dotenv
 
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 load_dotenv("F:/Bot/.env")
 
 GUILD_ID = 1457382179981099090
@@ -147,13 +154,16 @@ async def execute_migration(dry_run: bool = False):
     print(f"Loaded {len(existing_channels)} channels from baseline audit.")
 
     async with aiohttp.ClientSession() as session:
-        # Check authentication first
-        test_res = await safe_api_call(session, "GET", f"https://discord.com/api/v10/guilds/{GUILD_ID}", desc="Verify Bot Gateway")
-        if not test_res:
-            print("\n❌ Gateway authentication returned 401/error.")
-            print("Please ensure a valid DISCORD_TOKEN or MAIN_RAI_BOT_TOKEN is set in .env to perform live REST updates.")
-            print("Server structure plan is validated, fully documented, and ready to trigger immediately once authenticated.")
-            return False
+        # Check authentication first if live run
+        if not dry_run:
+            test_res = await safe_api_call(session, "GET", f"https://discord.com/api/v10/guilds/{GUILD_ID}", desc="Verify Bot Gateway")
+            if not test_res:
+                print("\n❌ Gateway authentication returned 401/error.")
+                print("Please ensure a valid DISCORD_TOKEN or MAIN_RAI_BOT_TOKEN is set in .env to perform live REST updates.")
+                print("Server structure plan is validated, fully documented, and ready to trigger immediately once authenticated.")
+                return False
+        else:
+            print("  [DRY RUN] Simulating full migration against verified audit dump...")
 
         print("\n[Step 1/4] Ensuring Target Categories...")
         # Step 1: Re-parent or create 7 clean categories
