@@ -20,7 +20,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import TestClient, TestServer
 
 import music_bot.config as config
 from music_bot.database.db import MusicDatabase
@@ -45,11 +45,15 @@ class TestRazorpayService(unittest.IsolatedAsyncioTestCase):
 
     def test_01_pricing_and_plans(self):
         """Test server-controlled pricing calculations."""
-        pricing = RazorpayService.get_plan_pricing()
-        self.assertEqual(pricing["monthly"]["amount_inr"], 199)
-        self.assertEqual(pricing["monthly"]["amount_paise"], 19900)
-        self.assertEqual(pricing["yearly"]["amount_inr"], 1799)
-        self.assertEqual(pricing["yearly"]["amount_paise"], 179900)
+        monthly = RazorpayService.get_plan_pricing("monthly")
+        self.assertEqual(monthly["amount_inr"], 199)
+        self.assertEqual(monthly["amount_paise"], 19900)
+        self.assertEqual(monthly["duration_days"], 30)
+
+        yearly = RazorpayService.get_plan_pricing("yearly")
+        self.assertEqual(yearly["amount_inr"], 1799)
+        self.assertEqual(yearly["amount_paise"], 179900)
+        self.assertEqual(yearly["duration_days"], 365)
 
     @patch("music_bot.services.razorpay_service.aiohttp.ClientSession")
     async def test_02_create_order_server_side(self, mock_client_session_cls):
@@ -150,10 +154,9 @@ class TestRazorpayService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sub["plan"], "monthly")
         self.assertEqual(sub["status"], "active")
         self.assertEqual(sub["provider"], "razorpay")
-        self.assertEqual(sub["provider_payment_ref"], "pay_first_001")
+        self.assertEqual(sub["payment_reference"], "pay_first_001")
 
-        first_renewal = datetime.fromisoformat(sub["renewal_date"])
-        # Renewal should be ~30 days in the future
+        first_renewal = datetime.fromisoformat(sub["current_period_end"])
         now_utc = datetime.now(timezone.utc)
         self.assertGreater(first_renewal, now_utc + timedelta(days=29))
 
@@ -169,9 +172,9 @@ class TestRazorpayService(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(success2)
 
         sub2 = await self.db.get_user_subscription(user_id)
-        second_renewal = datetime.fromisoformat(sub2["renewal_date"])
+        second_renewal = datetime.fromisoformat(sub2["current_period_end"])
 
-        # Second renewal must be approx first_renewal + 365 days (~395 days from now)
+        # Second renewal must be approx first_renewal + 365 days
         expected_min = first_renewal + timedelta(days=364)
         self.assertGreaterEqual(second_renewal, expected_min)
 
@@ -194,13 +197,13 @@ class TestRazorpayService(unittest.IsolatedAsyncioTestCase):
 
         # Renewal date should NOT have increased again
         sub3 = await self.db.get_user_subscription(user_id)
-        self.assertEqual(sub3["renewal_date"], sub2["renewal_date"])
+        self.assertEqual(sub3["current_period_end"], sub2["current_period_end"])
 
 
-class TestRazorpayApiEndpoints(AioHTTPTestCase):
+class TestRazorpayApiEndpoints(unittest.IsolatedAsyncioTestCase):
     """Test suite for Razorpay HTTP API routing, auth, and webhook endpoints."""
 
-    async def setUpAsync(self):
+    async def asyncSetUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.db_path = Path(self.temp_dir) / "test_api_music.db"
         self.db = MusicDatabase(db_path=self.db_path)
@@ -215,12 +218,6 @@ class TestRazorpayApiEndpoints(AioHTTPTestCase):
 
         self.router = PaymentApiRouter(bot=MagicMock(), db=self.db, auth=self.mock_auth)
 
-    async def tearDownAsync(self):
-        await self.db.close()
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    async def get_application(self):
-        await self.setUpAsync()
         app = web.Application()
         app.router.add_get("/api/premium/plans", self.router.get_plans)
         app.router.add_post("/api/premium/order", self.router.create_order)
@@ -229,7 +226,15 @@ class TestRazorpayApiEndpoints(AioHTTPTestCase):
         app.router.add_get("/terms", lambda req: web.Response(text=legal.TERMS_OF_SERVICE_HTML, content_type="text/html"))
         app.router.add_get("/refund", lambda req: web.Response(text=legal.REFUND_POLICY_HTML, content_type="text/html"))
         app.router.add_get("/contact", lambda req: web.Response(text=legal.CONTACT_US_HTML, content_type="text/html"))
-        return app
+
+        self.server = TestServer(app)
+        self.client = TestClient(self.server)
+        await self.client.start_server()
+
+    async def asyncTearDown(self):
+        await self.client.close()
+        await self.db.close()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     async def test_01_create_order_when_payments_disabled(self):
         """When PAYMENTS_ENABLED=false, create_order returns 503 PAYMENTS_DISABLED."""
@@ -332,7 +337,7 @@ class TestRazorpayApiEndpoints(AioHTTPTestCase):
             # Verify in DB
             sub = await self.db.get_user_subscription(1122334455)
             self.assertIsNotNone(sub)
-            self.assertEqual(sub["provider_payment_ref"], "pay_hook_888")
+            self.assertEqual(sub["payment_reference"], "pay_hook_888")
 
     async def test_06_compliance_legal_routes(self):
         """Test required compliance endpoints (/terms, /refund, /contact)."""

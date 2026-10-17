@@ -35,15 +35,15 @@ class RazorpayService:
 
     @classmethod
     def get_key_id(cls) -> str:
-        return os.getenv("RAZORPAY_KEY_ID", "").strip()
+        return os.getenv("RAZORPAY_KEY_ID", "").strip() or getattr(config, "RAZORPAY_KEY_ID", "")
 
     @classmethod
     def get_key_secret(cls) -> str:
-        return os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+        return os.getenv("RAZORPAY_KEY_SECRET", "").strip() or getattr(config, "RAZORPAY_KEY_SECRET", "")
 
     @classmethod
     def get_webhook_secret(cls) -> str:
-        return os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
+        return os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip() or getattr(config, "RAZORPAY_WEBHOOK_SECRET", "")
 
     @classmethod
     def is_configured(cls) -> bool:
