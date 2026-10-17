@@ -120,17 +120,28 @@ class EntitlementService:
                 except Exception:
                     pass
 
-            if not is_expired:
+            if is_expired:
                 return UserEntitlement(
                     user_id=user_id,
-                    is_premium=True,
-                    plan=sub.get("plan", "monthly"),
-                    status=sub.get("status", "active"),
+                    is_premium=False,
+                    plan=sub.get("plan", "free"),
+                    status="expired",
                     current_period_end=period_end,
                     cancel_at_period_end=bool(sub.get("cancel_at_period_end", 0)),
                     provider=sub.get("provider", "stripe"),
-                    perks={k: True for k in cls.PREMIUM_PERKS},
+                    perks={k: False for k in cls.PREMIUM_PERKS},
                 )
+
+            return UserEntitlement(
+                user_id=user_id,
+                is_premium=True,
+                plan=sub.get("plan", "monthly"),
+                status=sub.get("status", "active"),
+                current_period_end=period_end,
+                cancel_at_period_end=bool(sub.get("cancel_at_period_end", 0)),
+                provider=sub.get("provider", "stripe"),
+                perks={k: True for k in cls.PREMIUM_PERKS},
+            )
 
         # Fallback check on manual guild/user license in music_premium
         if hasattr(db, "get_premium_info"):

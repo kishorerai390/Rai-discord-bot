@@ -198,12 +198,15 @@ class PaymentService:
 
         # Extract subscription details
         plan = (session.metadata.get("plan") if session.metadata else "monthly") or "monthly"
-        sub_id = session.subscription.id if getattr(session, "subscription", None) else None
-        cust_id = session.customer.id if getattr(session, "customer", None) else (session.customer or None)
+        sub_raw = getattr(session, "subscription", None)
+        sub_id = getattr(sub_raw, "id", sub_raw) if sub_raw else None
+
+        cust_raw = getattr(session, "customer", None)
+        cust_id = getattr(cust_raw, "id", cust_raw) if cust_raw else None
 
         start_time = None
         end_time = None
-        if hasattr(session, "subscription") and session.subscription:
+        if hasattr(session, "subscription") and session.subscription and not isinstance(session.subscription, str):
             sub = session.subscription
             if getattr(sub, "current_period_start", None):
                 start_time = datetime.fromtimestamp(sub.current_period_start, timezone.utc).isoformat()
@@ -229,7 +232,7 @@ class PaymentService:
             await db.record_subscription_audit(
                 user_id=user_id,
                 action="payment_verified_on_success_page",
-                details={"session_id": session_id, "sub_id": sub_id, "plan": plan},
+                details={"session_id": session_id, "sub_id": str(sub_id), "plan": plan},
             )
 
         return {
@@ -253,6 +256,28 @@ class PaymentService:
             raise ValueError("STRIPE_WEBHOOK_SECRET is not configured on server.")
 
         return stripe.Webhook.construct_event(payload, sig_header, secret)
+
+    @classmethod
+    async def verify_and_process_webhook(
+        cls,
+        payload_bytes: bytes,
+        sig_header: str,
+        db: Any,
+    ) -> Dict[str, Any]:
+        """Verify signature and process webhook event in one call."""
+        event = cls.verify_webhook_signature(payload_bytes, sig_header)
+        success, message = await cls.process_webhook_event(
+            event=event,
+            raw_payload=payload_bytes.decode("utf-8", errors="replace"),
+            db=db,
+        )
+        return {
+            "success": success,
+            "message": message,
+            "event_type": event.get("type"),
+            "event_id": event.get("id"),
+            "duplicate": "already processed" in message.lower(),
+        }
 
     @classmethod
     async def process_webhook_event(
