@@ -1,0 +1,27 @@
+{
+  "smart_autodj": {
+    "enabled": true,
+    "label": "Smart Auto-DJ Queue Flow",
+    "category": "audio"
+  },
+  "lossless_dsp": {
+    "enabled": true,
+    "label": "320kbps Lossless DSP Engine",
+    "category": "audio"
+  },
+  "canvas_visualizer": {
+    "enabled": true,
+    "label": "Holographic Audio Canvas",
+    "category": "ui"
+  },
+  "instant_tickets": {
+    "enabled": true,
+    "label": "Ephemeral Support Tickets",
+    "category": "community"
+  },
+  "emergency_safe_mode": {
+    "enabled": false,
+    "label": "Emergency Safe Mode",
+    "category": "system"
+  }
+}

@@ -62,6 +62,8 @@ class RaiCommunityOSServer:
         self.music_router = MusicApiRouter(auth_manager=self.api_router.auth, bot=bot)
         from web.payment_api import PaymentApiRouter
         self.payment_router = PaymentApiRouter(bot=self.bot, db=self.db, auth=self.api_router.auth)
+        from web.owner_api import OwnerApiRouter
+        self.owner_router = OwnerApiRouter(bot=self.bot, db=self.db, auth=self.api_router.auth)
         self._outbox_task: Optional[asyncio.Task] = None
         self._is_running = False
 
@@ -196,6 +198,7 @@ class RaiCommunityOSServer:
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
             "/search", "/queue", "/autodj", "/library", "/audio", "/dsp", "/stats",
             "/canvas", "/visualizer",
+            "/owner", "/dashboard/guilds",
             "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
         for path in ui_routes:
@@ -347,6 +350,8 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/music/autodj", m.get_autodj_status)
         app.router.add_post("/api/music/autodj/settings", m.set_autodj_settings)
         app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
+        app.router.add_get("/api/music/guild-settings", m.get_guild_settings)
+        app.router.add_post("/api/music/guild-settings", m.update_guild_settings)
 
         # Premium Subscription & Payment API (Razorpay & Stripe)
         p = self.payment_router
@@ -360,6 +365,21 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/premium/cancel", p.cancel_subscription)
         app.router.add_post("/api/premium/webhook", p.handle_webhook)
         app.router.add_post("/api/premium/webhook/razorpay", p.handle_razorpay_webhook)
+
+        # Creator Control Center & Intelligent Operations API (Exclusively for Bot Owners)
+        o = self.owner_router
+        app.router.add_get("/api/owner/overview", o.get_overview)
+        app.router.add_get("/api/owner/health", o.get_health)
+        app.router.add_get("/api/owner/guilds", o.list_guilds)
+        app.router.add_get("/api/owner/users/search", o.search_user)
+        app.router.add_post("/api/owner/users/entitlement", o.update_entitlement)
+        app.router.add_get("/api/owner/incidents", o.list_incidents)
+        app.router.add_post("/api/owner/incidents/acknowledge", o.acknowledge_incident)
+        app.router.add_get("/api/owner/feature-flags", o.get_feature_flags)
+        app.router.add_post("/api/owner/feature-flags", o.update_feature_flags)
+        app.router.add_get("/api/owner/backups", o.list_backups)
+        app.router.add_post("/api/owner/backups/create", o.create_backup)
+        app.router.add_get("/api/owner/audit-logs", o.list_audit_logs)
 
         # Fallback SPA routing for direct navigation and browser refresh (e.g. /search, /queue)
         async def fallback_spa(request: web.Request) -> web.Response:

@@ -888,3 +888,96 @@ class MusicApiRouter:
                 logger.debug(f"Auto-DJ recommendation search note: {e}")
 
         return json_success(recommendations)
+
+    # ==========================================
+    # 7. GUILD ADMINISTRATOR SETTINGS
+    # ==========================================
+    async def get_guild_settings(self, request: web.Request) -> web.Response:
+        """Fetch guild configuration, verifying guild admin privileges."""
+        await self._ensure_db()
+        guild_id_raw = request.query.get("guild_id", "").strip()
+        if not guild_id_raw.isdigit():
+            return json_error("INVALID_GUILD_ID", "guild_id parameter must be a numeric Discord ID", 400)
+
+        guild_id = int(guild_id_raw)
+        if self.auth_manager:
+            await self.auth_manager.require_guild_admin(request, guild_id)
+
+        settings = await self.db.get_guild_settings(guild_id)
+        return json_success({
+            "guild_id": str(settings.guild_id),
+            "prefix": settings.prefix,
+            "default_volume": settings.default_volume,
+            "autoplay_enabled": settings.autoplay_enabled,
+            "auto_leave_enabled": settings.auto_leave_enabled,
+            "auto_leave_timeout": settings.auto_leave_timeout,
+            "natural_requests_enabled": settings.natural_requests_enabled,
+            "allowed_channels": settings.allowed_channels,
+            "allowed_voice_channels": settings.allowed_voice_channels,
+            "queue_limit": settings.queue_limit,
+            "quiet_mode": settings.quiet_mode,
+            "response_style": settings.response_style,
+            "vote_skip_threshold": settings.vote_skip_threshold,
+            "dj_mode_enabled": settings.dj_mode_enabled,
+            "twenty_four_seven_enabled": settings.twenty_four_seven_enabled,
+            "twenty_four_seven_channel_id": str(settings.twenty_four_seven_channel_id) if settings.twenty_four_seven_channel_id else None,
+        })
+
+    async def update_guild_settings(self, request: web.Request) -> web.Response:
+        """Update guild configuration with validation and entitlement checks."""
+        await self._ensure_db()
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("INVALID_JSON", "Request body must be valid JSON", 400)
+
+        guild_id_raw = str(body.get("guild_id", "")).strip()
+        if not guild_id_raw.isdigit():
+            return json_error("INVALID_GUILD_ID", "guild_id must be a numeric Discord ID", 400)
+
+        guild_id = int(guild_id_raw)
+        session = None
+        if self.auth_manager:
+            session = await self.auth_manager.require_guild_admin(request, guild_id)
+
+        caller_id = session.get("discord_user_id", 0) if session else 0
+        entitlements = await self.auth_manager.get_user_entitlements(caller_id) if self.auth_manager else {"is_premium": False}
+        is_premium = entitlements.get("is_premium", False)
+
+        settings = await self.db.get_guild_settings(guild_id)
+
+        # Prefix validation
+        if "prefix" in body:
+            new_prefix = str(body["prefix"]).strip()
+            if 1 <= len(new_prefix) <= 5:
+                settings.prefix = new_prefix
+                if self.bot and hasattr(self.bot, "set_cached_prefix"):
+                    self.bot.set_cached_prefix(guild_id, new_prefix)
+            else:
+                return json_error("INVALID_PREFIX", "Prefix must be 1 to 5 characters long", 400)
+
+        # Volume validation (100% max for free, 150% max for premium)
+        if "default_volume" in body:
+            vol = max(1, min(150, int(body["default_volume"])))
+            if vol > 100 and not is_premium:
+                return json_error("PREMIUM_REQUIRED", "Volumes above 100% require an active Noctyra Premium subscription", 403)
+            settings.default_volume = vol
+
+        # 24/7 Mode check (requires premium)
+        if "twenty_four_seven_enabled" in body:
+            tfs = bool(body["twenty_four_seven_enabled"])
+            if tfs and not is_premium:
+                return json_error("PREMIUM_REQUIRED", "24/7 Voice Channel mode requires an active Noctyra Premium subscription", 403)
+            settings.twenty_four_seven_enabled = tfs
+            if "twenty_four_seven_channel_id" in body and body["twenty_four_seven_channel_id"]:
+                settings.twenty_four_seven_channel_id = int(body["twenty_four_seven_channel_id"])
+
+        if "autoplay_enabled" in body:
+            settings.autoplay_enabled = bool(body["autoplay_enabled"])
+        if "queue_limit" in body:
+            settings.queue_limit = max(10, min(500, int(body["queue_limit"])))
+        if "natural_requests_enabled" in body:
+            settings.natural_requests_enabled = bool(body["natural_requests_enabled"])
+
+        await self.db.update_guild_settings(settings)
+        return json_success({"message": "Guild settings updated successfully", "guild_id": str(guild_id)})

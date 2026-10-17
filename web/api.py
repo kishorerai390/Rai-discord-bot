@@ -212,10 +212,20 @@ class ApiRouter:
     async def auth_me(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
         if not session:
-            return json_success({"authenticated": False, "user": None})
+            return json_success({"authenticated": False, "user": None, "entitlements": None})
+        
+        user_id = session.get("discord_user_id", 0)
+        entitlements = await self.auth.get_user_entitlements(user_id)
+        
+        user_payload = dict(session.get("user_data", {}))
+        user_payload["is_owner"] = is_bot_owner(user_id)
+        user_payload["is_premium"] = entitlements.get("is_premium", False)
+        user_payload["tier"] = entitlements.get("tier", "free")
+        
         return json_success({
             "authenticated": True,
-            "user": session.get("user_data"),
+            "user": user_payload,
+            "entitlements": entitlements,
             "sessionId": session.get("session_id"),
         })
 
@@ -238,6 +248,9 @@ class ApiRouter:
 
     async def auth_dev_login(self, request: web.Request) -> web.Response:
         """Safe test/direct login endpoint using Discord ID when OAuth flow is not used."""
+        if os.getenv("RENDER") and os.getenv("ALLOW_DEV_LOGIN", "false").lower() != "true":
+            return json_error("FORBIDDEN", "Direct ID login is disabled in production. Please sign in via Discord OAuth2.", 403)
+
         try:
             body = await request.json()
         except Exception:

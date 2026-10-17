@@ -355,3 +355,123 @@ class AuthManager:
                 content_type="application/json",
             )
         return session
+
+    async def require_owner(self, request: web.Request) -> Dict[str, Any]:
+        """Ensure caller is verified Bot Owner/Creator or raise HTTP 403."""
+        session = await self.require_auth(request)
+        user_id = session.get("discord_user_id", 0)
+        if not is_bot_owner(user_id):
+            raise web.HTTPForbidden(
+                text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Bot Creator / Owner privileges required for Control Room"}}',
+                content_type="application/json",
+            )
+        return session
+
+    async def require_guild_admin(self, request: web.Request, guild_id: int) -> Dict[str, Any]:
+        """Ensure caller is authorized administrator for specific guild or raise HTTP 403."""
+        session = await self.require_auth(request)
+        user_id = session.get("discord_user_id", 0)
+
+        # 1. Global Bot Owner has management access
+        if is_bot_owner(user_id):
+            return session
+
+        # 2. Check live Discord bot guild permissions if bot is present
+        if self.bot and hasattr(self.bot, "get_guild"):
+            guild = self.bot.get_guild(guild_id)
+            if guild:
+                member = guild.get_member(user_id) if hasattr(guild, "get_member") else None
+                if member:
+                    perms = getattr(member, "guild_permissions", None)
+                    if perms:
+                        is_admin = bool(
+                            getattr(perms, "administrator", False)
+                            or getattr(perms, "manage_guild", False)
+                            or getattr(member, "id", None) == getattr(guild, "owner_id", None)
+                        )
+                        if is_admin:
+                            return session
+
+        # 3. Check cached OAuth guilds from session
+        guilds = session.get("user_data", {}).get("guilds", [])
+        for g in guilds:
+            if str(g.get("id")) == str(guild_id):
+                perms_int = int(g.get("permissions", 0))
+                # Check ADMINISTRATOR (0x8) or MANAGE_GUILD (0x20) or owner
+                if bool(g.get("owner")) or (perms_int & 0x8) != 0 or (perms_int & 0x20) != 0:
+                    return session
+
+        raise web.HTTPForbidden(
+            text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Guild Administrator privileges required for this server"}}',
+            content_type="application/json",
+        )
+
+    async def get_user_entitlements(self, user_id: int) -> Dict[str, Any]:
+        """Authoritatively resolve user entitlement status from server-side database & owner registry."""
+        if not user_id:
+            return {
+                "tier": "free",
+                "is_premium": False,
+                "source": "none",
+                "features": ["standard_queue", "standard_volume_100", "basic_controls"],
+            }
+
+        # 1. Creator / Bot Owner VIP Pass (Unconditional permanent bypass)
+        if is_bot_owner(user_id):
+            return {
+                "tier": "creator_vip",
+                "is_premium": True,
+                "source": "developer_pass",
+                "plan_name": "Noctyra Creator VIP Pass",
+                "features": [
+                    "247_mode",
+                    "volume_boost_150",
+                    "lossless_320kbps",
+                    "unlimited_queues",
+                    "smart_autodj",
+                    "dsp_equalizer",
+                    "cluster_diagnostics",
+                    "owner_control_room",
+                ],
+            }
+
+        # 2. Check active subscription in database
+        sub = None
+        try:
+            if hasattr(self.db, "get_user_subscription"):
+                sub = await self.db.get_user_subscription(user_id)
+            elif hasattr(self.db, "_db") and self.db._db:
+                async with self.db._db.execute(
+                    "SELECT * FROM music_user_subscriptions WHERE user_id = ? AND status = 'active' LIMIT 1",
+                    (user_id,),
+                ) as cur:
+                    row = await cur.fetchone()
+                    if row:
+                        sub = dict(row)
+        except Exception as e:
+            logger.debug(f"Entitlement database query notice: {e}")
+
+        if sub and sub.get("status") == "active":
+            return {
+                "tier": sub.get("plan", "premium"),
+                "is_premium": True,
+                "source": "subscription",
+                "plan_name": f"Noctyra {sub.get('plan', 'Premium').capitalize()}",
+                "expires_at": sub.get("current_period_end"),
+                "features": [
+                    "247_mode",
+                    "volume_boost_150",
+                    "lossless_320kbps",
+                    "unlimited_queues",
+                    "smart_autodj",
+                    "dsp_equalizer",
+                ],
+            }
+
+        return {
+            "tier": "free",
+            "is_premium": False,
+            "source": "none",
+            "plan_name": "Free Tier",
+            "features": ["standard_queue", "standard_volume_100", "basic_controls"],
+        }
