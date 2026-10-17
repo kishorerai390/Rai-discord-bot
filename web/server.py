@@ -55,6 +55,8 @@ class RaiCommunityOSServer:
         self.realtime_gateway = RealtimeGateway(self.db, self.bot)
         self.api_router = ApiRouter(self.db, self.bot, realtime=self.realtime_gateway)
         self.music_router = MusicApiRouter(auth_manager=self.api_router.auth, bot=bot)
+        from web.payment_api import PaymentApiRouter
+        self.payment_router = PaymentApiRouter(bot=self.bot, db=self.db, auth=self.api_router.auth)
         self._outbox_task: Optional[asyncio.Task] = None
         self._is_running = False
 
@@ -162,7 +164,8 @@ class RaiCommunityOSServer:
             "/status", "/wiki", "/mission-control",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
-            "/canvas", "/visualizer"
+            "/canvas", "/visualizer",
+            "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
         for path in ui_routes:
             app.router.add_get(path, self.handle_ui)
