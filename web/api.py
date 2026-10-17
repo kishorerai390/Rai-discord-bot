@@ -158,8 +158,8 @@ class ApiRouter:
             # Validate CSRF state parameter against cookie
             state = request.query.get("state")
             cookie_state = request.cookies.get("oauth_state")
-            if cookie_state and state and cookie_state != state:
-                logger.warning("OAuth2 state parameter mismatch (possible CSRF attack).")
+            if cookie_state and (not state or cookie_state != state):
+                logger.warning("OAuth2 state parameter mismatch or missing (possible CSRF attack).")
                 raise web.HTTPFound("/?error=csrf_validation_failed")
 
             redirect_uri = self.auth.get_redirect_uri(request)

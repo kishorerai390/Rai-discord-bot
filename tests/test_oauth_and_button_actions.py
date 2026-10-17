@@ -11,6 +11,7 @@ Validates:
 - Server-side guild authorization validation
 """
 
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiohttp import web
@@ -280,3 +281,29 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
             assert deleted is True
             assert await music_db.get_web_session(session_id) is None
             await music_db.close()
+
+    async def test_15_auth_url_redirect_uri_matches_registered_https_callback(self):
+        """15. Generated Discord OAuth authorization URL contains properly URL-encoded /api/auth/callback."""
+        with patch.dict(os.environ, {"RENDER_EXTERNAL_URL": "https://rai-discord-bot.onrender.com"}):
+            auth_mgr = self.rai_server.api_router.auth
+            oauth_url = auth_mgr.get_oauth_url(state="test_state_123")
+            assert "discord.com/oauth2/authorize" in oauth_url
+            assert "redirect_uri=https%3A%2F%2Frai-discord-bot.onrender.com%2Fapi%2Fauth%2Fcallback" in oauth_url
+            assert "response_type=code" in oauth_url
+            assert "state=test_state_123" in oauth_url
+
+    async def test_16_discord_redirect_uri_legacy_route_normalization(self):
+        """16. If DISCORD_REDIRECT_URI contains legacy /auth/discord/callback, normalize to /api/auth/callback."""
+        with patch.dict(os.environ, {"DISCORD_REDIRECT_URI": "https://rai-discord-bot.onrender.com/auth/discord/callback"}):
+            auth_mgr = self.rai_server.api_router.auth
+            resolved = auth_mgr.get_redirect_uri()
+            assert resolved == "https://rai-discord-bot.onrender.com/api/auth/callback"
+            oauth_url = auth_mgr.get_oauth_url(state="test_state_456")
+            assert "redirect_uri=https%3A%2F%2Frai-discord-bot.onrender.com%2Fapi%2Fauth%2Fcallback" in oauth_url
+
+    async def test_17_auth_callback_missing_state_when_cookie_present(self):
+        """17. GET /api/auth/callback with cookie state but missing query state redirects with error=csrf_validation_failed."""
+        self.client.session.cookie_jar.update_cookies({"oauth_state": "expected_secret_csrf"})
+        resp = await self.client.get("/api/auth/callback?code=mock_code", allow_redirects=False)
+        assert resp.status == 302
+        assert "error=csrf_validation_failed" in resp.headers.get("Location", "")

@@ -95,8 +95,15 @@ class AuthManager:
         """
         # 1. Check explicit DISCORD_REDIRECT_URI environment variable (if non-localhost)
         env_uri = os.getenv("DISCORD_REDIRECT_URI", "").strip() or DISCORD_REDIRECT_URI
-        if env_uri and is_valid_public_https_url(env_uri):
-            return env_uri
+        if env_uri:
+            if "/auth/discord/callback" in env_uri:
+                logger.warning(
+                    "[Auth] DISCORD_REDIRECT_URI contains '/auth/discord/callback'. "
+                    "Normalizing to authoritative route '/api/auth/callback'."
+                )
+                env_uri = env_uri.replace("/auth/discord/callback", "/api/auth/callback")
+            if is_valid_public_https_url(env_uri):
+                return env_uri
 
         # 2. Check authoritative PUBLIC_BASE_URL or MUSICMAID_WEBSITE_URL
         public_base = (

@@ -329,6 +329,13 @@ class TestMasterBuildSuite(unittest.IsolatedAsyncioTestCase):
                 os.environ["RENDER"] = original_render
             os.environ.pop("ALLOW_DEV_LOGIN", None)
 
+    async def test_11_ui_script_contains_user_favorites_and_safe_dashboard_render(self):
+        """Verify web/ui.py script declares userFavorites and safely executes renderDashboard without ReferenceError."""
+        from web.ui import UI_HTML
+        self.assertIn("let userFavorites = [];", UI_HTML)
+        self.assertIn("typeof userFavorites !== 'undefined'", UI_HTML)
+        self.assertIn("syncFavorites()", UI_HTML)
+
 
 if __name__ == "__main__":
     unittest.main()

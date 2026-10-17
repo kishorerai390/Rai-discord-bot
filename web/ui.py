@@ -1709,6 +1709,7 @@ UI_HTML = r"""<!DOCTYPE html>
     let isScrubbing = false;
     let currentUser = null;
     let ws = null;
+    let userFavorites = [];
 
     // =========================================================================
     // INITIALIZATION & REAL-TIME WEBSOCKET
@@ -1990,8 +1991,18 @@ UI_HTML = r"""<!DOCTYPE html>
     // CORE SYNC & DATA FETCHING
     // =========================================================================
     async function syncAll() {
-      await Promise.all([syncSession(), syncQueue()]);
+      await Promise.all([syncSession(), syncQueue(), syncFavorites()]);
       updateActiveView();
+    }
+
+    async function syncFavorites() {
+      try {
+        const res = await fetch('/api/music/favorites');
+        const json = await res.json();
+        if (json.success && json.data) {
+          userFavorites = json.data.favorites || [];
+        }
+      } catch(e) {}
     }
 
     async function syncSession() {
@@ -2281,7 +2292,7 @@ UI_HTML = r"""<!DOCTYPE html>
     function renderDashboard() {
       const container = document.getElementById('view-container');
       const t = currentSession?.current_track;
-      const favCount = userFavorites ? userFavorites.length : 0;
+      const favCount = (typeof userFavorites !== 'undefined' && Array.isArray(userFavorites)) ? userFavorites.length : 0;
 
       container.innerHTML = `
         <div class="muify-dashboard-grid">
