@@ -1780,7 +1780,7 @@ class MusicDatabase:
                     status = excluded.status,
                     processed_at = excluded.processed_at
                 """,
-                (event_id, provider, event_type, payload_json, status, now),
+                (event_id, provider, event_type, final_payload, status, now),
             )
             await self._db.commit()
             return True
