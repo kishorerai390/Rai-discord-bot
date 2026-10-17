@@ -10,7 +10,10 @@ UI_HTML = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#07090e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>MusicMaid ✦ Discord Music Engine & Master Control Panel</title>
   <meta name="description" content="Dedicated 24/7 Lossless 320kbps Discord Music Bot Control Panel. Control queues, DSP equalizer, Smart Auto-DJ, and synchronized playback.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,7 +48,12 @@ UI_HTML = r"""<!DOCTYPE html>
       --radius-lg: 20px;
       --radius-full: 9999px;
       --player-height: 88px;
+      --player-mobile-height: 112px;
       --sidebar-width: 260px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -59,13 +67,24 @@ UI_HTML = r"""<!DOCTYPE html>
       font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
       min-height: 100vh;
       overflow-x: hidden;
+      width: 100%;
+      max-width: 100%;
+      -webkit-font-smoothing: antialiased;
     }
 
     /* APP LAYOUT SHELL */
     .app-layout {
       display: flex;
       min-height: 100vh;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       padding-bottom: calc(var(--player-height) + 12px);
+    }
+    @media (max-width: 768px) {
+      .app-layout {
+        padding-bottom: calc(var(--player-mobile-height) + var(--safe-bottom) + 16px);
+      }
     }
 
     /* LEFT SIDEBAR */
@@ -699,23 +718,39 @@ UI_HTML = r"""<!DOCTYPE html>
       flex: 1;
       padding: 1.8rem 2.2rem;
       max-width: 1400px;
-      width: calc(100vw - var(--sidebar-width));
+      width: calc(100% - var(--sidebar-width));
+      box-sizing: border-box;
+      min-width: 0;
+      overflow-x: hidden;
     }
     @media (max-width: 900px) {
       aside.sidebar {
         transform: translateX(-100%);
-        transition: transform 0.3s ease;
+        transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        width: min(85vw, 300px);
+        max-width: 100vw;
+        bottom: 0;
+        z-index: 1000;
+        box-shadow: none;
       }
       aside.sidebar.mobile-open {
         transform: translateX(0);
+        box-shadow: 10px 0 40px rgba(0, 0, 0, 0.85);
       }
       main.content-area {
         margin-left: 0;
-        width: 100vw;
-        padding: 1rem;
+        width: 100%;
+        max-width: 100vw;
+        padding: 1rem 0.85rem;
+        padding-bottom: calc(var(--player-mobile-height) + var(--safe-bottom) + 20px);
       }
       .mobile-top-bar {
         display: flex !important;
+      }
+    }
+    @media (max-width: 480px) {
+      main.content-area {
+        padding: 0.75rem 0.55rem;
       }
     }
 
@@ -728,19 +763,26 @@ UI_HTML = r"""<!DOCTYPE html>
       border-radius: var(--radius-md);
       padding: 0.75rem 1rem;
       margin-bottom: 1.2rem;
+      gap: 0.5rem;
     }
     .mobile-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #fff;
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
+      min-width: 40px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 1.2rem;
+      font-size: 1.25rem;
       display: flex;
       align-items: center;
       justify-content: center;
+      transition: background 0.15s;
+    }
+    .mobile-btn:hover, .mobile-btn:active {
+      background: rgba(147, 51, 234, 0.3);
+      border-color: var(--primary);
     }
 
     /* CARD & COMPONENT STYLING */
@@ -754,6 +796,8 @@ UI_HTML = r"""<!DOCTYPE html>
       position: relative;
       overflow: hidden;
       transition: border-color 0.25s, box-shadow 0.25s;
+      box-sizing: border-box;
+      max-width: 100%;
     }
     .glass-card:hover {
       border-color: var(--card-border-hover);
@@ -783,7 +827,7 @@ UI_HTML = r"""<!DOCTYPE html>
       left: 0;
       right: 0;
       height: var(--player-height);
-      background: rgba(10, 13, 22, 0.94);
+      background: rgba(10, 13, 22, 0.95);
       backdrop-filter: blur(28px);
       -webkit-backdrop-filter: blur(28px);
       border-top: 1px solid rgba(147, 51, 234, 0.28);
@@ -794,22 +838,74 @@ UI_HTML = r"""<!DOCTYPE html>
       align-items: center;
       padding: 0 1.8rem;
       gap: 1.5rem;
+      box-sizing: border-box;
     }
     @media (max-width: 1024px) {
       footer.player-bar {
         grid-template-columns: 240px 1fr 200px;
         padding: 0 1rem;
+        gap: 1rem;
       }
     }
     @media (max-width: 768px) {
       footer.player-bar {
-        grid-template-columns: 1fr auto;
-        padding: 0.5rem 0.8rem;
+        display: flex;
+        flex-direction: column;
         height: auto;
-        min-height: 76px;
+        min-height: var(--player-mobile-height);
+        padding: 0.5rem 0.8rem calc(0.5rem + var(--safe-bottom)) 0.8rem;
+        gap: 0.35rem;
+        justify-content: center;
       }
       .player-bar-right { display: none !important; }
-      .player-bar-center { width: 100%; }
+      .player-bar-left {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem;
+      }
+      .player-bar-center {
+        width: 100%;
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .player-buttons-row {
+        gap: 0.85rem;
+      }
+      .bar-thumb {
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 8px !important;
+      }
+      .bar-title {
+        font-size: 0.84rem !important;
+      }
+      .bar-artist {
+        font-size: 0.72rem !important;
+      }
+      .p-btn {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        font-size: 1.1rem !important;
+      }
+      .p-btn-play {
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        font-size: 1.25rem !important;
+      }
+      .scrub-row {
+        width: 100%;
+        gap: 0.45rem;
+      }
+      .scrub-time {
+        font-size: 0.72rem;
+        min-width: 34px;
+      }
     }
 
     /* PLAYER BAR LEFT: TRACK META */
@@ -1543,21 +1639,343 @@ UI_HTML = r"""<!DOCTYPE html>
     .incident-badge.critical { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
     .incident-badge.warning { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
     .incident-badge.info { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+
+    /* =========================================================================
+       COMPREHENSIVE MOBILE RESPONSIVE ENGINE (320px - 1440px)
+       ========================================================================= */
+
+    /* DRAWER BACKDROP & CLOSE BUTTON */
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.72);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 998;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+    .sidebar-backdrop.active {
+      display: block;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    body.sidebar-open {
+      overflow: hidden !important;
+    }
+    .sidebar-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 0.5rem;
+    }
+    .mobile-sidebar-close {
+      display: none;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      width: 36px;
+      height: 36px;
+      min-width: 36px;
+      border-radius: 8px;
+      font-size: 1.15rem;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .mobile-sidebar-close:hover, .mobile-sidebar-close:active {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: var(--danger);
+      color: #f87171;
+    }
+
+    /* TWO-COLUMN CONTROL GRID UTILITY */
+    .control-grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    /* VIEWPORT-WIDE OVERFLOW PREVENTION */
+    img, svg, video, canvas {
+      max-width: 100%;
+    }
+    input, select, textarea, button {
+      box-sizing: border-box;
+      max-width: 100%;
+    }
+
+    /* TOAST POSITIONING FOR MOBILE */
+    @media (max-width: 600px) {
+      #toast-container {
+        bottom: calc(var(--player-mobile-height) + var(--safe-bottom) + 10px) !important;
+        right: 12px !important;
+        left: 12px !important;
+        align-items: center !important;
+      }
+      .toast-msg {
+        max-width: 100% !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        font-size: 0.82rem !important;
+        padding: 0.65rem 0.9rem !important;
+      }
+    }
+
+    /* TABLET / NOTEBOOK (1024px & BELOW) */
+    @media (max-width: 1024px) {
+      .muify-dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+      .table-compare-card {
+        padding: 1.2rem;
+      }
+      .control-header-bar {
+        padding: 1rem 1.2rem;
+      }
+    }
+
+    /* MOBILE DRAWER BREAKPOINT (900px & BELOW) */
+    @media (max-width: 900px) {
+      .mobile-sidebar-close {
+        display: inline-flex;
+      }
+      .pricing-hero h1 {
+        font-size: 2rem !important;
+      }
+    }
+
+    /* TABLET PORTRAIT / LARGE PHONES (768px & BELOW) */
+    @media (max-width: 768px) {
+      .control-grid-2col {
+        grid-template-columns: 1fr !important;
+      }
+      .pricing-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)) !important;
+      }
+      .pricing-card {
+        padding: 1.5rem 1.2rem;
+      }
+      .pricing-price {
+        font-size: 2.3rem;
+      }
+      .pricing-hero {
+        padding: 1rem 0.5rem;
+      }
+      .pricing-hero h1 {
+        font-size: 1.75rem !important;
+      }
+      .pricing-hero p {
+        font-size: 0.92rem;
+      }
+      .control-header-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .control-grid-4 {
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+      }
+      /* Prevent iOS auto-zoom on input focus */
+      input[type="text"], input[type="search"], select, textarea {
+        font-size: 16px !important;
+      }
+    }
+
+    /* MEDIUM MOBILE (640px & BELOW) */
+    @media (max-width: 640px) {
+      .muify-hero-card {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center !important;
+        padding: 1.2rem !important;
+        gap: 1.1rem !important;
+      }
+      .muify-hero-card div[style*="justify-content"] {
+        justify-content: center !important;
+      }
+      .muify-hero-card .chip-pill {
+        font-size: 0.72rem;
+      }
+      #hero-track-title {
+        font-size: 1.35rem !important;
+      }
+      #hero-track-artist {
+        font-size: 0.88rem !important;
+      }
+      .muify-hero-card div[style*="align-items:center; gap:0.6rem; flex-wrap:wrap"] {
+        justify-content: center !important;
+      }
+      .queue-row {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 0.65rem !important;
+        padding: 0.75rem !important;
+      }
+      .queue-row-left {
+        width: 100% !important;
+      }
+      .queue-row-right {
+        justify-content: space-between !important;
+        width: 100% !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+        padding-top: 0.45rem !important;
+      }
+      .tracks-grid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)) !important;
+      }
+      .canvas-hero-center .vinyl-wrapper,
+      .canvas-hero-center img.vinyl-disc {
+        width: 150px !important;
+        height: 150px !important;
+      }
+      #stage-track-title {
+        font-size: 1.45rem !important;
+      }
+      #stage-track-artist {
+        font-size: 0.95rem !important;
+      }
+      .canvas-remote-bar {
+        padding: 0.75rem 0.9rem !important;
+      }
+    }
+
+    /* SMALL MOBILE (480px & BELOW) */
+    @media (max-width: 480px) {
+      .tracks-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .pricing-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .control-grid-4 {
+        grid-template-columns: 1fr !important;
+      }
+      .glass-card {
+        padding: 1.1rem !important;
+        border-radius: var(--radius-md) !important;
+      }
+      .section-title {
+        font-size: 1.15rem !important;
+      }
+      .search-hero-box {
+        padding: 0.6rem 0.8rem !important;
+      }
+      .track-card-actions {
+        grid-template-columns: 1fr !important;
+        gap: 0.35rem !important;
+      }
+      .track-card-actions button {
+        width: 100% !important;
+      }
+      .modal-content {
+        padding: 1.2rem !important;
+      }
+      .muify-albums-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .eq-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .mobile-top-bar {
+        padding: 0.6rem 0.75rem !important;
+      }
+    }
+
+    /* EXTRA SMALL MOBILE (360px & BELOW - iPhone SE / Compact) */
+    @media (max-width: 360px) {
+      aside.sidebar {
+        width: 88vw !important;
+        padding: 0.85rem 0.65rem !important;
+      }
+      .mobile-top-bar {
+        padding: 0.5rem 0.6rem !important;
+      }
+      .mobile-top-bar span {
+        font-size: 0.95rem !important;
+      }
+      #mobile-voice-status {
+        display: none !important;
+      }
+      .muify-albums-grid {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 0.5rem !important;
+      }
+      .eq-grid {
+        grid-template-columns: 1fr !important;
+      }
+      .p-btn {
+        width: 34px !important;
+        height: 34px !important;
+        min-width: 34px !important;
+        font-size: 1rem !important;
+      }
+      .p-btn-play {
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+      }
+      .player-buttons-row {
+        gap: 0.5rem !important;
+      }
+      #btn-shuffle, #btn-loop {
+        display: none !important;
+      }
+      .bar-thumb {
+        width: 34px !important;
+        height: 34px !important;
+      }
+      .bar-title {
+        font-size: 0.8rem !important;
+      }
+      .bar-artist {
+        font-size: 0.68rem !important;
+      }
+      .pricing-price {
+        font-size: 2rem !important;
+      }
+      .pricing-card {
+        padding: 1.2rem 0.9rem !important;
+      }
+    }
+
+    /* TOUCH TARGET OPTIMIZATIONS (WCAG 2.1 AA Compliant) */
+    @media (pointer: coarse) {
+      .btn, .mobile-btn, .p-btn, .nav-link, .server-switcher, .eq-chip, .pricing-btn {
+        min-height: 42px;
+      }
+      .nav-link {
+        padding: 0.68rem 0.85rem;
+      }
+    }
   </style>
 </head>
 <body>
+
+  <!-- MOBILE SIDEBAR BACKDROP OVERLAY -->
+  <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
   <div class="app-layout">
 
     <!-- DESKTOP / MOBILE SIDEBAR -->
     <aside class="sidebar" id="sidebar">
-      <a class="brand-box" onclick="navigate('/')">
-        <div class="brand-avatar">🎵</div>
-        <div class="brand-title-wrap">
-          <h1>Noctyra Studio</h1>
-          <p>24/7 Lossless Audio Engine</p>
-        </div>
-      </a>
+      <div class="sidebar-header-row">
+        <a class="brand-box" onclick="navigate('/')">
+          <div class="brand-avatar">🎵</div>
+          <div class="brand-title-wrap">
+            <h1>Noctyra Studio</h1>
+            <p>24/7 Lossless Audio Engine</p>
+          </div>
+        </a>
+        <button class="mobile-sidebar-close" onclick="closeMobileSidebar()" aria-label="Close navigation menu">✕</button>
+      </div>
 
       <!-- ACTIVE DISCORD GUILD SWITCHER -->
       <div class="server-switcher" onclick="toggleServerMenu(event)">
@@ -2208,9 +2626,28 @@ UI_HTML = r"""<!DOCTYPE html>
       }, 3000);
     }
 
-    function toggleMobileSidebar() {
-      document.getElementById('sidebar').classList.toggle('mobile-open');
+    function toggleMobileSidebar(force) {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      const shouldOpen = force !== undefined ? force : !sidebar?.classList.contains('mobile-open');
+      if (shouldOpen) {
+        sidebar?.classList.add('mobile-open');
+        backdrop?.classList.add('active');
+        document.body.classList.add('sidebar-open');
+      } else {
+        sidebar?.classList.remove('mobile-open');
+        backdrop?.classList.remove('active');
+        document.body.classList.remove('sidebar-open');
+      }
     }
+
+    function closeMobileSidebar() {
+      toggleMobileSidebar(false);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMobileSidebar();
+    });
 
     // =========================================================================
     // CLIENT-SIDE ROUTER & VIEW RENDERING
@@ -2218,7 +2655,8 @@ UI_HTML = r"""<!DOCTYPE html>
     function navigate(route) {
       window.history.pushState({}, '', route);
       handleRoute();
-      document.getElementById('sidebar')?.classList.remove('mobile-open');
+      closeMobileSidebar();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function handleRoute() {
@@ -2550,7 +2988,7 @@ UI_HTML = r"""<!DOCTYPE html>
           </div>
 
           <!-- SYSTEM HEALTH & INCIDENTS SPLIT -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+          <div class="control-grid-2col">
 
             <!-- SYSTEM HEALTH -->
             <div class="glass-card" style="padding:1.5rem;">
@@ -2626,7 +3064,7 @@ UI_HTML = r"""<!DOCTYPE html>
           </div>
 
           <!-- FEATURE FLAGS & PROMOTIONAL ENTITLEMENT MANAGEMENT -->
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.5rem;">
+          <div class="control-grid-2col">
 
             <!-- FEATURE FLAGS -->
             <div class="glass-card" style="padding:1.5rem;">
