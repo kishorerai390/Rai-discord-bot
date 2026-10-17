@@ -824,17 +824,31 @@ class MusicCog(commands.Cog, name="Music"):
     ) -> None:
         """Send an ephemeral message ('Only you can see this') and clean up any public deferred message."""
         try:
+            send_kwargs = {"ephemeral": True}
+            if content is not None:
+                send_kwargs["content"] = content
+            if embed is not None:
+                send_kwargs["embed"] = embed
+            if view is not None:
+                send_kwargs["view"] = view
+
             if interaction.response.is_done():
                 try:
                     await interaction.delete_original_response()
                 except Exception:
                     pass
-                await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=True)
+                await interaction.followup.send(**send_kwargs)
             else:
-                await interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=True)
+                await interaction.response.send_message(**send_kwargs)
         except Exception:
             try:
-                await interaction.edit_original_response(content=content, embed=embed, view=view)
+                edit_kwargs = {}
+                if content is not None:
+                    edit_kwargs["content"] = content
+                if embed is not None:
+                    edit_kwargs["embed"] = embed
+                edit_kwargs["view"] = view
+                await interaction.edit_original_response(**edit_kwargs)
             except Exception:
                 pass
 
@@ -2114,7 +2128,10 @@ class MusicCog(commands.Cog, name="Music"):
             )
             embed_status.set_footer(text="Use /247 toggle to change 24/7 mode")
             view = Reconnect247View(self.bot, guild, settings.twenty_four_seven_channel_id) if (settings.twenty_four_seven_enabled and not vc_connected and settings.twenty_four_seven_channel_id) else None
-            await interaction.followup.send(embed=embed_status, view=view)
+            if view is not None:
+                await interaction.followup.send(embed=embed_status, view=view)
+            else:
+                await interaction.followup.send(embed=embed_status)
             return
 
         # Determine target 24/7 state:

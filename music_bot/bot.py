@@ -161,6 +161,13 @@ class NekoSongsBot(commands.Bot):
         except Exception as e:
             logger.error(f"Failed to load MusicSessionCog: {e}", exc_info=True)
 
+        try:
+            from music_bot.commands.sandbox_cog import SandboxCog
+            await self.add_cog(SandboxCog(self))
+            logger.info("Loaded SandboxCog for safe command testing and diagnostics.")
+        except Exception as e:
+            logger.error(f"Failed to load SandboxCog: {e}", exc_info=True)
+
         # 2a. Register persistent Now Playing control view so buttons across restarts always work
         try:
             from music_bot.services.player_service import NowPlayingControlView
