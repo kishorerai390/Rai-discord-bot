@@ -181,7 +181,7 @@ class TestRazorpayService(unittest.IsolatedAsyncioTestCase):
         # 3. Verify entitlement service detects active premium
         ent = await EntitlementService.get_user_entitlement(user_id, self.db)
         self.assertTrue(ent.is_premium)
-        self.assertEqual(ent.tier, "yearly")
+        self.assertEqual(ent.plan, "yearly")
 
         # 4. Duplicate payment_id processing test (idempotency check)
         success3, msg3 = await RazorpayService.grant_verified_entitlement(
@@ -223,9 +223,19 @@ class TestRazorpayApiEndpoints(unittest.IsolatedAsyncioTestCase):
         app.router.add_post("/api/premium/order", self.router.create_order)
         app.router.add_post("/api/premium/verify", self.router.verify_payment)
         app.router.add_post("/api/premium/webhook/razorpay", self.router.handle_razorpay_webhook)
-        app.router.add_get("/terms", lambda req: web.Response(text=legal.TERMS_OF_SERVICE_HTML, content_type="text/html"))
-        app.router.add_get("/refund", lambda req: web.Response(text=legal.REFUND_POLICY_HTML, content_type="text/html"))
-        app.router.add_get("/contact", lambda req: web.Response(text=legal.CONTACT_US_HTML, content_type="text/html"))
+
+        async def handle_terms(req):
+            return web.Response(text=legal.TERMS_OF_SERVICE_HTML, content_type="text/html")
+
+        async def handle_refund(req):
+            return web.Response(text=legal.REFUND_POLICY_HTML, content_type="text/html")
+
+        async def handle_contact(req):
+            return web.Response(text=legal.CONTACT_US_HTML, content_type="text/html")
+
+        app.router.add_get("/terms", handle_terms)
+        app.router.add_get("/refund", handle_refund)
+        app.router.add_get("/contact", handle_contact)
 
         self.server = TestServer(app)
         self.client = TestClient(self.server)
@@ -347,7 +357,7 @@ class TestRazorpayApiEndpoints(unittest.IsolatedAsyncioTestCase):
 
         resp_refund = await self.client.get("/refund")
         self.assertEqual(resp_refund.status, 200)
-        self.assertIn("Refund and Cancellation Policy", await resp_refund.text())
+        self.assertIn("Cancellation & Refund Policy", await resp_refund.text())
 
         resp_contact = await self.client.get("/contact")
         self.assertEqual(resp_contact.status, 200)
