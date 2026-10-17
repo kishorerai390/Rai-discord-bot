@@ -153,8 +153,8 @@ def get_musicmaid_website_url() -> Optional[str]:
     Returns None if no valid public URL is configured or if only localhost is provided.
     """
     candidates = [
-        os.getenv("MUSICMAID_WEBSITE_URL", "").strip(),
         os.getenv("PUBLIC_BASE_URL", "").strip(),
+        os.getenv("MUSICMAID_WEBSITE_URL", "").strip(),
         os.getenv("RENDER_EXTERNAL_URL", "").strip(),
         os.getenv("PUBLIC_URL", "").strip(),
         os.getenv("WEB_BASE_URL", "").strip(),
@@ -164,6 +164,11 @@ def get_musicmaid_website_url() -> Optional[str]:
         if cand and is_valid_public_https_url(cand):
             return cand.rstrip("/")
     return None
+
+
+# Function aliases for website URL resolution
+get_website_url = get_musicmaid_website_url
+get_public_web_url = get_musicmaid_website_url
 
 
 def get_premium_plans_url() -> Optional[str]:

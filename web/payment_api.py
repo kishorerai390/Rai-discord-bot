@@ -37,10 +37,13 @@ class PaymentApiRouter:
         self.auth = auth
 
     def _get_base_url(self, request: web.Request) -> str:
-        """Resolve public HTTPS base URL for redirects."""
-        cfg_url = config.get_website_url()
+        """Resolve authoritative public HTTPS base URL for redirects."""
+        cfg_url = config.get_musicmaid_website_url()
         if cfg_url:
             return cfg_url.rstrip("/")
+
+        if hasattr(self.auth, "get_canonical_base_url"):
+            return self.auth.get_canonical_base_url(request)
 
         proto = request.headers.get("X-Forwarded-Proto") or request.scheme
         host = request.headers.get("X-Forwarded-Host") or request.host

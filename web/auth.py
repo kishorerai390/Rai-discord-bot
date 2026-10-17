@@ -19,6 +19,7 @@ from config import (
     DISCORD_REDIRECT_URI,
     COMMUNITY_GUILD_ID,
 )
+from music_bot.config import is_valid_public_https_url
 
 if TYPE_CHECKING:
     from database.database import Database
@@ -46,28 +47,43 @@ class AuthManager:
     def get_redirect_uri(self, request: Optional[web.Request] = None) -> str:
         """
         Dynamically determine the valid Discord OAuth2 redirect URI.
-        Supports localhost for development and Render production domains seamlessly.
+        Supports PUBLIC_BASE_URL, custom domains, DISCORD_REDIRECT_URI, and Render production domains.
         """
-        # 1. Check explicit DISCORD_REDIRECT_URI environment variable
+        # 1. Check explicit DISCORD_REDIRECT_URI environment variable (if non-localhost)
         env_uri = os.getenv("DISCORD_REDIRECT_URI", "").strip() or DISCORD_REDIRECT_URI
+        if env_uri and is_valid_public_https_url(env_uri):
+            return env_uri
 
-        # 2. Check if deployed on Render (Render automatically exposes RENDER_EXTERNAL_URL)
+        # 2. Check authoritative PUBLIC_BASE_URL or MUSICMAID_WEBSITE_URL
+        public_base = (
+            os.getenv("PUBLIC_BASE_URL", "").strip()
+            or os.getenv("MUSICMAID_WEBSITE_URL", "").strip()
+        )
+        if public_base and is_valid_public_https_url(public_base):
+            return f"{public_base.rstrip('/')}/api/auth/callback"
+
+        # 3. Check if deployed on Render (Render automatically exposes RENDER_EXTERNAL_URL)
         render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
-        if render_url:
-            # If deployed on Render and DISCORD_REDIRECT_URI is default localhost, use the Render production URL
-            if not env_uri or "localhost" in env_uri or "127.0.0.1" in env_uri:
-                return f"{render_url.rstrip('/')}/api/auth/callback"
+        if render_url and is_valid_public_https_url(render_url):
+            return f"{render_url.rstrip('/')}/api/auth/callback"
 
-        # 3. If request is provided, inspect X-Forwarded-Host / Host header if not on default localhost
+        # 4. If request is provided, inspect X-Forwarded-Host / Host header for custom or remote domain
         if request:
             forwarded_proto = request.headers.get("X-Forwarded-Proto", request.scheme)
             forwarded_host = request.headers.get("X-Forwarded-Host", request.host)
             if forwarded_host and not forwarded_host.startswith("0.0.0.0"):
-                # If host is an actual remote domain (e.g. onrender.com) and env_uri is still localhost
-                if "onrender.com" in forwarded_host and ("localhost" in env_uri or not env_uri):
+                if "." in forwarded_host and "localhost" not in forwarded_host and "127.0.0.1" not in forwarded_host:
                     return f"{forwarded_proto}://{forwarded_host}/api/auth/callback"
 
         return env_uri or "http://localhost:8080/api/auth/callback"
+
+    def get_canonical_base_url(self, request: Optional[web.Request] = None) -> str:
+        """Return the authoritative public base URL (origin only, without path)."""
+        redirect_uri = self.get_redirect_uri(request)
+        if "/api/auth/callback" in redirect_uri:
+            return redirect_uri.replace("/api/auth/callback", "").rstrip("/")
+        parsed = urllib.parse.urlparse(redirect_uri)
+        return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
 
     def get_oauth_url(self, state: Optional[str] = None, redirect_uri: Optional[str] = None) -> str:
         """Generate Discord OAuth2 authorization URL."""
