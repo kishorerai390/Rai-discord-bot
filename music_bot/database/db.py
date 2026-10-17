@@ -326,6 +326,46 @@ class MusicDatabase:
                     user_data_json TEXT DEFAULT '{}',
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS music_user_subscriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL UNIQUE,
+                    plan TEXT NOT NULL DEFAULT 'free',
+                    status TEXT NOT NULL DEFAULT 'active',
+                    provider TEXT NOT NULL DEFAULT 'stripe',
+                    provider_customer_id TEXT,
+                    provider_subscription_id TEXT,
+                    payment_reference TEXT,
+                    currency TEXT DEFAULT 'usd',
+                    amount INTEGER DEFAULT 0,
+                    current_period_start TEXT,
+                    current_period_end TEXT,
+                    cancel_at_period_end INTEGER DEFAULT 0,
+                    canceled_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_sub_user ON music_user_subscriptions(user_id);
+                CREATE INDEX IF NOT EXISTS idx_sub_status ON music_user_subscriptions(status);
+
+                CREATE TABLE IF NOT EXISTS payment_webhook_events (
+                    event_id TEXT PRIMARY KEY,
+                    provider TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    payload_json TEXT,
+                    status TEXT DEFAULT 'processed',
+                    processed_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS subscription_audit_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    action TEXT NOT NULL,
+                    details_json TEXT DEFAULT '{}',
+                    ip_address TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_audit_user ON subscription_audit_logs(user_id);
             """)
             await self._db.commit()
 
@@ -1401,6 +1441,27 @@ class MusicDatabase:
         async with self._lock:
             if not self._db:
                 return False
+
+            # 1. Check verified user subscription in payment system
+            if user_id:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                try:
+                    async with self._db.execute(
+                        """
+                        SELECT 1 FROM music_user_subscriptions
+                        WHERE user_id = ?
+                          AND status = 'active'
+                          AND (current_period_end IS NULL OR current_period_end >= ?)
+                        LIMIT 1
+                        """,
+                        (user_id, now_iso),
+                    ) as sub_cursor:
+                        if await sub_cursor.fetchone():
+                            return True
+                except Exception:
+                    pass
+
+            # 2. Check direct guild/user license in music_premium
             query_ids = [guild_id]
             if user_id:
                 query_ids.append(user_id)
@@ -1532,6 +1593,227 @@ class MusicDatabase:
             cur = await self._db.execute("DELETE FROM web_sessions WHERE session_id = ?", (session_id,))
             await self._db.commit()
             return (cur.rowcount or 0) > 0
+
+    # =========================================================================
+    # PREMIUM USER SUBSCRIPTIONS & PAYMENT WEBHOOKS
+    # =========================================================================
+
+    async def get_user_subscription(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Retrieve the verified subscription record for a Discord user."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return None
+
+        async with self._db.execute(
+            "SELECT * FROM music_user_subscriptions WHERE user_id = ?",
+            (user_id,),
+        ) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return None
+            columns = [c[0] for c in cur.description]
+            return dict(zip(columns, row))
+
+    async def upsert_user_subscription(
+        self,
+        user_id: int,
+        plan: str,
+        status: str,
+        provider: str = "stripe",
+        provider_customer_id: Optional[str] = None,
+        provider_subscription_id: Optional[str] = None,
+        payment_reference: Optional[str] = None,
+        currency: str = "usd",
+        amount: int = 0,
+        current_period_start: Optional[str] = None,
+        current_period_end: Optional[str] = None,
+        cancel_at_period_end: bool = False,
+        canceled_at: Optional[str] = None,
+    ) -> bool:
+        """Create or update a user subscription record within an immediate transaction."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
+        now = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT INTO music_user_subscriptions (
+                    user_id, plan, status, provider, provider_customer_id,
+                    provider_subscription_id, payment_reference, currency, amount,
+                    current_period_start, current_period_end, cancel_at_period_end,
+                    canceled_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    plan = excluded.plan,
+                    status = excluded.status,
+                    provider = excluded.provider,
+                    provider_customer_id = COALESCE(excluded.provider_customer_id, music_user_subscriptions.provider_customer_id),
+                    provider_subscription_id = COALESCE(excluded.provider_subscription_id, music_user_subscriptions.provider_subscription_id),
+                    payment_reference = COALESCE(excluded.payment_reference, music_user_subscriptions.payment_reference),
+                    currency = excluded.currency,
+                    amount = excluded.amount,
+                    current_period_start = COALESCE(excluded.current_period_start, music_user_subscriptions.current_period_start),
+                    current_period_end = COALESCE(excluded.current_period_end, music_user_subscriptions.current_period_end),
+                    cancel_at_period_end = excluded.cancel_at_period_end,
+                    canceled_at = excluded.canceled_at,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    user_id,
+                    plan,
+                    status,
+                    provider,
+                    provider_customer_id,
+                    provider_subscription_id,
+                    payment_reference,
+                    currency,
+                    amount,
+                    current_period_start or now,
+                    current_period_end,
+                    1 if cancel_at_period_end else 0,
+                    canceled_at,
+                    now,
+                    now,
+                ),
+            )
+            await self._db.commit()
+            return True
+
+    async def cancel_user_subscription(self, user_id: int, cancel_at_period_end: bool = True) -> bool:
+        """Cancel subscription renewal or mark canceled."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
+        now = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            if cancel_at_period_end:
+                cur = await self._db.execute(
+                    """
+                    UPDATE music_user_subscriptions
+                    SET cancel_at_period_end = 1, canceled_at = ?, updated_at = ?
+                    WHERE user_id = ?
+                    """,
+                    (now, now, user_id),
+                )
+            else:
+                cur = await self._db.execute(
+                    """
+                    UPDATE music_user_subscriptions
+                    SET status = 'canceled', cancel_at_period_end = 1, canceled_at = ?, updated_at = ?
+                    WHERE user_id = ?
+                    """,
+                    (now, now, user_id),
+                )
+            await self._db.commit()
+            return (cur.rowcount or 0) > 0
+
+    async def is_webhook_event_processed(self, event_id: str) -> bool:
+        """Idempotency check: returns True if webhook event has already been handled."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
+        async with self._db.execute(
+            "SELECT 1 FROM payment_webhook_events WHERE event_id = ? LIMIT 1",
+            (event_id,),
+        ) as cur:
+            row = await cur.fetchone()
+            return row is not None
+
+    async def record_webhook_event(
+        self,
+        event_id: str,
+        provider: str,
+        event_type: str,
+        payload_json: str,
+        status: str = "processed",
+    ) -> bool:
+        """Record processed webhook event for idempotency guarantees."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
+        now = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT INTO payment_webhook_events (event_id, provider, event_type, payload_json, status, processed_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(event_id) DO UPDATE SET
+                    status = excluded.status,
+                    processed_at = excluded.processed_at
+                """,
+                (event_id, provider, event_type, payload_json, status, now),
+            )
+            await self._db.commit()
+            return True
+
+    async def record_subscription_audit(
+        self,
+        user_id: int,
+        action: str,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+    ) -> bool:
+        """Write immutable audit trail for all subscription status changes."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return False
+
+        now = datetime.now(timezone.utc).isoformat()
+        details_str = json.dumps(details or {})
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT INTO subscription_audit_logs (user_id, action, details_json, ip_address, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (user_id, action, details_str, ip_address, now),
+            )
+            await self._db.commit()
+            return True
+
+    async def get_subscription_audit_logs(
+        self,
+        user_id: Optional[int] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recent audit events for subscriptions."""
+        if not self._db:
+            await self.connect()
+        if not self._db:
+            return []
+
+        query = "SELECT * FROM subscription_audit_logs"
+        params: List[Any] = []
+        if user_id:
+            query += " WHERE user_id = ?"
+            params.append(user_id)
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(limit)
+
+        async with self._db.execute(query, tuple(params)) as cur:
+            rows = await cur.fetchall()
+            columns = [c[0] for c in cur.description]
+            result = []
+            for r in rows:
+                item = dict(zip(columns, r))
+                try:
+                    item["details"] = json.loads(item.get("details_json", "{}"))
+                except Exception:
+                    item["details"] = {}
+                result.append(item)
+            return result
+
 
 
 
