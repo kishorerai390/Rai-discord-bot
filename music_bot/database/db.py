@@ -1630,12 +1630,20 @@ class MusicDatabase:
         current_period_end: Optional[str] = None,
         cancel_at_period_end: bool = False,
         canceled_at: Optional[str] = None,
+        **kwargs: Any,
     ) -> bool:
         """Create or update a user subscription record within an immediate transaction."""
         if not self._db:
             await self.connect()
         if not self._db:
             return False
+
+        # Support aliases
+        provider_customer_id = provider_customer_id or kwargs.get("customer_id")
+        provider_subscription_id = provider_subscription_id or kwargs.get("subscription_id")
+        payment_reference = payment_reference or kwargs.get("payment_ref")
+        current_period_start = current_period_start or kwargs.get("start_date")
+        current_period_end = current_period_end or kwargs.get("renewal_date")
 
         now = datetime.now(timezone.utc).isoformat()
         async with self._lock:
@@ -1681,9 +1689,20 @@ class MusicDatabase:
                 ),
             )
             await self._db.commit()
-            return True
 
-    async def cancel_user_subscription(self, user_id: int, cancel_at_period_end: bool = True) -> bool:
+        await self.record_subscription_audit(
+            user_id=user_id,
+            action="subscription_upserted",
+            details={"plan": plan, "status": status, "provider": provider},
+        )
+        return True
+
+    async def cancel_user_subscription(
+        self,
+        user_id: int,
+        cancel_at_period_end: bool = True,
+        reason: Optional[str] = None,
+    ) -> bool:
         """Cancel subscription renewal or mark canceled."""
         if not self._db:
             await self.connect()
@@ -1711,7 +1730,15 @@ class MusicDatabase:
                     (now, now, user_id),
                 )
             await self._db.commit()
-            return (cur.rowcount or 0) > 0
+            affected = (cur.rowcount or 0) > 0
+
+        if affected:
+            await self.record_subscription_audit(
+                user_id=user_id,
+                action="subscription_cancelled",
+                details={"reason": reason or "user_cancelled", "cancel_at_period_end": cancel_at_period_end},
+            )
+        return affected
 
     async def is_webhook_event_processed(self, event_id: str) -> bool:
         """Idempotency check: returns True if webhook event has already been handled."""
