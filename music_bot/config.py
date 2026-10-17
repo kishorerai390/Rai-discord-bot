@@ -111,10 +111,76 @@ PREMIUM_VOLUME_CAP: int = int(os.getenv("PREMIUM_VOLUME_CAP", "150"))
 MUSIC_RATE_LIMIT_COUNT: int = int(os.getenv("MUSIC_RATE_LIMIT_COUNT", "6"))
 MUSIC_RATE_LIMIT_WINDOW_SECONDS: float = float(os.getenv("MUSIC_RATE_LIMIT_WINDOW", "30.0"))
 
+# Public Website and Web Platform URLs
+MUSICMAID_DEFAULT_URL: str = "https://rai-discord-bot.onrender.com"
+
+
+def is_valid_public_https_url(url: Optional[str]) -> bool:
+    """Validate that a URL is a legitimate public HTTPS/HTTP URL not bound to localhost."""
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip()
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(u)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        hostname = (parsed.hostname or "").lower().strip()
+        if not hostname:
+            return False
+        # Reject loopback and local addresses
+        if hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            return False
+        if hostname.startswith("192.168.") or hostname.startswith("10.") or hostname.endswith(".local"):
+            return False
+        # Public domains must have at least one period
+        if "." not in hostname:
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def get_musicmaid_website_url() -> Optional[str]:
+    """
+    Resolve and validate the authoritative public MusicMaid website URL.
+    Prioritizes:
+    1. MUSICMAID_WEBSITE_URL
+    2. RENDER_EXTERNAL_URL
+    3. PUBLIC_URL
+    4. WEB_BASE_URL
+    5. Fallback production default: https://rai-discord-bot.onrender.com
+    Returns None if no valid public URL is configured or if only localhost is provided.
+    """
+    candidates = [
+        os.getenv("MUSICMAID_WEBSITE_URL", "").strip(),
+        os.getenv("RENDER_EXTERNAL_URL", "").strip(),
+        os.getenv("PUBLIC_URL", "").strip(),
+        os.getenv("WEB_BASE_URL", "").strip(),
+        MUSICMAID_DEFAULT_URL,
+    ]
+    for cand in candidates:
+        if cand and is_valid_public_https_url(cand):
+            return cand.rstrip("/")
+    return None
+
+
+def get_premium_plans_url() -> Optional[str]:
+    """
+    Resolve and validate the optional MusicMaid premium plans URL if one exists.
+    Returns None if not configured, nonexistent, or invalid.
+    """
+    prem_cand = os.getenv("MUSICMAID_PREMIUM_URL", "").strip()
+    if prem_cand and is_valid_public_https_url(prem_cand):
+        return prem_cand.rstrip("/")
+    return None
+
+
 # Spotify Web API Settings & OAuth Configuration
 SPOTIFY_CLIENT_ID: str = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
 SPOTIFY_CLIENT_SECRET: str = os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
 SPOTIFY_REDIRECT_URI: str = os.getenv("SPOTIFY_REDIRECT_URI", "http://localhost:8888/callback").strip()
+
 
 
 def is_spotify_configured() -> bool:

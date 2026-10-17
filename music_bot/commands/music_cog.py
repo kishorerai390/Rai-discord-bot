@@ -124,30 +124,53 @@ class TrackSelectView(discord.ui.View):
         self.stop()
 
 
-def get_public_web_url() -> str:
-    """Return the configured public MusicMaid web dashboard URL."""
-    url = (
-        os.getenv("RENDER_EXTERNAL_URL", "").strip()
-        or os.getenv("PUBLIC_URL", "").strip()
-        or os.getenv("WEB_BASE_URL", "").strip()
-        or "https://rai-discord-bot.onrender.com"
-    )
-    return url.rstrip("/")
+def get_public_web_url() -> Optional[str]:
+    """Return the configured and validated public MusicMaid web dashboard URL."""
+    from music_bot.config import get_musicmaid_website_url
+    return get_musicmaid_website_url()
+
+
+def get_premium_plans_url() -> Optional[str]:
+    """Return the configured and validated public MusicMaid premium plans URL if one exists."""
+    from music_bot.config import get_premium_plans_url as _get_plans
+    return _get_plans()
+
 
 
 class PremiumLinkView(discord.ui.View):
     """Interactive link button view to the public MusicMaid web platform."""
 
-    def __init__(self, web_url: str):
+    def __init__(self, web_url: Optional[str] = None, plans_url: Optional[str] = None):
         super().__init__(timeout=None)
-        self.add_item(
-            discord.ui.Button(
-                label="MusicMaid Web Platform",
-                url=web_url,
-                style=discord.ButtonStyle.link,
-                emoji="🌐",
-            )
+        from music_bot.config import (
+            get_musicmaid_website_url,
+            get_premium_plans_url,
+            is_valid_public_https_url,
         )
+
+        resolved_web_url = web_url if web_url is not None else get_musicmaid_website_url()
+        resolved_plans_url = plans_url if plans_url is not None else get_premium_plans_url()
+
+        if resolved_web_url and is_valid_public_https_url(resolved_web_url):
+            self.add_item(
+                discord.ui.Button(
+                    label="Open MusicMaid Website",
+                    url=resolved_web_url,
+                    style=discord.ButtonStyle.link,
+                    emoji="🌐",
+                )
+            )
+
+        if resolved_plans_url and is_valid_public_https_url(resolved_plans_url):
+            self.add_item(
+                discord.ui.Button(
+                    label="View Premium Plans",
+                    url=resolved_plans_url,
+                    style=discord.ButtonStyle.link,
+                    emoji="💎",
+                )
+            )
+
 
 
 # =============================================================================
@@ -2772,10 +2795,80 @@ class MusicCog(commands.Cog, name="Music"):
     # PREMIUM MANAGEMENT SUITE
     # =========================================================================
 
-    premium_group = app_commands.Group(name="premium", description="MusicMaid Premium Tier Perks & Management")
+    @app_commands.command(name="premium", description="Explore MusicMaid Premium perks, status, and website")
+    @app_commands.describe(
+        action="Choose an action or leave blank to explore perks & website",
+        key="Secret activation key (required when action is activate)",
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="🌟 Explore Perks & Website (Default)", value="overview"),
+            app_commands.Choice(name="📊 Check Active Status", value="status"),
+            app_commands.Choice(name="🔑 Activate License Key", value="activate"),
+        ]
+    )
+    async def cmd_premium(
+        self,
+        interaction: discord.Interaction,
+        action: Optional[app_commands.Choice[str]] = None,
+        key: Optional[str] = None,
+    ) -> None:
+        """Authoritative MusicMaid Premium Suite."""
+        act = action.value if action else "overview"
 
-    @premium_group.command(name="status", description="Check active premium tier status and unlocked perks")
-    async def premium_status(self, interaction: discord.Interaction) -> None:
+        if act == "status":
+            await self._execute_premium_status(interaction)
+            return
+
+        if act == "activate":
+            await self._execute_premium_activate(interaction, key)
+            return
+
+        # Default: overview & website
+        await self._execute_premium_overview(interaction)
+
+    async def _execute_premium_overview(self, interaction: discord.Interaction) -> None:
+        """Render the official MusicMaid Premium embed with website link button."""
+        await self.ensure_deferred(interaction, ephemeral=False)
+        prem_icon = EmojiManager.get("PREMIUM", self.bot)
+        web_url = get_public_web_url()
+        plans_url = get_premium_plans_url()
+
+        embed = discord.Embed(
+            title=f"{prem_icon} MusicMaid Premium",
+            description=(
+                "Unlock the MusicMaid experience and explore available plans and features on our website.\n\n"
+                "🌐 Visit the website to learn more and manage your account.\n\n"
+                "### 🌟 Premium Features Currently Available:\n"
+                "• 🔊 **150% Boosted Master Volume Cap** — Enhanced audio headroom beyond the standard 100% ceiling\n"
+                "• 🕒 **24/7 Voice Channel Persistence** — Bot stays in your voice room without timeout disconnects (`/247`)\n"
+                "• 🎛️ **Studio DSP Equalizer Presets** — Bass Boost, 8D Audio, Nightcore, Vaporwave, and Lo-Fi acoustics\n"
+                "• ⚡ **Priority Gapless Pre-Resolver** — Zero latency between songs with lookahead stream precaching\n"
+                "• 🐾 **Smart Auto-DJ & Infinite Autoplay** — Non-stop queue generation tailored to your server's vibe\n\n"
+                "💳 **Plans & Subscriptions:** Online subscription checkout is coming soon! "
+                "Server administrators and beta testers can currently activate license keys using `/premium action:Activate License Key`.\n\n"
+                "🔒 *Need to manage your account or playlists? Log in securely using Discord OAuth2 on our web platform.*"
+            ),
+            color=COLOR_PREMIUM,
+        )
+
+        if not web_url:
+            embed.description += (
+                "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
+                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+            )
+
+        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
+        if view and len(view.children) == 0:
+            view = None
+
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=view)
+        else:
+            await interaction.response.send_message(embed=embed, view=view)
+
+    async def _execute_premium_status(self, interaction: discord.Interaction) -> None:
         """View whether current server or caller has an active premium subscription."""
         await self.ensure_deferred(interaction, ephemeral=False)
         guild = interaction.guild
@@ -2785,6 +2878,9 @@ class MusicCog(commands.Cog, name="Music"):
         is_active = guild_prem or user_prem
 
         prem_icon = EmojiManager.get("PREMIUM", self.bot)
+        web_url = get_public_web_url()
+        plans_url = get_premium_plans_url()
+
         embed = discord.Embed(
             title=f"{prem_icon} MusicMaid ✦ Premium Status",
             description=(
@@ -2801,34 +2897,67 @@ class MusicCog(commands.Cog, name="Music"):
             ),
             color=COLOR_CYAN if is_active else COLOR_PREMIUM,
         )
-        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
-        view = PremiumLinkView(get_public_web_url())
-        await interaction.edit_original_response(embed=embed, view=view)
 
-    @premium_group.command(name="activate", description="Activate premium using a license key")
-    @app_commands.describe(key="Secret activation key")
-    async def premium_activate(self, interaction: discord.Interaction, key: str) -> None:
+        if not web_url:
+            embed.description += (
+                "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
+                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+            )
+
+        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
+        if view and len(view.children) == 0:
+            view = None
+
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=view)
+        else:
+            await interaction.response.send_message(embed=embed, view=view)
+
+    async def _execute_premium_activate(self, interaction: discord.Interaction, key: Optional[str]) -> None:
         """Activate premium subscription for current server or account using key."""
         await self.ensure_deferred(interaction, ephemeral=True)
+        if not key or not key.strip():
+            msg = "❌ **Missing Key:** Please specify an activation key with `key:<your-key>`."
+            if interaction.response.is_done():
+                await interaction.edit_original_response(content=msg)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+            return
+
         secret_key = os.getenv("PREMIUM_KEY", "musicmaid_premium")
         if key.strip() != secret_key:
-            await interaction.edit_original_response(content="❌ **Invalid activation key.** Please verify your key and try again.")
+            msg = "❌ **Invalid activation key.** Please verify your key and try again."
+            if interaction.response.is_done():
+                await interaction.edit_original_response(content=msg)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
             return
 
         target_id = interaction.guild_id if interaction.guild else interaction.user.id
         target_type = "guild" if interaction.guild else "user"
         await self.bot.db.set_premium(target_id, entity_type=target_type, is_premium=True, tier="premium", activated_by=interaction.user.id)
-        await interaction.edit_original_response(
-            content=f"🎉 **Premium Activated Successfully!**\nAll premium features (150% volume cap, 24/7 persistence, studio DSP filters) are now unlocked for this {target_type}!"
+        msg = (
+            f"🎉 **Premium Activated Successfully!**\n"
+            f"All premium features (150% volume cap, 24/7 persistence, studio DSP filters) are now unlocked for this {target_type}!"
         )
+        if interaction.response.is_done():
+            await interaction.edit_original_response(content=msg)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
 
-    @premium_group.command(name="grant", description="Administrator grant or revoke premium for server or user")
+    @app_commands.command(name="premium_status", description="Check active premium tier status and unlocked perks")
+    async def cmd_premium_status(self, interaction: discord.Interaction) -> None:
+        """Direct shortcut for checking premium status."""
+        await self._execute_premium_status(interaction)
+
+    @app_commands.command(name="premium_grant", description="Administrator grant or revoke premium for server or user")
     @app_commands.describe(action="Grant or revoke premium", target_type="Apply to server or user")
     @app_commands.choices(
         action=[app_commands.Choice(name="Grant Premium", value="grant"), app_commands.Choice(name="Revoke Premium", value="revoke")],
         target_type=[app_commands.Choice(name="This Server", value="guild"), app_commands.Choice(name="Yourself", value="user")]
     )
-    async def premium_grant(
+    async def cmd_premium_grant(
         self,
         interaction: discord.Interaction,
         action: app_commands.Choice[str],
@@ -2839,16 +2968,150 @@ class MusicCog(commands.Cog, name="Music"):
         is_admin = getattr(interaction.user.guild_permissions, "administrator", False) if interaction.guild else False
         is_owner = interaction.guild and interaction.user.id == interaction.guild.owner_id
         if not is_admin and not is_owner:
-            await interaction.edit_original_response(content="❌ Only Server Administrators can manage premium grants.")
+            msg = "❌ Only Server Administrators can manage premium grants."
+            if interaction.response.is_done():
+                await interaction.edit_original_response(content=msg)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
             return
 
         entity_id = interaction.guild_id if target_type.value == "guild" else interaction.user.id
         is_prem = action.value == "grant"
         await self.bot.db.set_premium(entity_id, entity_type=target_type.value, is_premium=is_prem, tier="premium", activated_by=interaction.user.id)
         act_str = "granted to" if is_prem else "revoked from"
-        await interaction.edit_original_response(
-            content=f"✅ **Premium has been {act_str} this {target_type.name.lower()}!**"
+        msg = f"✅ **Premium has been {act_str} this {target_type.name.lower()}!**"
+        if interaction.response.is_done():
+            await interaction.edit_original_response(content=msg)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+
+    # Prefix Commands for Premium
+    @commands.group(name="premium", aliases=["vip"], invoke_without_command=True)
+    async def prefix_premium(self, ctx: commands.Context, *, arg: Optional[str] = None) -> None:
+        """MusicMaid Premium Tier Perks & Web Portal."""
+        if arg and arg.lower().strip() == "status":
+            await self._prefix_premium_status(ctx)
+            return
+
+        prem_icon = EmojiManager.get("PREMIUM", self.bot)
+        web_url = get_public_web_url()
+        plans_url = get_premium_plans_url()
+
+        embed = discord.Embed(
+            title=f"{prem_icon} MusicMaid Premium",
+            description=(
+                "Unlock the MusicMaid experience and explore available plans and features on our website.\n\n"
+                "🌐 Visit the website to learn more and manage your account.\n\n"
+                "### 🌟 Premium Features Currently Available:\n"
+                "• 🔊 **150% Boosted Master Volume Cap** — Enhanced audio headroom beyond the standard 100% ceiling\n"
+                "• 🕒 **24/7 Voice Channel Persistence** — Bot stays in your voice room without timeout disconnects (`/247`)\n"
+                "• 🎛️ **Studio DSP Equalizer Presets** — Bass Boost, 8D Audio, Nightcore, Vaporwave, and Lo-Fi acoustics\n"
+                "• ⚡ **Priority Gapless Pre-Resolver** — Zero latency between songs with lookahead stream precaching\n"
+                "• 🐾 **Smart Auto-DJ & Infinite Autoplay** — Non-stop queue generation tailored to your server's vibe\n\n"
+                "💳 **Plans & Subscriptions:** Online subscription checkout is coming soon! "
+                "Server administrators and beta testers can currently activate license keys using `,premium activate <key>`.\n\n"
+                "🔒 *Need to manage your account or playlists? Log in securely using Discord OAuth2 on our web platform.*"
+            ),
+            color=COLOR_PREMIUM,
         )
+
+        if not web_url:
+            embed.description += (
+                "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
+                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+            )
+
+        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
+        if view and len(view.children) == 0:
+            view = None
+
+        await ctx.send(embed=embed, view=view)
+
+    @prefix_premium.command(name="status")
+    async def prefix_premium_status(self, ctx: commands.Context) -> None:
+        await self._prefix_premium_status(ctx)
+
+    async def _prefix_premium_status(self, ctx: commands.Context) -> None:
+        guild = ctx.guild
+        member = ctx.author
+        guild_prem = await self.bot.db.is_premium(guild.id) if guild else False
+        user_prem = await self.bot.db.is_premium(0, member.id)
+        is_active = guild_prem or user_prem
+
+        prem_icon = EmojiManager.get("PREMIUM", self.bot)
+        web_url = get_public_web_url()
+        plans_url = get_premium_plans_url()
+
+        embed = discord.Embed(
+            title=f"{prem_icon} MusicMaid ✦ Premium Status",
+            description=(
+                f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
+                f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
+                f"• **Personal User Premium:** `{'✅ Active' if user_prem else '❌ Inactive'}`\n\n"
+                f"### 🌟 Premium Perks:\n"
+                f"• 🔊 **150% Boosted Master Volume Cap** (Standard capped at 100%)\n"
+                f"• 🕒 **24/7 Voice Channel Persistence** (`/247` or `/stay`)\n"
+                f"• 🎛️ **Studio DSP Equalizer Presets** (Bass Boost, 8D Audio, Nightcore, Lo-Fi)\n"
+                f"• ⚡ **Priority In-Memory & Redis Caching** (Instant sub-100ms playback)\n"
+                f"• 🐾 **Lookahead Pre-Resolver** (Zero wait time between queued songs)\n\n"
+                f"*Visit the web dashboard below to manage playlists, DSP filters, and queue controls.*"
+            ),
+            color=COLOR_CYAN if is_active else COLOR_PREMIUM,
+        )
+
+        if not web_url:
+            embed.description += (
+                "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
+                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+            )
+
+        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
+        if view and len(view.children) == 0:
+            view = None
+
+        await ctx.send(embed=embed, view=view)
+
+    @prefix_premium.command(name="activate")
+    async def prefix_premium_activate(self, ctx: commands.Context, key: str) -> None:
+        secret_key = os.getenv("PREMIUM_KEY", "musicmaid_premium")
+        if key.strip() != secret_key:
+            await ctx.send("❌ **Invalid activation key.** Please verify your key and try again.")
+            return
+
+        target_id = ctx.guild.id if ctx.guild else ctx.author.id
+        target_type = "guild" if ctx.guild else "user"
+        await self.bot.db.set_premium(target_id, entity_type=target_type, is_premium=True, tier="premium", activated_by=ctx.author.id)
+        await ctx.send(
+            f"🎉 **Premium Activated Successfully!**\nAll premium features (150% volume cap, 24/7 persistence, studio DSP filters) are now unlocked for this {target_type}!"
+        )
+
+    @prefix_premium.command(name="grant")
+    async def prefix_premium_grant(self, ctx: commands.Context, action: str, target_type: str = "guild") -> None:
+        is_admin = getattr(ctx.author.guild_permissions, "administrator", False) if isinstance(ctx.author, discord.Member) else False
+        is_owner = ctx.guild and ctx.author.id == ctx.guild.owner_id
+        if not is_admin and not is_owner:
+            await ctx.send("❌ Only Server Administrators can manage premium grants.")
+            return
+
+        target_type = target_type.lower()
+        if target_type not in ("guild", "server", "user"):
+            await ctx.send("❌ Target type must be `server` or `user`.")
+            return
+
+        act = action.lower()
+        if act not in ("grant", "revoke"):
+            await ctx.send("❌ Action must be `grant` or `revoke`.")
+            return
+
+        is_prem = act == "grant"
+        entity_id = ctx.guild.id if target_type in ("guild", "server") else ctx.author.id
+        real_type = "guild" if target_type in ("guild", "server") else "user"
+        await self.bot.db.set_premium(entity_id, entity_type=real_type, is_premium=is_prem, tier="premium", activated_by=ctx.author.id)
+        act_str = "granted to" if is_prem else "revoked from"
+        await ctx.send(f"✅ **Premium has been {act_str} this {real_type}!**")
+
 
 
 
