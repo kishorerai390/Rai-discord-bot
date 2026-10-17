@@ -68,13 +68,21 @@ class TestPremiumSubscriptionSystem(unittest.IsolatedAsyncioTestCase):
         is_prem = await self.db.is_premium(user_id=user_id)
         self.assertTrue(is_prem)
 
-        # Cancel subscription
-        success = await self.db.cancel_user_subscription(user_id, reason="User cancelled auto-renewal")
+        # Cancel renewal (cancel_at_period_end=True)
+        success = await self.db.cancel_user_subscription(user_id, cancel_at_period_end=True, reason="User cancelled auto-renewal")
         self.assertTrue(success)
 
         sub_after_cancel = await self.db.get_user_subscription(user_id)
-        self.assertEqual(sub_after_cancel["status"], "cancelled")
-        self.assertIsNotNone(sub_after_cancel["cancelled_at"])
+        self.assertEqual(sub_after_cancel["status"], "active")
+        self.assertEqual(sub_after_cancel["cancel_at_period_end"], 1)
+        self.assertIsNotNone(sub_after_cancel["canceled_at"])
+
+        # Immediate cancellation (cancel_at_period_end=False)
+        imm_success = await self.db.cancel_user_subscription(user_id, cancel_at_period_end=False, reason="Immediate administrative revoke")
+        self.assertTrue(imm_success)
+
+        sub_imm = await self.db.get_user_subscription(user_id)
+        self.assertEqual(sub_imm["status"], "canceled")
 
         # Audit logs recorded
         logs = await self.db.get_subscription_audit_logs(user_id)
