@@ -246,6 +246,21 @@ class NekoSongsBot(commands.Bot):
         self.snapshot_loop.start()
         self.web_actions_loop.start()
 
+        # 4b. Register Support Center persistent view & Live Status Panels
+        try:
+            from music_bot.services.ticket_service import SupportHubView
+            self.add_view(SupportHubView())
+            logger.info("Registered persistent SupportHubView for instant private tickets.")
+        except Exception as hub_err:
+            logger.warning(f"Could not register persistent SupportHubView: {hub_err}")
+
+        try:
+            from music_bot.services.status_panel_service import StatusPanelManager
+            StatusPanelManager.start_loop(self)
+            logger.info("Started autonomous StatusPanelManager loop for #server-status and #voice-status.")
+        except Exception as panel_err:
+            logger.warning(f"Could not start StatusPanelManager: {panel_err}")
+
         # 5. Start Web Platform (Raivora Music Web & Community OS)
         self.web_server = None
         try:
