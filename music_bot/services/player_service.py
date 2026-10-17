@@ -1370,8 +1370,19 @@ class MusicPlayerService:
                     except Exception:
                         pass
 
+                # Check in-memory and persistent 24/7 settings
+                is_247 = getattr(session, "twenty_four_seven", False)
+                if not is_247 and bot and getattr(bot, "db", None) and hasattr(bot.db, "get_guild_settings"):
+                    try:
+                        g_set = await bot.db.get_guild_settings(session.guild_id)
+                        if g_set and g_set.twenty_four_seven_enabled:
+                            is_247 = True
+                            session.twenty_four_seven = True
+                    except Exception:
+                        pass
+
                 # If 24/7 mode is NOT enabled, disconnect
-                if not getattr(session, "twenty_four_seven", False):
+                if not is_247:
                     try:
                         await session.voice_client.disconnect()
                     except Exception:

@@ -423,18 +423,30 @@ class NekoSongsBot(commands.Bot):
                         vc_channel = guild.get_channel(target_vc_id) if target_vc_id else None
                         if not vc_channel:
                             for ch in guild.voice_channels:
-                                if ch.permissions_for(guild.me).connect:
+                                if ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
                                     vc_channel = ch
                                     break
                         if isinstance(vc_channel, (discord.VoiceChannel, discord.StageChannel)):
                             try:
-                                vc = await vc_channel.connect(timeout=15.0, reconnect=True)
-                                session.voice_client = vc
-                                logger.info(f"24/7 mode: Connected to #{vc_channel.name} in {guild.name}")
+                                from music_bot.services.voice_service import VoiceManager
+                                vc = await VoiceManager.join_voice_channel(
+                                    guild.me, session.text_channel, session, target_channel=vc_channel
+                                )
+                                if vc and vc.is_connected():
+                                    session.voice_client = vc
+                                    session.is_intentional_stop = False
+                                    logger.info(f"24/7 mode: Connected to #{vc_channel.name} in {guild.name}")
                             except Exception as vc_err:
                                 logger.warning(f"Failed to 24/7 connect in guild {guild.id}: {vc_err}")
             except Exception as e:
                 logger.warning(f"24/7 guilds recovery error: {e}")
+
+            # Start autonomous 24/7 voice guardian background watchdog
+            try:
+                if hasattr(self, "twenty_four_seven_guardian_loop") and not self.twenty_four_seven_guardian_loop.is_running():
+                    self.twenty_four_seven_guardian_loop.start()
+            except Exception as loop_err:
+                logger.warning(f"Failed to start 24/7 guardian loop: {loop_err}")
 
         # Phase 4: Startup Recovery Coordinator for Persistent Rythm-Style Sessions
         try:

@@ -418,7 +418,7 @@ class MusicSessionMemoryService:
                 try:
                     from music_bot.services.voice_service import VoiceManager
                     vc = await asyncio.wait_for(
-                        VoiceManager.join_voice_channel(guild.me, text_ch, session),  # type: ignore
+                        VoiceManager.join_voice_channel(guild.me, text_ch, session, target_channel=vc_channel),  # type: ignore
                         timeout=50.0,
                     )
                     if vc and vc.is_connected():

@@ -2001,9 +2001,57 @@ class MusicCog(commands.Cog, name="Music"):
     # 24/7 & AUTONOMOUS MAINTENANCE ROOT COMMANDS
     # =========================================================================
 
-    @app_commands.command(name="247", description="Toggle 24/7 mode to keep the bot in voice channel indefinitely")
-    async def cmd_247(self, interaction: discord.Interaction) -> None:
-        """Toggles 24/7 persistence mode for the guild."""
+class Reconnect247View(discord.ui.View):
+    """Interactive button to attempt immediate voice reconnection for 24/7 guilds."""
+
+    def __init__(self, bot: Any, guild: discord.Guild, channel_id: Optional[int]):
+        super().__init__(timeout=180.0)
+        self.bot = bot
+        self.guild = guild
+        self.channel_id = channel_id
+
+    @discord.ui.button(label="Reconnect Voice", style=discord.ButtonStyle.primary, emoji="📻")
+    async def btn_reconnect(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+        await interaction.response.defer(ephemeral=True)
+        if not self.channel_id:
+            await interaction.followup.send("❌ No saved 24/7 channel ID found for this server.", ephemeral=True)
+            return
+
+        ch = self.guild.get_channel(self.channel_id)
+        if not isinstance(ch, (discord.VoiceChannel, discord.StageChannel)):
+            await interaction.followup.send("❌ Saved voice channel no longer exists.", ephemeral=True)
+            return
+
+        session = await self.bot.session_manager.get_session(self.guild.id)
+        from music_bot.services.voice_service import VoiceManager
+        vc = await VoiceManager.join_voice_channel(
+            self.guild.me, interaction.channel, session, target_channel=ch  # type: ignore
+        )
+        if vc and vc.is_connected():
+            session.voice_client = vc
+            session.twenty_four_seven = True
+            session.is_intentional_stop = False
+            await interaction.followup.send(
+                f"✅ **Reconnected!** NyxTune is now in {ch.mention} in 24/7 mode.", ephemeral=True
+            )
+        else:
+            err = session.last_error or "Reconnection failed."
+            await interaction.followup.send(
+                f"❌ **Reconnection failed:** {err}", ephemeral=True
+            )
+
+
+    @app_commands.command(name="247", description="Configure or toggle 24/7 mode to keep NyxTune in voice channel indefinitely")
+    @app_commands.describe(action="Optional action: toggle, enable, disable, reconnect, or status")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="Toggle (Enable/Disable/Reconnect)", value="toggle"),
+        app_commands.Choice(name="Enable 24/7 Mode", value="enable"),
+        app_commands.Choice(name="Disable 24/7 Mode", value="disable"),
+        app_commands.Choice(name="Reconnect to Saved Channel", value="reconnect"),
+        app_commands.Choice(name="Check 24/7 Status", value="status"),
+    ])
+    async def cmd_247(self, interaction: discord.Interaction, action: Optional[app_commands.Choice[str]] = None) -> None:
+        """Toggles or configures 24/7 persistence mode for the guild."""
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
             await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
             return
@@ -2014,8 +2062,42 @@ class MusicCog(commands.Cog, name="Music"):
         settings = await self.bot.db.get_guild_settings(guild.id)
         session = await self.session_manager.get_session(guild.id)
 
-        # Toggle 24/7 state
-        new_state = not settings.twenty_four_seven_enabled
+        act = action.value if action else "toggle"
+        vc_connected = bool(session.voice_client and session.voice_client.is_connected())
+
+        if act == "status":
+            saved_ch = guild.get_channel(settings.twenty_four_seven_channel_id) if settings.twenty_four_seven_channel_id else None
+            embed_status = discord.Embed(
+                title="📻 24/7 PERSISTENCE STATUS",
+                description=(
+                    f"**Server:** `{guild.name}` (`{guild.id}`)\n\n"
+                    f"• **24/7 Setting:** `{ 'ENABLED' if settings.twenty_four_seven_enabled else 'DISABLED' }` (Database)\n"
+                    f"• **Voice Status:** `{ 'CONNECTED' if vc_connected else 'DISCONNECTED' }`\n"
+                    f"• **Current Channel:** {session.voice_client.channel.mention if (session.voice_client and session.voice_client.channel) else 'None'}\n"
+                    f"• **Saved 24/7 Channel:** {saved_ch.mention if saved_ch else ('ID: ' + str(settings.twenty_four_seven_channel_id) if settings.twenty_four_seven_channel_id else 'None')}\n"
+                    f"• **Auto-Leave Timer:** `{ 'DISABLED (24/7 Active)' if (settings.twenty_four_seven_enabled or session.twenty_four_seven) else ('Active Countdown' if session.auto_leave_task and not session.auto_leave_task.done() else 'Idle') }`\n"
+                    f"• **Last Recovery Status:** `{session.recovery_status or 'Normal'}`\n"
+                ),
+                color=0x7928CA if settings.twenty_four_seven_enabled else 0x64748B,
+            )
+            embed_status.set_footer(text="Use /247 toggle to change 24/7 mode")
+            view = Reconnect247View(self.bot, guild, settings.twenty_four_seven_channel_id) if (settings.twenty_four_seven_enabled and not vc_connected and settings.twenty_four_seven_channel_id) else None
+            await interaction.followup.send(embed=embed_status, view=view)
+            return
+
+        # Determine target 24/7 state:
+        if act == "reconnect":
+            new_state = True
+        elif act == "enable":
+            new_state = True
+        elif act == "disable":
+            new_state = False
+        else:
+            if settings.twenty_four_seven_enabled and not vc_connected:
+                # If enabled in DB but disconnected, reconnecting is the user's intended action
+                new_state = True
+            else:
+                new_state = not settings.twenty_four_seven_enabled
 
         if new_state:
             is_prem = await self.bot.db.is_premium(guild.id, member.id)
@@ -2024,74 +2106,95 @@ class MusicCog(commands.Cog, name="Music"):
                 embed_prem = discord.Embed(
                     title="💎 PREMIUM FEATURE: 24/7 MODE",
                     description=(
-                        "**24/7 Voice Channel Persistence** is an exclusive **MusicMaid Premium** feature!\n\n"
+                        "**24/7 Voice Channel Persistence** is an exclusive **Premium** feature!\n\n"
                         "• Keeps the bot in your voice channel 24/7 without timing out.\n"
                         "• Automatically reconnects after Render service restarts.\n\n"
                         "💡 *Server Administrators or Premium subscribers can activate this feature. Use `/premium` to view status.*"
                     ),
-                    color=0x9333EA,
+                    color=0x7928CA,
                 )
                 await interaction.followup.send(embed=embed_prem, ephemeral=True)
                 return
 
-        settings.twenty_four_seven_enabled = new_state
-        session.twenty_four_seven = new_state
-
-
-        if new_state:
             target_vc = None
-            if session.voice_client and session.voice_client.is_connected():
-                target_vc = session.voice_client.channel
-            elif member.voice and member.voice.channel:
+            if member.voice and member.voice.channel:
                 target_vc = member.voice.channel
-                async with session.lock:
-                    vc = await VoiceManager.join_voice_channel(member, interaction.channel, session)  # type: ignore
-                    if not vc:
-                        err = session.last_error or "Could not connect to your voice channel."
-                        await interaction.followup.send(
-                            f"❌ **{err}**\n\n"
-                            f"💡 **How to fix:** Please edit the voice channel permissions for **{target_vc.name}** "
-                            f"and grant **MusicMaid** the **Connect** and **Speak** permissions (or move to a public voice channel).",
-                            ephemeral=True,
-                        )
-                        return
-            else:
-                settings.twenty_four_seven_enabled = False
-                session.twenty_four_seven = False
-                await self.bot.db.update_guild_settings(settings)
+            elif session.voice_client and session.voice_client.is_connected() and session.voice_client.channel:
+                target_vc = session.voice_client.channel
+            elif settings.twenty_four_seven_channel_id:
+                candidate = guild.get_channel(settings.twenty_four_seven_channel_id)
+                if isinstance(candidate, (discord.VoiceChannel, discord.StageChannel)):
+                    target_vc = candidate
+
+            if not target_vc:
                 await interaction.followup.send(
-                    "⚠️ **Please join a voice channel first** so MusicMaid knows which channel to stay in 24/7!\n"
-                    "*(Or play a song first with `/music play`)*",
+                    "⚠️ **Please join a voice channel first** (or play a song with `/play`) "
+                    "so NyxTune knows which channel to stay in 24/7!\n"
+                    "*(Once you join, run `/247` again to enable 24/7 persistence)*",
                     ephemeral=True,
                 )
                 return
-
-            if target_vc:
-                settings.twenty_four_seven_channel_id = target_vc.id
 
             if session.auto_leave_task and not session.auto_leave_task.done():
                 session.auto_leave_task.cancel()
                 session.auto_leave_task = None
 
-            await self.bot.db.update_guild_settings(settings)
+            async with session.lock:
+                vc = await VoiceManager.join_voice_channel(
+                    member=member,
+                    text_channel=interaction.channel,  # type: ignore
+                    session=session,
+                    target_channel=target_vc,
+                )
 
-            embed = discord.Embed(
-                title="📻 24/7 MODE ACTIVATED",
-                description=(
-                    f"**{self.bot.user.name if self.bot.user else 'MusicMaid'}** will now stay in "
-                    f"**{target_vc.name if target_vc else 'the voice channel'}** 24/7!\n\n"
-                    "• Auto-disconnection is **disabled**\n"
-                    "• The bot will remain in voice even when all listeners leave\n"
-                    "• Automatically reconnects across bot updates & restarts\n\n"
-                    "💡 *Tip: Open the full feature panel anytime with `/c`*"
-                ),
-                color=COLOR_ELECTRIC_CYAN,
-            )
-            embed.set_footer(text="Use /247 or /stay again to toggle off")
-            await interaction.followup.send(embed=embed)
+            is_connected = bool(session.voice_client and session.voice_client.is_connected())
+
+            settings.twenty_four_seven_enabled = True
+            settings.twenty_four_seven_channel_id = target_vc.id
+            await self.bot.db.update_guild_settings(settings)
+            session.twenty_four_seven = True
+            session.is_intentional_stop = False
+
+            if is_connected:
+                embed = discord.Embed(
+                    title="📻 24/7 MODE ACTIVATED",
+                    description=(
+                        f"**{self.bot.user.name if self.bot.user else 'NyxTune'}** is locked into {target_vc.mention} 24/7!\n\n"
+                        f"• **24/7 Setting:** `ENABLED` (Saved to persistent database)\n"
+                        f"• **Voice Connection:** `CONNECTED` (Active on Discord)\n"
+                        f"• **Target Channel:** {target_vc.mention} (`#{target_vc.name}`)\n"
+                        f"• **Auto-Disconnection:** `DISABLED` (Will never leave empty channels)\n"
+                        f"• **Restart Recovery:** `ENABLED` (Auto-reconnects across Render restarts)\n\n"
+                        f"💡 *Tip: Use `/247 status` to inspect health or `/247 disable` to turn off.*"
+                    ),
+                    color=0x7928CA,
+                )
+                embed.set_footer(text="NyxTune 24/7 Audio Guardian Active")
+                await interaction.followup.send(embed=embed)
+            else:
+                err_msg = session.last_error or "Voice gateway connection timed out."
+                embed = discord.Embed(
+                    title="⚠️ 24/7 ENABLED — RECONNECT FAILED",
+                    description=(
+                        f"24/7 Mode is **saved in settings**, but the bot could not connect to {target_vc.mention}.\n\n"
+                        f"• **24/7 Setting:** `ENABLED` (Saved in database)\n"
+                        f"• **Voice Connection:** `DISCONNECTED`\n"
+                        f"• **Target Channel:** {target_vc.mention}\n"
+                        f"• **Connection Error:** `{err_msg}`\n\n"
+                        f"💡 **Troubleshooting:**\n"
+                        f"1. Ensure the bot has **Connect** and **Speak** permissions in {target_vc.mention}.\n"
+                        f"2. Ensure the channel is not full.\n"
+                        f"3. Click **🔄 Reconnect Voice** below or use `/247 reconnect`."
+                    ),
+                    color=0xED4245,
+                )
+                view = Reconnect247View(self.bot, guild, target_vc.id)
+                await interaction.followup.send(embed=embed, view=view)
         else:
+            settings.twenty_four_seven_enabled = False
             settings.twenty_four_seven_channel_id = None
             await self.bot.db.update_guild_settings(settings)
+            session.twenty_four_seven = False
 
             if session.voice_client and session.voice_client.is_connected():
                 humans = [m for m in session.voice_client.channel.members if not m.bot]
@@ -2100,8 +2203,13 @@ class MusicCog(commands.Cog, name="Music"):
 
             embed = discord.Embed(
                 title="📻 24/7 MODE DEACTIVATED",
-                description="24/7 mode has been **disabled**. Normal auto-leave timeout rules now apply.",
-                color=COLOR_NEON_BLUE,
+                description=(
+                    "24/7 mode has been **disabled**.\n\n"
+                    "• **24/7 Setting:** `DISABLED` (Saved in database)\n"
+                    "• **Voice Channel:** Normal auto-leave timeout rules now apply.\n"
+                    "• **Auto-Disconnect:** The bot will disconnect if the voice channel remains empty for 5 minutes."
+                ),
+                color=0x64748B,
             )
             await interaction.followup.send(embed=embed)
 
@@ -2109,7 +2217,7 @@ class MusicCog(commands.Cog, name="Music"):
     async def cmd_stay(self, interaction: discord.Interaction) -> None:
         """Alias for /247."""
         await self.ensure_deferred(interaction, ephemeral=False)
-        await self.cmd_247.callback(self, interaction)
+        await self.cmd_247.callback(self, interaction, action=None)
 
     @app_commands.command(name="c", description="Interactive Master Control Panel showing all music bot features")
     async def cmd_c(self, interaction: discord.Interaction) -> None:

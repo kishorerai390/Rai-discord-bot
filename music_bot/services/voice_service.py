@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import logging
 import random
 import time
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Optional, Tuple, Union
 import discord
 
 from music_bot.config import AUTO_LEAVE_TIMEOUT_SECONDS
@@ -242,18 +242,30 @@ class VoiceManager:
 
     @classmethod
     async def join_voice_channel(
-        cls, member: discord.Member, text_channel: discord.TextChannel, session: GuildMusicSession
+        cls,
+        member: Optional[discord.Member] = None,
+        text_channel: Optional[discord.TextChannel] = None,
+        session: Optional[GuildMusicSession] = None,
+        target_channel: Optional[Union[discord.VoiceChannel, discord.StageChannel]] = None,
     ) -> Optional[discord.VoiceClient]:
         """
-        Ensure the bot connects to the member's voice channel.
+        Ensure the bot connects to the target voice channel or invoking member's voice channel.
         Singleflight-guarded: simultaneous calls for the same guild coalesce into a single connection task,
         preventing competing VoiceClient instances and UDP handshake collisions.
         """
-        if not member.voice or not member.voice.channel:
-            return None
+        if target_channel is None:
+            if not member or not member.voice or not member.voice.channel:
+                return None
+            target_channel = member.voice.channel
 
-        guild_id = member.guild.id
-        target_channel = member.voice.channel
+        guild = target_channel.guild
+        if not guild:
+            return None
+        guild_id = guild.id
+
+        if session is None:
+            from music_bot.services.session_service import SessionManager
+            session = SessionManager.get_instance().get_session_sync(guild_id)
 
         # Concurrency Gate: Check if a connection task is already active for this guild
         existing_task = cls._in_flight_tasks.get(guild_id)
@@ -293,7 +305,7 @@ class VoiceManager:
             # Create and register the in-flight worker task
             loop = asyncio.get_running_loop()
             task: asyncio.Task[Optional[discord.VoiceClient]] = loop.create_task(
-                cls._execute_join_pipeline(member, text_channel, session),
+                cls._execute_join_pipeline(member, text_channel, session, target_channel=target_channel),
                 name=f"VoiceConnect-{guild_id}-{target_channel.id}",
             )
             cls._in_flight_tasks[guild_id] = task
@@ -307,16 +319,23 @@ class VoiceManager:
 
     @classmethod
     async def _execute_join_pipeline(
-        cls, member: discord.Member, text_channel: discord.TextChannel, session: GuildMusicSession
+        cls,
+        member: Optional[discord.Member],
+        text_channel: Optional[discord.TextChannel],
+        session: GuildMusicSession,
+        target_channel: Optional[Union[discord.VoiceChannel, discord.StageChannel]] = None,
     ) -> Optional[discord.VoiceClient]:
         """Internal worker executing the voice connection sequence with granular diagnostic telemetry."""
         t_start = time.monotonic()
-        target_channel = member.voice.channel if member.voice else None
-        if not target_channel or not member.guild:
+        if target_channel is None:
+            target_channel = member.voice.channel if (member and member.voice) else None
+        if not target_channel or not target_channel.guild:
             return None
 
-        guild_id = member.guild.id
-        session.text_channel = text_channel
+        guild = target_channel.guild
+        guild_id = guild.id
+        if text_channel:
+            session.text_channel = text_channel
 
         # Initialize telemetry record
         telemetry = VoiceTelemetry(
@@ -330,7 +349,7 @@ class VoiceManager:
         # =========================================================================
         # STAGE 1: PRE-FLIGHT AUDIT (AFK Sentry, Bot Channel Access, Permissions)
         # =========================================================================
-        if member.guild.afk_channel and target_channel.id == member.guild.afk_channel.id:
+        if guild.afk_channel and target_channel.id == guild.afk_channel.id:
             logger.warning(f"[Voice] [Stage 1: Pre-flight] Blocked joining AFK voice channel in guild {guild_id}")
             err = "Cannot play music in the server's AFK voice channel."
             session.last_error = err
@@ -343,7 +362,7 @@ class VoiceManager:
         members_list = getattr(target_channel, "members", [])
         if isinstance(user_limit, int) and user_limit > 0:
             if isinstance(members_list, (list, tuple)) and len(members_list) >= user_limit:
-                bot_perms = target_channel.permissions_for(member.guild.me) if member.guild.me else None
+                bot_perms = target_channel.permissions_for(guild.me) if guild.me else None
                 if not (bot_perms and bot_perms.move_members):
                     err = f"Voice channel {target_channel.mention} is full (`{len(members_list)}/{user_limit}`)."
                     logger.warning(f"[Voice] [Stage 1: Pre-flight] Guild {guild_id}: {err}")
@@ -358,8 +377,8 @@ class VoiceManager:
             session.auto_leave_task = None
 
         # Permissions check: Fast-fail permanent permission errors without retries
-        if member.guild.me:
-            perms = target_channel.permissions_for(member.guild.me)
+        if guild.me:
+            perms = target_channel.permissions_for(guild.me)
             if not perms.connect:
                 err = f"Missing **Connect** permission in {target_channel.mention}"
                 logger.warning(f"[Voice] [Stage 1: Pre-flight] Guild {guild_id}: {err}")
@@ -427,7 +446,7 @@ class VoiceManager:
         # =========================================================================
         # STAGE 2: EXISTING VOICECLIENT AUDIT & REUSE / CHANNEL MOVE
         # =========================================================================
-        existing_vc = member.guild.voice_client
+        existing_vc = guild.voice_client
         if existing_vc and existing_vc.is_connected():
             session.voice_client = existing_vc
             if existing_vc.channel and existing_vc.channel.id == target_channel.id:
@@ -458,12 +477,12 @@ class VoiceManager:
                 return existing_vc
             except Exception as move_err:
                 logger.warning(f"[Voice] [Stage 2: Move Warning] Move failed ({move_err}). Purging state before reconnect...")
-                await cls._purge_voice_client_state(member.guild)
+                await cls._purge_voice_client_state(guild)
 
         elif existing_vc:
             # Stale / orphaned VoiceClient cleanup
             logger.info(f"[Voice] [Stage 2: Stale Cleanup] Clearing orphaned VoiceClient in guild {guild_id}...")
-            await cls._purge_voice_client_state(member.guild)
+            await cls._purge_voice_client_state(guild)
             await asyncio.sleep(0.5)
 
         # =========================================================================
@@ -487,7 +506,7 @@ class VoiceManager:
             )
 
             # Ensure discord.py's internal state dict has no stale voice client key before connect()
-            state = getattr(member.guild, "_state", None)
+            state = getattr(guild, "_state", None)
             if state and hasattr(state, "_voice_clients") and isinstance(state._voice_clients, dict):
                 state._voice_clients.pop(guild_id, None)
 
@@ -645,81 +664,139 @@ class VoiceManager:
         return None
 
     @classmethod
+    async def is_twenty_four_seven_active(cls, bot: Any, session: GuildMusicSession) -> bool:
+        """Check if 24/7 mode is active in memory OR persistent DB settings."""
+        if getattr(session, "twenty_four_seven", False):
+            return True
+        if bot and getattr(bot, "db", None) and hasattr(bot.db, "get_guild_settings"):
+            try:
+                settings = await bot.db.get_guild_settings(session.guild_id)
+                if settings and settings.twenty_four_seven_enabled:
+                    session.twenty_four_seven = True
+                    return True
+            except Exception as e:
+                logger.warning(f"[Voice] [24/7 Guard] Error reading settings for guild {session.guild_id}: {e}")
+        return False
+
+    @classmethod
     def schedule_auto_leave(cls, bot: RaiMusicBot, session: GuildMusicSession, timeout: int = AUTO_LEAVE_TIMEOUT_SECONDS) -> None:
         """Schedule automatic disconnection if voice channel remains empty."""
-        if session.twenty_four_seven:
-            logger.debug(f"24/7 mode enabled in guild {session.guild_id}: auto-leave bypassed.")
-            return
-
+        # Cancel any pending auto-leave task first to prevent stale timers from firing
         if session.auto_leave_task and not session.auto_leave_task.done():
             session.auto_leave_task.cancel()
+            session.auto_leave_task = None
 
+        if session.twenty_four_seven:
+            logger.info(
+                f"[Voice] [24/7 Auto-Leave Guard] Guild {session.guild_id}: "
+                f"Auto-leave bypassed (24/7 active in session memory)."
+            )
+            return
+
+        task_id = f"auto-leave-{session.guild_id}-{int(time.time())}"
         session.auto_leave_task = asyncio.create_task(
-            cls._auto_leave_worker(bot, session, timeout)
+            cls._auto_leave_worker(bot, session, timeout, task_id=task_id)
         )
 
     @classmethod
-    async def _auto_leave_worker(cls, bot: RaiMusicBot, session: GuildMusicSession, timeout: int) -> None:
+    async def _auto_leave_worker(cls, bot: RaiMusicBot, session: GuildMusicSession, timeout: int, task_id: str = "auto-leave") -> None:
         """Waits for timeout then leaves voice if channel is still empty of human listeners."""
         try:
-            logger.info(f"Auto-leave countdown ({timeout}s) initiated for guild {session.guild_id}")
+            logger.info(
+                f"[Voice] [Auto-Leave Timer Started] Task: {task_id} | Guild: {session.guild_id} | "
+                f"Duration: {timeout}s | Saved 24/7 in memory: {session.twenty_four_seven}"
+            )
             await asyncio.sleep(timeout)
 
+            # Check persistent database setting immediately before acquiring lock
+            if await cls.is_twenty_four_seven_active(bot, session):
+                logger.info(
+                    f"[Voice] [24/7 Auto-Leave Guard] Disconnect aborted! "
+                    f"Guild: {session.guild_id} | Task: {task_id} | "
+                    f"Saved 24/7 state: True | Voice Client: "
+                    f"{'Connected' if (session.voice_client and session.voice_client.is_connected()) else 'Disconnected'} | "
+                    f"Channel ID: {session.voice_client.channel.id if (session.voice_client and session.voice_client.channel) else 'None'}"
+                )
+                return
+
             async with session.lock:
-                if session.twenty_four_seven:
-                    logger.info(f"Auto-leave skipped in guild {session.guild_id} (24/7 mode active).")
+                # Double-check inside session lock
+                if await cls.is_twenty_four_seven_active(bot, session):
+                    logger.info(
+                        f"[Voice] [24/7 Auto-Leave Guard] Guild {session.guild_id}: Disconnect aborted inside lock."
+                    )
                     return
 
                 if not session.voice_client or not session.voice_client.is_connected():
+                    logger.info(
+                        f"[Voice] [Auto-Leave] Guild {session.guild_id}: VoiceClient already disconnected."
+                    )
                     return
 
                 channel = session.voice_client.channel
                 # Check for non-bot members
                 human_members = [m for m in channel.members if not m.bot]
-                if not human_members:
-                    logger.info(f"Auto-leaving empty voice channel in guild {session.guild_id}")
-                    # Feature 112: Inactivity Sleep Fade-Out Timer (Smooth volume decay to avoid popping)
-                    if session.voice_client.is_playing() and hasattr(session.voice_client.source, "volume"):
-                        try:
-                            start_vol = session.voice_client.source.volume
-                            for factor in (0.75, 0.5, 0.25, 0.05):
-                                session.voice_client.source.volume = start_vol * factor
-                                await asyncio.sleep(0.4)
-                        except Exception:
-                            pass
+                if human_members:
+                    logger.info(
+                        f"[Voice] [Auto-Leave Aborted] Guild {session.guild_id}: "
+                        f"Human listener rejoined #{channel.name}."
+                    )
+                    return
 
-                    # Checkpoint session before disconnecting so users can restore when returning
+                # Final check before disconnecting
+                if await cls.is_twenty_four_seven_active(bot, session):
+                    return
+
+                channel_id = channel.id
+                logger.info(
+                    f"[Voice] [Auto-Disconnecting] Guild: {session.guild_id} | Task: {task_id} | "
+                    f"Saved 24/7 state: False | Voice Client Status: Connected | Channel ID: {channel_id} | "
+                    f"Disconnect Reason: Empty voice channel for {timeout}s"
+                )
+
+                # Feature 112: Inactivity Sleep Fade-Out Timer (Smooth volume decay to avoid popping)
+                if session.voice_client.is_playing() and hasattr(session.voice_client.source, "volume"):
                     try:
-                        from music_bot.services.session_memory_service import MusicSessionMemoryService
-                        await MusicSessionMemoryService.checkpoint_session(
-                            bot, session, reason="auto_leave_empty_channel"
-                        )
-                    except Exception as cp_err:
-                        logger.warning(f"Failed to checkpoint session on auto-leave: {cp_err}")
+                        start_vol = session.voice_client.source.volume
+                        for factor in (0.75, 0.5, 0.25, 0.05):
+                            session.voice_client.source.volume = start_vol * factor
+                            await asyncio.sleep(0.4)
+                    except Exception:
+                        pass
 
-                    session.is_intentional_stop = False
-                    if session.voice_client.is_playing() or session.voice_client.is_paused():
-                        session.voice_client.stop()
-                    await session.voice_client.disconnect()
-                    session.voice_client = None
-                    session.state = PlaybackState.IDLE
-                    session.recovery_status = "Saved on empty channel (Ready to resume)"
+                # Checkpoint session before disconnecting so users can restore when returning
+                try:
+                    from music_bot.services.session_memory_service import MusicSessionMemoryService
+                    await MusicSessionMemoryService.checkpoint_session(
+                        bot, session, reason="auto_leave_empty_channel"
+                    )
+                except Exception as cp_err:
+                    logger.warning(f"Failed to checkpoint session on auto-leave: {cp_err}")
 
-                    if session.text_channel:
-                        embed = discord.Embed(
-                            title="👋 AUTO DISCONNECTED",
-                            description=(
-                                f"Left voice channel because it remained empty for `{max(1, timeout // 60)}` minutes.\n"
-                                f"💾 **Session Preserved:** Your queue and playback position were saved!\n"
-                                f"Use `/music-session restore` or `/play` when you return to pick up where you left off. 🐾"
-                            ),
-                            color=0xED4245,
-                        )
-                        try:
-                            await session.text_channel.send(embed=embed)
-                        except Exception:
-                            pass
+                session.is_intentional_stop = False
+                if session.voice_client.is_playing() or session.voice_client.is_paused():
+                    session.voice_client.stop()
+                await session.voice_client.disconnect()
+                session.voice_client = None
+                session.state = PlaybackState.IDLE
+                session.recovery_status = "Saved on empty channel (Ready to resume)"
+
+                if session.text_channel:
+                    embed = discord.Embed(
+                        title="👋 AUTO DISCONNECTED",
+                        description=(
+                            f"Left voice channel because it remained empty for `{max(1, timeout // 60)}` minutes.\n"
+                            f"💾 **Session Preserved:** Your queue and playback position were saved!\n"
+                            f"Use `/music-session restore` or `/play` when you return to pick up where you left off. 🐾\n\n"
+                            f"💡 *Want the bot to stay in voice 24/7 even when empty? Enable 24/7 mode with `/247`!*"
+                        ),
+                        color=0xED4245,
+                    )
+                    try:
+                        await session.text_channel.send(embed=embed)
+                    except Exception:
+                        pass
         except asyncio.CancelledError:
-            logger.debug(f"Auto-leave cancelled for guild {session.guild_id}")
+            logger.debug(f"[Voice] [Auto-Leave Cancelled] Task: {task_id} | Guild: {session.guild_id}")
         except Exception as e:
-            logger.error(f"Error in auto-leave worker: {e}")
+            logger.error(f"[Voice] [Auto-Leave Error] Guild {session.guild_id}: {e}", exc_info=True)
