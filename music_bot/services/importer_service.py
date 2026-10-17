@@ -50,7 +50,7 @@ class PlaylistImporterService:
     @classmethod
     async def extract_tracks_from_url(
         cls, url: str, requester_id: int, requester_name: str, limit: int = 100
-    ) -> Tuple[str, List[QueuedTrack], str]:
+    ) -> tuple[str, List[QueuedTrack], str]:
         """
         Extract tracks and playlist name from a supported platform URL.
         Returns: (playlist_title, track_list, platform_name)
