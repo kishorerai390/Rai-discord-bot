@@ -122,11 +122,109 @@ class PaymentApiRouter:
             "entitlement": entitlement.to_dict(),
         })
 
+    async def create_order(self, request: web.Request) -> web.Response:
+        """
+        POST /api/premium/order
+        Create a server-side order with Razorpay for authenticated Discord users.
+        """
+        session = await self.auth.get_session_from_request(request)
+        if not session:
+            return json_error("You must sign in with Discord before subscribing.", code="UNAUTHORIZED", status=401)
+
+        if not config.PAYMENTS_ENABLED:
+            return json_error(
+                "Payment processing is currently in Developer Preview Mode. Real checkouts are disabled until account approval.",
+                code="PAYMENTS_DISABLED",
+                status=503,
+            )
+
+        user_id = session.get("discord_user_id") or session.get("user_id")
+        user_data = session.get("user_data") or {}
+        user_name = user_data.get("display_name") or user_data.get("username") or str(user_id)
+        user_email = user_data.get("email")
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+
+        plan = body.get("plan", "monthly").lower().strip()
+        if plan not in ("monthly", "yearly"):
+            return json_error("Plan must be either 'monthly' or 'yearly'.", code="INVALID_PLAN")
+
+        try:
+            order_data = await RazorpayService.create_order(
+                user_id=user_id,
+                plan_id=plan,
+                user_name=user_name,
+                user_email=user_email,
+                db=self.db,
+            )
+            return json_success(order_data, message="Order created successfully.")
+        except RuntimeError as e:
+            logger.warning(f"[PaymentAPI] Gateway configuration notice: {e}")
+            return json_error(str(e), code="GATEWAY_NOT_CONFIGURED", status=503)
+        except Exception as e:
+            logger.error(f"[PaymentAPI] Order creation error: {e}", exc_info=True)
+            return json_error(f"Failed to create order: {e}", code="ORDER_ERROR", status=500)
+
+    async def verify_payment(self, request: web.Request) -> web.Response:
+        """
+        POST /api/premium/verify
+        Cryptographically verify HMAC-SHA256 signature and grant entitlement.
+        """
+        session = await self.auth.get_session_from_request(request)
+        if not session:
+            return json_error("Authentication required.", code="UNAUTHORIZED", status=401)
+
+        user_id = session.get("discord_user_id") or session.get("user_id")
+
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("Invalid JSON payload.", code="INVALID_PAYLOAD")
+
+        razorpay_order_id = body.get("razorpay_order_id", "").strip()
+        razorpay_payment_id = body.get("razorpay_payment_id", "").strip()
+        razorpay_signature = body.get("razorpay_signature", "").strip()
+        plan = body.get("plan", "monthly").lower().strip()
+
+        if not (razorpay_order_id and razorpay_payment_id and razorpay_signature):
+            return json_error("Missing payment verification parameters.", code="INVALID_PARAMS")
+
+        is_valid = RazorpayService.verify_signature(
+            razorpay_order_id=razorpay_order_id,
+            razorpay_payment_id=razorpay_payment_id,
+            razorpay_signature=razorpay_signature,
+        )
+
+        if not is_valid:
+            return json_error("Cryptographic signature verification failed.", code="INVALID_SIGNATURE", status=400)
+
+        # Grant verified entitlement
+        success, msg = await RazorpayService.grant_verified_entitlement(
+            user_id=user_id,
+            plan_id=plan,
+            razorpay_payment_id=razorpay_payment_id,
+            razorpay_order_id=razorpay_order_id,
+            db=self.db,
+        )
+
+        entitlement = await EntitlementService.get_user_entitlement(user_id, self.db)
+        return json_success({
+            "verified": True,
+            "entitlement": entitlement.to_dict(),
+            "payment_id": razorpay_payment_id,
+        }, message=msg)
+
     async def create_checkout(self, request: web.Request) -> web.Response:
         """
         POST /api/premium/create-checkout
-        Initiate a secure Stripe checkout session for the authenticated user.
+        Initiates checkout session (routes to Razorpay order or Stripe session).
         """
+        if config.PAYMENT_PROVIDER == "razorpay":
+            return await self.create_order(request)
+
         session = await self.auth.get_session_from_request(request)
         if not session:
             return json_error("You must sign in with Discord before subscribing.", code="UNAUTHORIZED", status=401)
@@ -256,3 +354,55 @@ class PaymentApiRouter:
         success, message = await PaymentService.process_webhook_event(event, raw_str, self.db)
 
         return web.json_response({"received": True, "status": message}, status=200)
+
+    async def handle_razorpay_webhook(self, request: web.Request) -> web.Response:
+        """
+        POST /api/premium/webhook/razorpay
+        Ingests and verifies asynchronous webhook events from Razorpay.
+        """
+        payload = await request.read()
+        sig_header = request.headers.get("X-Razorpay-Signature", "")
+
+        if not sig_header:
+            logger.warning("[PaymentAPI] Razorpay webhook received missing X-Razorpay-Signature header.")
+            return web.Response(text="Missing X-Razorpay-Signature header", status=400)
+
+        is_valid = RazorpayService.verify_webhook_signature(payload, sig_header)
+        if not is_valid:
+            logger.warning("[PaymentAPI] Razorpay webhook signature verification failed.")
+            return web.Response(text="Invalid signature", status=400)
+
+        import json
+        try:
+            event_data = json.loads(payload.decode("utf-8"))
+        except Exception:
+            return web.Response(text="Invalid JSON", status=400)
+
+        event_type = event_data.get("event")
+        payload_entity = event_data.get("payload", {})
+        payment_entity = payload_entity.get("payment", {}).get("entity", {})
+
+        if event_type in ("payment.captured", "order.paid"):
+            notes = payment_entity.get("notes", {})
+            user_id_str = notes.get("user_id")
+            plan = notes.get("plan", "monthly")
+            payment_id = payment_entity.get("id")
+            order_id = payment_entity.get("order_id")
+            amount = payment_entity.get("amount")
+
+            if user_id_str and payment_id:
+                try:
+                    user_id = int(user_id_str)
+                    await RazorpayService.grant_verified_entitlement(
+                        user_id=user_id,
+                        plan_id=plan,
+                        razorpay_payment_id=payment_id,
+                        razorpay_order_id=order_id or "",
+                        db=self.db,
+                        amount_paise=amount,
+                    )
+                    logger.info(f"[PaymentAPI] Webhook granted entitlement for payment {payment_id} to user {user_id}")
+                except Exception as e:
+                    logger.error(f"[PaymentAPI] Error processing webhook entitlement: {e}")
+
+        return web.json_response({"received": True, "status": "processed"}, status=200)
