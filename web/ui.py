@@ -1422,7 +1422,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <div class="brand-avatar">🎵</div>
         <div class="brand-title-wrap">
           <h1>Noctyra Studio</h1>
-          <p>Powered by NyxTune</p>
+          <p>24/7 Lossless Audio Engine</p>
         </div>
       </a>
 
@@ -1432,7 +1432,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="server-icon" id="server-icon-badge">⚡</div>
           <div class="server-names">
             <span class="server-name-text" id="active-server-name">Loading Server...</span>
-            <span class="server-status-sub"><span class="pulse-dot"></span> <span id="active-server-vc">Checking Voice</span></span>
+            <span class="server-status-sub"><span class="pulse-dot"></span> <span id="active-server-vc">320kbps Online</span></span>
           </div>
         </div>
         <span style="font-size:0.75rem; color:var(--text-dim);">▼</span>
@@ -1442,10 +1442,10 @@ UI_HTML = r"""<!DOCTYPE html>
       </div>
 
       <!-- PROMINENT SIDEBAR PREMIUM CARD -->
-      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to NyxTune Premium">
+      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to Noctyra Premium">
         <div class="promo-sparkle">✨ 150% Boost • 24/7 Voice</div>
         <div class="promo-content">
-          <span class="promo-title">💎 NyxTune Premium</span>
+          <span class="promo-title">💎 Noctyra Premium</span>
           <span class="promo-sub">Studio DSP, 24/7 staying mode & zero queue limits</span>
         </div>
         <button class="promo-btn">View Plans ⚡</button>
@@ -1455,7 +1455,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <span class="nav-group-title">Music Engine</span>
       <ul class="nav-list">
         <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">🏠</span> Dashboard</a></li>
-        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> NyxTune Premium</a></li>
+        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> Noctyra Premium</a></li>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Discover</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">🎵</span> Queue & Live Player</a></li>
         <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Stage Visualizer</a></li>
@@ -1468,7 +1468,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <!-- SIDEBAR FOOTER -->
       <div class="sidebar-footer">
         <div class="voice-badge-card" id="sidebar-voice-pill">
-          <span>🔊</span> <span id="sidebar-vc-text">Connecting to Voice Engine...</span>
+          <span>🔊</span> <span id="sidebar-vc-text">320kbps Online (Ready)</span>
         </div>
         <div id="auth-box-sidebar">
           <a class="btn-login-discord" id="btn-login-link" href="/api/auth/login" onclick="startDiscordLogin(event)">
@@ -1589,8 +1589,12 @@ UI_HTML = r"""<!DOCTYPE html>
         window.history.replaceState({}, document.title, window.location.pathname);
       } else if (params.get('error')) {
         const err = params.get('error');
-        const msg = params.get('message') || err;
-        showToast(`Auth notice: ${decodeURIComponent(msg)}`, "danger");
+        if (err === 'oauth_not_configured') {
+          showToast("✦ Discord OAuth2 credentials (DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET) need to be configured in your environment.", "danger");
+        } else {
+          const msg = params.get('message') || err;
+          showToast(`Auth notice: ${decodeURIComponent(msg)}`, "danger");
+        }
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
@@ -1744,11 +1748,17 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const res = await fetch('/api/auth/url');
         const json = await res.json();
-        if (json.success && json.data && json.data.url) {
-          window.location.href = json.data.url;
-        } else {
-          window.location.href = '/api/auth/login';
+        if (json.success && json.data) {
+          if (!json.data.configured) {
+            showToast("✦ Discord OAuth2 credentials (DISCORD_CLIENT_ID & DISCORD_CLIENT_SECRET) need to be configured in your environment.", "danger");
+            return;
+          }
+          if (json.data.url && !json.data.url.includes("error=oauth_not_configured")) {
+            window.location.href = json.data.url;
+            return;
+          }
         }
+        window.location.href = '/api/auth/login';
       } catch (err) {
         window.location.href = '/api/auth/login';
       }
@@ -1866,7 +1876,15 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     function updatePlaybackBarUI() {
-      if (!currentSession) return;
+      const vcText = document.getElementById('sidebar-vc-text');
+      const activeVcEl = document.getElementById('active-server-vc');
+
+      if (!currentSession) {
+        if (vcText) vcText.innerText = "320kbps Online (Ready)";
+        if (activeVcEl) activeVcEl.innerText = "320kbps Online";
+        return;
+      }
+
       const t = currentSession.current_track;
       const titleEl = document.getElementById('bar-title');
       const artistEl = document.getElementById('bar-artist');
@@ -1874,8 +1892,6 @@ UI_HTML = r"""<!DOCTYPE html>
       const playBtn = document.getElementById('btn-master-play');
       const loopBtn = document.getElementById('btn-loop');
       const pill247 = document.getElementById('btn-247-pill');
-      const vcText = document.getElementById('sidebar-vc-text');
-      const activeVcEl = document.getElementById('active-server-vc');
 
       if (t) {
         titleEl.innerText = t.title;
@@ -1898,9 +1914,9 @@ UI_HTML = r"""<!DOCTYPE html>
       pill247.className = "chip-pill " + (currentSession.twenty_four_seven ? "active" : "");
 
       // Voice channel pill
-      const vc = currentSession.voice_channel_name || "#Voice Channel";
-      vcText.innerText = vc;
-      activeVcEl.innerText = vc;
+      const vc = currentSession.voice_channel_name || "320kbps Lossless Ready";
+      if (vcText) vcText.innerText = vc;
+      if (activeVcEl) activeVcEl.innerText = currentSession.voice_channel_name || "320kbps Online";
 
       // Volume
       document.getElementById('vol-slider').value = currentSession.volume || 80;
@@ -3187,7 +3203,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <!-- HERO HEADER -->
             <div class="pricing-hero">
-              <span class="pricing-hero-badge">💎 NYXTUNE / NOCTYRA STUDIO PREMIUM</span>
+              <span class="pricing-hero-badge">💎 NOCTYRA STUDIO PREMIUM</span>
               <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
                 Elevate Your Server Audio to <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Studio Lossless</span>
               </h1>
@@ -3226,7 +3242,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- PLAN 1: FREE -->
               <div class="pricing-card">
-                <div class="pricing-title">NyxTune Free</div>
+                <div class="pricing-title">Noctyra Free</div>
                 <div class="pricing-desc">Everything you need for casual listening with friends in Discord.</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">$0</span>

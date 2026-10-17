@@ -140,6 +140,17 @@ class RaiCommunityOSServer:
                 "opus_loaded": bool(opus_ok),
                 "voice_ready": bool(has_dave and has_nacl and opus_ok),
             },
+            "oauth": {
+                "configured": bool(self.api_router.auth.is_configured),
+                "client_id_present": bool(self.api_router.auth.client_id),
+                "client_secret_present": bool(self.api_router.auth.client_secret),
+                "redirect_uri": self.api_router.auth.get_redirect_uri(),
+            },
+            "payments": {
+                "enabled": bool(os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"),
+                "provider": os.getenv("PAYMENT_PROVIDER", "razorpay"),
+                "razorpay_configured": bool(os.getenv("RAZORPAY_KEY_ID") and os.getenv("RAZORPAY_KEY_SECRET")),
+            },
         })
 
     async def handle_terms(self, request: web.Request) -> web.Response:
@@ -183,6 +194,7 @@ class RaiCommunityOSServer:
             "/status", "/wiki", "/mission-control",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
+            "/search", "/queue", "/autodj", "/library", "/audio", "/dsp", "/stats",
             "/canvas", "/visualizer",
             "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
@@ -348,6 +360,18 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/premium/cancel", p.cancel_subscription)
         app.router.add_post("/api/premium/webhook", p.handle_webhook)
         app.router.add_post("/api/premium/webhook/razorpay", p.handle_razorpay_webhook)
+
+        # Fallback SPA routing for direct navigation and browser refresh (e.g. /search, /queue)
+        async def fallback_spa(request: web.Request) -> web.Response:
+            if request.path.startswith("/api/"):
+                return web.json_response({
+                    "success": False,
+                    "error": {"code": "NOT_FOUND", "message": f"Endpoint '{request.path}' not found"}
+                }, status=404)
+            return await self.handle_ui(request)
+
+        app.router.add_get("/{tail:.*}", fallback_spa)
+
 
     async def _outbox_worker_loop(self) -> None:
         """Background worker for asynchronous, idempotent Discord channel synchronization."""

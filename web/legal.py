@@ -365,7 +365,7 @@ REFUND_POLICY_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cancellation & Refund Policy — MusicMaid / NyxTune</title>
+    <title>Cancellation & Refund Policy — Noctyra Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -468,7 +468,7 @@ REFUND_POLICY_HTML = """<!DOCTYPE html>
             <div class="effective-date">Effective Date: October 17, 2026 | Last Updated: October 2026</div>
         </div>
 
-        <p>Thank you for supporting <strong>MusicMaid / NyxTune</strong>. We strive to provide transparent, high-quality audio services for the Discord community. Please read this policy carefully regarding cancellations and refunds for digital subscriptions.</p>
+        <p>Thank you for supporting <strong>Noctyra Studio</strong>. We strive to provide transparent, high-quality audio services for the Discord community. Please read this policy carefully regarding cancellations and refunds for digital subscriptions.</p>
 
         <div class="highlight-box">
             <strong>Key Summary:</strong> You can cancel your subscription at any time with zero penalty. If you experience technical failures or duplicate billing, refund requests submitted within 48 hours are processed back to your original payment method within 5–7 business days.
@@ -652,7 +652,7 @@ CONTACT_US_HTML = """<!DOCTYPE html>
             </div>
             <div class="contact-row">
                 <div class="contact-label">Brand / Platform:</div>
-                <div class="contact-value">MusicMaid • NyxTune • Noctyra Studio</div>
+                <div class="contact-value">Noctyra Studio ✦ 24/7 Discord Music Platform</div>
             </div>
             <div class="contact-row">
                 <div class="contact-label">Support Email:</div>

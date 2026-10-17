@@ -51,7 +51,7 @@ export function Sidebar({
 
   const navLinks = [
     { href: "/", label: "Dashboard", icon: Home },
-    { href: "/premium", label: "NyxTune Premium", icon: Sparkles, isPremium: true },
+    { href: "/premium", label: "Noctyra Premium", icon: Sparkles, isPremium: true },
     { href: "/search", label: "Search & Discover", icon: Search },
     { href: "/queue", label: "Queue & Live Player", icon: Music },
     { href: "/canvas", label: "Stage Visualizer", icon: Radio },
@@ -78,7 +78,7 @@ export function Sidebar({
           <h1 className="font-extrabold text-base tracking-tight text-white leading-tight">
             Noctyra Studio
           </h1>
-          <p className="text-xs text-[var(--text-dim)] font-medium">Powered by NyxTune</p>
+          <p className="text-xs text-[var(--text-dim)] font-medium">24/7 Lossless Audio Engine</p>
         </div>
       </Link>
 
@@ -139,7 +139,7 @@ export function Sidebar({
           <Crown className="w-3.5 h-3.5 text-pink-400" />
         </div>
         <div className="text-xs font-bold text-white group-hover:text-pink-200 transition-colors">
-          💎 NyxTune Premium
+          💎 Noctyra Premium
         </div>
         <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
           Studio DSP, 24/7 staying mode & zero queue limits

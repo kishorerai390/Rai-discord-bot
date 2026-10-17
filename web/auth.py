@@ -38,11 +38,55 @@ class AuthManager:
     def __init__(self, db: Database, bot: Optional[Any] = None):
         self.db = db
         self.bot = bot
+        self._client_id: Optional[str] = None
+        self._client_secret: Optional[str] = None
+
+    @property
+    def client_id(self) -> str:
+        """Resolve Discord application/client ID from env vars or live bot instance."""
+        if self._client_id is not None:
+            return self._client_id
+        cid = (
+            os.getenv("DISCORD_CLIENT_ID", "").strip()
+            or os.getenv("CLIENT_ID", "").strip()
+            or os.getenv("APPLICATION_ID", "").strip()
+            or os.getenv("DISCORD_APPLICATION_ID", "").strip()
+            or str(DISCORD_CLIENT_ID or "").strip()
+        )
+        if not cid and self.bot:
+            bot_user = getattr(self.bot, "user", None)
+            if bot_user and getattr(bot_user, "id", None):
+                cid = str(bot_user.id)
+            elif getattr(self.bot, "application_id", None):
+                cid = str(self.bot.application_id)
+        return cid
+
+    @client_id.setter
+    def client_id(self, value: Optional[str]) -> None:
+        self._client_id = value
+
+    @property
+    def client_secret(self) -> str:
+        """Resolve Discord client secret from env vars."""
+        if self._client_secret is not None:
+            return self._client_secret
+        return (
+            os.getenv("DISCORD_CLIENT_SECRET", "").strip()
+            or os.getenv("CLIENT_SECRET", "").strip()
+            or os.getenv("DISCORD_SECRET", "").strip()
+            or os.getenv("BOT_CLIENT_SECRET", "").strip()
+            or str(DISCORD_CLIENT_SECRET or "").strip()
+        )
+
+    @client_secret.setter
+    def client_secret(self, value: Optional[str]) -> None:
+        self._client_secret = value
 
     @property
     def is_configured(self) -> bool:
         """Returns True if Discord OAuth2 credentials are configured."""
-        return bool(DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET)
+        return bool(self.client_id and self.client_secret)
+
 
     def get_redirect_uri(self, request: Optional[web.Request] = None) -> str:
         """
@@ -87,10 +131,10 @@ class AuthManager:
 
     def get_oauth_url(self, state: Optional[str] = None, redirect_uri: Optional[str] = None) -> str:
         """Generate Discord OAuth2 authorization URL."""
-        if not DISCORD_CLIENT_ID:
+        if not self.client_id:
             return "/?error=oauth_not_configured"
 
-        client_id = DISCORD_CLIENT_ID
+        client_id = self.client_id
         uri = redirect_uri or self.get_redirect_uri()
         scope = "identify guilds"
         state = state or secrets.token_urlsafe(24)
@@ -107,15 +151,15 @@ class AuthManager:
 
     async def exchange_code(self, code: str, redirect_uri: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Exchange authorization code for Discord access and refresh tokens."""
-        if not DISCORD_CLIENT_ID or not DISCORD_CLIENT_SECRET:
+        if not self.client_id or not self.client_secret:
             logger.warning("Discord OAuth2 credentials are not configured.")
             return None
 
         uri = redirect_uri or self.get_redirect_uri()
         token_url = f"{DISCORD_API_BASE}/oauth2/token"
         data = {
-            "client_id": DISCORD_CLIENT_ID,
-            "client_secret": DISCORD_CLIENT_SECRET,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": uri,
