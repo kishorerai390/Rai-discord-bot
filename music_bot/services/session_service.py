@@ -65,6 +65,8 @@ class GuildMusicSession:
         self.autoplay: bool = False
         self.twenty_four_seven: bool = False
         self.dj_enabled: bool = False
+        self.maid_voice_dj_enabled: bool = False
+        self.maid_dj_personality: str = "maid"
         self.radio_station: Optional[str] = None
         self.eq_preset: str = "Flat"
         self.ducking_enabled: bool = True
