@@ -23,14 +23,14 @@ export async function POST(req: NextRequest) {
     const actionId = `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     try {
       db.prepare(
-        `INSERT INTO music_web_actions (guild_id, action, payload, user_id, status, created_at)
+        `INSERT INTO music_web_actions (guild_id, action, payload_json, user_id, status, created_at)
          VALUES (?, ?, ?, ?, 'PENDING', ?)`
       ).run(guildId, action, JSON.stringify(payload), userId, nowIso);
     } catch (e) {
-      // Table may have autoincrement integer ID or different schema
+      // Fallback if table schema differs
       try {
         db.prepare(
-          `INSERT INTO music_web_actions (guild_id, action, payload, user_id, created_at)
+          `INSERT INTO music_web_actions (guild_id, action, payload_json, user_id, created_at)
            VALUES (?, ?, ?, ?, ?)`
         ).run(guildId, action, JSON.stringify(payload), userId, nowIso);
       } catch (err2) {
