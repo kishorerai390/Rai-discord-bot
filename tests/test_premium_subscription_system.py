@@ -207,11 +207,14 @@ class TestPremiumSubscriptionSystem(unittest.IsolatedAsyncioTestCase):
         mock_session = MagicMock()
         mock_session.id = "cs_verified_777"
         mock_session.payment_status = "paid"
+        mock_session.status = "complete"
         mock_session.client_reference_id = "5551234"
         mock_session.customer = "cus_mock_888"
         mock_session.subscription = "sub_mock_999"
         mock_session.payment_intent = "pi_mock_000"
         mock_session.metadata = {"plan": "yearly", "user_id": "5551234"}
+        mock_session.amount_total = 4999
+        mock_session.currency = "usd"
 
         with patch.object(config, "is_stripe_configured", return_value=True), \
              patch("music_bot.services.payment_service.stripe.checkout.Session.retrieve", return_value=mock_session):
@@ -237,31 +240,26 @@ class TestPremiumSubscriptionSystem(unittest.IsolatedAsyncioTestCase):
         """Verify webhook processing for checkout.session.completed and subscription deletion."""
         event_payload = {
             "id": "evt_webhook_live_123",
+            "object": "event",
+            "api_version": "2024-06-20",
+            "created": 1729000000,
             "type": "checkout.session.completed",
             "data": {
                 "object": {
                     "id": "cs_webhook_session_999",
+                    "object": "checkout.session",
                     "payment_status": "paid",
                     "client_reference_id": "8882221",
                     "customer": "cus_wh_1",
                     "subscription": "sub_wh_1",
+                    "currency": "usd",
+                    "amount_total": 499,
                     "metadata": {"plan": "monthly", "user_id": "8882221"},
                 }
             },
         }
 
-        mock_event = MagicMock()
-        mock_event.id = "evt_webhook_live_123"
-        mock_event.type = "checkout.session.completed"
-        mock_event.data.object = MagicMock(
-            id="cs_webhook_session_999",
-            payment_status="paid",
-            client_reference_id="8882221",
-            customer="cus_wh_1",
-            subscription="sub_wh_1",
-            metadata={"plan": "monthly", "user_id": "8882221"},
-        )
-        mock_event.to_dict.return_value = event_payload
+        mock_event = stripe.Event.construct_from(event_payload, key="whsec_test_secret")
 
         with patch.object(config, "STRIPE_WEBHOOK_SECRET", "whsec_test_secret"), \
              patch("music_bot.services.payment_service.stripe.Webhook.construct_event", return_value=mock_event):
