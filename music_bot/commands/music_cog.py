@@ -812,28 +812,37 @@ class MusicCog(commands.Cog, name="Music"):
 
         return False
 
+    @staticmethod
+    async def send_ephemeral_or_fallback(
+        interaction: discord.Interaction,
+        embed: Optional[discord.Embed] = None,
+        content: Optional[str] = None,
+        view: Optional[discord.ui.View] = None,
+    ) -> None:
+        """Send an ephemeral message ('Only you can see this') and clean up any public deferred message."""
+        try:
+            if interaction.response.is_done():
+                try:
+                    await interaction.delete_original_response()
+                except Exception:
+                    pass
+                await interaction.followup.send(content=content, embed=embed, view=view, ephemeral=True)
+            else:
+                await interaction.response.send_message(content=content, embed=embed, view=view, ephemeral=True)
+        except Exception:
+            try:
+                await interaction.edit_original_response(content=content, embed=embed, view=view)
+            except Exception:
+                pass
+
     async def _check_permissions(self, interaction: discord.Interaction) -> bool:
         """Verify user is in voice channel and allowed to use music commands."""
         if not interaction.guild or not isinstance(interaction.user, discord.Member):
-            msg = "❌ This command must be used in a server."
-            if interaction.response.is_done():
-                try:
-                    await interaction.edit_original_response(content=msg, embed=None, view=None)
-                except Exception:
-                    await interaction.followup.send(msg, ephemeral=True)
-            else:
-                await interaction.response.send_message(msg, ephemeral=True)
+            await self.send_ephemeral_or_fallback(interaction, content="❌ This command must be used in a server.")
             return False
 
         if not interaction.user.voice or not interaction.user.voice.channel:
-            msg = "❌ You must join a voice channel first."
-            if interaction.response.is_done():
-                try:
-                    await interaction.edit_original_response(content=msg, embed=None, view=None)
-                except Exception:
-                    await interaction.followup.send(msg, ephemeral=True)
-            else:
-                await interaction.response.send_message(msg, ephemeral=True)
+            await self.send_ephemeral_or_fallback(interaction, content="❌ You must join a voice channel first.")
             return False
 
         return True
@@ -849,10 +858,7 @@ class MusicCog(commands.Cog, name="Music"):
             text_channel = interaction.channel
 
             if not guild or not isinstance(member, discord.Member) or not isinstance(text_channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)):
-                try:
-                    await interaction.edit_original_response(content="❌ Cannot determine server or channel context.")
-                except Exception:
-                    await interaction.followup.send("❌ Cannot determine server or channel context.", ephemeral=True)
+                await self.send_ephemeral_or_fallback(interaction, content="❌ Cannot determine server or channel context.")
                 return
 
             session = await self.session_manager.get_session(guild.id)
@@ -908,16 +914,7 @@ class MusicCog(commands.Cog, name="Music"):
                             color=0xED4245,
                         )
 
-                    try:
-                        if interaction.response.is_done():
-                            await interaction.edit_original_response(embed=embed_conn_err, content=None, view=None)
-                        else:
-                            await interaction.response.send_message(embed=embed_conn_err, ephemeral=True)
-                    except Exception:
-                        try:
-                            await interaction.followup.send(embed=embed_conn_err, ephemeral=True)
-                        except Exception as send_err:
-                            logger.error(f"[Playback] Failed sending voice connection error embed: {send_err}")
+                    await self.send_ephemeral_or_fallback(interaction, embed=embed_conn_err)
                     return
 
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
@@ -971,13 +968,7 @@ class MusicCog(commands.Cog, name="Music"):
                         ),
                         color=COLOR_ERROR,
                     )
-                try:
-                    await interaction.edit_original_response(embed=embed_fail, content=None, view=None)
-                except Exception:
-                    try:
-                        await interaction.followup.send(embed=embed_fail)
-                    except Exception as post_err:
-                        logger.error(f"[Playback] Could not post track failure embed: {post_err}")
+                await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
                 return
 
             search_dur = time.time() - search_start
@@ -985,13 +976,12 @@ class MusicCog(commands.Cog, name="Music"):
 
             # Feature 113: Audio Track Duration Ceiling Limiter (> 3 hours rejected for non-admins)
             if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
-                await interaction.edit_original_response(
-                    embed=discord.Embed(
-                        title=f"{EmojiManager.get('WARNING', self.bot)} MusicMaid ✦ Track Duration Exceeded",
-                        description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
-                        color=COLOR_WARNING,
-                    )
+                embed_dur = discord.Embed(
+                    title=f"{EmojiManager.get('WARNING', self.bot)} MusicMaid ✦ Track Duration Exceeded",
+                    description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
+                    color=COLOR_WARNING,
                 )
+                await self.send_ephemeral_or_fallback(interaction, embed=embed_dur)
                 return
 
             # 3. Add to Queue or Start Playback
@@ -1001,10 +991,9 @@ class MusicCog(commands.Cog, name="Music"):
                 last_url = getattr(session, "_last_queued_url", None)
                 last_time = getattr(session, "_last_queued_time", 0.0)
                 if track.url and track.url == last_url and (now_t - last_time) < 3.0:
-                    await interaction.edit_original_response(
+                    await self.send_ephemeral_or_fallback(
+                        interaction,
                         content=f"⚠️ **{track.title}** was already just queued a moment ago! (Duplicate prevented)",
-                        embed=None,
-                        view=None,
                     )
                     return
                 session._last_queued_url = track.url
@@ -1089,13 +1078,7 @@ class MusicCog(commands.Cog, name="Music"):
                             ),
                             color=0xED4245,
                         )
-                        try:
-                            await interaction.edit_original_response(embed=embed_fail, content=None, view=None)
-                        except Exception:
-                            try:
-                                await interaction.followup.send(embed=embed_fail)
-                            except Exception as post_err:
-                                logger.error(f"[Playback] Could not post playback failure: {post_err}")
+                        await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
         except Exception as top_err:
             logger.error(f"[Playback] Critical unhandled error in _play_query for query '{query}': {top_err}", exc_info=True)
             embed_crit = discord.Embed(
@@ -1106,16 +1089,7 @@ class MusicCog(commands.Cog, name="Music"):
                 ),
                 color=0xED4245,
             )
-            try:
-                if interaction.response.is_done():
-                    try:
-                        await interaction.edit_original_response(embed=embed_crit, content=None, view=None)
-                    except Exception:
-                        await interaction.followup.send(embed=embed_crit)
-                else:
-                    await interaction.response.send_message(embed=embed_crit, ephemeral=True)
-            except Exception:
-                pass
+            await self.send_ephemeral_or_fallback(interaction, embed=embed_crit)
 
     # =========================================================================
     # /MUSIC COMMAND GROUP
@@ -2953,14 +2927,7 @@ class MusicCog(commands.Cog, name="Music"):
             await self.music_play.callback(self, interaction, query)
         except Exception as e:
             logger.error(f"[Playback] Uncaught error in alias_play (/play): {e}", exc_info=True)
-            try:
-                msg = f"❌ Error executing `/play`: {e}"
-                if interaction.response.is_done():
-                    await interaction.followup.send(msg, ephemeral=True)
-                else:
-                    await interaction.response.send_message(msg, ephemeral=True)
-            except Exception:
-                pass
+            await self.send_ephemeral_or_fallback(interaction, content=f"❌ Error executing `/play`: {e}")
 
     @alias_play.autocomplete("query")
     async def alias_play_autocomplete(
