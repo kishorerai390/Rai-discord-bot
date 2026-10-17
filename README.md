@@ -1,117 +1,76 @@
-# 🤖 RAI — Autonomous Discord Security & Server Management Platform
+# 🎵 MusicMaid — 24/7 Hi-Fi Lossless Discord Music Engine & Web Dashboard
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![discord.py 2.x](https://img.shields.io/badge/discord.py-2.x-5865F2.svg)](https://github.com/Rapptz/discord.py)
+[![Next.js 16](https://img.shields.io/badge/next.js-16-black.svg)](https://nextjs.org/)
 [![SQLite WAL](https://img.shields.io/badge/database-SQLite%20WAL-00F0FF.svg)](https://sqlite.org/)
+[![Lossless Audio](https://img.shields.io/badge/audio-320kbps%20Opus-2ED573.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-00F0FF.svg)](LICENSE)
 
-**Rai** (The Raivora) is an enterprise-grade, all-in-one Discord security, moderation, and automated server-management platform infused with a distinctive 3D anime/cyberpunk identity.
-
-Built for 24/7 autonomous server defense, Rai eliminates black-box decisions by powering every risk assessment with an explainable multi-signal threat correlation engine, rolling-window baselines, and granular threat timelines.
+**MusicMaid** (by Noctyra Studio) is an enterprise-grade, 24/7 lossless Discord music streaming engine and full-stack interactive dashboard. Built with an obsessive focus on pristine 320kbps audio fidelity, zero-stutter voice playback, and intuitive web-based playback controls, MusicMaid elevates your community's listening experience to a studio-grade standard.
 
 ---
 
-## 🎨 Visual Identity & Theme
-
-* **Codename**: Rai / The Raivora
-* **Theme**: 3D Anime / Futuristic Cyberpunk / Neon Shinto Pagoda
-* **Palette**:
-  * Neon Cyan (`#00F0FF`) — Primary Identity & Embed Borders
-  * Royal Indigo (`#7289DA`) — Structural Accent
-  * Crimson Alert (`#FF4757`) — Threat & Raid Escalation
-  * Emerald Verified (`#2ED573`) — Safe & Verified Operations
-  * Deep Charcoal (`#0F111A`) — Cyberpunk Backdrop
-* **Assets**: High-resolution 3D anime mascot logos and banners located in `assets/logo.jpg` and `assets/banner.jpg`.
-
----
-
-## 🛡️ Key Pillars & Architecture
+## 🎧 Core Capabilities
 
 ```text
-                                 🤖 RAI
-                                   │
-              ┌────────────────────┴────────────────────┐
-              │                                         │
-        🛡️ SECURITY                               ⚙️ MANAGEMENT
-              │                                         │
-       ┌──────┼──────┐                           ┌──────┼──────┐
-       ↓      ↓      ↓                           ↓      ↓      ↓
-   Anti-Raid Anti-Nuke AntiSpam              Tickets  Suggest Welcome
-       ↓      ↓      ↓                           ↓      ↓      ↓
-  VoiceGuard Webhook Permission               TempVC   Roles Verification
-       │      │      │
-       └──────┼──────┘
-              ↓
-       🧠 SECURITY BRAIN (Rolling Windows: 1m, 5m, 15m, 30m)
-              ↓
-       🧬 INCIDENT SYSTEM & THREAT TIMELINE
-              ↓
-        📈 RISK ENGINE (0-100 Score with Observable Reasons)
-              ↓
-       🔔 SMART ALERTS & ESCALATION
-              ↓
-       🛡️ PROACTIVE CONTAINMENT & SAFE MODE
-              ↓
-       🔄 SELF-HEALING & AUTOMATED BACKUPS
+                           🎵 MUSICMAID PLATFORM
+                                    │
+       ┌────────────────────────────┼────────────────────────────┐
+       │                            │                            │
+ 🔊 AUDIO ENGINE             🌐 MUIFY DASHBOARD          ⚡ CREATOR CONTROL
+       │                            │                            │
+ ┌─────┴─────┐                ┌─────┴─────┐                ┌─────┴─────┐
+ ↓           ↓                ↓           ↓                ↓           ↓
+320k Lossless 24/7 Voice     Live Player  Queue Manager  Telemetry   Feature Flags
+Auto-DJ      DSP Equalizer   Lyrics View  Guild Settings Incidents   DB Backups
 ```
+
+### 1. 🔊 Lossless Voice Streaming & DSP
+* **Audiophile 320kbps Opus**: Pristine 48kHz audio pipeline with high-throughput FFmpeg stream buffers.
+* **Smart Auto-DJ**: Intelligently recommends and queues matching tracks when the current playlist concludes.
+* **Studio Equalizer (DSP)**: Real-time hardware-grade audio filters including Bass Boost, Nightcore, 8D Spatial Audio, Vaporwave, and Treble Clarity.
+* **Persistent Session Recovery**: Voice state and song position are tracked continuously in SQLite WAL mode. On restart, tracks resume at their exact timestamp.
+
+### 2. 🎛️ Muify Web Dashboard (`/dashboard`)
+* **Responsive Web Player**: Sleek glassmorphic dark theme featuring real-time playback progress, play/pause/skip controls, seek slider, and volume management.
+* **Interactive Music Search**: Search YouTube, Spotify, and direct audio streams with instant track previews and one-click queue addition.
+* **Dynamic Queue & History**: Drag-and-drop playlist reordering, queue clearing, and playback history.
+* **Lyrics Viewer**: Synchronized scrolling lyrics for currently playing songs.
+* **Guild Switcher & Settings**: Server administrators can configure custom prefixes, default playback volume, and 24/7 voice channel assignments.
+
+### 3. 🛡️ Creator Control Center (`/owner`)
+* **Infini-Dash Architecture**: Dedicated control room strictly restricted to authorized bot creators and operators.
+* **Live System Telemetry**: Real-time monitoring of CPU, RAM, WebSocket latency, active voice streams, and cache hit rates.
+* **Correlated Incident Center**: Structured operational logs with unique correlation IDs, timestamps, and manual acknowledgement tracking.
+* **Dynamic Feature Flags**: Toggle features (Web Audio Player, Auto-DJ, DSP Filters, Payment Checkouts) on the fly without restarting services.
+* **Entitlement Management**: Search users by Discord ID to view, grant, or revoke promotional and lifetime Premium passes.
+* **SQLite Snapshot Backups**: One-click database backup and rotation directly into `data/backups/`.
+
+### 4. 💎 Premium & Tiered Entitlements
+* **Authoritative Role Resolution**: Automatic recognition of bot owner IDs with lifetime unlocked access to all premium features.
+* **Guild Volume Expansion**: Unlocks audio volumes up to 200% with software limiter protection.
+* **24/7 Channel Presence**: Keeps the bot connected in voice channels indefinitely, even when the queue is idle.
+* **Priority Queue & Audio Processing**: Instantaneous track caching and elevated bitrate allocations.
 
 ---
 
-## 🚀 Feature Highlights
+## ⌨️ Discord Slash Commands
 
-### 1. 🧠 Rai Security Brain & Anti-Raid
-
-* **Multi-Window Tracking**: Evaluates join bursts across 1m, 5m, 15m, and 30m rolling windows.
-* **Server Baselines & Multipliers**: Automatically learns historical join rates and detects abnormal spikes (e.g. 6× baseline).
-* **Multi-Signal Incident Correlation**: Unifies join spikes, message bursts, mention attacks, and unknown webhooks into single correlated incidents with unique tracking IDs.
-* **Threat Timelines**: Chronological step-by-step logs for every incident (`/security incident <id>`).
-* **Explainable Risk Scoring**: Risk ratings (`NORMAL`, `ELEVATED`, `SUSPICIOUS`, `HIGH`, `CRITICAL`) with explicit observable reasons.
-* **Emergency Mode**: Instant heightened defense posture via `/security emergency activate [reason]`.
-
-### 2. 💥 Anti-Nuke & Guardians
-
-* **Audit-Log Attribution**: Identifies rogue executors for mass channel/role deletions, mass bans, and mass kicks.
-* **Permission Guardian**: Intercepts unauthorized grants of `Administrator`, `Manage Server`, `Manage Roles`, and other high-risk privileges.
-* **Webhook Guardian**: Detects and logs unknown webhook creations or suspicious modifications.
-* **Fail-Safe Response Modes**: Configurable `LOG_ONLY`, `STAFF_ALERT`, `RESTRICT`, and `LOCKDOWN`.
-
-### 3. 🔊 VoiceGuard
-
-* **Mathematical RMS Energy**: Computes Root-Mean-Square relative energy levels and exponential moving averages over PCM frames (no fake uncalibrated decibels).
-* **Zero-Retention Audio Privacy**: Processed frames are immediately discarded; raw voice is never recorded or stored.
-* **Three-Strike Escalation**: Warn 1 ➔ Warn 2 ➔ Temporary Server Mute.
-* **Graceful Degradation**: Automatically runs in Interface Mode if native voice-receive sinks are absent without interrupting any bot services.
-
-### 4. 💡 Advanced Community Suggestions
-
-* **Interactive UI**: Slash command `/suggest <content>` with 👍 Upvote, 👎 Downvote, and 💬 Discuss buttons.
-* **Atomic SQLite Voting**: Prevents double-voting, supports vote switching, and disallows authors from voting on their own submissions.
-* **Forum / Thread Discussions**: Automatically creates threads for discussion.
-* **Staff Controls**: `/suggest approve`, `reject`, `implement`, `archive`, `reopen`, `delete`, and `setup`.
-
-### 5. 👤 Smart Verification
-
-* **Button Verification**: Interactive `VerificationButtonView` for instant onboarding.
-* **Account Age Filter**: Automatically protects against throwaway raid accounts.
-* **Role Routing**: Assigns verified member roles while stripping unverified restrictions.
-
-### 6. 🔊 Temporary Voice Channels ("Join to Create")
-
-* **On-Demand Rooms**: Intercepts joins in creator hubs and spins up dynamic private voice channels.
-* **Creator Controls**: `/tempvoice lock`, `unlock`, `limit`, `rename`, and `status`.
-* **Zero-Ghost Cleanup**: Automatically cleans up and deletes temporary channels the instant they become empty. Permanent channels are never touched.
-
-### 7. 🎫 Interactive Tickets & Moderation
-
-* **Persistent Support Panels**: Category routing, staff assignment, claiming, and automatic HTML/TXT transcripts upon closure.
-* **Enterprise Moderation**: Ban, kick, timeout, warn, clear, slowmode, channel locking, and persistent warning histories with violation decay.
-
-### 8. 🩺 Central Settings, Self-Healing & Health Monitor
-
-* **Consolidated Settings**: `/settings automation`, `security`, `moderation`, `welcome`, `tickets`, `suggestions`, `verification`, `voiceguard`, `roles`.
-* **System Health**: `/health` diagnostic displaying live latency, database WAL status, cogs, tasks, and memory consumption.
-* **Automated SQLite Backups**: Periodic snapshots to `data/backups/` with automated rotation.
-* **Self-Healing Supervisor**: Background workers automatically restart with exponential backoff if errors occur.
+| Command | Description |
+| :--- | :--- |
+| `/play <query>` | Play a track from YouTube, Spotify, or audio URL |
+| `/pause` / `/resume` | Pause or resume current playback |
+| `/skip` | Skip the current track |
+| `/queue` | View the upcoming playlist and pagination |
+| `/nowplaying` | Display detailed embed with playback progress and bitrate |
+| `/volume <1-200>` | Adjust player volume (Volumes >100% require Premium) |
+| `/seek <timestamp>` | Seek to a specific timestamp in the track |
+| `/247` | Toggle 24/7 voice channel stay mode (Premium) |
+| `/loop <off|track|queue>` | Set repeat mode for track or entire queue |
+| `/shuffle` | Randomize upcoming playlist tracks |
+| `/clear` | Clear upcoming tracks from the queue |
+| `/setup` | Quick server audio channel setup wizard |
 
 ---
 
@@ -119,161 +78,106 @@ Built for 24/7 autonomous server defense, Rai eliminates black-box decisions by 
 
 ```text
 f:/Bot/
-├── main.py                     # Entry point & bot lifecycle supervisor
-├── config.py                   # Environment loader, token management & constants
+├── music_main.py               # Top-level bot entry point
+├── config.py                   # Master environment & bot configuration
 ├── requirements.txt            # Python dependencies
-├── .env.example                # Template configuration
-├── .env                        # Local secrets (never committed)
-├── ARCHITECTURE.md             # In-depth architectural specification
-├── CONFIGURATION.md            # Command & configuration manual
-├── SECURITY.md                 # Threat vectors & abuse safeguards
-├── SETUP.md                    # Step-by-step deployment guide
-├── TROUBLESHOOTING.md          # Diagnostics & recovery procedures
-├── CHANGELOG.md                # Migration & release notes
 │
-├── assets/                     # 3D Anime Brand Assets
-│   ├── logo.jpg                # Master Cyberpunk Rai Mascot Logo
-│   └── banner.jpg              # Master Cyberpunk Pagoda Banner
+├── music_bot/                  # Core Discord Music Bot Engine
+│   ├── main.py                 # Bot lifecycle & startup verification
+│   ├── bot.py                  # Discord Gateway client & interaction interceptor
+│   ├── config.py               # Music bot constants & environment loader
+│   ├── commands/               # Slash & prefix command suites
+│   │   └── music_cog.py        # Master Music cog (playback, queue, DSP, setup)
+│   ├── database/               # Dedicated Music SQLite WAL storage
+│   ├── services/               # Audio diagnostics, session & recovery services
+│   └── theme.py                # Visual embeds & styling tokens
 │
-├── cogs/                       # Modular Subsystems (13 Active Cogs)
-│   ├── security.py             # Security Dashboard, Emergency Mode, Threat Timeline
-│   ├── raid.py                 # Anti-Raid detection, join bursts, incidents
-│   ├── voiceguard.py           # Audio energy monitoring & strike escalation
-│   ├── automod.py              # Anti-spam, link scanner, mention limiter
-│   ├── verification.py         # Smart verification & account-age gatekeeping
-│   ├── temp_voice.py           # Dynamic "Join to Create" voice channels
-│   ├── suggestions.py          # Persistent suggestion system & atomic voting
-│   ├── moderation.py           # Hierarchy-aware bans, kicks, timeouts, warnings
-│   ├── tickets.py              # Interactive ticket panels & transcripts
-│   ├── welcome.py              # Rich welcome embeds & auto-role
-│   ├── autorole.py             # Persistent join role assignment
-│   ├── logging.py              # Channel-specific security audit dispatching
-│   ├── settings.py             # Central settings dashboard, backups & maintenance
-│   ├── utility.py              # /help and /health diagnostic commands
-│   └── music.py                # Voice streaming & player queue
+├── web/                        # Web Dashboard & Control Center Backend
+│   ├── server.py               # Web application server (AIOHTTP / Starlette)
+│   ├── ui.py                   # Muify dashboard & Infini-Dash HTML/CSS views
+│   ├── auth.py                 # Discord OAuth2 & authoritative entitlement engine
+│   ├── music_api.py            # REST endpoints for search, queue, & player controls
+│   └── owner_api.py            # Creator Control Room telemetry & management API
 │
-├── database/                   # SQLite WAL Database Layer
-│   ├── database.py             # Async connection, thread pool, atomic transactions
-│   ├── models.py               # Typed dataclasses for all 32 tables
-│   └── migrations.py           # Schema versioning & forward migrations
+├── src/                        # Full-Stack Next.js 16 Web Dashboard
+│   ├── app/                    # App Router pages (/dashboard, /premium, /terms)
+│   ├── components/             # Glassmorphic React UI components
+│   └── lib/                    # Shared SQLite database adapters & OAuth handlers
 │
-├── utils/                      # Shared Core Engines
-│   ├── security_brain.py       # Central Security Brain, baseline tracker, risk engine
-│   ├── cooldowns.py            # Sliding-window & persistent rate limiters
-│   ├── permissions.py          # Discord role hierarchy safety checks
-│   ├── embeds.py               # Cyberpunk-themed Discord embed builders
-│   └── helpers.py              # UI views, confirmation modals, audit log resolvers
-│
-└── tests/                      # Automated Test Suite (27 Unit Tests)
-    ├── test_analytics_and_timeline.py
-    ├── test_cooldowns.py
-    ├── test_database.py
-    ├── test_raid.py
-    ├── test_suggestions.py
-    ├── test_temp_voice.py
-    ├── test_verification.py
-    └── test_voiceguard.py
+└── tests/                      # Automated Verification Test Suite
+    ├── test_audit_and_repair.py     # SPA routing, search, & player test suite
+    └── test_master_build_suite.py   # Creator API, auth, & guild settings test suite
 ```
 
 ---
 
-## ⚡ Quick Start
+## ⚡ Quick Start & Deployment
 
 ### 1. Prerequisites
+* Python 3.11+
+* Node.js 18+ (for Next.js web application)
+* FFmpeg (pre-bundled with `static-ffmpeg` or installed system-wide)
 
-* Python 3.11 or 3.12 (`python --version`)
-* FFmpeg (for music playback)
+### 2. Environment Setup
+Create a `.env` file from the provided template:
 
-### 2. Setup Virtual Environment
+```env
+# Discord Bot Credentials
+MUSIC_BOT_TOKEN=your_discord_bot_token_here
+BOT_OWNER_ID=your_discord_user_id
 
+# Web Platform & OAuth2
+DISCORD_CLIENT_ID=your_discord_client_id
+DISCORD_CLIENT_SECRET=your_discord_client_secret
+SESSION_SECRET=a_random_32_byte_secret_key
+NEXT_PUBLIC_BASE_URL=https://rai-discord-bot.onrender.com
+
+# Optional Payment Gateway
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
+```
+
+### 3. Running Locally
+
+**Terminal 1 — Python Web Server & Bot:**
 ```bash
+# Setup virtual environment
 python -m venv .venv
-# Windows:
 .venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
 pip install -r requirements.txt
+
+# Run automated test suites (26 passing tests)
+python -m unittest tests/test_audit_and_repair.py tests/test_master_build_suite.py -v
+
+# Start the music bot
+python music_main.py
 ```
 
-### 3. Run Migrations & Validations
-
+**Terminal 2 — Next.js Web Dashboard:**
 ```bash
-python scripts/migrate.py
-python scripts/validate.py
-```
-
-### 4. Run Test Suite
-
-```bash
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
-### 5. Launch Rai
-
-```bash
-python main.py
-```
-
----
-
-## 🔐 Required Discord Permissions
-
-In Discord **Server Settings ➔ Roles**, drag Rai's role to the **very top** of the role hierarchy.
-
-Grant the following bot permissions:
-
-* `Administrator` (Recommended for full security protection) OR:
-  * `Manage Server`, `Manage Roles`, `Manage Channels`, `Ban Members`, `Kick Members`, `Moderate Members`
-  * `Send Messages`, `Embed Links`, `Attach Files`, `Read Message History`, `Manage Messages`
-  * `Connect`, `Speak`, `Move Members`, `Mute Members`
-
----
-
-## 🌐 Next.js & TypeScript Web Platform (Migrated Stack)
-
-The web dashboard and master control panel has been migrated to a modern full-stack TypeScript application:
-
-- **Framework**: Next.js 16 (React 19, App Router)
-- **Language**: TypeScript (Strict typing, ES2022)
-- **Styling**: Tailwind CSS with custom glassmorphism design tokens
-- **Database Engine**: `better-sqlite3` with SQLite WAL mode (zero data migration needed; directly shares `data/music.db` and `data/bot.db` with the Discord bot)
-- **Authentication**: Discord OAuth2 with secure httpOnly cookie sessions
-- **Payment Processing**: Razorpay with HMAC-SHA256 signature verification and student developer preview mode
-
-### Running the TypeScript Web Application Locally
-
-```bash
-# 1. Install Node.js dependencies
+# Install dependencies & run development server
 npm install
-
-# 2. Start the development server (runs on http://localhost:3000)
 npm run dev
-
-# 3. Compile optimized production build
-npm run build
-
-# 4. Run the production web server
-npm start
 ```
 
-### Running Both Services Concurrently
+---
 
-- **Terminal 1 (Next.js Web Dashboard)**: `npm run dev` (or `npm start` for production)
-- **Terminal 2 (Discord Bot)**: `npm run start:bot` (or `python music_main.py`)
+## 🧪 Verification & Test Coverage
 
-### Deployment & Rollback Strategy
+The platform includes full automated test coverage validating SPA routing, OAuth2 security boundaries, player action contracts, guild settings permission gates, and creator control room authorization:
 
-1. **Deploying on Render / Vercel**:
-   - Build Command: `npm run build`
-   - Start Command: `npm start`
-   - Environment Variables: Configure variables as documented in `.env.example`.
-2. **Instant Rollback**:
-   - The original Python web server implementation remains fully preserved in `web/`.
-   - If rollback is ever desired, set start command to `python -m web.server` or `python music_main.py`.
+```bash
+.venv\Scripts\python.exe -m unittest tests/test_audit_and_repair.py tests/test_master_build_suite.py -v
+```
+
+```text
+Ran 26 tests in 13.6s
+OK
+```
 
 ---
 
 ## 📄 License & Credits
 
-Licensed under the [MIT License](LICENSE). Built for high-security community servers and 24/7 lossless music streaming by Kishore & the Noctyra Engineering Team.
-
+Licensed under the [MIT License](LICENSE).  
+Crafted with passion by **Kishore** and the **Noctyra Studio** team for audiophiles and Discord communities everywhere.
