@@ -317,6 +317,15 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/music/autodj/settings", m.set_autodj_settings)
         app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
 
+        # Premium Subscription & Stripe Payment API
+        p = self.payment_router
+        app.router.add_get("/api/premium/plans", p.get_plans)
+        app.router.add_get("/api/premium/status", p.get_status)
+        app.router.add_post("/api/premium/create-checkout", p.create_checkout)
+        app.router.add_get("/api/premium/verify-session", p.verify_session)
+        app.router.add_post("/api/premium/cancel", p.cancel_subscription)
+        app.router.add_post("/api/premium/webhook", p.handle_webhook)
+
     async def _outbox_worker_loop(self) -> None:
         """Background worker for asynchronous, idempotent Discord channel synchronization."""
         while self._is_running:
