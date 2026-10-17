@@ -161,7 +161,8 @@ class RaiCommunityOSServer:
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
             "/status", "/wiki", "/mission-control",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
-            "/discover/constellation", "/studio", "/bounties", "/passport", "/invites"
+            "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
+            "/canvas", "/visualizer"
         ]
         for path in ui_routes:
             app.router.add_get(path, self.handle_ui)

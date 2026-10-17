@@ -927,6 +927,86 @@ UI_HTML = r"""<!DOCTYPE html>
       align-items: center;
       gap: 0.6rem;
     }
+    .queue-row.dragging {
+      opacity: 0.35;
+      border: 1px dashed var(--cyan);
+      transform: scale(0.98);
+    }
+    .queue-row.drag-over {
+      border: 2px solid var(--primary);
+      background: rgba(147, 51, 234, 0.25);
+      box-shadow: 0 0 15px rgba(147, 51, 234, 0.4);
+    }
+    .queue-drag-handle {
+      cursor: grab;
+      user-select: none;
+      padding: 0 4px;
+      color: var(--text-dim);
+      transition: color 0.2s;
+    }
+    .queue-drag-handle:hover {
+      color: var(--cyan);
+    }
+
+    /* STAGE CANVAS VISUALIZER */
+    .canvas-stage-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: calc(100vh - 160px);
+      padding: 1.5rem;
+      border-radius: var(--radius-lg);
+      background: #090c15;
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      overflow: hidden;
+    }
+    .canvas-ambient-backdrop {
+      position: absolute;
+      top: -30%;
+      left: -30%;
+      width: 160%;
+      height: 160%;
+      background-size: cover;
+      background-position: center;
+      filter: blur(80px) brightness(0.25) saturate(1.8);
+      opacity: 0.7;
+      z-index: 1;
+      pointer-events: none;
+      transition: background-image 1s ease-in-out;
+    }
+    .canvas-hero-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.4rem;
+      z-index: 5;
+      margin-top: 1rem;
+    }
+    .canvas-lyrics-box {
+      width: 100%;
+      max-width: 650px;
+      text-align: center;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      padding: 0.5rem 1rem;
+    }
+    .canvas-remote-bar {
+      width: 100%;
+      max-width: 580px;
+      background: rgba(15, 20, 36, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(16px);
+      border-radius: var(--radius-lg);
+      padding: 1rem 1.4rem;
+      z-index: 10;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      margin-top: 1rem;
+    }
 
     /* EQUALIZER PRESET GRID */
     .eq-grid {
@@ -1022,6 +1102,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">🏠</span> Dashboard</a></li>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Discover</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">🎵</span> Queue & Live Player</a></li>
+        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Stage Visualizer</a></li>
         <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
         <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Playlists & Library</a></li>
         <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & DSP</a></li>
@@ -1096,6 +1177,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <span style="font-size:0.9rem; color:var(--text-dim);" id="vol-icon" onclick="quickMute()">🔊</span>
         <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
       </div>
+      <button class="p-btn" onclick="navigate('/canvas')" title="Open Stage Visualizer">✨</button>
       <button class="p-btn" onclick="navigate('/queue')" title="Open Queue">📜</button>
     </div>
   </footer>
@@ -1545,6 +1627,9 @@ UI_HTML = r"""<!DOCTYPE html>
       } else if (path === '/queue') {
         document.getElementById('nav-queue')?.classList.add('active');
         renderQueue();
+      } else if (path === '/canvas' || path === '/visualizer') {
+        document.getElementById('nav-canvas')?.classList.add('active');
+        renderCanvasVisualizer();
       } else if (path === '/autodj') {
         document.getElementById('nav-autodj')?.classList.add('active');
         renderAutoDJ();
@@ -1568,6 +1653,8 @@ UI_HTML = r"""<!DOCTYPE html>
         updateDashboardDynamicElements();
       } else if (path === '/queue') {
         updateQueueList();
+      } else if (path === '/canvas' || path === '/visualizer') {
+        updateCanvasVisualizer();
       }
     }
 
@@ -1914,13 +2001,55 @@ UI_HTML = r"""<!DOCTYPE html>
       `;
     }
 
+    let draggedQueueIndex = null;
+
+    function onQueueDragStart(e, idx) {
+      draggedQueueIndex = idx;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', idx);
+      e.currentTarget.classList.add('dragging');
+    }
+
+    function onQueueDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function onQueueDragEnd(e) {
+      document.querySelectorAll('.queue-row').forEach(el => {
+        el.classList.remove('dragging', 'drag-over');
+      });
+    }
+
+    async function onQueueDrop(e, targetIdx) {
+      e.preventDefault();
+      onQueueDragEnd(e);
+      if (draggedQueueIndex === null || draggedQueueIndex === targetIdx) return;
+      const fromIdx = draggedQueueIndex;
+      draggedQueueIndex = null;
+
+      // Optimistic UI re-order
+      const item = currentQueue.splice(fromIdx, 1)[0];
+      currentQueue.splice(targetIdx, 0, item);
+      updateQueueList();
+
+      await dispatchCmd('MOVE', { from_index: fromIdx, to_index: targetIdx });
+    }
+
     function renderFullQueueRows() {
       if (!currentQueue || currentQueue.length === 0) {
         return `<div style="text-align:center; padding:3.5rem; color:var(--text-muted);">🐾 The queue is empty! Add tracks from Search & Discover.</div>`;
       }
       return currentQueue.map((q, i) => `
-        <div class="queue-row">
+        <div class="queue-row" draggable="true"
+             ondragstart="onQueueDragStart(event, ${i})"
+             ondragover="onQueueDragOver(event)"
+             ondrop="onQueueDrop(event, ${i})"
+             ondragend="onQueueDragEnd(event)"
+             data-index="${i}">
           <div class="queue-row-left">
+            <span class="queue-drag-handle" title="Drag to reorder queue position">⋮⋮</span>
             <span class="queue-num">${i + 1}</span>
             <img class="queue-thumb" src="${q.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}">
             <div class="queue-meta">
@@ -1930,6 +2059,7 @@ UI_HTML = r"""<!DOCTYPE html>
           </div>
           <div class="queue-row-right">
             <span style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted);">${formatTime(q.duration)}</span>
+            <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('PLAY_NOW', {query: '${encodeURIComponent(q.title)}'})" title="Play Now">▶ Play</button>
             ${i > 0 ? `<button class="btn btn-secondary btn-sm" onclick="moveTrack(${i}, ${i - 1})" title="Move Up">▲</button>` : ''}
             ${i < currentQueue.length - 1 ? `<button class="btn btn-secondary btn-sm" onclick="moveTrack(${i}, ${i + 1})" title="Move Down">▼</button>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('REMOVE', {index:${i}})" title="Remove Track">✕</button>
@@ -1963,6 +2093,208 @@ UI_HTML = r"""<!DOCTYPE html>
     async function confirmClearQueue() {
       if (confirm("Are you sure you want to clear the entire queue?")) {
         await dispatchCmd('CLEAR');
+      }
+    }
+
+    // =========================================================================
+    // VIEW: STAGE CANVAS & REALTIME AUDIO VISUALIZER
+    // =========================================================================
+    let visualizerAnimationId = null;
+    let stageLyricsLines = [];
+    let currentLyricsIndex = -1;
+
+    function renderCanvasVisualizer() {
+      const container = document.getElementById('view-container');
+      const t = currentSession?.current_track;
+
+      container.innerHTML = `
+        <div class="canvas-stage-wrapper" id="canvas-stage-container">
+          <!-- TOP BAR -->
+          <div style="display:flex; justify-content:space-between; align-items:center; width:100%; z-index:10;">
+            <div style="display:flex; align-items:center; gap:0.6rem;">
+              <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● Lossless 320kbps Opus</span>
+              <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.15);"><span class="pulse-dot"></span> Stage Mode</span>
+            </div>
+            <div style="display:flex; gap:0.6rem;">
+              <button class="btn btn-secondary btn-sm" onclick="toggleCanvasFullscreen()" id="btn-fullscreen-toggle">⛶ Fullscreen (F)</button>
+              <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">📜 Back to Queue</button>
+            </div>
+          </div>
+
+          <!-- AMBIENT ARTWORK BACKDROP -->
+          <div class="canvas-ambient-backdrop" id="canvas-backdrop" style="background-image: url('${t?.thumbnail || ''}');"></div>
+
+          <!-- CENTER VINYL & METADATA -->
+          <div class="canvas-hero-center">
+            <div class="vinyl-wrapper" style="width:220px; height:220px;">
+              <img id="stage-vinyl-disc" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" style="width:220px; height:220px; box-shadow: 0 0 50px rgba(0, 229, 255, 0.4);" src="${t?.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=350'}" alt="Cover">
+            </div>
+            <div style="text-align:center; max-width:650px; z-index:5;">
+              <h2 id="stage-track-title" style="font-size:2.2rem; font-weight:800; color:#fff; text-shadow: 0 0 20px rgba(0,229,255,0.6); margin-bottom:0.4rem;">
+                ${t ? t.title : 'Ready for Music'}
+              </h2>
+              <p id="stage-track-artist" style="font-size:1.15rem; color:var(--cyan); font-weight:600; text-shadow:0 0 10px rgba(0,229,255,0.4);">
+                ${t ? (t.artist || 'Unknown Artist') : 'No song currently streaming'}
+              </p>
+            </div>
+          </div>
+
+          <!-- AUDIO SPECTRUM CANVAS -->
+          <div style="width:100%; max-width:760px; height:110px; position:relative; margin-top:0.8rem; z-index:5;">
+            <canvas id="stage-visualizer-canvas" width="760" height="110" style="width:100%; height:110px; border-radius:12px;"></canvas>
+          </div>
+
+          <!-- FLOATING LYRICS DISPLAY -->
+          <div class="canvas-lyrics-box" id="stage-lyrics-box">
+            <div id="stage-lyrics-text" style="font-size:1.15rem; color:#fff; font-weight:600; text-shadow:0 0 15px rgba(255,255,255,0.5); transition:all 0.3s;">
+              ${t ? '🎵 Synchronizing live lyrics...' : 'Play a track in Discord or web to start visualizer.'}
+            </div>
+          </div>
+
+          <!-- FLOATING REMOTE BAR -->
+          <div class="canvas-remote-bar">
+            <div style="display:flex; align-items:center; gap:0.8rem; width:100%;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted);" id="stage-time-curr">${formatTime(playbackSeconds)}</span>
+              <input type="range" class="slider-track" id="stage-scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)" style="flex:1;">
+              <span style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted);" id="stage-time-total">${formatTime(trackDurationSeconds)}</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:center; gap:1.2rem; margin-top:0.8rem;">
+              <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
+              <button class="p-btn p-btn-play" onclick="togglePlayPause()" id="stage-play-btn" style="width:48px; height:48px; font-size:1.2rem;">${isPlaying && !isPaused ? '⏸' : '▶'}</button>
+              <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
+              <button class="p-btn" onclick="cycleLoopMode()" id="stage-loop-btn">🔁</button>
+              <button class="p-btn" onclick="dispatchCmd('SHUFFLE')" title="Shuffle">🔀</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      initStageVisualizerLoop();
+      if (t) fetchStageLyrics(t);
+    }
+
+    function updateCanvasVisualizer() {
+      const t = currentSession?.current_track;
+      const titleEl = document.getElementById('stage-track-title');
+      const artistEl = document.getElementById('stage-track-artist');
+      const vinylEl = document.getElementById('stage-vinyl-disc');
+      const backdropEl = document.getElementById('canvas-backdrop');
+      const playBtn = document.getElementById('stage-play-btn');
+
+      if (titleEl && t) titleEl.innerText = t.title;
+      if (artistEl && t) artistEl.innerText = t.artist || 'Unknown Artist';
+      if (vinylEl && t?.thumbnail) vinylEl.src = t.thumbnail;
+      if (backdropEl && t?.thumbnail) backdropEl.style.backgroundImage = `url('${t.thumbnail}')`;
+
+      if (vinylEl) {
+        if (isPlaying && !isPaused) vinylEl.classList.add('spin');
+        else vinylEl.classList.remove('spin');
+      }
+      if (playBtn) playBtn.innerText = isPlaying && !isPaused ? '⏸' : '▶';
+
+      const timeCurr = document.getElementById('stage-time-curr');
+      const timeTotal = document.getElementById('stage-time-total');
+      const slider = document.getElementById('stage-scrub-slider');
+      if (timeCurr) timeCurr.innerText = formatTime(playbackSeconds);
+      if (timeTotal) timeTotal.innerText = formatTime(trackDurationSeconds);
+      if (slider && !isScrubbing && trackDurationSeconds > 0) {
+        slider.value = Math.floor((playbackSeconds / trackDurationSeconds) * 100);
+      }
+
+      updateLyricsLine();
+    }
+
+    function initStageVisualizerLoop() {
+      const canvas = document.getElementById('stage-visualizer-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      if (visualizerAnimationId) {
+        cancelAnimationFrame(visualizerAnimationId);
+      }
+
+      let step = 0;
+      const barCount = 42;
+
+      function renderFrame() {
+        if (!document.getElementById('stage-visualizer-canvas')) return;
+        step += 0.05;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const w = canvas.width / barCount;
+
+        for (let i = 0; i < barCount; i++) {
+          let h = 0;
+          if (isPlaying && !isPaused) {
+            const freq = Math.sin(step * 2 + i * 0.3) * Math.cos(step * 1.5 - i * 0.2);
+            const bump = Math.abs(Math.sin(step * 3 + i * 0.5));
+            h = Math.max(8, (Math.abs(freq) * 0.6 + bump * 0.4) * (canvas.height - 10));
+          } else {
+            h = Math.max(4, (Math.sin(step + i * 0.2) + 1) * 8);
+          }
+
+          const x = i * w;
+          const y = canvas.height - h;
+
+          const grad = ctx.createLinearGradient(0, y, 0, canvas.height);
+          grad.addColorStop(0, '#00e5ff');
+          grad.addColorStop(0.5, '#ec4899');
+          grad.addColorStop(1, '#9333ea');
+
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.roundRect ? ctx.roundRect(x + 2, y, w - 4, h, [4, 4, 0, 0]) : ctx.rect(x + 2, y, w - 4, h);
+          ctx.fill();
+        }
+
+        visualizerAnimationId = requestAnimationFrame(renderFrame);
+      }
+
+      renderFrame();
+    }
+
+    async function fetchStageLyrics(t) {
+      if (!t || !t.title) return;
+      try {
+        const res = await fetch(`/api/music/lyrics?title=${encodeURIComponent(t.title)}&artist=${encodeURIComponent(t.artist || '')}`);
+        const json = await res.json();
+        if (json.success && json.data && json.data.lyrics) {
+          stageLyricsLines = json.data.lyrics.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          updateLyricsLine();
+        }
+      } catch (e) {}
+    }
+
+    function updateLyricsLine() {
+      const textEl = document.getElementById('stage-lyrics-text');
+      if (!textEl || stageLyricsLines.length === 0 || trackDurationSeconds <= 0) return;
+
+      const progress = playbackSeconds / trackDurationSeconds;
+      const targetIdx = Math.min(stageLyricsLines.length - 1, Math.floor(progress * stageLyricsLines.length));
+      if (targetIdx !== currentLyricsIndex) {
+        currentLyricsIndex = targetIdx;
+        textEl.style.opacity = '0';
+        setTimeout(() => {
+          textEl.innerText = stageLyricsLines[targetIdx] || '...';
+          textEl.style.opacity = '1';
+        }, 150);
+      }
+    }
+
+    function toggleCanvasFullscreen() {
+      const container = document.getElementById('canvas-stage-container');
+      const btn = document.getElementById('btn-fullscreen-toggle');
+      if (!container) return;
+
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().then(() => {
+          if (btn) btn.innerText = "⛶ Exit Fullscreen (Esc)";
+        }).catch(() => {});
+      } else {
+        document.exitFullscreen().then(() => {
+          if (btn) btn.innerText = "⛶ Fullscreen (F)";
+        }).catch(() => {});
       }
     }
 
