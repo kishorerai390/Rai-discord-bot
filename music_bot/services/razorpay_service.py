@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+import base64
 import hashlib
 import hmac
 import json
@@ -118,8 +119,12 @@ class RazorpayService:
         }
 
         # Make server-side call to Razorpay Orders API
-        auth = aiohttp.BasicAuth(key_id, key_secret)
-        async with aiohttp.ClientSession(auth=auth) as session:
+        auth_str = base64.b64encode(f"{key_id}:{key_secret}".encode("utf-8")).decode("ascii")
+        headers = {
+            "Authorization": f"Basic {auth_str}",
+            "Content-Type": "application/json",
+        }
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.post(
                 f"{cls.API_BASE}/orders",
                 json=payload,

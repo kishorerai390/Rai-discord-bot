@@ -133,7 +133,7 @@ class PaymentApiRouter:
 
         if not config.PAYMENTS_ENABLED:
             return json_error(
-                "Payment processing is currently in Developer Preview Mode. Real checkouts are disabled until account approval.",
+                "Payment processing is currently in Student Developer Showcase Mode. Real checkouts are disabled until account approval.",
                 code="PAYMENTS_DISABLED",
                 status=503,
             )
