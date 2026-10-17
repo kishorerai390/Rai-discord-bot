@@ -17,7 +17,12 @@ from config import WEB_PORT, COMMUNITY_GUILD_ID
 from database.database import Database
 from web.api import ApiRouter
 from web.ui import UI_HTML
-from web.legal import TERMS_OF_SERVICE_HTML, PRIVACY_POLICY_HTML
+from web.legal import (
+    TERMS_OF_SERVICE_HTML,
+    PRIVACY_POLICY_HTML,
+    REFUND_POLICY_HTML,
+    CONTACT_US_HTML,
+)
 
 from web.realtime import RealtimeGateway
 from web.music_api import MusicApiRouter
@@ -145,15 +150,29 @@ class RaiCommunityOSServer:
         """Render the official Privacy Policy legal compliance page."""
         return web.Response(text=PRIVACY_POLICY_HTML, content_type="text/html")
 
+    async def handle_refund(self, request: web.Request) -> web.Response:
+        """Render the official Refund and Cancellation Policy compliance page."""
+        return web.Response(text=REFUND_POLICY_HTML, content_type="text/html")
+
+    async def handle_contact(self, request: web.Request) -> web.Response:
+        """Render the official Contact Us support and grievance page."""
+        return web.Response(text=CONTACT_US_HTML, content_type="text/html")
+
     def setup_routes(self, app: web.Application) -> None:
         """Register all UI and REST API routes."""
         r = self.api_router
 
-        # Legal Compliance Endpoints for Discord Developer Portal Verification
+        # Legal Compliance Endpoints for Discord Developer Portal & Razorpay KYC Verification
         app.router.add_get("/terms", self.handle_terms)
         app.router.add_get("/terms-of-service", self.handle_terms)
         app.router.add_get("/privacy", self.handle_privacy)
         app.router.add_get("/privacy-policy", self.handle_privacy)
+        app.router.add_get("/refund", self.handle_refund)
+        app.router.add_get("/refund-policy", self.handle_refund)
+        app.router.add_get("/cancellation-policy", self.handle_refund)
+        app.router.add_get("/contact", self.handle_contact)
+        app.router.add_get("/contact-us", self.handle_contact)
+        app.router.add_get("/support", self.handle_contact)
 
         # UI Page Routes (rendered via the responsive SPA shell)
         ui_routes = [
@@ -317,14 +336,18 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/music/autodj/settings", m.set_autodj_settings)
         app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
 
-        # Premium Subscription & Stripe Payment API
+        # Premium Subscription & Payment API (Razorpay & Stripe)
         p = self.payment_router
         app.router.add_get("/api/premium/plans", p.get_plans)
         app.router.add_get("/api/premium/status", p.get_status)
+        app.router.add_post("/api/premium/order", p.create_order)
+        app.router.add_post("/api/premium/create-order", p.create_order)
+        app.router.add_post("/api/premium/verify", p.verify_payment)
         app.router.add_post("/api/premium/create-checkout", p.create_checkout)
         app.router.add_get("/api/premium/verify-session", p.verify_session)
         app.router.add_post("/api/premium/cancel", p.cancel_subscription)
         app.router.add_post("/api/premium/webhook", p.handle_webhook)
+        app.router.add_post("/api/premium/webhook/razorpay", p.handle_razorpay_webhook)
 
     async def _outbox_worker_loop(self) -> None:
         """Background worker for asynchronous, idempotent Discord channel synchronization."""

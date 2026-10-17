@@ -15,6 +15,7 @@ import stripe
 
 from music_bot import config
 from music_bot.services.payment_service import PaymentService
+from music_bot.services.razorpay_service import RazorpayService
 from music_bot.services.entitlement_service import EntitlementService
 
 logger = logging.getLogger("MusicMaid.PaymentAPI")
