@@ -165,7 +165,7 @@ class TestTwentyFourSevenPersistenceSuite:
         perms = MagicMock()
         perms.connect = False
         perms.speak = True
-        vc_channel.permissions_for.return_value = perms
+        vc_channel.permissions_for = MagicMock(return_value=perms)
 
         vc = await VoiceManager.join_voice_channel(
             member=guild.me,
