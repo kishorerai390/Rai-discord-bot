@@ -271,11 +271,13 @@ class PaymentService:
             raw_payload=payload_bytes.decode("utf-8", errors="replace"),
             db=db,
         )
+        ev_type = getattr(event, "type", None) if hasattr(event, "type") else event["type"]
+        ev_id = getattr(event, "id", None) if hasattr(event, "id") else event["id"]
         return {
             "success": success,
             "message": message,
-            "event_type": event.get("type"),
-            "event_id": event.get("id"),
+            "event_type": ev_type,
+            "event_id": ev_id,
             "duplicate": "already processed" in message.lower(),
         }
 
