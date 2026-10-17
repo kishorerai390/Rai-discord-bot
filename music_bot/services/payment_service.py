@@ -299,7 +299,8 @@ class PaymentService:
                 logger.info(f"[Payment] Webhook event '{event_id}' ({event_type}) already processed. Skipping duplicate.")
                 return True, "Event already processed (idempotent)."
 
-        data_obj = event["data"]["object"]
+        raw_obj = event["data"]["object"]
+        data_obj = raw_obj.to_dict() if hasattr(raw_obj, "to_dict") else dict(raw_obj)
 
         # 2. Event Dispatching
         if event_type == "checkout.session.completed":
