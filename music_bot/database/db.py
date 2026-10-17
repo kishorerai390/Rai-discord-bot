@@ -1436,7 +1436,7 @@ class MusicDatabase:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
 
-    async def is_premium(self, guild_id: int, user_id: Optional[int] = None) -> bool:
+    async def is_premium(self, guild_id: int = 0, user_id: Optional[int] = None) -> bool:
         """Check if either the guild or the user has an active premium subscription."""
         async with self._lock:
             if not self._db:
@@ -1759,8 +1759,9 @@ class MusicDatabase:
         event_id: str,
         provider: str,
         event_type: str,
-        payload_json: str,
+        payload_json: Optional[str] = None,
         status: str = "processed",
+        **kwargs: Any,
     ) -> bool:
         """Record processed webhook event for idempotency guarantees."""
         if not self._db:
@@ -1768,6 +1769,7 @@ class MusicDatabase:
         if not self._db:
             return False
 
+        final_payload = payload_json or kwargs.get("payload") or "{}"
         now = datetime.now(timezone.utc).isoformat()
         async with self._lock:
             await self._db.execute(
