@@ -482,6 +482,13 @@ class NekoSongsBot(commands.Bot):
         if member.bot:
             return
 
+        # Phase 4: Dynamic Temporary Voice Room Automation
+        try:
+            from music_bot.services.temp_voice_service import TempVoiceRoomManager
+            asyncio.create_task(TempVoiceRoomManager.handle_voice_state_update(member, before, after))
+        except Exception as e:
+            logger.error(f"Error in TempVoiceRoomManager: {e}")
+
         # Feature 107: Autonomous Voice-Ducking for Stage Announcements
         if before.channel and after.channel and before.channel.id == after.channel.id:
             session = await self.session_manager.get_session(member.guild.id)
