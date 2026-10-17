@@ -3040,6 +3040,569 @@ UI_HTML = r"""<!DOCTYPE html>
         container.innerHTML = `<div class="glass-card" style="color:var(--danger); text-align:center;">Failed to load statistics: ${e.message}</div>`;
       }
     }
+
+    // =========================================================================
+    // VIEW 9: PREMIUM SUBSCRIPTION & PRICING
+    // =========================================================================
+    async function renderPremiumPricing() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div style="text-align:center; padding:3rem 1rem;">
+          <div class="pulse-dot" style="margin:0 auto 1rem auto; width:14px; height:14px; background:var(--pink);"></div>
+          <p style="color:var(--text-muted);">Loading MusicMaid Premium Plans & Features...</p>
+        </div>
+      `;
+
+      try {
+        const [plansRes, statusRes] = await Promise.all([
+          fetch('/api/premium/plans'),
+          fetch('/api/premium/status')
+        ]);
+        const plansJson = await plansRes.json();
+        const statusJson = await statusRes.json();
+
+        const pData = plansJson.data || {};
+        const plans = pData.plans || {};
+        const features = pData.features || [];
+        const faqs = pData.faqs || [];
+        const currency = pData.currency || 'USD';
+        const isConfigured = pData.configured;
+
+        const entitlement = (statusJson.success && statusJson.data && statusJson.data.entitlement) ? statusJson.data.entitlement : null;
+        const isUserSubscribed = entitlement && entitlement.is_premium;
+        const userPlan = entitlement ? (entitlement.plan || 'free').toLowerCase() : 'free';
+
+        const monthlyPrice = plans.monthly ? `$${plans.monthly.amount.toFixed(2)}` : '$4.99';
+        const yearlyPrice = plans.yearly ? `$${plans.yearly.amount.toFixed(2)}` : '$49.99';
+
+        container.innerHTML = `
+          <div class="pricing-container">
+
+            <!-- HERO HEADER -->
+            <div class="pricing-hero">
+              <span class="pricing-hero-badge">💎 MUSICMAID PREMIUM TIERS</span>
+              <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
+                Elevate Your Server Audio to <span style="background:linear-gradient(135deg, #ec4899, #00e5ff); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Studio Lossless</span>
+              </h1>
+              <p style="max-width:680px; font-size:1.05rem; color:var(--text-muted); line-height:1.5;">
+                Unlock 320kbps lossless audio, 150% volume cap, 24/7 staying mode, AI Anime Maid Voice DJ, and cross-platform playlist importing across all your Discord servers.
+              </p>
+
+              ${isUserSubscribed ? `
+                <div style="display:inline-flex; align-items:center; gap:0.75rem; background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.4); padding:0.6rem 1.2rem; border-radius:var(--radius-full); margin-top:0.6rem;">
+                  <span style="color:#10b981; font-weight:800; font-size:0.9rem;">● ACTIVE SUBSCRIPTION: ${userPlan.toUpperCase()}</span>
+                  <button class="btn btn-sm btn-secondary" onclick="navigate('/premium/manage')" style="padding:0.25rem 0.65rem; font-size:0.75rem;">Manage Subscription</button>
+                </div>
+              ` : ''}
+
+              ${!isConfigured ? `
+                <div style="background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.4); padding:0.75rem 1.2rem; border-radius:var(--radius-md); max-width:720px; margin-top:0.5rem; font-size:0.85rem; color:#fde68a;">
+                  ⚙️ <strong>Payment Gateway Setup Required:</strong> To enable real checkout on this deployment, configure <code>STRIPE_SECRET_KEY</code> and <code>STRIPE_WEBHOOK_SECRET</code> in your server environment.
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- PRICING CARDS GRID -->
+            <div class="pricing-grid">
+
+              <!-- PLAN 1: FREE -->
+              <div class="pricing-card">
+                <div class="pricing-title">MusicMaid Free</div>
+                <div class="pricing-desc">Everything you need for casual listening with friends in Discord.</div>
+                <div class="pricing-price-wrap">
+                  <span class="pricing-price">$0</span>
+                  <span class="pricing-period">/ forever</span>
+                </div>
+                <ul class="pricing-feature-list">
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Core YouTube & Web Audio Playback</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Standard Queue & Auto-DJ</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Standard 100% Volume Cap</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Basic Equalizer DSP Presets</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Interactive Web Player Bar</li>
+                  <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 150% Studio Volume Booster</li>
+                  <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 24/7 Voice Channel Stay Mode</li>
+                  <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> AI Anime Maid Voice DJ</li>
+                </ul>
+                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}">
+                  ${!isUserSubscribed ? '✓ Your Current Plan' : 'Free Tier'}
+                </button>
+              </div>
+
+              <!-- PLAN 2: MONTHLY -->
+              <div class="pricing-card">
+                <div class="pricing-title">Premium Monthly</div>
+                <div class="pricing-desc">Full access with flexible monthly billing. Cancel anytime.</div>
+                <div class="pricing-price-wrap">
+                  <span class="pricing-price">${monthlyPrice}</span>
+                  <span class="pricing-period">/ month</span>
+                </div>
+                <ul class="pricing-feature-list">
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>150% Studio Volume Booster</strong></li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>24/7 Voice Stay Mode</strong> (Never leaves voice)</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>AI Anime Maid Voice DJ</strong> (All 5 Personalities)</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>320kbps Lossless Opus</strong> Audio Pipeline</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Cross-Platform Playlist Importer</strong> (Spotify/YT/Apple)</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Friend Blend</strong> & Synergy Scoring</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Hardware-Accelerated Equalizer DSP</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Zero-Downtime Session Recovery</li>
+                </ul>
+                ${userPlan === 'monthly' && isUserSubscribed ? `
+                  <button class="pricing-btn pricing-btn-current" onclick="navigate('/premium/manage')">✓ Active Monthly Plan</button>
+                ` : `
+                  <button class="pricing-btn pricing-btn-primary" onclick="initiateCheckout('monthly', this)">
+                    <span>Upgrade to Monthly ➔</span>
+                  </button>
+                `}
+              </div>
+
+              <!-- PLAN 3: YEARLY (FEATURED) -->
+              <div class="pricing-card featured">
+                <span class="pricing-badge-corner">★ 2 MONTHS FREE</span>
+                <div class="pricing-title" style="color:#f472b6;">Premium Yearly</div>
+                <div class="pricing-desc">Maximum value for serious listeners & servers. Save over 16% annually!</div>
+                <div class="pricing-price-wrap">
+                  <span class="pricing-price">${yearlyPrice}</span>
+                  <span class="pricing-period">/ year</span>
+                </div>
+                <ul class="pricing-feature-list">
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>All Premium Monthly Perks Included</strong></li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>2 Months Completely Free</strong> ($10/yr savings)</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Priority Resolution Pipeline</strong> (Lowest latency)</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Exclusive 👑 Anime Supporter Role</strong></li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> 150% Boosted Volume & 24/7 Voice Stay</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Full AI Maid DJ & Playlist Importer</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Friend Blend & Cross-Platform Importer</li>
+                </ul>
+                ${userPlan === 'yearly' && isUserSubscribed ? `
+                  <button class="pricing-btn pricing-btn-current" onclick="navigate('/premium/manage')">✓ Active Yearly Plan</button>
+                ` : `
+                  <button class="pricing-btn pricing-btn-primary" style="background:linear-gradient(135deg, #00e5ff, #9333ea);" onclick="initiateCheckout('yearly', this)">
+                    <span>Upgrade Yearly (Save 16%) ➔</span>
+                  </button>
+                `}
+              </div>
+
+            </div>
+
+            <!-- FEATURE COMPARISON TABLE -->
+            <div class="table-compare-card">
+              <h3 style="font-size:1.35rem; font-weight:800; color:#fff; margin-bottom:1.2rem;">Detailed Plan Feature Comparison</h3>
+              <div style="overflow-x:auto;">
+                <table class="table-compare">
+                  <thead>
+                    <tr>
+                      <th style="width:50%;">Feature</th>
+                      <th style="width:25%;" class="center">MusicMaid Free</th>
+                      <th style="width:25%;" class="center" style="color:var(--pink);">MusicMaid Premium</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${features.map(f => `
+                      <tr>
+                        <td><strong>${f.name}</strong></td>
+                        <td class="center">${f.free ? '<span style="color:#10b981; font-weight:bold;">✓ Included</span>' : '<span style="color:var(--text-dim);">✕</span>'}</td>
+                        <td class="center">${f.premium ? '<span style="color:#f472b6; font-weight:bold;">✓ Unlocked 💎</span>' : '<span style="color:var(--text-dim);">✕</span>'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- FAQ SECTION -->
+            <div style="display:flex; flex-direction:column; gap:1.2rem;">
+              <h3 style="font-size:1.35rem; font-weight:800; color:#fff;">Frequently Asked Questions</h3>
+              <div class="faq-accordion">
+                ${faqs.map((faq, i) => `
+                  <div class="faq-item" id="faq-item-${i}">
+                    <div class="faq-question" onclick="toggleFaq(${i})">
+                      <span>${faq.q}</span>
+                      <span id="faq-icon-${i}">▼</span>
+                    </div>
+                    <div class="faq-answer" id="faq-ans-${i}">${faq.a}</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- SECURITY ASSURANCE BADGE -->
+            <div style="text-align:center; padding:1.5rem; background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center; gap:1.5rem; flex-wrap:wrap; font-size:0.85rem; color:var(--text-muted);">
+              <span>🔒 256-Bit SSL Encryption</span>
+              <span>⚡ Verified by Stripe</span>
+              <span>💳 Zero Raw Card Storage</span>
+              <span>🔄 Cancel Anytime With 1-Click</span>
+            </div>
+
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `
+          <div class="glass-card" style="color:var(--danger); text-align:center; padding:2rem;">
+            <h3>Failed to load Premium pricing</h3>
+            <p style="margin-top:0.5rem; color:var(--text-muted);">${err.message}</p>
+            <button class="btn btn-primary" onclick="renderPremiumPricing()" style="margin-top:1rem;">Retry</button>
+          </div>
+        `;
+      }
+    }
+
+    function toggleFaq(index) {
+      const ans = document.getElementById(`faq-ans-${index}`);
+      const icon = document.getElementById(`faq-icon-${index}`);
+      if (!ans) return;
+      if (ans.style.display === 'none') {
+        ans.style.display = 'block';
+        if (icon) icon.innerText = '▲';
+      } else {
+        ans.style.display = 'none';
+        if (icon) icon.innerText = '▼';
+      }
+    }
+
+    async function initiateCheckout(planId, btnElement) {
+      if (!currentUser) {
+        showToast("Please sign in with Discord first to subscribe!", "warning");
+        setTimeout(() => {
+          navigate('/api/auth/login');
+        }, 800);
+        return;
+      }
+
+      const origText = btnElement ? btnElement.innerHTML : '';
+      if (btnElement) {
+        btnElement.disabled = true;
+        btnElement.innerHTML = `<span>⏳ Opening Secure Stripe Checkout...</span>`;
+      }
+
+      try {
+        const res = await fetch('/api/premium/create-checkout', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ plan: planId })
+        });
+        const json = await res.json();
+
+        if (json.success && json.data && json.data.checkout_url) {
+          window.location.href = json.data.checkout_url;
+        } else {
+          const errCode = json.error?.code;
+          const errMsg = json.error?.message || "Failed to initiate checkout.";
+
+          if (errCode === 'GATEWAY_NOT_CONFIGURED') {
+            renderPaymentGatewayNotConfigured(errMsg);
+          } else {
+            showToast(errMsg, "danger");
+            if (btnElement) {
+              btnElement.disabled = false;
+              btnElement.innerHTML = origText;
+            }
+          }
+        }
+      } catch (e) {
+        showToast(`Checkout error: ${e.message}`, "danger");
+        if (btnElement) {
+          btnElement.disabled = false;
+          btnElement.innerHTML = origText;
+        }
+      }
+    }
+
+    function renderPaymentGatewayNotConfigured(msg) {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div style="max-width:640px; margin:3rem auto; text-align:center; padding:2rem;" class="glass-card">
+          <div style="font-size:3rem; margin-bottom:1rem;">⚙️</div>
+          <h2 style="color:#f59e0b; font-weight:800;">Payment Gateway Setup Required</h2>
+          <p style="color:var(--text-muted); margin:1rem 0; line-height:1.6;">
+            ${msg}
+          </p>
+          <div style="background:rgba(0,0,0,0.4); padding:1rem; border-radius:var(--radius-sm); text-align:left; font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:#a5b4fc; margin-bottom:1.5rem;">
+            # Add to your Render Environment Variables:<br>
+            STRIPE_SECRET_KEY=sk_test_...<br>
+            STRIPE_WEBHOOK_SECRET=whsec_...<br>
+            PUBLIC_BASE_URL=https://musicmaid.onrender.com
+          </div>
+          <button class="btn btn-secondary" onclick="navigate('/premium')">Back to Pricing</button>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // VIEW 10: CHECKOUT REDIRECTOR / LOADER
+    // =========================================================================
+    function renderPremiumCheckout() {
+      const params = new URLSearchParams(window.location.search);
+      const plan = params.get('plan') || 'monthly';
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div style="max-width:540px; margin:4rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+          <div class="pulse-dot" style="margin:0 auto 1.2rem auto; width:16px; height:16px; background:var(--pink);"></div>
+          <h3 style="color:#fff; font-weight:800;">Connecting to Stripe Checkout</h3>
+          <p style="color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">Preparing your secure checkout session for ${plan.toUpperCase()} plan...</p>
+        </div>
+      `;
+      setTimeout(() => initiateCheckout(plan, null), 300);
+    }
+
+    // =========================================================================
+    // VIEW 11: PAYMENT VERIFICATION & SUCCESS CONFIRMATION
+    // =========================================================================
+    async function renderPremiumSuccess() {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id');
+      const container = document.getElementById('view-container');
+
+      if (!sessionId) {
+        container.innerHTML = `
+          <div style="max-width:540px; margin:4rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+            <div style="font-size:3rem; margin-bottom:1rem;">⚠️</div>
+            <h3 style="color:#fff;">No Checkout Session Provided</h3>
+            <p style="color:var(--text-muted); margin:0.8rem 0 1.5rem 0;">Please choose a subscription plan to begin.</p>
+            <button class="btn btn-primary" onclick="navigate('/premium')">View Plans</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div style="max-width:540px; margin:4rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+          <div class="pulse-dot" style="margin:0 auto 1.2rem auto; width:16px; height:16px; background:var(--emerald);"></div>
+          <h3 style="color:#fff; font-weight:800;">Verifying Payment with Stripe...</h3>
+          <p style="color:var(--text-muted); margin-top:0.5rem; font-size:0.9rem;">Cryptographically validating your checkout receipt. Please do not close this window.</p>
+        </div>
+      `;
+
+      try {
+        const res = await fetch(`/api/premium/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+        const json = await res.json();
+
+        if (json.success && json.data && json.data.verified) {
+          const v = json.data;
+          // Refresh local entitlement cache
+          await checkUserSubscription();
+
+          container.innerHTML = `
+            <div style="max-width:620px; margin:3rem auto; text-align:center; padding:2.5rem; border:2px solid #10b981;" class="glass-card">
+              <div style="font-size:3.5rem; margin-bottom:0.6rem;">🎉</div>
+              <h2 style="color:#fff; font-weight:900; font-size:1.85rem;">WELCOME TO MUSICMAID PREMIUM!</h2>
+              <p style="color:#34d399; font-weight:700; margin-top:0.4rem;">Payment Cryptographically Verified & Activated ✅</p>
+              <p style="color:var(--text-muted); margin:0.8rem 0 1.8rem 0; font-size:0.95rem;">
+                Your Discord account now has unrestricted access to all studio music perks across all servers.
+              </p>
+
+              <!-- RECEIPT DETAILS BOX -->
+              <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-md); padding:1.2rem; text-align:left; display:flex; flex-direction:column; gap:0.6rem; font-size:0.88rem; margin-bottom:1.8rem;">
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--text-muted);">Subscription Plan:</span>
+                  <span style="font-weight:700; color:#fff;">MusicMaid Premium (${v.plan.toUpperCase()})</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--text-muted);">Amount Paid:</span>
+                  <span style="font-weight:700; color:#fff;">$${v.amount_total.toFixed(2)} ${v.currency}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--text-muted);">Payment Provider:</span>
+                  <span style="font-weight:700; color:#38bdf8;">Stripe Official</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="color:var(--text-muted);">Status:</span>
+                  <span style="font-weight:700; color:#10b981;">Active 🟢</span>
+                </div>
+              </div>
+
+              <!-- ACTION BUTTONS -->
+              <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+                <button class="btn btn-primary" onclick="navigate('/')">🎵 Launch Music Player</button>
+                <button class="btn btn-secondary" onclick="navigate('/premium/manage')">👑 Manage Subscription</button>
+              </div>
+            </div>
+          `;
+        } else {
+          const errMsg = json.error?.message || "Payment could not be verified by Stripe.";
+          container.innerHTML = `
+            <div style="max-width:580px; margin:3rem auto; text-align:center; padding:2.5rem; border:2px solid var(--danger);" class="glass-card">
+              <div style="font-size:3.5rem; margin-bottom:0.6rem;">❌</div>
+              <h2 style="color:#fff; font-weight:900;">Payment Verification Incomplete</h2>
+              <p style="color:var(--danger); font-weight:600; margin-top:0.4rem;">${errMsg}</p>
+              <p style="color:var(--text-muted); margin:1rem 0 1.8rem 0; font-size:0.9rem;">
+                If your card was charged, your webhook confirmation may still be processing in the background. Check your subscription status in a few moments.
+              </p>
+              <div style="display:flex; gap:1rem; justify-content:center;">
+                <button class="btn btn-secondary" onclick="renderPremiumSuccess()">Retry Verification</button>
+                <button class="btn btn-primary" onclick="navigate('/premium')">Return to Plans</button>
+              </div>
+            </div>
+          `;
+        }
+      } catch (err) {
+        container.innerHTML = `
+          <div class="glass-card" style="max-width:540px; margin:3rem auto; text-align:center; padding:2rem; color:var(--danger);">
+            <h3>Verification Network Exception</h3>
+            <p style="color:var(--text-muted); margin-top:0.5rem;">${err.message}</p>
+            <button class="btn btn-primary" onclick="renderPremiumSuccess()" style="margin-top:1rem;">Retry</button>
+          </div>
+        `;
+      }
+    }
+
+    // =========================================================================
+    // VIEW 12: PAYMENT CANCELLED
+    // =========================================================================
+    function renderPremiumCancel() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div style="max-width:540px; margin:4rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+          <div style="font-size:3.5rem; margin-bottom:0.6rem;">👋</div>
+          <h2 style="color:#fff; font-weight:800;">Checkout Cancelled</h2>
+          <p style="color:var(--text-muted); margin:0.8rem 0 1.8rem 0; line-height:1.5;">
+            No charges were made to your account. You can upgrade to MusicMaid Premium anytime whenever you're ready.
+          </p>
+          <div style="display:flex; gap:1rem; justify-content:center;">
+            <button class="btn btn-primary" onclick="navigate('/premium')">View Plans</button>
+            <button class="btn btn-secondary" onclick="navigate('/')">Back to Player</button>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // VIEW 13: SUBSCRIPTION MANAGEMENT
+    // =========================================================================
+    async function renderPremiumManage() {
+      const container = document.getElementById('view-container');
+      if (!currentUser) {
+        container.innerHTML = `
+          <div style="max-width:540px; margin:4rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+            <div style="font-size:3rem; margin-bottom:1rem;">🔒</div>
+            <h3 style="color:#fff;">Sign In Required</h3>
+            <p style="color:var(--text-muted); margin:0.8rem 0 1.5rem 0;">Please sign in with Discord to view your subscription details.</p>
+            <a class="btn-login-discord" style="display:inline-flex;" href="/api/auth/login" onclick="startDiscordLogin(event)">
+              <span>👾 Sign in with Discord</span>
+            </a>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div style="text-align:center; padding:3rem 1rem;">
+          <div class="pulse-dot" style="margin:0 auto 1rem auto; width:14px; height:14px; background:var(--pink);"></div>
+          <p style="color:var(--text-muted);">Fetching your subscription details...</p>
+        </div>
+      `;
+
+      try {
+        const res = await fetch('/api/premium/status');
+        const json = await res.json();
+        const ent = json.data?.entitlement;
+
+        if (!ent || !ent.is_premium) {
+          container.innerHTML = `
+            <div style="max-width:580px; margin:3rem auto; text-align:center; padding:2.5rem;" class="glass-card">
+              <div style="font-size:3.5rem; margin-bottom:0.6rem;">🎧</div>
+              <h2 style="color:#fff; font-weight:800;">No Active Subscription</h2>
+              <p style="color:var(--text-muted); margin:0.8rem 0 1.8rem 0; line-height:1.5;">
+                You are currently enjoying MusicMaid on the Free Plan. Upgrade to Premium to unlock 150% volume, 24/7 mode, and AI Maid Voice DJ.
+              </p>
+              <button class="btn btn-primary" onclick="navigate('/premium')">💎 Upgrade to Premium</button>
+            </div>
+          `;
+          return;
+        }
+
+        const dateStr = ent.current_period_end ? new Date(ent.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : 'Continuous';
+
+        container.innerHTML = `
+          <div style="max-width:680px; margin:2.5rem auto; display:flex; flex-direction:column; gap:1.8rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+              <div>
+                <h2 style="color:#fff; font-weight:800;">Subscription & Plan Management</h2>
+                <p style="color:var(--text-muted); font-size:0.9rem;">Manage your active MusicMaid Premium plan and renewals.</p>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="navigate('/premium')">View All Plans</button>
+            </div>
+
+            <!-- ACTIVE STATUS CARD -->
+            <div class="glass-card" style="padding:1.8rem; border-color:rgba(236,72,153,0.35);">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+                <div>
+                  <span class="user-badge-sub premium" style="font-size:0.75rem;">💎 ${ent.plan.toUpperCase()} PLAN</span>
+                  <h3 style="font-size:1.5rem; font-weight:800; color:#fff; margin-top:0.4rem;">MusicMaid Premium</h3>
+                </div>
+                <div style="text-align:right;">
+                  <span style="font-size:0.8rem; color:var(--text-muted);">Status</span>
+                  <div style="font-weight:700; color:#10b981; font-size:1.05rem;">${ent.status.toUpperCase()} 🟢</div>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; background:rgba(0,0,0,0.25); padding:1.2rem; border-radius:var(--radius-md); margin-bottom:1.5rem;">
+                <div>
+                  <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">BILLING CYCLE</span>
+                  <div style="font-weight:700; color:#fff; margin-top:0.25rem;">${ent.plan === 'yearly' ? 'Annual (Yearly)' : 'Monthly'}</div>
+                </div>
+                <div>
+                  <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">${ent.cancel_at_period_end ? 'ACCESS EXPIRES ON' : 'NEXT RENEWAL DATE'}</span>
+                  <div style="font-weight:700; color:#fff; margin-top:0.25rem;">${dateStr}</div>
+                </div>
+                <div>
+                  <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">PAYMENT METHOD</span>
+                  <div style="font-weight:700; color:#38bdf8; margin-top:0.25rem;">Stripe Customer Portal</div>
+                </div>
+              </div>
+
+              ${ent.cancel_at_period_end ? `
+                <div style="background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.4); padding:0.9rem; border-radius:var(--radius-sm); font-size:0.85rem; color:#fde68a;">
+                  ⚠️ <strong>Scheduled to Cancel:</strong> Your subscription will conclude on <strong>${dateStr}</strong>. Your premium perks will remain fully active until then and your card will not be charged.
+                </div>
+              ` : `
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; border-top:1px solid rgba(255,255,255,0.06); padding-top:1.2rem;">
+                  <span style="font-size:0.85rem; color:var(--text-muted);">Want to stop automatic renewal?</span>
+                  <button class="btn btn-sm btn-danger" onclick="cancelSubscription(this)">Cancel Auto-Renewal</button>
+                </div>
+              `}
+            </div>
+
+            <!-- UNLOCKED PERKS RECAP -->
+            <div class="glass-card" style="padding:1.5rem;">
+              <h4 style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:1rem;">Your Unlocked Premium Features</h4>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:0.75rem; font-size:0.85rem;">
+                <div style="color:#10b981;">✓ 150% Studio Volume Booster</div>
+                <div style="color:#10b981;">✓ 24/7 Voice Stay Mode</div>
+                <div style="color:#10b981;">✓ AI Anime Maid Voice DJ</div>
+                <div style="color:#10b981;">✓ 320kbps Lossless Opus Pipeline</div>
+                <div style="color:#10b981;">✓ Cross-Platform Playlist Importer</div>
+                <div style="color:#10b981;">✓ Friend Blend & Compatibility Match</div>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div class="glass-card" style="color:var(--danger); text-align:center; padding:2rem;">Failed to load subscription: ${err.message}</div>`;
+      }
+    }
+
+    async function cancelSubscription(btnEl) {
+      if (!confirm("Are you sure you want to cancel your MusicMaid Premium subscription? Your benefits will stay active until the end of your billing cycle.")) {
+        return;
+      }
+
+      if (btnEl) btnEl.disabled = true;
+      try {
+        const res = await fetch('/api/premium/cancel', { method: 'POST' });
+        const json = await res.json();
+        if (json.success) {
+          showToast(json.message || "Subscription set to cancel at period end.", "success");
+          await checkUserSubscription();
+          renderPremiumManage();
+        } else {
+          showToast(json.error?.message || "Failed to cancel subscription.", "danger");
+          if (btnEl) btnEl.disabled = false;
+        }
+      } catch (err) {
+        showToast(`Cancellation error: ${err.message}`, "danger");
+        if (btnEl) btnEl.disabled = false;
+      }
+    }
   </script>
 </body>
 </html>
