@@ -229,6 +229,51 @@ Grant the following bot permissions:
 
 ---
 
+## 🌐 Next.js & TypeScript Web Platform (Migrated Stack)
+
+The web dashboard and master control panel has been migrated to a modern full-stack TypeScript application:
+
+- **Framework**: Next.js 16 (React 19, App Router)
+- **Language**: TypeScript (Strict typing, ES2022)
+- **Styling**: Tailwind CSS with custom glassmorphism design tokens
+- **Database Engine**: `better-sqlite3` with SQLite WAL mode (zero data migration needed; directly shares `data/music.db` and `data/bot.db` with the Discord bot)
+- **Authentication**: Discord OAuth2 with secure httpOnly cookie sessions
+- **Payment Processing**: Razorpay with HMAC-SHA256 signature verification and student developer preview mode
+
+### Running the TypeScript Web Application Locally
+
+```bash
+# 1. Install Node.js dependencies
+npm install
+
+# 2. Start the development server (runs on http://localhost:3000)
+npm run dev
+
+# 3. Compile optimized production build
+npm run build
+
+# 4. Run the production web server
+npm start
+```
+
+### Running Both Services Concurrently
+
+- **Terminal 1 (Next.js Web Dashboard)**: `npm run dev` (or `npm start` for production)
+- **Terminal 2 (Discord Bot)**: `npm run start:bot` (or `python music_main.py`)
+
+### Deployment & Rollback Strategy
+
+1. **Deploying on Render / Vercel**:
+   - Build Command: `npm run build`
+   - Start Command: `npm start`
+   - Environment Variables: Configure variables as documented in `.env.example`.
+2. **Instant Rollback**:
+   - The original Python web server implementation remains fully preserved in `web/`.
+   - If rollback is ever desired, set start command to `python -m web.server` or `python music_main.py`.
+
+---
+
 ## 📄 License & Credits
 
-Licensed under the [MIT License](LICENSE). Built for high-security community servers by the Rai Engineering Team.
+Licensed under the [MIT License](LICENSE). Built for high-security community servers and 24/7 lossless music streaming by Kishore & the Noctyra Engineering Team.
+
