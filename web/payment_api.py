@@ -93,6 +93,10 @@ class PaymentApiRouter:
 
         return json_success({
             "configured": payment_cfg["configured"],
+            "enabled": payment_cfg["enabled"],
+            "payments_enabled": payment_cfg.get("payments_enabled", False),
+            "is_student_mode": payment_cfg.get("is_student_mode", True),
+            "student_notice": payment_cfg.get("student_notice", "Developer Preview Mode"),
             "currency": payment_cfg["currency"],
             "plans": payment_cfg["plans"],
             "features": features_comparison,
@@ -125,6 +129,13 @@ class PaymentApiRouter:
         session = await self.auth.get_session_from_request(request)
         if not session:
             return json_error("You must sign in with Discord before subscribing.", code="UNAUTHORIZED", status=401)
+
+        if not config.PAYMENTS_ENABLED:
+            return json_error(
+                "Payment processing is currently in Student Developer Showcase Mode. Real checkouts are disabled.",
+                code="PAYMENTS_DISABLED",
+                status=503,
+            )
 
         user_id = session.get("discord_user_id") or session.get("user_id")
         user_data = session.get("user_data") or {}

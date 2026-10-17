@@ -20,10 +20,17 @@ if ENV_PATH.exists():
 else:
     load_dotenv()
 
-# Neko Songs / MusicMaid Brand Identity
-BOT_NAME: str = "MusicMaid"
-BOT_BRAND_TAG: str = "🐾 MUSICMAID"
-MUSIC_BOT_VERSION: str = "2.2.0"
+# Student Developer Mode & Payment Gateway Toggles
+# PAYMENTS_ENABLED defaults to False for safe, student/developer-friendly showcase mode.
+# When False, the website displays plans & feature comparisons in "Developer Preview / Coming Soon",
+# checkout buttons are disabled with friendly guidance, and no real transactions are processed.
+PAYMENTS_ENABLED: bool = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"
+
+# NyxTune & Noctyra Studio Brand Identity
+BOT_NAME: str = "NyxTune"
+STUDIO_BRAND_NAME: str = "Noctyra Studio"
+BOT_BRAND_TAG: str = "✨ NYXTUNE"
+MUSIC_BOT_VERSION: str = "2.3.0"
 
 # Import Theme & Emoji Tokens
 from music_bot.theme import (
@@ -46,13 +53,13 @@ COLOR_ELECTRIC_CYAN: int = COLOR_CYAN
 COLOR_WHITE: int = 0xFFFFFF
 COLOR_VIOLET_ACCENT: int = COLOR_PRIMARY
 
-# Neko / MusicMaid Personality Dialogues
-DIALOGUE_JOIN: str = "🐾 MusicMaid has entered the listening room!"
+# Personality Dialogues
+DIALOGUE_JOIN: str = "✨ NyxTune has entered the listening room!"
 DIALOGUE_START: str = "🎵 Found it! Let's listen."
-DIALOGUE_EMPTY_QUEUE: str = "🐾 The queue is empty. Ready for another song!"
+DIALOGUE_EMPTY_QUEUE: str = "✨ The queue is empty. Ready for another song!"
 DIALOGUE_UNPLAYABLE: str = "😿 I found the request, but couldn't resolve a playable audio source."
 DIALOGUE_NOTHING_PLAYABLE: str = DIALOGUE_UNPLAYABLE
-DIALOGUE_UNAVAILABLE: str = "🐾 Music source is temporarily unavailable. Please try again later."
+DIALOGUE_UNAVAILABLE: str = "✨ Music source is temporarily unavailable. Please try again later."
 DIALOGUE_PLAYBACK_END: str = "🎶 That was a good one!"
 
 
@@ -201,18 +208,29 @@ def is_stripe_configured() -> bool:
     return bool(STRIPE_SECRET_KEY)
 
 
+def is_payment_enabled() -> bool:
+    """Return True only if payments are explicitly enabled AND a payment provider is configured."""
+    return PAYMENTS_ENABLED and is_stripe_configured()
+
+
 def get_payment_public_config() -> dict[str, Any]:
     """Return public payment provider details and plans for frontend rendering."""
     return {
         "configured": is_stripe_configured(),
-        "enabled": is_stripe_configured(),
+        "enabled": is_payment_enabled(),
+        "payments_enabled": PAYMENTS_ENABLED,
+        "is_student_mode": not PAYMENTS_ENABLED,
+        "student_notice": (
+            "Student Developer Showcase Mode: Real transactions are currently disabled (PAYMENTS_ENABLED=false). "
+            "Explore features, plan architecture, and comparisons below."
+        ),
         "provider": "stripe",
-        "publishable_key": STRIPE_PUBLISHABLE_KEY,
+        "publishable_key": STRIPE_PUBLISHABLE_KEY if is_payment_enabled() else "",
         "currency": PREMIUM_CURRENCY,
         "plans": {
             "monthly": {
                 "id": "monthly",
-                "name": "MusicMaid Premium Monthly",
+                "name": "NyxTune Premium Monthly",
                 "price_id": STRIPE_PRICE_MONTHLY,
                 "amount": PREMIUM_MONTHLY_AMOUNT_CENTS / 100.0,
                 "amount_cents": PREMIUM_MONTHLY_AMOUNT_CENTS,
@@ -221,7 +239,7 @@ def get_payment_public_config() -> dict[str, Any]:
             },
             "yearly": {
                 "id": "yearly",
-                "name": "MusicMaid Premium Yearly",
+                "name": "NyxTune Premium Yearly",
                 "price_id": STRIPE_PRICE_YEARLY,
                 "amount": PREMIUM_YEARLY_AMOUNT_CENTS / 100.0,
                 "amount_cents": PREMIUM_YEARLY_AMOUNT_CENTS,

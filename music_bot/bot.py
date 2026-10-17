@@ -499,8 +499,24 @@ class NekoSongsBot(commands.Bot):
             if session.voice_client and session.voice_client.channel.id == before.channel.id:
                 humans = [m for m in before.channel.members if not m.bot]
                 if not humans:
-                    from music_bot.services.voice_service import VoiceManager
-                    VoiceManager.schedule_auto_leave(self, session)
+                    # Pre-check: if 24/7 is active in memory or DB, bypass auto-leave immediately
+                    is_247 = getattr(session, "twenty_four_seven", False)
+                    if not is_247 and self.db:
+                        try:
+                            g_set = await self.db.get_guild_settings(member.guild.id)
+                            if g_set and g_set.twenty_four_seven_enabled:
+                                is_247 = True
+                                session.twenty_four_seven = True
+                        except Exception:
+                            pass
+                    if not is_247:
+                        from music_bot.services.voice_service import VoiceManager
+                        VoiceManager.schedule_auto_leave(self, session)
+                    else:
+                        logger.info(
+                            f"[Voice] [24/7 Guard] User left empty channel #{before.channel.name} in guild "
+                            f"{member.guild.id}, but auto-leave is suppressed (24/7 active in DB/session)."
+                        )
 
     @tasks.loop(seconds=15.0)
     async def heartbeat_loop(self) -> None:
@@ -636,6 +652,87 @@ class NekoSongsBot(commands.Bot):
     async def before_web_actions(self) -> None:
         await self.wait_until_ready()
 
+    @tasks.loop(seconds=30.0)
+    async def twenty_four_seven_guardian_loop(self) -> None:
+        """
+        Autonomous 24/7 Voice Guardian:
+        Continuously ensures all guilds with 24/7 mode enabled remain connected to their target voice channel.
+        Recovers from unexpected gateway drops, network blips, or Render restart cycles with bounded backoff.
+        """
+        if not self.is_ready() or not self.db:
+            return
+
+        try:
+            twenty_four_seven_guilds = await self.db.get_all_247_guilds()
+            for g_set in twenty_four_seven_guilds:
+                guild = self.get_guild(g_set.guild_id)
+                if not guild:
+                    continue
+
+                session = await self.session_manager.get_session(guild.id)
+                session.twenty_four_seven = True
+
+                # If intentionally stopped, allow explicit disconnect until resumed
+                if session.is_intentional_stop:
+                    continue
+
+                vc = guild.voice_client
+                if vc and vc.is_connected():
+                    session.voice_client = vc
+                    continue
+
+                target_vc_id = g_set.twenty_four_seven_channel_id
+                target_vc = guild.get_channel(target_vc_id) if target_vc_id else None
+                if not target_vc:
+                    for ch in guild.voice_channels:
+                        if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                            target_vc = ch
+                            break
+
+                if not isinstance(target_vc, (discord.VoiceChannel, discord.StageChannel)):
+                    continue
+
+                if guild.me:
+                    perms = target_vc.permissions_for(guild.me)
+                    if not perms.connect or not perms.speak:
+                        logger.warning(
+                            f"[Voice] [24/7 Guardian] Guild {guild.id}: Lacking Connect or Speak permissions "
+                            f"in #{target_vc.name}. Skipping auto-reconnect."
+                        )
+                        continue
+
+                logger.info(
+                    f"[Voice] [24/7 Guardian] Reconnecting 24/7 voice client | Guild: {guild.id} | "
+                    f"Saved 24/7 State: True | Channel: #{target_vc.name} ({target_vc.id}) | "
+                    f"Voice Status: Disconnected | Disconnect Reason: Gateway drop / restart"
+                )
+
+                try:
+                    from music_bot.services.voice_service import VoiceManager
+                    reconnected_vc = await asyncio.wait_for(
+                        VoiceManager.join_voice_channel(
+                            guild.me, session.text_channel, session, target_channel=target_vc
+                        ),
+                        timeout=25.0,
+                    )
+                    if reconnected_vc and reconnected_vc.is_connected():
+                        session.voice_client = reconnected_vc
+                        session.is_intentional_stop = False
+                        logger.info(
+                            f"[Voice] [24/7 Guardian SUCCESS] Reconnected 24/7 voice client in {guild.name} "
+                            f"to #{target_vc.name}"
+                        )
+                except Exception as rec_err:
+                    logger.warning(
+                        f"[Voice] [24/7 Guardian WARNING] Reconnection attempt failed in guild {guild.id}: {rec_err}"
+                    )
+        except Exception as loop_err:
+            logger.debug(f"[Voice] [24/7 Guardian Loop Exception] {loop_err}")
+
+    @twenty_four_seven_guardian_loop.before_loop
+    async def before_twenty_four_seven_guardian(self) -> None:
+        await self.wait_until_ready()
+
     async def close(self) -> None:
         """Gracefully release all resources, voice connections, and DB handles with state preservation."""
         logger.info(f"Initiating graceful shutdown for {BOT_NAME}...")
@@ -643,6 +740,8 @@ class NekoSongsBot(commands.Bot):
         self.maintenance_loop.cancel()
         self.snapshot_loop.cancel()
         self.web_actions_loop.cancel()
+        if hasattr(self, "twenty_four_seven_guardian_loop"):
+            self.twenty_four_seven_guardian_loop.cancel()
 
         if hasattr(self, "web_server") and self.web_server:
             try:
