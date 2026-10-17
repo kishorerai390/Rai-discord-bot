@@ -191,16 +191,31 @@ def get_premium_plans_url() -> Optional[str]:
 
 
 # =============================================================================
-# STRIPE PAYMENT & SUBSCRIPTION SETTINGS
+# PAYMENT & SUBSCRIPTION SETTINGS (RAZORPAY & STRIPE)
 # =============================================================================
+PAYMENT_PROVIDER: str = os.getenv("PAYMENT_PROVIDER", "razorpay").lower().strip()
+
+# Razorpay Settings (Primary for India - UPI, Cards, NetBanking)
+RAZORPAY_KEY_ID: str = os.getenv("RAZORPAY_KEY_ID", "").strip()
+RAZORPAY_KEY_SECRET: str = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+RAZORPAY_WEBHOOK_SECRET: str = os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
+PREMIUM_MONTHLY_AMOUNT_INR: int = int(os.getenv("PREMIUM_MONTHLY_AMOUNT_INR", "199"))
+PREMIUM_YEARLY_AMOUNT_INR: int = int(os.getenv("PREMIUM_YEARLY_AMOUNT_INR", "1799"))
+
+# Stripe Settings (International fallback)
 STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "").strip()
 STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
 STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
 STRIPE_PRICE_MONTHLY: str = os.getenv("STRIPE_PRICE_MONTHLY", "").strip()
 STRIPE_PRICE_YEARLY: str = os.getenv("STRIPE_PRICE_YEARLY", "").strip()
-PREMIUM_CURRENCY: str = os.getenv("PREMIUM_CURRENCY", "USD").strip().upper()
+PREMIUM_CURRENCY: str = os.getenv("PREMIUM_CURRENCY", "INR" if PAYMENT_PROVIDER == "razorpay" else "USD").strip().upper()
 PREMIUM_MONTHLY_AMOUNT_CENTS: int = int(os.getenv("PREMIUM_MONTHLY_AMOUNT_CENTS", "499"))
 PREMIUM_YEARLY_AMOUNT_CENTS: int = int(os.getenv("PREMIUM_YEARLY_AMOUNT_CENTS", "4999"))
+
+
+def is_razorpay_configured() -> bool:
+    """Return True if Razorpay key and secret are present."""
+    return bool(RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET)
 
 
 def is_stripe_configured() -> bool:
@@ -208,15 +223,36 @@ def is_stripe_configured() -> bool:
     return bool(STRIPE_SECRET_KEY)
 
 
+def is_payment_configured() -> bool:
+    """Return True if the selected payment provider has valid credentials."""
+    if PAYMENT_PROVIDER == "razorpay":
+        return is_razorpay_configured()
+    return is_stripe_configured()
+
+
 def is_payment_enabled() -> bool:
-    """Return True only if payments are explicitly enabled AND a payment provider is configured."""
-    return PAYMENTS_ENABLED and is_stripe_configured()
+    """Return True only if payments are explicitly enabled AND provider is configured."""
+    return PAYMENTS_ENABLED and is_payment_configured()
 
 
 def get_payment_public_config() -> dict[str, Any]:
     """Return public payment provider details and plans for frontend rendering."""
+    provider = PAYMENT_PROVIDER
+    if provider == "razorpay":
+        currency = "INR"
+        currency_symbol = "₹"
+        monthly_amt = PREMIUM_MONTHLY_AMOUNT_INR
+        yearly_amt = PREMIUM_YEARLY_AMOUNT_INR
+        pub_key = RAZORPAY_KEY_ID if is_payment_enabled() else ""
+    else:
+        currency = PREMIUM_CURRENCY
+        currency_symbol = "$"
+        monthly_amt = PREMIUM_MONTHLY_AMOUNT_CENTS / 100.0
+        yearly_amt = PREMIUM_YEARLY_AMOUNT_CENTS / 100.0
+        pub_key = STRIPE_PUBLISHABLE_KEY if is_payment_enabled() else ""
+
     return {
-        "configured": is_stripe_configured(),
+        "configured": is_payment_configured(),
         "enabled": is_payment_enabled(),
         "payments_enabled": PAYMENTS_ENABLED,
         "is_student_mode": not PAYMENTS_ENABLED,
@@ -224,25 +260,25 @@ def get_payment_public_config() -> dict[str, Any]:
             "Student Developer Showcase Mode: Real transactions are currently disabled (PAYMENTS_ENABLED=false). "
             "Explore features, plan architecture, and comparisons below."
         ),
-        "provider": "stripe",
-        "publishable_key": STRIPE_PUBLISHABLE_KEY if is_payment_enabled() else "",
-        "currency": PREMIUM_CURRENCY,
+        "provider": provider,
+        "publishable_key": pub_key,
+        "key_id": RAZORPAY_KEY_ID if is_payment_enabled() else "",
+        "currency": currency,
+        "currency_symbol": currency_symbol,
         "plans": {
             "monthly": {
                 "id": "monthly",
                 "name": "NyxTune Premium Monthly",
-                "price_id": STRIPE_PRICE_MONTHLY,
-                "amount": PREMIUM_MONTHLY_AMOUNT_CENTS / 100.0,
-                "amount_cents": PREMIUM_MONTHLY_AMOUNT_CENTS,
+                "amount": monthly_amt,
+                "amount_formatted": f"{currency_symbol}{monthly_amt}",
                 "interval": "month",
                 "badge": "MOST POPULAR",
             },
             "yearly": {
                 "id": "yearly",
                 "name": "NyxTune Premium Yearly",
-                "price_id": STRIPE_PRICE_YEARLY,
-                "amount": PREMIUM_YEARLY_AMOUNT_CENTS / 100.0,
-                "amount_cents": PREMIUM_YEARLY_AMOUNT_CENTS,
+                "amount": yearly_amt,
+                "amount_formatted": f"{currency_symbol}{yearly_amt}",
                 "interval": "year",
                 "badge": "BEST VALUE (2 MONTHS FREE)",
             },
