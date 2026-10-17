@@ -19,7 +19,7 @@ from config import (
     DISCORD_REDIRECT_URI,
     COMMUNITY_GUILD_ID,
 )
-from music_bot.config import is_valid_public_https_url
+from music_bot.config import is_valid_public_https_url, is_bot_owner
 
 if TYPE_CHECKING:
     from database.database import Database
@@ -183,12 +183,13 @@ class AuthManager:
         ).isoformat()
 
         # Check if user has admin / staff role in Discord bot
-        is_admin = False
-        is_staff = False
-        if is_admin_override is not None:
+        is_owner = is_bot_owner(discord_id)
+        is_admin = is_owner
+        is_staff = is_owner
+        if not is_owner and is_admin_override is not None:
             is_admin = bool(is_admin_override)
             is_staff = bool(is_admin_override)
-        elif self.bot:
+        elif not is_owner and self.bot:
             guild = self.bot.get_guild(COMMUNITY_GUILD_ID)
             if guild:
                 member = guild.get_member(discord_id)
@@ -302,11 +303,8 @@ class AuthManager:
         """Ensure caller has administrator permissions or raise HTTP 403."""
         session = await self.require_auth(request)
         user_data = session.get("user_data", {})
-        if not user_data.get("is_admin", False) and not user_data.get("is_staff", False):
-            # Also allow configured founder or bot owner
-            user_id = session.get("discord_user_id", 0)
-            from config import is_admin_or_owner
-            # Default check
+        user_id = session.get("discord_user_id", 0)
+        if not user_data.get("is_admin", False) and not user_data.get("is_staff", False) and not is_bot_owner(user_id):
             raise web.HTTPForbidden(
                 text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Staff or Administrator privileges required"}}',
                 content_type="application/json",

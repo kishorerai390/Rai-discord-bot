@@ -25,6 +25,8 @@ services:
         value: data/music.db
       - key: COMMAND_SYNC_MODE
         value: global
+      - key: BOT_OWNER_ID
+        value: "1457380609641938981"
       - key: YOUTUBE_COOKIES
         sync: false
       - key: DISCORD_CLIENT_ID

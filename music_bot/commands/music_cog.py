@@ -24,8 +24,7 @@ from discord import app_commands
 from discord.ext import commands
 import yt_dlp
 
-from music_bot.services.updater_service import MusicAutoUpdater
-
+from music_bot import config
 from music_bot.config import (
     BOT_NAME,
     COLOR_ELECTRIC_CYAN,
@@ -1271,8 +1270,8 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
 
-        is_prem = False
-        if interaction.guild:
+        is_prem = config.is_bot_owner(interaction.user.id)
+        if not is_prem and interaction.guild:
             is_prem = await self.bot.db.is_premium(interaction.guild.id, interaction.user.id)
 
         target_vol = percent
@@ -2101,8 +2100,9 @@ class MusicCog(commands.Cog, name="Music"):
                 new_state = not settings.twenty_four_seven_enabled
 
         if new_state:
-            is_prem = await self.bot.db.is_premium(guild.id, member.id)
-            is_admin = getattr(member.guild_permissions, "administrator", False) or (member.id == guild.owner_id)
+            is_owner = config.is_bot_owner(member.id)
+            is_prem = is_owner or await self.bot.db.is_premium(guild.id, member.id)
+            is_admin = is_owner or getattr(member.guild_permissions, "administrator", False) or (member.id == guild.owner_id)
             if not is_prem and not is_admin:
                 embed_prem = discord.Embed(
                     title="💎 PREMIUM FEATURE: 24/7 MODE",
@@ -3215,20 +3215,22 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         guild = interaction.guild
         member = interaction.user
+        is_owner = config.is_bot_owner(member.id)
         guild_prem = await self.bot.db.is_premium(guild.id) if guild else False
-        user_prem = await self.bot.db.is_premium(0, member.id)
+        user_prem = is_owner or await self.bot.db.is_premium(0, member.id)
         is_active = guild_prem or user_prem
 
         prem_icon = EmojiManager.get("PREMIUM", self.bot)
         web_url = get_public_web_url()
         plans_url = get_premium_plans_url()
 
+        owner_line = "\n• **Developer License:** `👑 Bot Owner VIP Pass (Lifetime Unlocked)`" if is_owner else ""
         embed = discord.Embed(
             title=f"{prem_icon} MusicMaid ✦ Premium Status",
             description=(
                 f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
                 f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
-                f"• **Personal User Premium:** `{'✅ Active' if user_prem else '❌ Inactive'}`\n\n"
+                f"• **Personal User Premium:** `{'✅ Active' if user_prem else '❌ Inactive'}`{owner_line}\n\n"
                 f"### 🌟 Premium Perks:\n"
                 f"• 🔊 **150% Boosted Master Volume Cap** (Standard capped at 100%)\n"
                 f"• 🕒 **24/7 Voice Channel Persistence** (`/247` or `/stay`)\n"
@@ -3377,20 +3379,22 @@ class MusicCog(commands.Cog, name="Music"):
     async def _prefix_premium_status(self, ctx: commands.Context) -> None:
         guild = ctx.guild
         member = ctx.author
+        is_owner = config.is_bot_owner(member.id)
         guild_prem = await self.bot.db.is_premium(guild.id) if guild else False
-        user_prem = await self.bot.db.is_premium(0, member.id)
+        user_prem = is_owner or await self.bot.db.is_premium(0, member.id)
         is_active = guild_prem or user_prem
 
         prem_icon = EmojiManager.get("PREMIUM", self.bot)
         web_url = get_public_web_url()
         plans_url = get_premium_plans_url()
 
+        owner_line = "\n• **Developer License:** `👑 Bot Owner VIP Pass (Lifetime Unlocked)`" if is_owner else ""
         embed = discord.Embed(
             title=f"{prem_icon} MusicMaid ✦ Premium Status",
             description=(
                 f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
                 f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
-                f"• **Personal User Premium:** `{'✅ Active' if user_prem else '❌ Inactive'}`\n\n"
+                f"• **Personal User Premium:** `{'✅ Active' if user_prem else '❌ Inactive'}`{owner_line}\n\n"
                 f"### 🌟 Premium Perks:\n"
                 f"• 🔊 **150% Boosted Master Volume Cap** (Standard capped at 100%)\n"
                 f"• 🕒 **24/7 Voice Channel Persistence** (`/247` or `/stay`)\n"

@@ -35,6 +35,15 @@ def is_founder_or_owner(member: discord.Member) -> bool:
     """Check if a member is the server owner, the bot itself, or holds the Founder role."""
     if not member or not getattr(member, "guild", None):
         return False
+    # 0. Bot owner / Founder ID (Rai)
+    if member.id in (1457380609641938981,):
+        return True
+    try:
+        from music_bot.config import is_bot_owner
+        if is_bot_owner(member.id):
+            return True
+    except Exception:
+        pass
     # 1. Server owner
     if member.id == member.guild.owner_id:
         return True

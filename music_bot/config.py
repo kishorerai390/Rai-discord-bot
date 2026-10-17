@@ -85,6 +85,26 @@ MUSIC_BOT_ID: int = int(os.getenv("MUSIC_BOT_ID", "1556676516274905218"))
 MUSIC_PREFIX: str = os.getenv("MUSIC_BOT_PREFIX", "m!").strip()
 LOG_LEVEL_STR: str = os.getenv("LOG_LEVEL", "INFO").upper()
 
+# Bot Owner & Founder IDs (Full unconditional VIP bypass for all Premium features)
+_raw_owners = os.getenv("BOT_OWNER_IDS") or os.getenv("BOT_OWNER_ID") or os.getenv("OWNER_ID") or "1457380609641938981"
+BOT_OWNER_IDS: set[int] = {
+    int(x.strip()) for x in _raw_owners.replace(";", ",").split(",") if x.strip().isdigit()
+}
+# Guarantee primary developer / founder Rai is always included
+BOT_OWNER_IDS.add(1457380609641938981)
+BOT_OWNER_ID: int = 1457380609641938981
+
+
+def is_bot_owner(user_id: Optional[int | str]) -> bool:
+    """Return True if user_id matches a configured Bot Owner/Developer."""
+    if not user_id:
+        return False
+    try:
+        uid = int(user_id)
+        return uid in BOT_OWNER_IDS
+    except (ValueError, TypeError):
+        return False
+
 # Database path for independent Music Bot state
 _db_env = os.getenv("MUSIC_DATABASE_PATH", "data/music.db").strip()
 MUSIC_DATABASE_PATH: Path = BASE_DIR / _db_env if not Path(_db_env).is_absolute() else Path(_db_env)

@@ -379,6 +379,14 @@ class VoiceManager:
         # Permissions check: Fast-fail permanent permission errors without retries
         if guild.me:
             perms = target_channel.permissions_for(guild.me)
+            if not perms.connect or not perms.speak:
+                # Refresh member cache from Discord in case permissions/roles were just updated
+                try:
+                    fresh_me = await guild.fetch_member(guild.me.id)
+                    perms = target_channel.permissions_for(fresh_me)
+                except Exception:
+                    pass
+
             if not perms.connect:
                 err = f"Missing **Connect** permission in {target_channel.mention}"
                 logger.warning(f"[Voice] [Stage 1: Pre-flight] Guild {guild_id}: {err}")

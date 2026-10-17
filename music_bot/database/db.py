@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import shutil
 import aiosqlite
 
+from music_bot import config
 from music_bot.config import MUSIC_DATABASE_PATH
 from music_bot.database.models import (
     MusicDJSettings,
@@ -398,6 +399,21 @@ class MusicDatabase:
                 try:
                     await self._db.execute(
                         f"ALTER TABLE music_sessions ADD COLUMN {col} {col_type} DEFAULT {default_val}"
+                    )
+                    await self._db.commit()
+                except Exception:
+                    pass
+
+            # Auto-provision bot owner VIP licenses into music_premium table
+            for owner_id in getattr(config, "BOT_OWNER_IDS", {1457380609641938981}):
+                try:
+                    await self._db.execute(
+                        """
+                        INSERT INTO music_premium (entity_id, entity_type, is_premium, tier, activated_by, created_at)
+                        VALUES (?, 'user', 1, 'owner', ?, ?)
+                        ON CONFLICT(entity_id) DO UPDATE SET is_premium = 1, tier = 'owner'
+                        """,
+                        (owner_id, owner_id, datetime.now(timezone.utc).isoformat()),
                     )
                     await self._db.commit()
                 except Exception:
@@ -1438,6 +1454,10 @@ class MusicDatabase:
 
     async def is_premium(self, guild_id: int = 0, user_id: Optional[int] = None) -> bool:
         """Check if either the guild or the user has an active premium subscription."""
+        # 0. Bot owner / Founder has permanent VIP license
+        if user_id and config.is_bot_owner(user_id):
+            return True
+
         async with self._lock:
             if not self._db:
                 return False

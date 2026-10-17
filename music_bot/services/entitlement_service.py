@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, List, Optional
 
+from music_bot import config
+
 logger = logging.getLogger("MusicMaid.Entitlement")
 
 
@@ -97,6 +99,19 @@ class EntitlementService:
                 plan="free",
                 status="none",
                 perks={k: False for k in cls.PREMIUM_PERKS},
+            )
+
+        # Bot owner / Founder has permanent VIP license with all perks
+        if config.is_bot_owner(user_id):
+            return UserEntitlement(
+                user_id=user_id,
+                is_premium=True,
+                plan="owner",
+                status="active",
+                current_period_end=None,
+                cancel_at_period_end=False,
+                provider="bot_owner_grant",
+                perks={k: True for k in cls.PREMIUM_PERKS},
             )
 
         now = datetime.now(timezone.utc)
