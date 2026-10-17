@@ -168,12 +168,63 @@ def get_musicmaid_website_url() -> Optional[str]:
 def get_premium_plans_url() -> Optional[str]:
     """
     Resolve and validate the optional MusicMaid premium plans URL if one exists.
-    Returns None if not configured, nonexistent, or invalid.
+    Returns configured MUSICMAID_PREMIUM_URL or falls back to {get_website_url()}/premium.
     """
     prem_cand = os.getenv("MUSICMAID_PREMIUM_URL", "").strip()
     if prem_cand and is_valid_public_https_url(prem_cand):
         return prem_cand.rstrip("/")
+    base = get_website_url()
+    if base:
+        return f"{base}/premium"
     return None
+
+
+# =============================================================================
+# STRIPE PAYMENT & SUBSCRIPTION SETTINGS
+# =============================================================================
+STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "").strip()
+STRIPE_PUBLISHABLE_KEY: str = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
+STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+STRIPE_PRICE_MONTHLY: str = os.getenv("STRIPE_PRICE_MONTHLY", "").strip()
+STRIPE_PRICE_YEARLY: str = os.getenv("STRIPE_PRICE_YEARLY", "").strip()
+PREMIUM_CURRENCY: str = os.getenv("PREMIUM_CURRENCY", "USD").strip().upper()
+PREMIUM_MONTHLY_AMOUNT_CENTS: int = int(os.getenv("PREMIUM_MONTHLY_AMOUNT_CENTS", "499"))
+PREMIUM_YEARLY_AMOUNT_CENTS: int = int(os.getenv("PREMIUM_YEARLY_AMOUNT_CENTS", "4999"))
+
+
+def is_stripe_configured() -> bool:
+    """Return True if Stripe secret key is present."""
+    return bool(STRIPE_SECRET_KEY)
+
+
+def get_payment_public_config() -> dict[str, Any]:
+    """Return public payment provider details and plans for frontend rendering."""
+    return {
+        "configured": is_stripe_configured(),
+        "provider": "stripe",
+        "publishable_key": STRIPE_PUBLISHABLE_KEY,
+        "currency": PREMIUM_CURRENCY,
+        "plans": {
+            "monthly": {
+                "id": "monthly",
+                "name": "MusicMaid Premium Monthly",
+                "price_id": STRIPE_PRICE_MONTHLY,
+                "amount": PREMIUM_MONTHLY_AMOUNT_CENTS / 100.0,
+                "amount_cents": PREMIUM_MONTHLY_AMOUNT_CENTS,
+                "interval": "month",
+                "badge": "MOST POPULAR",
+            },
+            "yearly": {
+                "id": "yearly",
+                "name": "MusicMaid Premium Yearly",
+                "price_id": STRIPE_PRICE_YEARLY,
+                "amount": PREMIUM_YEARLY_AMOUNT_CENTS / 100.0,
+                "amount_cents": PREMIUM_YEARLY_AMOUNT_CENTS,
+                "interval": "year",
+                "badge": "BEST VALUE (2 MONTHS FREE)",
+            },
+        },
+    }
 
 
 # Spotify Web API Settings & OAuth Configuration
