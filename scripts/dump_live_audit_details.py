@@ -19,13 +19,18 @@ def main():
     print('\n=== ROLES (Top to Bottom by position) ===')
     roles = sorted(d.get('roles', []), key=lambda x: x.get('position', 0), reverse=True)
     for r in roles:
-        is_admin = bool(int(r.get('permissions', 0)) & 8)
-        print(f"pos={r.get('position', 0):2d} | ID={r.get('id')} | color=0x{r.get('color', 0):06X} | admin={is_admin} | {r.get('name')}")
+        is_admin = bool(int(r.get('permissions', 0)) & 8) if str(r.get('permissions', 0)).isdigit() else False
+        col = int(r.get('color', 0)) if str(r.get('color', 0)).isdigit() else 0
+        print(f"pos={r.get('position', 0):2d} | ID={r.get('id')} | color=0x{col:06X} | admin={is_admin} | {r.get('name')}")
 
-    print('\n=== BOTS & INTEGRATIONS ===')
-    for b in d.get('bots', []):
-        u = b.get('user', {})
-        print(f"Bot: {u.get('username')}#{u.get('discriminator')} (ID: {u.get('id')}) | Roles: {b.get('roles')}")
+    print('\n=== BOTS FROM SERVER_BOTS.JSON ===')
+    try:
+        with open('data/server_bots.json', 'r', encoding='utf-8') as f_b:
+            bots_list = json.load(f_b)
+            for b in bots_list:
+                print(f"ID={b.get('id')} | Name={b.get('name')} | Roles={b.get('roles')}")
+    except Exception as e:
+        print('Error reading server_bots.json:', e)
 
     print('\n=== CATEGORIES & CHANNELS ===')
     channels = d.get('channels', [])
