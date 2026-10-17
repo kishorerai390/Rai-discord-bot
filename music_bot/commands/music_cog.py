@@ -2565,6 +2565,239 @@ class MusicCog(commands.Cog, name="Music"):
         else:
             await interaction.followup.send(f"❌ Could not delete playlist **\"{name}\"** (not found or not created by you).", ephemeral=True)
 
+    @playlist_group.command(name="import", description="Import an external playlist from Spotify, YouTube, or Apple Music")
+    @app_commands.describe(
+        url="Link to playlist or album (Spotify, YouTube, Apple Music)",
+        name="Optional custom name for your saved playlist",
+        play_now="Immediately queue and start playing the imported playlist",
+    )
+    async def playlist_import(
+        self,
+        interaction: discord.Interaction,
+        url: str,
+        name: Optional[str] = None,
+        play_now: bool = False,
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        if not guild:
+            return
+
+        from music_bot.services.importer_service import PlaylistImporterService
+        result = await PlaylistImporterService.import_playlist(
+            self.bot,
+            url=url,
+            guild_id=guild.id,
+            user_id=member.id,
+            user_name=member.display_name,
+            custom_name=name,
+        )
+
+        if not result.success or not result.tracks:
+            err = result.error or "Failed to import tracks from this URL."
+            await interaction.followup.send(f"❌ **Import Failed:** {err}", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title=f"📥 PLAYLIST IMPORTED • {result.platform.upper()}",
+            description=(
+                f"Successfully imported **{result.track_count}** tracks into playlist **\"{result.playlist_name}\"**!\n\n"
+                f"• **Platform:** `{result.platform}`\n"
+                f"• **Saved As:** `{result.playlist_name}`\n"
+                f"• **Tracks:** `{result.track_count}` songs"
+            ),
+            color=COLOR_PREMIUM,
+        )
+        if result.sample_tracks:
+            embed.add_field(
+                name="🎶 Sample Tracks",
+                value="\n".join(f"• {t}" for t in result.sample_tracks),
+                inline=False,
+            )
+
+        if play_now:
+            if not isinstance(member, discord.Member) or not member.voice or not member.voice.channel:
+                embed.set_footer(text="Join a voice channel to auto-play! Playlist saved to /playlist list.")
+                await interaction.followup.send(embed=embed)
+                return
+
+            session = await self.session_manager.get_session(guild.id)
+            async with session.lock:
+                from music_bot.services.voice_service import VoiceManager
+                text_channel = interaction.channel if isinstance(interaction.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
+                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+                if not vc:
+                    embed.set_footer(text="Could not join voice. Playlist saved to /playlist list.")
+                    await interaction.followup.send(embed=embed)
+                    return
+
+                for t in result.tracks:
+                    session.queue.append(t)
+
+                embed.set_footer(text=f"🎧 Queued all {result.track_count} tracks and starting playback!")
+                await interaction.followup.send(embed=embed)
+
+                if not session.is_playing and session.queue:
+                    first = session.queue.popleft()
+                    await MusicPlayerService.start_playback(self.bot, session, first)
+        else:
+            embed.set_footer(text=f"Use /playlist load name:{result.playlist_name} to play anytime!")
+            await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="blend", description="Blend your music taste with a friend into an anime neon mix")
+    @app_commands.describe(
+        user="Friend to blend music with",
+        auto_queue="Immediately load and start playing the blend",
+    )
+    async def cmd_blend(
+        self,
+        interaction: discord.Interaction,
+        user: discord.Member,
+        auto_queue: bool = True,
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        member = interaction.user
+        if not guild or not isinstance(member, discord.Member):
+            return
+
+        from music_bot.services.blend_service import FriendBlendService
+        blend = await FriendBlendService.generate_blend(
+            self.bot,
+            guild_id=guild.id,
+            user1=member,
+            user2=user,
+        )
+
+        embed = FriendBlendService.build_blend_embed(blend)
+
+        if auto_queue and blend.tracks:
+            if not member.voice or not member.voice.channel:
+                embed.set_footer(text="💡 Join a voice channel to listen to the blend together!")
+                await interaction.followup.send(embed=embed)
+                return
+
+            session = await self.session_manager.get_session(guild.id)
+            async with session.lock:
+                from music_bot.services.voice_service import VoiceManager
+                text_channel = interaction.channel if isinstance(interaction.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
+                vc = await VoiceManager.join_voice_channel(member, text_channel, session)
+                if not vc:
+                    await interaction.followup.send(embed=embed)
+                    return
+
+                for t in blend.tracks:
+                    session.queue.append(t)
+
+                await interaction.followup.send(embed=embed)
+
+                if not session.is_playing and session.queue:
+                    first = session.queue.popleft()
+                    await MusicPlayerService.start_playback(self.bot, session, first)
+        else:
+            await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="maid-dj", description="Configure AI Anime Maid Voice DJ track announcer")
+    @app_commands.describe(
+        action="Action: on, off, status, test, or personality",
+        personality="Personality style: maid, tsundere, hype, chill, cyberpunk",
+    )
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="🟢 Turn On Maid DJ", value="on"),
+            app_commands.Choice(name="🔴 Turn Off Maid DJ", value="off"),
+            app_commands.Choice(name="📊 Status & Current Style", value="status"),
+            app_commands.Choice(name="🎙️ Test Voice Intro", value="test"),
+            app_commands.Choice(name="🎭 Set Personality", value="personality"),
+        ],
+        personality=[
+            app_commands.Choice(name="☕ Devoted Maid (Polite & Sweet)", value="maid"),
+            app_commands.Choice(name="💢 Tsundere Maid (Sassy & Tsundere)", value="tsundere"),
+            app_commands.Choice(name="🔥 Festival DJ Maid (Hype & High-Energy)", value="hype"),
+            app_commands.Choice(name="🌙 Lo-Fi Night Maid (Calm & Chill)", value="chill"),
+            app_commands.Choice(name="⚡ Neo-Tokyo Synth Maid (Cyberpunk)", value="cyberpunk"),
+        ],
+    )
+    async def cmd_maid_dj(
+        self,
+        interaction: discord.Interaction,
+        action: app_commands.Choice[str],
+        personality: Optional[app_commands.Choice[str]] = None,
+    ) -> None:
+        await interaction.response.defer(ephemeral=False)
+        guild = interaction.guild
+        if not guild:
+            return
+
+        session = await self.session_manager.get_session(guild.id)
+        from music_bot.services.maid_dj_service import MaidDJService
+
+        act_val = action.value.lower()
+        chosen_pers = (personality.value if personality else session.maid_dj_personality).lower()
+
+        if act_val in ("on", "enable"):
+            session.maid_voice_dj_enabled = True
+            if personality:
+                session.maid_dj_personality = chosen_pers
+            p_cfg = MaidDJService.PERSONALITIES.get(session.maid_dj_personality, MaidDJService.PERSONALITIES["maid"])
+            await interaction.followup.send(
+                f"🟢 **AI Maid Voice DJ is now ENABLED!**\n"
+                f"• **Current Personality:** `{p_cfg['name']}`\n"
+                f"She will introduce every incoming track and its requester with voice & anime cards! ✨"
+            )
+
+        elif act_val in ("off", "disable"):
+            session.maid_voice_dj_enabled = False
+            await interaction.followup.send(
+                "🔴 **AI Maid Voice DJ is now DISABLED.** Track intros will be skipped."
+            )
+
+        elif act_val == "personality":
+            if personality:
+                session.maid_dj_personality = chosen_pers
+            p_cfg = MaidDJService.PERSONALITIES.get(session.maid_dj_personality, MaidDJService.PERSONALITIES["maid"])
+            await interaction.followup.send(
+                f"🎭 **Maid DJ Personality set to:** `{p_cfg['name']}`! 🎀"
+            )
+
+        elif act_val == "test":
+            from music_bot.database.models import QueuedTrack
+            p_val = chosen_pers
+            test_track = session.current_track or QueuedTrack(
+                title="Gurenge (Demon Slayer OP)",
+                artist="LiSA",
+                url="https://youtube.com/watch?v=mock",
+                stream_url="",
+                duration=236,
+                requester_id=interaction.user.id,
+                requester_name=interaction.user.display_name,
+            )
+            intro_text = MaidDJService.generate_intro_text(p_val, test_track, interaction.user.display_name)
+            embed = MaidDJService.build_announcement_embed(test_track, intro_text, p_val)
+            await interaction.followup.send(
+                content="🎙️ **Voice DJ Soundcheck:**",
+                embed=embed,
+            )
+
+        else:  # status
+            is_on = getattr(session, "maid_voice_dj_enabled", False)
+            curr_p = getattr(session, "maid_dj_personality", "maid")
+            p_cfg = MaidDJService.PERSONALITIES.get(curr_p, MaidDJService.PERSONALITIES["maid"])
+            status_str = "🟢 Active" if is_on else "🔴 Inactive"
+            embed = discord.Embed(
+                title="🎙️ AI Anime Maid Voice DJ Status",
+                description=(
+                    f"• **Voice DJ Status:** `{status_str}`\n"
+                    f"• **Current Personality:** `{p_cfg['name']}`\n"
+                    f"• **Available Styles:** `maid`, `tsundere`, `hype`, `chill`, `cyberpunk`\n\n"
+                    f"Use `/maid-dj action:Turn On` to enable announcements before every song!"
+                ),
+                color=p_cfg["color"],
+            )
+            embed.set_thumbnail(url=p_cfg["avatar"])
+            await interaction.followup.send(embed=embed)
+
     # =========================================================================
     # COMPATIBILITY ALIASES (SECTION 3)
     # =========================================================================
@@ -3615,6 +3848,145 @@ class MusicCog(commands.Cog, name="Music"):
                 color=COLOR_ELECTRIC_CYAN,
             )
             await ctx.reply(embed=embed, mention_author=False)
+
+    @commands.command(name="maiddj", aliases=["djmaid", "voicedj"])
+    async def pfx_maid_dj(self, ctx: commands.Context, action: Optional[str] = "status", personality: Optional[str] = None) -> None:
+        """Control AI Anime Maid Voice DJ track announcer: on, off, test, or personality name."""
+        if not ctx.guild:
+            return
+        session = await self.session_manager.get_session(ctx.guild.id)
+        from music_bot.services.maid_dj_service import MaidDJService
+
+        act_clean = (action or "status").lower().strip()
+        if act_clean in MaidDJService.PERSONALITIES:
+            session.maid_dj_personality = act_clean
+            session.maid_voice_dj_enabled = True
+            p_cfg = MaidDJService.PERSONALITIES[act_clean]
+            await ctx.reply(f"🎙️ **Maid DJ activated with personality:** `{p_cfg['name']}`! 🎀", mention_author=False)
+            return
+
+        if act_clean in ("on", "enable", "start"):
+            session.maid_voice_dj_enabled = True
+            if personality and personality.lower() in MaidDJService.PERSONALITIES:
+                session.maid_dj_personality = personality.lower()
+            p_cfg = MaidDJService.PERSONALITIES.get(session.maid_dj_personality, MaidDJService.PERSONALITIES["maid"])
+            await ctx.reply(f"🟢 **AI Maid Voice DJ is now ENABLED!** (`{p_cfg['name']}`)\nShe will introduce songs with spoken anime intros & cards! ✨", mention_author=False)
+        elif act_clean in ("off", "disable", "stop"):
+            session.maid_voice_dj_enabled = False
+            await ctx.reply("🔴 **AI Maid Voice DJ is now DISABLED.**", mention_author=False)
+        elif act_clean in ("test", "preview"):
+            from music_bot.database.models import QueuedTrack
+            p_val = session.maid_dj_personality
+            test_track = session.current_track or QueuedTrack(
+                title="Sparkle",
+                artist="RADWIMPS",
+                url="https://youtube.com/watch?v=mock",
+                stream_url="",
+                duration=210,
+                requester_id=ctx.author.id,
+                requester_name=ctx.author.display_name,
+            )
+            intro_text = MaidDJService.generate_intro_text(p_val, test_track, ctx.author.display_name)
+            embed = MaidDJService.build_announcement_embed(test_track, intro_text, p_val)
+            await ctx.reply("🎙️ **Voice DJ Soundcheck:**", embed=embed, mention_author=False)
+        else:
+            is_on = getattr(session, "maid_voice_dj_enabled", False)
+            curr_p = getattr(session, "maid_dj_personality", "maid")
+            p_cfg = MaidDJService.PERSONALITIES.get(curr_p, MaidDJService.PERSONALITIES["maid"])
+            status_str = "🟢 Active" if is_on else "🔴 Inactive"
+            pref = await self.bot.get_guild_prefix(ctx.guild.id)
+            embed = discord.Embed(
+                title="🎙️ AI Anime Maid Voice DJ Status",
+                description=(
+                    f"• **Voice DJ Status:** `{status_str}`\n"
+                    f"• **Current Personality:** `{p_cfg['name']}`\n"
+                    f"• **Available Styles:** `maid`, `tsundere`, `hype`, `chill`, `cyberpunk`\n\n"
+                    f"Usage: `{pref}maiddj on` • `{pref}maiddj tsundere` • `{pref}maiddj test`"
+                ),
+                color=p_cfg["color"],
+            )
+            embed.set_thumbnail(url=p_cfg["avatar"])
+            await ctx.reply(embed=embed, mention_author=False)
+
+    @commands.command(name="blend", aliases=["musicblend", "friendblend"])
+    async def pfx_blend(self, ctx: commands.Context, member: Optional[discord.Member] = None) -> None:
+        """Blend your music taste with a friend into an anime neon mix."""
+        if not ctx.guild:
+            return
+        if not member:
+            pref = await self.bot.get_guild_prefix(ctx.guild.id)
+            await ctx.reply(f"ℹ️ **Usage:** `{pref}blend @Friend` to synthesize your dual music blend!", mention_author=False)
+            return
+
+        from music_bot.services.blend_service import FriendBlendService
+        blend = await FriendBlendService.generate_blend(
+            self.bot,
+            guild_id=ctx.guild.id,
+            user1=ctx.author,
+            user2=member,
+        )
+        embed = FriendBlendService.build_blend_embed(blend)
+
+        session = await self.session_manager.get_session(ctx.guild.id)
+        if blend.tracks and isinstance(ctx.author, discord.Member) and ctx.author.voice and ctx.author.voice.channel:
+            async with session.lock:
+                from music_bot.services.voice_service import VoiceManager
+                text_channel = ctx.channel if isinstance(ctx.channel, (discord.TextChannel, discord.VoiceChannel, discord.StageChannel, discord.Thread)) else None
+                vc = await VoiceManager.join_voice_channel(ctx.author, text_channel, session)
+                if vc:
+                    for t in blend.tracks:
+                        session.queue.append(t)
+                    await ctx.reply(embed=embed, mention_author=False)
+                    if not session.is_playing and session.queue:
+                        first = session.queue.popleft()
+                        await MusicPlayerService.start_playback(self.bot, session, first)
+                    return
+
+        await ctx.reply(embed=embed, mention_author=False)
+
+    @commands.command(name="import", aliases=["importplaylist", "plimport"])
+    async def pfx_import(self, ctx: commands.Context, url: str = "", *, name: Optional[str] = None) -> None:
+        """Import a Spotify, YouTube, or Apple Music playlist into your saved playlists."""
+        if not ctx.guild:
+            return
+        if not url:
+            pref = await self.bot.get_guild_prefix(ctx.guild.id)
+            await ctx.reply(f"ℹ️ **Usage:** `{pref}import <playlist_url> [optional_name]` (Spotify, YouTube, Apple Music)", mention_author=False)
+            return
+
+        from music_bot.services.importer_service import PlaylistImporterService
+        result = await PlaylistImporterService.import_playlist(
+            self.bot,
+            url=url,
+            guild_id=ctx.guild.id,
+            user_id=ctx.author.id,
+            user_name=ctx.author.display_name,
+            custom_name=name,
+        )
+
+        if not result.success or not result.tracks:
+            err = result.error or "Failed to extract playlist tracks."
+            await ctx.reply(f"❌ **Import Failed:** {err}", mention_author=False)
+            return
+
+        pref = await self.bot.get_guild_prefix(ctx.guild.id)
+        embed = discord.Embed(
+            title=f"📥 PLAYLIST IMPORTED • {result.platform.upper()}",
+            description=(
+                f"Successfully saved **{result.track_count}** tracks into playlist **\"{result.playlist_name}\"**!\n\n"
+                f"• **Platform:** `{result.platform}`\n"
+                f"• **Saved Name:** `{result.playlist_name}`\n"
+                f"• **Play Anytime:** `{pref}playlist load {result.playlist_name}` or `/playlist load`"
+            ),
+            color=COLOR_PREMIUM,
+        )
+        if result.sample_tracks:
+            embed.add_field(
+                name="🎶 Sample Tracks",
+                value="\n".join(f"• {t}" for t in result.sample_tracks),
+                inline=False,
+            )
+        await ctx.reply(embed=embed, mention_author=False)
 
     @commands.command(name="commands", aliases=["help", "cmds"])
     async def pfx_help(self, ctx: commands.Context) -> None:
