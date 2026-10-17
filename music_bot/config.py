@@ -168,12 +168,12 @@ def get_musicmaid_website_url() -> Optional[str]:
 def get_premium_plans_url() -> Optional[str]:
     """
     Resolve and validate the optional MusicMaid premium plans URL if one exists.
-    Returns configured MUSICMAID_PREMIUM_URL or falls back to {get_website_url()}/premium.
+    Returns configured MUSICMAID_PREMIUM_URL or falls back to {get_musicmaid_website_url()}/premium.
     """
     prem_cand = os.getenv("MUSICMAID_PREMIUM_URL", "").strip()
     if prem_cand and is_valid_public_https_url(prem_cand):
         return prem_cand.rstrip("/")
-    base = get_website_url()
+    base = get_musicmaid_website_url()
     if base:
         return f"{base}/premium"
     return None
