@@ -370,6 +370,14 @@ class MusicPlayerService:
                 # Schedule track transition on the bot event loop
                 asyncio.run_coroutine_threadsafe(cls.handle_track_finished(bot, session), loop)
 
+            # AI Anime Maid Voice DJ track announcement & audio bumper
+            if getattr(session, "maid_voice_dj_enabled", False):
+                try:
+                    from music_bot.services.maid_dj_service import MaidDJService
+                    await MaidDJService.announce_track(bot, session, track)
+                except Exception as dj_err:
+                    logger.debug(f"Maid DJ announcement exception: {dj_err}")
+
             session.voice_client.play(playable_source, after=after_playback)
             session.state = PlaybackState.PLAYING
             session.skip_votes.clear()
