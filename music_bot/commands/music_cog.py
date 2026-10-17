@@ -2056,7 +2056,7 @@ class MusicCog(commands.Cog, name="Music"):
             await interaction.response.send_message("❌ This command must be used in a server.", ephemeral=True)
             return
 
-        await interaction.response.defer(ephemeral=False)
+        await self.ensure_deferred(interaction, ephemeral=False)
         guild = interaction.guild
         member = interaction.user
         settings = await self.bot.db.get_guild_settings(guild.id)
