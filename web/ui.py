@@ -1963,6 +1963,21 @@ UI_HTML = r"""<!DOCTYPE html>
       } else if (path === '/stats') {
         document.getElementById('nav-stats')?.classList.add('active');
         renderStats();
+      } else if (path === '/premium') {
+        document.getElementById('nav-premium')?.classList.add('active');
+        renderPremiumPricing();
+      } else if (path === '/premium/checkout') {
+        document.getElementById('nav-premium')?.classList.add('active');
+        renderPremiumCheckout();
+      } else if (path === '/premium/success') {
+        document.getElementById('nav-premium')?.classList.add('active');
+        renderPremiumSuccess();
+      } else if (path === '/premium/cancel') {
+        document.getElementById('nav-premium')?.classList.add('active');
+        renderPremiumCancel();
+      } else if (path === '/premium/manage') {
+        document.getElementById('nav-premium')?.classList.add('active');
+        renderPremiumManage();
       } else {
         renderDashboard();
       }
