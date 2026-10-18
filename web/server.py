@@ -158,6 +158,7 @@ class RaiCommunityOSServer:
 
     async def handle_debug_resolve(self, request: web.Request) -> web.Response:
         import yt_dlp
+        import functools
         from music_bot.services.resolver_service import get_active_cookie_file
         q = request.query.get("q", "https://www.youtube.com/watch?v=xvT1jH8B9AM")
         results = {}

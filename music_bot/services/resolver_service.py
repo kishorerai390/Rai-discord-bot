@@ -1233,61 +1233,69 @@ class AudioResolver:
         if is_direct_url and not is_spotify:
             candidate_urls = [cleaned_query]
         else:
-            # Stage 1: Ultra-fast flat search for candidate selection without cookies (<1.5s)
-            # Stage 1: Fast flat search for candidate selection without cookies
+            # Stage 1: Fast candidate selection from search cache or ytsearch
             failed_stage = "search"
-            search_query = f"ytsearch5:{cleaned_query}"
             search_entries: List[Dict[str, Any]] = []
             search_error: Optional[str] = None
+
+            # First attempt instant retrieval from cls.search cache
             try:
-                flat_opts = _build_ytdl_options(["android", "ios"], extract_flat=True, use_cookies=False)
-                flat_ydl = yt_dlp.YoutubeDL(flat_opts)
-                search_data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(flat_ydl.extract_info, search_query, download=False)
-                    ),
-                    timeout=14.0,
+                cached_search = await cls.search(cleaned_query, limit=5)
+                if cached_search:
+                    candidate_urls = [c["url"] for c in cached_search if c.get("url")]
+            except Exception:
+                pass
+
+            if not candidate_urls:
+                search_query = f"ytsearch5:{cleaned_query}"
+                try:
+                    flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
+                    flat_ydl = yt_dlp.YoutubeDL(flat_opts)
+                    search_data = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            _audio_executor, functools.partial(flat_ydl.extract_info, search_query, download=False)
+                        ),
+                        timeout=14.0,
+                    )
+                    if search_data:
+                        entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
+                        search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
+                except Exception as search_exc:
+                    search_error = _format_error(search_exc)
+                    logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
+
+                if not search_entries:
+                    dur = time.time() - start_t
+                    if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
+                        cat = "TIMEOUT"
+                        reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
+                    elif search_error:
+                        cat = "SEARCH_FAILURE"
+                        reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
+                    else:
+                        cat = "NO_RESULTS"
+                        reason = f"No search results returned from YouTube for '{cleaned_query[:60]}'."
+
+                    cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
+                    logger.warning(
+                        f"[Resolver] [Ref: MM-{corr_id}] Search returned 0 candidates | query='{cleaned_query[:40]}' | "
+                        f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
+                    )
+                    return None
+
+                # Stage 2: Rank candidates using query intent
+                failed_stage = "ranking"
+                scored = sorted(
+                    search_entries,
+                    key=lambda e: score_candidate(e, intent, spotify_meta=spotify_info),
+                    reverse=True,
                 )
-                if search_data:
-                    entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
-                    search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
-            except Exception as search_exc:
-                search_error = _format_error(search_exc)
-                logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
 
-            if not search_entries:
-                dur = time.time() - start_t
-                if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
-                    cat = "TIMEOUT"
-                    reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
-                elif search_error:
-                    cat = "SEARCH_FAILURE"
-                    reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
-                else:
-                    cat = "NO_RESULTS"
-                    reason = f"No search results returned from YouTube for '{cleaned_query[:60]}'."
-
-                cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
-                logger.warning(
-                    f"[Resolver] [Ref: MM-{corr_id}] Search returned 0 candidates | query='{cleaned_query[:40]}' | "
-                    f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
-                )
-                return None
-
-            # Stage 2: Rank candidates using query intent (Tamil/language matching & remix preference)
-            failed_stage = "ranking"
-            scored = sorted(
-                search_entries,
-                key=lambda e: score_candidate(e, intent, spotify_meta=spotify_info),
-                reverse=True,
-            )
-
-            # Build prioritized list of candidate URLs (top 2 for fast resolution)
-            for cand in scored[:2]:
-                c_id = cand.get("id")
-                c_url = f"https://www.youtube.com/watch?v={c_id}" if c_id else (cand.get("url") or cand.get("webpage_url"))
-                if c_url and c_url not in candidate_urls:
-                    candidate_urls.append(c_url)
+                for cand in scored[:2]:
+                    c_id = cand.get("id")
+                    c_url = f"https://www.youtube.com/watch?v={c_id}" if c_id else (cand.get("url") or cand.get("webpage_url"))
+                    if c_url and c_url not in candidate_urls:
+                        candidate_urls.append(c_url)
 
         # Stage 3: Public stream format extraction on selected candidate(s) without cookies
         failed_stage = "stream_extraction"
