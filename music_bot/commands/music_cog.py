@@ -964,9 +964,9 @@ class MusicCog(commands.Cog, name="Music"):
                         title=f"{EmojiManager.get('LOADING', self.bot)} MusicMaid ✦ SEARCH TIMED OUT",
                         description=(
                             f"The music search for `{query[:100]}` exceeded the search deadline.\n\n"
-                            f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting YouTube.'}`\n"
-                            f"• **Notice:** No alternative playback source is enabled (SoundCloud is disabled by configuration).\n"
-                            f"• **Tip:** Try repeating your search or use a direct YouTube URL."
+                            f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting upstream providers.'}`\n"
+                            f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata.\n"
+                            f"• **Tip:** Try repeating your search or use a direct song/stream URL."
                         ),
                         color=COLOR_ERROR,
                     )
@@ -980,7 +980,7 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
-                            f"• **Supported Sources:** YouTube playback and Spotify metadata lookup only."
+                            f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata."
                             f"{cookie_hint}"
                         ),
                         color=COLOR_ERROR,

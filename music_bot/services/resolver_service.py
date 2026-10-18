@@ -879,34 +879,23 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=12.0,
+                timeout=4.0,
             )
         except Exception as e:
             err_msg = _format_error(e)
-            logger.warning(f"[Search] YouTube primary search failure for '{query}': {err_msg}")
-            try:
-                fb_opts = _build_ytdl_options(["android"], extract_flat=True)
-                fb_ydl = yt_dlp.YoutubeDL(fb_opts)
-                data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(fb_ydl.extract_info, search_query, download=False)
-                    ),
-                    timeout=12.0,
-                )
-            except Exception as fb_err:
-                logger.warning(f"[Search] YouTube fallback search failure for '{query}': {_format_error(fb_err)}")
-                data = None
+            logger.info(f"[Search] YouTube primary search notice for '{query}': {err_msg}")
+            data = None
 
         entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
         if not entries or not any(entries):
-            # Fallback to SoundCloud search
+            # Instant fallback to SoundCloud search
             try:
                 sc_target = f"scsearch{limit}:{query}"
-                sc_opts = {"quiet": True, "format": "bestaudio/best", "noplaylist": True, "socket_timeout": 8}
+                sc_opts = {"quiet": True, "format": "bestaudio/best", "noplaylist": True, "socket_timeout": 6, "retries": 1}
                 sc_ydl = yt_dlp.YoutubeDL(sc_opts)
                 sc_data = await asyncio.wait_for(
                     loop.run_in_executor(None, functools.partial(sc_ydl.extract_info, sc_target, download=False)),
-                    timeout=8.0,
+                    timeout=6.0,
                 )
                 if sc_data:
                     entries = sc_data.get("entries") if isinstance(sc_data, dict) and "entries" in sc_data else [sc_data]
@@ -1003,9 +992,9 @@ class AudioResolver:
     async def resolve_soundcloud_track(
         cls, query: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
-        """SoundCloud resolution fallback for zero-interruption playback."""
+        """SoundCloud resolution provider for ultra-fast, zero-interruption playback."""
         clean = query.strip()
-        search_target = clean if clean.startswith("http") else f"scsearch5:{clean}"
+        search_target = clean if clean.startswith("http") else f"scsearch2:{clean}"
         loop = asyncio.get_running_loop()
         try:
             sc_opts = {
@@ -1013,26 +1002,48 @@ class AudioResolver:
                 "format": "bestaudio/best",
                 "noplaylist": True,
                 "nocheckcertificate": True,
-                "ignoreerrors": False,
+                "ignoreerrors": True,
                 "socket_timeout": 8,
+                "retries": 1,
             }
             ydl = yt_dlp.YoutubeDL(sc_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(None, functools.partial(ydl.extract_info, search_target, download=False)),
-                timeout=10.0,
+                timeout=15.0,
             )
             if not data:
                 return None
-            entries = data.get("entries") if isinstance(data, dict) and "entries" in data else [data]
-            for entry in (entries or []):
+            raw_entries = data.get("entries") if isinstance(data, dict) and "entries" in data else [data]
+            entries = list(raw_entries) if raw_entries else []
+            for entry in entries:
                 if not entry:
                     continue
                 s_url = entry.get("url")
                 if not s_url and "formats" in entry:
-                    for fmt in entry["formats"]:
-                        if fmt.get("url"):
+                    for fmt in entry.get("formats", []):
+                        if fmt and fmt.get("url"):
                             s_url = fmt["url"]
                             break
+                # If s_url is a soundcloud webpage rather than a media stream, extract stream from that track URL
+                web_url = entry.get("webpage_url") or entry.get("url")
+                if not s_url or (isinstance(s_url, str) and "soundcloud.com" in s_url and not any(p in s_url for p in (".m3u8", ".mp3", ".aac", ".opus", "media-streaming", "sndcdn"))):
+                    if web_url and web_url.startswith("http"):
+                        try:
+                            direct_info = await asyncio.wait_for(
+                                loop.run_in_executor(None, functools.partial(ydl.extract_info, web_url, download=False)),
+                                timeout=6.0,
+                            )
+                            if direct_info:
+                                s_url = direct_info.get("url")
+                                if not s_url and "formats" in direct_info:
+                                    for fmt in direct_info.get("formats", []):
+                                        if fmt and fmt.get("url"):
+                                            s_url = fmt["url"]
+                                            break
+                                if s_url:
+                                    entry = direct_info
+                        except Exception as d_err:
+                            logger.debug(f"[Resolver] Direct SoundCloud track resolution notice: {d_err}")
                 if s_url:
                     return QueuedTrack(
                         title=entry.get("title", clean),
@@ -1282,12 +1293,34 @@ class AudioResolver:
         failed_stage = "init"
         is_direct_url = cleaned_query.startswith("http://") or cleaned_query.startswith("https://")
 
+        # 1. Direct SoundCloud resolution path
+        if is_direct_url and "soundcloud.com" in cleaned_query:
+            sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
+            if sc_track and sc_track.stream_url:
+                dur = time.time() - start_t
+                logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct SoundCloud resolved in {dur:.2f}s -> '{sc_track.title}'")
+                return sc_track
+
+        # 2. High-velocity primary resolution: Search & Spotify metadata via SoundCloud (sub-2s latency, zero bot checks)
+        if not is_direct_url or is_spotify:
+            try:
+                sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
+                if sc_track and sc_track.stream_url:
+                    sc_track = _apply_metadata_enhancements(sc_track)
+                    dur = time.time() - start_t
+                    logger.info(
+                        f"[Resolver] [Ref: MM-{corr_id}] High-velocity primary resolved '{cleaned_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
+                    )
+                    return sc_track
+            except Exception as sc_fast_err:
+                logger.debug(f"[Resolver] [Ref: MM-{corr_id}] High-velocity primary resolution notice: {sc_fast_err}")
+
         candidate_urls: List[str] = []
 
         if is_direct_url and not is_spotify:
             candidate_urls = [cleaned_query]
         else:
-            # Stage 1: Fast candidate selection from search cache or ytsearch
+            # Stage 1: Candidate selection from search cache or ytsearch
             failed_stage = "search"
             search_entries: List[Dict[str, Any]] = []
             search_error: Optional[str] = None
@@ -1455,6 +1488,7 @@ class AudioResolver:
 
             sc_track = await cls.resolve_soundcloud_track(sc_query, requester_id, requester_name)
             if sc_track:
+                sc_track = _apply_metadata_enhancements(sc_track)
                 dur = time.time() - start_t
                 logger.info(
                     f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback successfully resolved '{sc_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
