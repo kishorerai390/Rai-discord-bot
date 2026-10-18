@@ -872,7 +872,7 @@ class AudioResolver:
         data = None
         # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast response)
         try:
-            primary_opts = _build_ytdl_options(["android", "ios"], extract_flat=True)
+            primary_opts = _build_ytdl_options(["android"], extract_flat=True)
             ydl_instance = yt_dlp.YoutubeDL(primary_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
