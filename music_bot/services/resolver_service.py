@@ -895,12 +895,23 @@ class AudioResolver:
                 )
             except Exception as fb_err:
                 logger.warning(f"[Search] YouTube fallback search failure for '{query}': {_format_error(fb_err)}")
-                return []
+                data = None
 
-        if not data:
-            return []
-
-        entries = data.get("entries") if "entries" in data else [data]
+        entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
+        if not entries or not any(entries):
+            # Fallback to SoundCloud search
+            try:
+                sc_target = f"scsearch{limit}:{query}"
+                sc_opts = {"quiet": True, "format": "bestaudio/best", "noplaylist": True, "socket_timeout": 8}
+                sc_ydl = yt_dlp.YoutubeDL(sc_opts)
+                sc_data = await asyncio.wait_for(
+                    loop.run_in_executor(None, functools.partial(sc_ydl.extract_info, sc_target, download=False)),
+                    timeout=8.0,
+                )
+                if sc_data:
+                    entries = sc_data.get("entries") if isinstance(sc_data, dict) and "entries" in sc_data else [sc_data]
+            except Exception as sc_err:
+                logger.debug(f"[Search] SoundCloud search fallback notice: {sc_err}")
         raw_candidates: List[Dict[str, Any]] = []
         for entry in entries:
             if not entry or entry.get("has_drm"):
@@ -992,7 +1003,49 @@ class AudioResolver:
     async def resolve_soundcloud_track(
         cls, query: str, requester_id: int, requester_name: str
     ) -> Optional[QueuedTrack]:
-        """SoundCloud resolution is strictly disabled by configuration."""
+        """SoundCloud resolution fallback for zero-interruption playback."""
+        clean = query.strip()
+        search_target = clean if clean.startswith("http") else f"scsearch5:{clean}"
+        loop = asyncio.get_running_loop()
+        try:
+            sc_opts = {
+                "quiet": True,
+                "format": "bestaudio/best",
+                "noplaylist": True,
+                "nocheckcertificate": True,
+                "ignoreerrors": False,
+                "socket_timeout": 8,
+            }
+            ydl = yt_dlp.YoutubeDL(sc_opts)
+            data = await asyncio.wait_for(
+                loop.run_in_executor(None, functools.partial(ydl.extract_info, search_target, download=False)),
+                timeout=10.0,
+            )
+            if not data:
+                return None
+            entries = data.get("entries") if isinstance(data, dict) and "entries" in data else [data]
+            for entry in (entries or []):
+                if not entry:
+                    continue
+                s_url = entry.get("url")
+                if not s_url and "formats" in entry:
+                    for fmt in entry["formats"]:
+                        if fmt.get("url"):
+                            s_url = fmt["url"]
+                            break
+                if s_url:
+                    return QueuedTrack(
+                        title=entry.get("title", clean),
+                        url=entry.get("webpage_url") or entry.get("url", clean),
+                        stream_url=s_url,
+                        duration=int(entry.get("duration", 0) or 0),
+                        requester_id=requester_id,
+                        requester_name=requester_name,
+                        artist=entry.get("uploader") or entry.get("channel", "SoundCloud Artist"),
+                        thumbnail=entry.get("thumbnail"),
+                    )
+        except Exception as e:
+            logger.warning(f"[Resolver] SoundCloud resolution notice for '{query[:50]}': {_format_error(e)}")
         return None
 
     @classmethod
@@ -1375,7 +1428,30 @@ class AudioResolver:
                         return track
             except Exception as t3_err:
                 last_failure_reason = _format_error(t3_err)
-                logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Cookie fallback attempt failed: {last_failure_reason}")
+        # Stage 5: Secondary Provider Fallback (SoundCloud) for zero-interruption playback
+        try:
+            logger.info(f"[Resolver] [Ref: MM-{corr_id}] Attempting SoundCloud resolution fallback for '{cleaned_query[:50]}'")
+            sc_query = cleaned_query
+            if is_direct_url and ("youtube" in cleaned_query or "youtu.be" in cleaned_query):
+                try:
+                    import urllib.request
+                    oembed_url = f"https://www.youtube.com/oembed?url={cleaned_query}&format=json"
+                    with urllib.request.urlopen(oembed_url, timeout=3.0) as o_resp:
+                        o_data = json.loads(o_resp.read().decode())
+                        if o_data and o_data.get("title"):
+                            sc_query = f"{o_data.get('title')} {o_data.get('author_name', '')}".strip()
+                except Exception as o_err:
+                    logger.debug(f"[Resolver] oEmbed lookup notice: {o_err}")
+
+            sc_track = await cls.resolve_soundcloud_track(sc_query, requester_id, requester_name)
+            if sc_track:
+                dur = time.time() - start_t
+                logger.info(
+                    f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback successfully resolved '{sc_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
+                )
+                return sc_track
+        except Exception as sc_err:
+            logger.warning(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback failed: {_format_error(sc_err)}")
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error
@@ -1390,7 +1466,7 @@ class AudioResolver:
             reason = f"No playable audio streams found for '{cleaned_query[:50]}' ({last_failure_reason})."
         else:
             cat = "RESOLUTION_EXHAUSTED"
-            reason = f"YouTube audio resolution exhausted for '{cleaned_query[:50]}' ({last_failure_reason}). SoundCloud is disabled by configuration."
+            reason = f"Audio resolution exhausted for '{cleaned_query[:50]}' ({last_failure_reason})."
 
         cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
         logger.warning(

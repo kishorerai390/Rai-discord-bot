@@ -49,8 +49,9 @@ class SoundCloudMusicProvider(MusicProvider):
         return self._name
 
     def supports(self, query: str, query_type: QueryType) -> bool:
-        # Completely disabled by configuration
-        return False
+        if "soundcloud.com" in query.lower():
+            return True
+        return query_type in (QueryType.SEARCH, QueryType.TRACK)
 
     async def search(self, query: str, limit: int = 5, requester: Optional[discord.Member] = None) -> List[TrackCandidate]:
         loop = asyncio.get_running_loop()
