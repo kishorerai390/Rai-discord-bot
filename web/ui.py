@@ -4201,6 +4201,7 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success) {
           showToast("Server settings saved successfully! ⚡");
+          await loadGuildAdminSettings();
         } else {
           showToast(json.error?.message || "Failed to save settings", "danger");
         }

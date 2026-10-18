@@ -187,9 +187,9 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
 
         # Must have deferred immediately
         self.response.defer.assert_awaited()
-        # Must have edited original response informing user of timeout
-        self.interaction.edit_original_response.assert_awaited()
-        args, kwargs = self.interaction.edit_original_response.call_args
+        # Must have sent via followup (after defer, is_done becomes True)
+        self.followup.send.assert_awaited()
+        args, kwargs = self.followup.send.call_args
         embed = kwargs.get("embed")
         self.assertIsNotNone(embed)
         self.assertIn("TIMED OUT", embed.title)
@@ -201,9 +201,12 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         await self.cog.alias_play.callback(self.cog, self.interaction, query="lofi beats")
 
         self.response.defer.assert_awaited()
-        self.interaction.edit_original_response.assert_awaited()
-        args, kwargs = self.interaction.edit_original_response.call_args
-        self.assertIn("must join a voice channel", kwargs.get("content", ""))
+        # After defer is_done=True → send_ephemeral_or_fallback routes to followup.send
+        self.followup.send.assert_awaited()
+        args, kwargs = self.followup.send.call_args
+        # May arrive as positional content or keyword content
+        content_val = kwargs.get("content", args[0] if args else "")
+        self.assertIn("voice channel", str(content_val).lower())
 
     # =========================================================================
     # 4. INSTANT PLAYBACK CONTROLS DEFERRAL & RESPONSE

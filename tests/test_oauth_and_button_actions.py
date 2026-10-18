@@ -65,6 +65,8 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
         self.mock_bot.guilds = [mock_guild]
 
         self.rai_server = RaiCommunityOSServer(bot=self.mock_bot, db=self.mock_db, port=8198)
+        self.rai_server.api_router.auth._client_id = "mock_client_id_for_testing"
+        self.rai_server.api_router.auth._client_secret = "mock_client_secret_for_testing"
         app = web.Application()
         self.rai_server.setup_routes(app)
 

@@ -59,7 +59,21 @@ if not _raw_client_id and DISCORD_TOKEN and "." in DISCORD_TOKEN:
 DISCORD_CLIENT_ID: str = _raw_client_id
 DISCORD_CLIENT_SECRET: str = os.getenv("DISCORD_CLIENT_SECRET", "").strip()
 DISCORD_REDIRECT_URI: str = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8080/api/auth/callback").strip()
-SESSION_SECRET: str = os.getenv("SESSION_SECRET", "rai_production_secret_key_change_in_production").strip()
+_raw_session_secret = os.getenv("SESSION_SECRET", "").strip()
+_is_prod = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("NODE_ENV") == "production")
+if not _raw_session_secret:
+    if _is_prod:
+        import secrets as _sec
+        SESSION_SECRET: str = _sec.token_urlsafe(32)
+        logging.getLogger("config").warning("SESSION_SECRET was not configured in production; generated ephemeral instance secret.")
+    else:
+        SESSION_SECRET = "rai_development_secret_key_local_only"
+elif _raw_session_secret == "rai_production_secret_key_change_in_production" and _is_prod:
+    import secrets as _sec
+    SESSION_SECRET = _sec.token_urlsafe(32)
+    logging.getLogger("config").warning("Default insecure placeholder SESSION_SECRET detected in production; overridden with ephemeral instance secret.")
+else:
+    SESSION_SECRET = _raw_session_secret
 _comm_guild_raw = (os.getenv("COMMUNITY_GUILD_ID") or os.getenv("SUPPORT_SERVER_ID") or "1494692962041467005").strip()
 COMMUNITY_GUILD_ID: int = int(_comm_guild_raw) if _comm_guild_raw.isdigit() else 1494692962041467005
 SUPPORT_SERVER_ID: int = COMMUNITY_GUILD_ID

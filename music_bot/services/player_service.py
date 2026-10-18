@@ -1357,7 +1357,6 @@ class MusicPlayerService:
             session.voice_client.stop()
             return True
         return False
-        return False
 
     @classmethod
     async def pause(cls, *args, **kwargs) -> Tuple[bool, str]:

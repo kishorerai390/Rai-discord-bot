@@ -202,7 +202,7 @@ class ApiRouter:
                 or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
             )
 
-            resp = web.HTTPFound(f"/?auth=success&token={session_id}")
+            resp = web.HTTPFound("/?auth=success")
             resp.set_cookie(
                 SESSION_COOKIE_NAME,
                 session_id,

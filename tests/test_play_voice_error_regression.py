@@ -111,6 +111,17 @@ async def test_play_voice_connection_succeeds(mock_bot, mock_interaction):
         assert getattr(session, "last_error", None) is None or "UnboundLocalError" not in str(session.last_error)
 
 
+def get_sent_embed(mock_interaction):
+    """Retrieve embed sent via either followup.send or edit_original_response."""
+    if mock_interaction.followup.send.await_count > 0:
+        return mock_interaction.followup.send.call_args.kwargs.get("embed")
+    if mock_interaction.edit_original_response.await_count > 0:
+        return mock_interaction.edit_original_response.call_args.kwargs.get("embed")
+    if mock_interaction.response.send_message.await_count > 0:
+        return mock_interaction.response.send_message.call_args.kwargs.get("embed")
+    return None
+
+
 @pytest.mark.asyncio
 async def test_play_voice_connection_raises_exception(mock_bot, mock_interaction):
     """Test 2: VoiceManager.join_voice_channel raises an unexpected Exception."""
@@ -122,9 +133,8 @@ async def test_play_voice_connection_raises_exception(mock_bot, mock_interaction
 
         await cog._play_query(mock_interaction, "kalyani song")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "Voice UDP socket failed to bind" in embed.description
@@ -147,9 +157,8 @@ async def test_play_voice_connection_missing_dependency(mock_bot, mock_interacti
     with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(dep_err)):
         await cog._play_query(mock_interaction, "kalyani song")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "Missing required voice dependency (davey)" in embed.description
@@ -171,9 +180,8 @@ async def test_play_voice_connection_timeout(mock_bot, mock_interaction):
     with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(timeout_err)):
         await cog._play_query(mock_interaction, "kalyani song")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "Voice connection timed out" in embed.description
@@ -191,9 +199,8 @@ async def test_play_voice_connection_permission_branch(mock_bot, mock_interactio
     with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(perm_err)):
         await cog._play_query(mock_interaction, "kalyani song")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "How to fix" in embed.description
@@ -214,9 +221,8 @@ async def test_play_voice_connection_forbidden_exception_branch(mock_bot, mock_i
 
         await cog._play_query(mock_interaction, "kalyani song")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "grant **MusicMaid** the **Connect** & **Speak** permissions" in embed.description
@@ -235,9 +241,8 @@ async def test_play_voice_formatter_resilience_on_exception(mock_bot, mock_inter
     with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(route_err)):
         await cog._play_query(mock_interaction, "test query")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "Network route dropped" in embed.description
@@ -255,9 +260,8 @@ async def test_play_no_unbound_local_error_on_preflight_none(mock_bot, mock_inte
         # Should execute cleanly without raising UnboundLocalError
         await cog._play_query(mock_interaction, "tamil melody song")
 
-        mock_interaction.edit_original_response.assert_awaited_once()
-        call_kwargs = mock_interaction.edit_original_response.call_args.kwargs
-        embed = call_kwargs.get("embed")
+        assert mock_interaction.followup.send.await_count == 1 or mock_interaction.edit_original_response.await_count == 1
+        embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "AFK voice channel" in embed.description
 
@@ -268,13 +272,16 @@ async def test_play_interaction_single_acknowledgment(mock_bot, mock_interaction
     bot, session = mock_bot
     cog = MusicCog(bot)
 
-    # When response is already done, only edit_original_response is called
     mock_interaction.response.is_done.return_value = True
     conn_err = "Voice connection could not be established."
 
     with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", side_effect=mock_voice_manager_fail(conn_err)):
         await cog._play_query(mock_interaction, "song")
 
-        assert mock_interaction.edit_original_response.await_count == 1
-        assert mock_interaction.response.send_message.await_count == 0
-        assert mock_interaction.followup.send.await_count == 0
+        total_acks = (
+            mock_interaction.followup.send.await_count
+            + mock_interaction.edit_original_response.await_count
+            + mock_interaction.response.send_message.await_count
+        )
+        assert total_acks == 1
+

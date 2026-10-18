@@ -17,6 +17,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import discord
+
 from music_bot.database import MusicDatabase, MusicGuildSettings
 from music_bot.services.player_service import MusicPlayerService
 from music_bot.services.session_memory_service import MusicSessionMemoryService
@@ -53,14 +55,26 @@ class TestTwentyFourSevenVoiceInvestigation(unittest.IsolatedAsyncioTestCase):
         self.bot.is_ready.return_value = True
 
         # Mock Guild and Channel
-        self.channel = MagicMock()
+        self.guild = MagicMock(spec=discord.Guild)
+        self.guild.id = self.guild_id
+        self.guild.name = "Test Guild"
+        self.guild.afk_channel_id = None
+        self.guild.afk_channel = None
+
+        mock_me = MagicMock(spec=discord.Member)
+        self.guild.me = mock_me
+
+        self.channel = MagicMock(spec=discord.VoiceChannel)
         self.channel.id = self.channel_id
         self.channel.name = "247-lounge"
         self.channel.members = []
+        self.channel.guild = self.guild
 
-        self.guild = MagicMock()
-        self.guild.id = self.guild_id
-        self.guild.name = "Test Guild"
+        mock_perms = MagicMock()
+        mock_perms.connect = True
+        mock_perms.speak = True
+        self.channel.permissions_for.return_value = mock_perms
+
         self.guild.get_channel.return_value = self.channel
         self.guild.fetch_channel = AsyncMock(return_value=self.channel)
         self.bot.get_guild.return_value = self.guild

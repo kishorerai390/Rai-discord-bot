@@ -271,8 +271,45 @@ class RaiCommunityOSServer:
             return web.Response(body=icon_path.read_bytes(), content_type="image/png")
         return web.Response(status=404)
 
+    @staticmethod
+    @web.middleware
+    async def cors_middleware(request: web.Request, handler):
+        if request.method == "OPTIONS":
+            response = web.Response(status=204)
+        else:
+            try:
+                response = await handler(request)
+            except web.HTTPException as ex:
+                response = ex
+        origin = request.headers.get("Origin")
+        allowed_origin = None
+        if origin:
+            clean_orig = origin.strip().lower()
+            pub_base = (os.getenv("PUBLIC_BASE_URL", "").strip().lower() or "https://rai-discord-bot.onrender.com")
+            if (
+                clean_orig.startswith("http://localhost:")
+                or clean_orig.startswith("http://127.0.0.1:")
+                or clean_orig == pub_base.rstrip("/")
+                or clean_orig == "https://rai-discord-bot.onrender.com"
+            ):
+                allowed_origin = origin
+
+        if allowed_origin:
+            response.headers["Access-Control-Allow-Origin"] = allowed_origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            response.headers["Access-Control-Allow-Origin"] = "*"
+
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Cookie, Accept"
+        if isinstance(response, web.HTTPException):
+            raise response
+        return response
+
     def setup_routes(self, app: web.Application) -> None:
         """Register all UI and REST API routes."""
+        if self.cors_middleware not in app.middlewares:
+            app.middlewares.append(self.cors_middleware)
         r = self.api_router
 
         # PWA & Assets
@@ -585,23 +622,8 @@ class RaiCommunityOSServer:
         if not self.db.is_connected:
             await self.db.connect()
 
-        @web.middleware
-        async def cors_middleware(request: web.Request, handler):
-            if request.method == "OPTIONS":
-                response = web.Response(status=204)
-            else:
-                try:
-                    response = await handler(request)
-                except web.HTTPException as ex:
-                    response = ex
-            response.headers["Access-Control-Allow-Origin"] = "*"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Cookie, Accept"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            return response
-
         try:
-            self.app = web.Application(middlewares=[cors_middleware])
+            self.app = web.Application()
             self.setup_routes(self.app)
             self.runner = web.AppRunner(self.app)
             await self.runner.setup()

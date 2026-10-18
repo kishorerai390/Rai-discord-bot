@@ -600,8 +600,8 @@ class VoiceManager:
                     return vc
 
                 # Fallback check: Did guild VoiceClient connect despite edge condition?
-                if member.guild.voice_client and member.guild.voice_client.is_connected():
-                    curr_vc = member.guild.voice_client
+                if guild.voice_client and guild.voice_client.is_connected():
+                    curr_vc = guild.voice_client
                     session.voice_client = curr_vc
                     session.state = PlaybackState.CONNECTED
                     session.last_error = None
@@ -617,7 +617,7 @@ class VoiceManager:
 
             except asyncio.CancelledError:
                 logger.info(f"[Voice] Connection task cancelled for guild {guild_id}.")
-                await cls._purge_voice_client_state(member.guild)
+                await cls._purge_voice_client_state(guild)
                 telemetry.stage = "Cancelled"
                 raise
 
@@ -626,7 +626,7 @@ class VoiceManager:
                 logger.warning(f"[Voice] [Attempt {attempt} ClientException] Guild {guild_id}: {ce}")
 
                 # Check if guild VoiceClient is actually connected and in target channel
-                curr_vc = member.guild.voice_client
+                curr_vc = guild.voice_client
                 if curr_vc and curr_vc.is_connected() and curr_vc.channel and curr_vc.channel.id == target_channel.id:
                     session.voice_client = curr_vc
                     session.state = PlaybackState.CONNECTED
@@ -641,7 +641,7 @@ class VoiceManager:
                 # Desynchronization detected: purge stale state before retry
                 current_stage = "Gateway Voice State Desynchronization"
                 telemetry.stage = current_stage
-                await cls._purge_voice_client_state(member.guild)
+                await cls._purge_voice_client_state(guild)
 
                 if attempt < max_attempts:
                     backoff = (attempt * 1.0) + random.uniform(0.1, 0.4)
@@ -651,7 +651,7 @@ class VoiceManager:
             except asyncio.TimeoutError as t_err:
                 last_exception = t_err
                 att_ms = (time.monotonic() - t_attempt) * 1000
-                stage_name, _, flow_name = cls._inspect_failed_stage(member.guild, t_err)
+                stage_name, _, flow_name = cls._inspect_failed_stage(guild, t_err)
                 current_stage = stage_name
                 telemetry.stage = current_stage
                 telemetry.flow_state = flow_name
@@ -660,7 +660,7 @@ class VoiceManager:
                     f"[Voice] [Attempt {attempt} TIMEOUT] Guild {guild_id} | Failed at '{current_stage}' "
                     f"(flow_state={flow_name}) after {att_ms:.1f}ms (Timeout={connect_timeout}s)"
                 )
-                await cls._purge_voice_client_state(member.guild)
+                await cls._purge_voice_client_state(guild)
 
                 if attempt < max_attempts:
                     backoff = (attempt * 1.5) + random.uniform(0.2, 0.5)
@@ -669,12 +669,12 @@ class VoiceManager:
 
             except Exception as e:
                 last_exception = e
-                stage_name, _, flow_name = cls._inspect_failed_stage(member.guild, e)
+                stage_name, _, flow_name = cls._inspect_failed_stage(guild, e)
                 current_stage = stage_name
                 telemetry.stage = current_stage
                 telemetry.flow_state = flow_name
                 logger.error(f"[Voice] [Attempt {attempt} Error] Unexpected error at '{current_stage}': {e}", exc_info=True)
-                await cls._purge_voice_client_state(member.guild)
+                await cls._purge_voice_client_state(guild)
 
                 # Fast-fail without retries on unrecoverable/permanent errors
                 e_str = str(e).lower()
@@ -696,7 +696,7 @@ class VoiceManager:
 
         # All attempts failed: format evidence-based user diagnostic
         total_fail_ms = (time.monotonic() - t_start) * 1000
-        stage_title, stage_advice, flow_name = cls._inspect_failed_stage(member.guild, last_exception)
+        stage_title, stage_advice, flow_name = cls._inspect_failed_stage(guild, last_exception)
 
         attempts_made = telemetry.attempt or 1
         if isinstance(last_exception, asyncio.TimeoutError):
