@@ -156,6 +156,39 @@ class RaiCommunityOSServer:
             },
         })
 
+    async def handle_debug_resolve(self, request: web.Request) -> web.Response:
+        import yt_dlp
+        from music_bot.services.resolver_service import get_active_cookie_file
+        q = request.query.get("q", "https://www.youtube.com/watch?v=xvT1jH8B9AM")
+        results = {}
+        loop = asyncio.get_running_loop()
+        c_file = get_active_cookie_file()
+        for client in [["android"], ["tv_embedded"], ["android_music"], ["web_embedded"], ["mweb"], ["web"]]:
+            name = "+".join(client)
+            for use_c in ([False, True] if c_file else [False]):
+                key = f"{name}{'+cookie' if use_c else ''}"
+                t0 = time.time()
+                try:
+                    opts = {
+                        "quiet": True,
+                        "format": "bestaudio/best[height<=720]/best",
+                        "socket_timeout": 5,
+                        "extractor_args": {"youtube": {"player_client": client, "skip": ["translated_subs"]}}
+                    }
+                    if use_c and c_file:
+                        opts["cookiefile"] = c_file
+                    ydl = yt_dlp.YoutubeDL(opts)
+                    data = await asyncio.wait_for(
+                        loop.run_in_executor(None, functools.partial(ydl.extract_info, q, download=False)),
+                        timeout=8.0
+                    )
+                    dur = round(time.time() - t0, 2)
+                    results[key] = {"ok": True, "dur": dur, "url": bool(data.get("url")), "itag": data.get("format_id"), "title": data.get("title", "")[:35]}
+                except Exception as e:
+                    dur = round(time.time() - t0, 2)
+                    results[key] = {"ok": False, "dur": dur, "err": str(e)[:90]}
+        return web.json_response(results)
+
     async def handle_terms(self, request: web.Request) -> web.Response:
         """Render the official Terms of Service legal compliance page."""
         return web.Response(text=TERMS_OF_SERVICE_HTML, content_type="text/html")
@@ -230,6 +263,7 @@ class RaiCommunityOSServer:
         app.router.add_get("/health", self.handle_health)
         app.router.add_get("/healthz", self.handle_health)
         app.router.add_get("/api/health", self.handle_health)
+        app.router.add_get("/api/debug/resolve", self.handle_debug_resolve)
         app.router.add_get("/api/leaderboard", self.handle_legacy_leaderboard)
 
         # Authentication API
