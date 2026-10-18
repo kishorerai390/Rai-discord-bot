@@ -63,11 +63,11 @@ class ValidatedAudioSource(discord.AudioSource):
     """
     Studio-grade buffered audio source wrapper.
     Decouples FFmpeg stream extraction from Discord's realtime 20ms voice loop using a 
-    pre-buffered jitter queue (up to 300 frames = 6 seconds).
+    pre-buffered jitter queue (up to 500 frames = 10 seconds).
     Completely eliminates audio stuttering, sticking, packet drops, and premature EOF.
     """
 
-    def __init__(self, original: discord.AudioSource, first_frame: Optional[bytes] = None, buffer_size: int = 300):
+    def __init__(self, original: discord.AudioSource, first_frame: Optional[bytes] = None, buffer_size: int = 500):
         self.original = original
         import queue
         import threading
@@ -92,25 +92,46 @@ class ValidatedAudioSource(discord.AudioSource):
             try:
                 data = self.original.read()
                 if not data or len(data) != 3840:
-                    self._consecutive_empty += 1
-                    # Require 25 consecutive empty reads (500ms) before declaring true EOF
-                    if self._consecutive_empty >= 25:
+                    # Check if FFmpeg process genuinely exited
+                    proc = getattr(self.original, "_process", None)
+                    if proc is None and hasattr(self.original, "original"):
+                        proc = getattr(self.original.original, "_process", None)
+
+                    if proc is not None and proc.poll() is not None:
+                        # Process genuinely terminated with exit code
                         self._eof_reached = True
                         break
-                    time.sleep(0.01)
+
+                    # Process still alive, upstream network segment buffering
+                    self._consecutive_empty += 1
+                    if self._consecutive_empty >= 250:  # 250 * 0.02s = 5 seconds max wait
+                        self._eof_reached = True
+                        break
+                    time.sleep(0.02)
                     continue
-                else:
-                    self._consecutive_empty = 0
+
+                self._consecutive_empty = 0
 
                 while not self._stop_event.is_set():
                     try:
-                        self._queue.put(data, timeout=0.1)
+                        self._queue.put(data, timeout=0.05)
                         break
                     except Exception:
                         continue
             except Exception:
                 break
         self._eof_reached = True
+
+    async def wait_until_buffered(self, target_frames: int = 50, timeout: float = 2.0) -> None:
+        """
+        Pre-buffers up to `target_frames` (50 frames = 1.0s of audio) before voice_client.play().
+        Guarantees that the consumer thread starts with a deep cushion and never underruns.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self._queue.qsize() >= target_frames or self._eof_reached:
+                break
+            await asyncio.sleep(0.05)
 
     @property
     def volume(self) -> float:
@@ -127,19 +148,20 @@ class ValidatedAudioSource(discord.AudioSource):
         """
         Called by discord.py audio loop every 20ms.
         Immediately returns pre-buffered audio frame without waiting on network I/O.
+        MUST return in <= 2ms to prevent de-synchronizing Discord's AudioPlayer clock.
         """
         try:
             return self._queue.get_nowait()
         except Exception:
             if self._eof_reached and self._queue.empty():
                 return b""
-            # If buffer experienced a momentary network stall, wait up to 30ms
+            # Tiny 2ms poll max - never stall the 20ms voice thread
             try:
-                return self._queue.get(timeout=0.03)
+                return self._queue.get(timeout=0.002)
             except Exception:
-                if self._eof_reached:
+                if self._eof_reached and self._queue.empty():
                     return b""
-                # Deliver a 20ms silence frame instead of b'' to maintain stream alive status
+                # Deliver a 20ms silence frame to maintain connection without breaking Discord timer
                 return b"\x00" * 3840
 
     def is_opus(self) -> bool:
@@ -353,7 +375,9 @@ class MusicPlayerService:
                     await cls.handle_track_finished(bot, session)
                     return False
 
-            playable_source = ValidatedAudioSource(volume_transformer, first_frame)
+            playable_source = ValidatedAudioSource(volume_transformer, first_frame, buffer_size=500)
+            # Pre-buffer 1.0s of audio cushion (50 frames) before voice_client starts consumption
+            await playable_source.wait_until_buffered(target_frames=50, timeout=2.0)
 
             session.current_track = track
             session.track_start_time = time.time()
@@ -621,7 +645,9 @@ class MusicPlayerService:
                 await cls.handle_track_finished(bot, session)
                 return False
 
-            playable_source = ValidatedAudioSource(volume_transformer, first_frame)
+            playable_source = ValidatedAudioSource(volume_transformer, first_frame, buffer_size=500)
+            # Pre-buffer 1.0s of audio cushion (50 frames) before voice_client resumes consumption
+            await playable_source.wait_until_buffered(target_frames=50, timeout=2.0)
 
             session.current_track = track
             session.track_start_time = time.time() - start_seconds
