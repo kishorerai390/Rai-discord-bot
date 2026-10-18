@@ -356,7 +356,7 @@ def get_masked_spotify_credentials() -> dict[str, str]:
 
 def is_music_token_valid() -> bool:
     """Validate token format without revealing its content."""
-    tok = NEKO_SONGS_BOT_TOKEN
+    tok = MUSIC_BOT_TOKEN or NEKO_SONGS_BOT_TOKEN
     if not tok:
         return False
     parts = tok.split(".")
@@ -365,7 +365,7 @@ def is_music_token_valid() -> bool:
 
 def get_masked_music_token() -> str:
     """Return a masked representation of the token for diagnostics."""
-    tok = NEKO_SONGS_BOT_TOKEN
+    tok = MUSIC_BOT_TOKEN or NEKO_SONGS_BOT_TOKEN
     if not tok:
         return "NOT_SET"
     if len(tok) < 10:

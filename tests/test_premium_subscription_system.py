@@ -12,7 +12,10 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-import stripe
+try:
+    import stripe
+except ImportError:
+    stripe = None
 
 import music_bot.config as config
 from music_bot.database.db import MusicDatabase
@@ -22,6 +25,11 @@ from music_bot.services.payment_service import PaymentService
 
 class TestPremiumSubscriptionSystem(unittest.IsolatedAsyncioTestCase):
     """Test suite for MusicMaid Premium Subscription and Payment System."""
+
+    @classmethod
+    def setUpClass(cls):
+        if not stripe:
+            raise unittest.SkipTest("Stripe SDK is not installed in this environment.")
 
     async def asyncSetUp(self):
         self.temp_dir = tempfile.mkdtemp()

@@ -86,8 +86,21 @@ def mock_bot():
 
 
 @pytest.fixture
-def music_api(mock_bot):
-    router = MusicApiRouter(auth_manager=None, bot=mock_bot)
+def mock_auth_manager():
+    auth = MagicMock()
+    auth.get_session_from_request = AsyncMock(return_value={
+        "user_id": 1457380609641938981,
+        "username": "KishoreDev",
+        "is_owner": True,
+        "is_admin": True,
+        "guilds": [{"id": "1525030316845301781", "name": "Test Guild"}],
+    })
+    return auth
+
+
+@pytest.fixture
+def music_api(mock_bot, mock_auth_manager):
+    router = MusicApiRouter(auth_manager=mock_auth_manager, bot=mock_bot)
     router.db = mock_bot.db
     router._db_connected = True
 

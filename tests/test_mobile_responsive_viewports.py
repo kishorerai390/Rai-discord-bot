@@ -129,6 +129,8 @@ class TestMobileResponsiveViewports(unittest.IsolatedAsyncioTestCase):
 
         # Initialize web server
         self.server = RaiCommunityOSServer(bot=None, db=self.db, port=self.server_port)
+        self.server.api_router.auth._client_id = "mock_client_id_for_testing"
+        self.server.api_router.auth._client_secret = "mock_client_secret_for_testing"
         app = web.Application()
         self.server.setup_routes(app)
 

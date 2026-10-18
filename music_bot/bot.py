@@ -343,6 +343,42 @@ class NekoSongsBot(commands.Bot):
     async def before_maintenance(self) -> None:
         await self.wait_until_ready()
 
+    async def on_resumed(self) -> None:
+        """Handle Discord Gateway session resumption cleanly and resynchronize presence and voice state."""
+        latency_ms = (self.latency * 1000.0) if self.latency is not None else 0.0
+        logger.info(f"✦ [Gateway Resumed] Discord Gateway session successfully resumed (latency: {latency_ms:.1f}ms). ✦")
+        try:
+            from music_bot.services.presence_service import DynamicPresenceService
+            await DynamicPresenceService.sync_presence(self, force=True)
+        except Exception as pres_err:
+            logger.debug(f"[Presence] Resumption presence sync notice: {pres_err}")
+
+        # Audit active sessions to verify voice state synchronization
+        try:
+            for session in self.session_manager.get_all_sessions():
+                vc = session.voice_client
+                if vc and not vc.is_connected() and not getattr(session, "is_intentional_stop", False):
+                    guild = self.get_guild(session.guild_id)
+                    actual_vc = guild.voice_client if guild else None
+                    if actual_vc and actual_vc.is_connected():
+                        session.voice_client = actual_vc
+                        logger.info(f"[Gateway Resumed] Resynchronized VoiceClient for guild {session.guild_id}.")
+        except Exception as audit_err:
+            logger.debug(f"[Gateway Resumed] Session audit notice: {audit_err}")
+
+    async def on_disconnect(self) -> None:
+        """Handle Discord Gateway disconnection notice without leaking sensitive data."""
+        logger.warning("✦ [Gateway Disconnected] Lost connection to Discord Gateway. Reconnect loop active... ✦")
+
+    async def on_error(self, event_method: str, *args: Any, **kwargs: Any) -> None:
+        """Sanitized global event error handler redacting sensitive configuration."""
+        import sys
+        import re
+        exc_type, exc_val, exc_tb = sys.exc_info()
+        clean_err = str(exc_val or "Event error")
+        clean_err = re.sub(r"[a-zA-Z0-9_\-]{24,}\.[a-zA-Z0-9_\-]{6}\.[a-zA-Z0-9_\-]{27,}", "[REDACTED_BOT_TOKEN]", clean_err)
+        logger.error(f"[Gateway Event Error] Unhandled exception in '{event_method}': {clean_err}", exc_info=(exc_type, exc_val, exc_tb))
+
     async def on_ready(self) -> None:
         logger.info(
             f"🎵 {BOT_NAME} online as {self.user.name}#{self.user.discriminator} (ID: {self.user.id})"

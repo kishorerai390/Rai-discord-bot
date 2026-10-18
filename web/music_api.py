@@ -370,6 +370,7 @@ class MusicApiRouter:
                 "twenty_four_seven": is_247_enabled,
                 "voice_channel_id": str(vc_id) if vc_id else None,
                 "voice_channel_name": vc_name,
+                "channel_name": vc_name,
                 "voice_status": voice_status,
                 "sleep_timer_end": int(session.sleep_timer_end) if getattr(session, "sleep_timer_end", 0) > 0 else None,
                 "sleep_timer_seconds": max(0, int(session.sleep_timer_end - time.time())) if getattr(session, "sleep_timer_end", 0) > time.time() else None,
@@ -410,6 +411,7 @@ class MusicApiRouter:
                     "twenty_four_seven": is_247_enabled,
                     "voice_channel_id": str(db_session.voice_channel_id) if db_session.voice_channel_id else None,
                     "voice_channel_name": vc_name,
+                    "channel_name": vc_name,
                     "voice_status": voice_status,
                     "last_error": None,
                     "permissions": perms,
@@ -694,7 +696,9 @@ class MusicApiRouter:
                         return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "Nothing is currently playing to pause"})
                     success, msg = await MusicPlayerService.pause(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "failed", "message": msg})
-                    return json_success({"action_id": action_id, "action": action, "status": "PAUSED" if success else "NOOP", "message": msg})
+                    if not success:
+                        return json_error("PAUSE_FAILED", msg)
+                    return json_success({"action_id": action_id, "action": action, "status": "PAUSED", "message": msg})
 
                 elif action == "RESUME":
                     if not session.has_active_track and session.queue:
@@ -705,19 +709,25 @@ class MusicApiRouter:
                         return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "Queue is empty. Search a song to play! 🎵"})
                     success, msg = await MusicPlayerService.resume(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "resumed" if success else "failed", "message": msg})
-                    return json_success({"action_id": action_id, "action": action, "status": "RESUMED" if success else "NOOP", "message": msg})
+                    if not success:
+                        return json_error("RESUME_FAILED", msg)
+                    return json_success({"action_id": action_id, "action": action, "status": "RESUMED", "message": msg})
 
                 elif action == "SKIP":
                     if not session.has_active_track and not session.queue:
                         return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "No track in queue to skip"})
                     success, msg, next_t = await MusicPlayerService.skip(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "skipped" if success else "failed", "message": msg})
+                    if not success:
+                        return json_error("SKIP_FAILED", msg)
                     return json_success({"action_id": action_id, "action": action, "status": "SKIPPED", "message": msg, "next_track": next_t.title if next_t else None})
 
                 elif action == "PREVIOUS":
                     success, msg, prev_t = await MusicPlayerService.previous(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "previous" if success else "failed", "message": msg})
-                    return json_success({"action_id": action_id, "action": action, "status": "PREVIOUS" if success else "NOOP", "message": msg, "track": prev_t.title if prev_t else None})
+                    if not success:
+                        return json_error("PREVIOUS_FAILED", msg)
+                    return json_success({"action_id": action_id, "action": action, "status": "PREVIOUS", "message": msg, "track": prev_t.title if prev_t else None})
 
                 elif action == "SEEK":
                     target = int(payload.get("seconds", 0))
@@ -1105,17 +1115,38 @@ class MusicApiRouter:
         playing = sm.get_playing_sessions_count() if hasattr(sm, "get_playing_sessions_count") else 1
 
         heartbeat = await self.db.get_latest_heartbeat()
+        bot_user_name = (str(self.bot.user) if (self.bot and getattr(self.bot, "user", None)) else "MusicMaid#4596")
+        latency_val = 0.5
+        if self.bot and getattr(self.bot, "latency", None) is not None:
+            raw_lat = self.bot.latency
+            if raw_lat and raw_lat > 0:
+                latency_val = round(raw_lat * 1000.0, 1)
+
+        mem_val = 42.5
+        try:
+            import psutil
+            mem_val = round(psutil.Process().memory_info().rss / (1024 * 1024), 1)
+        except Exception:
+            pass
+
+        yt_ver = "2026.08.19"
+        try:
+            import yt_dlp
+            yt_ver = yt_dlp.version.__version__
+        except Exception:
+            pass
+
         data = {
             "status": "ONLINE",
-            "bot_name": "MusicMaid#4596",
+            "bot_name": bot_user_name,
             "version": heartbeat.version if heartbeat else "v2026.4.12",
-            "gateway_latency_ms": 0.5,
-            "reaction_time_ms": 0.5,
+            "gateway_latency_ms": latency_val,
+            "reaction_time_ms": latency_val,
             "active_sessions": active,
             "playing_sessions": playing,
             "audio_backend": "discord.FFmpegPCMAudio + PyNaCl (320kbps Opus)",
-            "memory_usage_mb": 42.5,
-            "yt_dlp_version": "2026.08.19",
+            "memory_usage_mb": mem_val,
+            "yt_dlp_version": yt_ver,
             "ejs_solver": "Active (Node.js vm2 v0.8.0)",
             "last_heartbeat": heartbeat.last_heartbeat if heartbeat else None,
         }
@@ -1271,6 +1302,17 @@ class MusicApiRouter:
             if mood_val in ["balanced", "energetic", "chill", "gaming", "party", "lofi"]:
                 session.dj_mood = mood_val
 
+        # Persist to database
+        try:
+            dj_set = await self.db.get_dj_settings(guild_id)
+            if "enabled" in body:
+                dj_set.enabled = session.dj_enabled
+            if "mood" in body and hasattr(session, "dj_mood"):
+                dj_set.recommendation_mode = session.dj_mood
+            await self.db.update_dj_settings(dj_set)
+        except Exception as dj_db_err:
+            logger.debug(f"[AutoDJ] Error persisting DJ settings to DB: {dj_db_err}")
+
         # Broadcast update
         try:
             from web.realtime import RealtimeGateway
@@ -1405,6 +1447,25 @@ class MusicApiRouter:
             settings.natural_requests_enabled = bool(body["natural_requests_enabled"])
 
         await self.db.update_guild_settings(settings)
+
+        # Synchronize live in-memory session if active
+        if self.bot and hasattr(self.bot, "session_manager"):
+            try:
+                active_session = self.bot.session_manager.get_session_sync(guild_id)
+                if active_session:
+                    if "default_volume" in body:
+                        active_session.volume = settings.default_volume
+                        if active_session.voice_client and getattr(active_session.voice_client, "source", None):
+                            src = active_session.voice_client.source
+                            if hasattr(src, "volume"):
+                                src.volume = settings.default_volume / 100.0
+                    if "twenty_four_seven_enabled" in body:
+                        active_session.twenty_four_seven = settings.twenty_four_seven_enabled
+                    if "autoplay_enabled" in body:
+                        active_session.autoplay = settings.autoplay_enabled
+            except Exception as sess_sync_err:
+                logger.debug(f"[Settings] In-memory session sync notice: {sess_sync_err}")
+
         return json_success({"message": "Guild settings updated successfully", "guild_id": str(guild_id)})
 
     # ==========================================

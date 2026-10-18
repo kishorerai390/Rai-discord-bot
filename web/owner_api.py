@@ -106,8 +106,12 @@ class OwnerApiRouter:
         started_at = getattr(self.bot, "started_at", None) or time.time()
         uptime_seconds = int(time.time() - started_at)
 
-        # Gateway ping & reaction time: sub-millisecond precision (0.5 ms ultra-low latency)
+        # Gateway ping: measure live Discord Gateway latency when available
         latency_ms = 0.5
+        if self.bot and getattr(self.bot, "latency", None) is not None:
+            raw_lat = self.bot.latency
+            if raw_lat and raw_lat > 0:
+                latency_ms = round(raw_lat * 1000.0, 1)
 
         # Active voice sessions
         active_sessions = 0
@@ -121,7 +125,7 @@ class OwnerApiRouter:
 
         guilds_count = len(self.bot.guilds) if self.bot and hasattr(self.bot, "guilds") else 0
 
-        git_commit = os.getenv("RENDER_GIT_COMMIT") or "22cb29e"
+        git_commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "staging"
 
         return web.json_response({
             "success": True,

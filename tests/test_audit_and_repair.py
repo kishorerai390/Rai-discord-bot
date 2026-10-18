@@ -213,3 +213,18 @@ class TestAuditAndRepairSuite(unittest.IsolatedAsyncioTestCase):
             "guild_id": 1525030316845301781,
         }, cookies=cookies)
         self.assertEqual(resp.status, 400)
+
+    async def test_17_cors_middleware_raises_http_exception_without_deprecation_warning(self):
+        """Verify cors_middleware re-raises HTTP exceptions to prevent aiohttp #2415 deprecation warnings."""
+        import warnings
+        with warnings.catch_warnings(record=True) as recorded_warnings:
+            warnings.simplefilter("always", DeprecationWarning)
+            resp = await self.client.post("/api/music/control", json={"action": "PAUSE"})
+            self.assertEqual(resp.status, 401)
+            self.assertIn("Access-Control-Allow-Origin", resp.headers)
+
+            http_exc_warnings = [
+                w for w in recorded_warnings
+                if issubclass(w.category, DeprecationWarning) and "returning HTTPException" in str(w.message)
+            ]
+            self.assertEqual(len(http_exc_warnings), 0)
