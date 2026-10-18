@@ -2029,7 +2029,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.25), rgba(88,101,242,0.1)); border:1px solid rgba(88,101,242,0.5); color:#fff; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Add MusicMaid to your server">
           <span>➕ Add Bot</span>
         </a>
-        <a href="https://discord.gg/raicommunity" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
+        <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
           <span>💬 Community</span>
         </a>
       </div>
@@ -3273,7 +3273,7 @@ UI_HTML = r"""<!DOCTYPE html>
               </p>
               <div style="display:flex; gap:0.5rem; margin-top:0.8rem; flex-wrap:wrap;">
                 <button class="muify-promo-btn" onclick="navigate('/premium')" style="padding:0.55rem 1rem; font-size:0.82rem; font-weight:700;">Support with VIP 💎</button>
-                <a href="https://discord.gg/raicommunity" target="_blank" rel="noopener" style="padding:0.55rem 0.9rem; font-size:0.82rem; font-weight:700; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-sm); color:#fff; text-decoration:none; display:inline-flex; align-items:center;">Discord Chat 💬</a>
+                <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="padding:0.55rem 0.9rem; font-size:0.82rem; font-weight:700; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-sm); color:#fff; text-decoration:none; display:inline-flex; align-items:center;">Discord Chat 💬</a>
               </div>
             </div>
 
