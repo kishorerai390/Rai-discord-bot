@@ -537,9 +537,16 @@ class MusicPlayerService:
                 vc_ch = session.voice_client.channel
                 if hasattr(vc_ch, "set_status"):
                     try:
-                        asyncio.create_task(vc_ch.set_status(f"▶ {track.title[:50]}", reason="Neko Songs Now Playing"))
+                        asyncio.create_task(vc_ch.set_status(f"▶ {track.title[:50]}", reason="MusicMaid Now Playing"))
                     except Exception:
                         pass
+
+            # Dynamic Presence Sync (Phase 3)
+            try:
+                from music_bot.services.presence_service import DynamicPresenceService
+                asyncio.create_task(DynamicPresenceService.sync_presence(bot))
+            except Exception:
+                pass
 
             return True
 
@@ -814,6 +821,11 @@ class MusicPlayerService:
 
             # Queue empty and no autoplay -> transition to IDLE cleanly
             session.reset()
+            try:
+                from music_bot.services.presence_service import DynamicPresenceService
+                asyncio.create_task(DynamicPresenceService.sync_presence(bot))
+            except Exception:
+                pass
             if bot.db:
                 try:
                     await bot.db.delete_session(session.guild_id)
@@ -1368,6 +1380,16 @@ class MusicPlayerService:
         session.pause_time = time.time()
         session.state = PlaybackState.PAUSED
         await cls.send_now_playing_panel(session)
+
+        # Dynamic Presence Sync (Phase 3)
+        try:
+            from music_bot.services.presence_service import DynamicPresenceService
+            b_inst = bot if "bot" in locals() and bot else getattr(session, "bot", None)
+            if b_inst:
+                asyncio.create_task(DynamicPresenceService.sync_presence(b_inst))
+        except Exception:
+            pass
+
         return True, "⏸️ Playback paused."
 
     @classmethod
@@ -1409,6 +1431,16 @@ class MusicPlayerService:
             session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
 
         await cls.send_now_playing_panel(session)
+
+        # Dynamic Presence Sync (Phase 3)
+        try:
+            from music_bot.services.presence_service import DynamicPresenceService
+            b_inst = bot if "bot" in locals() and bot else getattr(session, "bot", None)
+            if b_inst:
+                asyncio.create_task(DynamicPresenceService.sync_presence(b_inst))
+        except Exception:
+            pass
+
         return True, "▶️ Playback resumed."
 
     @classmethod
@@ -1498,6 +1530,14 @@ class MusicPlayerService:
             session.reset()
             session.is_intentional_stop = True
             session.is_intentional_disconnect = not is_247
+
+            # Dynamic Presence Sync (Phase 3)
+            try:
+                from music_bot.services.presence_service import DynamicPresenceService
+                if bot:
+                    asyncio.create_task(DynamicPresenceService.sync_presence(bot))
+            except Exception:
+                pass
 
             if bot and getattr(bot, "db", None) and hasattr(bot.db, "delete_session"):
                 try:

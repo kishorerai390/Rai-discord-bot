@@ -366,13 +366,13 @@ class NekoSongsBot(commands.Bot):
             f"PyNaCl: {'LOADED ✅' if has_nacl else 'MISSING ❌'} | "
             f"Opus: {'LOADED ✅' if discord.opus.is_loaded() else 'MISSING ❌'} ✦"
         )
-        await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.listening,
-                name="/music play | Neko Songs 🐱",
-            ),
-            status=discord.Status.online,
-        )
+        # Dynamic Discord Presence Synchronization & Watchdog (Phase 3)
+        try:
+            from music_bot.services.presence_service import DynamicPresenceService
+            await DynamicPresenceService.sync_presence(self, force=True)
+            DynamicPresenceService.start_watchdog(self)
+        except Exception as pres_err:
+            logger.warning(f"[Presence] Initial presence setup error: {pres_err}")
 
         # Public Bot Command Integrity: Commands are registered globally during setup_hook
         logger.info(f"✦ {BOT_NAME} ready across {len(self.guilds)} guilds. Global slash commands active. ✦")

@@ -26,11 +26,13 @@ else:
 # checkout buttons are disabled with friendly guidance, and no real transactions are processed.
 PAYMENTS_ENABLED: bool = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"
 
-# NyxTune & Noctyra Studio Brand Identity
-BOT_NAME: str = "NyxTune"
-STUDIO_BRAND_NAME: str = "Noctyra Studio"
-BOT_BRAND_TAG: str = "✨ NYXTUNE"
-MUSIC_BOT_VERSION: str = "2.3.0"
+# MusicMaid Brand Identity
+BOT_NAME: str = os.getenv("BOT_NAME", "MusicMaid")
+STUDIO_BRAND_NAME: str = "MusicMaid Studios"
+BOT_BRAND_TAG: str = "🎧 MUSICMAID"
+BOT_ABOUT_ME: str = "Your music, your vibe. 🎧"
+BOT_TAGLINE: str = "Your music, your vibe. 🎧"
+MUSIC_BOT_VERSION: str = "2.7.0"
 
 # Import Theme & Emoji Tokens
 from music_bot.theme import (
@@ -54,7 +56,7 @@ COLOR_WHITE: int = 0xFFFFFF
 COLOR_VIOLET_ACCENT: int = COLOR_PRIMARY
 
 # Personality Dialogues
-DIALOGUE_JOIN: str = "✨ NyxTune has entered the listening room!"
+DIALOGUE_JOIN: str = "✨ MusicMaid has entered the listening room!"
 DIALOGUE_START: str = "🎵 Found it! Let's listen."
 DIALOGUE_EMPTY_QUEUE: str = "✨ The queue is empty. Ready for another song!"
 DIALOGUE_UNPLAYABLE: str = "😿 I found the request, but couldn't resolve a playable audio source."

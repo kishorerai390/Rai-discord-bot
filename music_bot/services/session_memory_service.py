@@ -397,6 +397,11 @@ class MusicSessionMemoryService:
                 f"(24/7: {is_247})! Initiating bounded recovery..."
             )
             session.state = PlaybackState.RECOVERING
+            try:
+                from music_bot.services.presence_service import DynamicPresenceService
+                asyncio.create_task(DynamicPresenceService.sync_presence(bot, force=True))
+            except Exception:
+                pass
 
             # 1. Immediate checkpoint of last known position
             try:
@@ -503,6 +508,11 @@ class MusicSessionMemoryService:
             logger.error(f"[SessionMemory] Disconnect recovery handler error for guild {guild_id}: {err}", exc_info=True)
         finally:
             cls._reconnecting_guilds.discard(guild_id)
+            try:
+                from music_bot.services.presence_service import DynamicPresenceService
+                asyncio.create_task(DynamicPresenceService.sync_presence(bot, force=True))
+            except Exception:
+                pass
 
     # =========================================================================
     # 4. STARTUP RECOVERY COORDINATOR (PHASE 4)
