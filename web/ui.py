@@ -2024,6 +2024,17 @@ UI_HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- DYNAMIC VOICE CHANNEL SELECTOR -->
+      <div style="margin: 0.1rem 0 0.55rem 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
+          <span style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim);">Voice Channel</span>
+          <span id="vc-refresh-btn" onclick="fetchVoiceChannels()" style="font-size:0.68rem; color:var(--cyan); cursor:pointer;" title="Refresh voice channels">🔄 Refresh</span>
+        </div>
+        <select id="voice-channel-selector" onchange="onVoiceChannelSelect(this.value)" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-md); color:#fff; padding:0.45rem 0.65rem; font-size:0.78rem; font-weight:600; outline:none; cursor:pointer;">
+          <option value="">🔊 Auto-Detect Channel</option>
+        </select>
+      </div>
+
       <!-- DIRECT DISCORD BOT INVITE & COMMUNITY LINKS -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin:0.4rem 0 0.65rem 0;">
         <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.25), rgba(88,101,242,0.1)); border:1px solid rgba(88,101,242,0.5); color:#fff; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Add MusicMaid to your server">
@@ -2132,6 +2143,8 @@ UI_HTML = r"""<!DOCTYPE html>
 
     <!-- RIGHT: VOLUME & QUICK TOGGLES -->
     <div class="player-bar-right">
+      <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer">🌙 Sleep</button>
+      <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics">🎤 Lyrics</button>
       <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence">24/7 OFF</button>
       <div class="vol-wrapper">
         <span style="font-size:0.9rem; color:var(--text-dim);" id="vol-icon" onclick="quickMute()">🔊</span>
@@ -2222,7 +2235,50 @@ UI_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- SLEEP TIMER MODAL -->
+  <div class="modal-backdrop" id="sleep-modal">
+    <div class="modal-content" style="max-width:440px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+        <div class="section-title" style="font-size:1.2rem;"><span>🌙</span> Bedtime Sleep Timer</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeSleepTimerModal()">✕</button>
+      </div>
+      <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1.2rem;">
+        Automatically fade out volume and disconnect MusicMaid so you can fall asleep peacefully:
+      </p>
+      <div class="eq-grid" style="grid-template-columns:repeat(2, 1fr); gap:0.6rem; margin-bottom:1.2rem;">
+        <div class="eq-chip" onclick="setWebSleepTimer(15)">⏱️ 15 Minutes</div>
+        <div class="eq-chip" onclick="setWebSleepTimer(30)">⏱️ 30 Minutes</div>
+        <div class="eq-chip" onclick="setWebSleepTimer(45)">⏱️ 45 Minutes</div>
+        <div class="eq-chip" onclick="setWebSleepTimer(60)">⏱️ 60 Minutes</div>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <button class="btn btn-danger btn-sm" onclick="setWebSleepTimer(0)">❌ Cancel Timer</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeSleepTimerModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LYRICS MODAL -->
+  <div class="modal-backdrop" id="lyrics-modal">
+    <div class="modal-content" style="max-width:600px; max-height:85vh; display:flex; flex-direction:column;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
+        <div>
+          <div class="section-title" style="font-size:1.2rem;" id="lyrics-title"><span>🎤</span> Track Lyrics</div>
+          <div style="font-size:0.75rem; color:var(--text-muted);" id="lyrics-artist">Fetching lyrics...</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeLyricsModal()">✕</button>
+      </div>
+      <div id="lyrics-body" style="font-size:0.92rem; line-height:1.7; color:#e2e8f0; white-space:pre-wrap; overflow-y:auto; padding:1rem; background:rgba(0,0,0,0.25); border-radius:var(--radius-md); border:1px solid rgba(255,255,255,0.08); flex:1; max-height:55vh;">
+        Loading lyrics...
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-top:0.8rem;">
+        <button class="btn btn-secondary btn-sm" onclick="closeLyricsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    let selectedVoiceChannelId = localStorage.getItem('rai_selected_voice_channel') || '';
     // =========================================================================
     // GLOBAL STATE & DISCORD BOT SYNCHRONIZATION ENGINE
     // =========================================================================
@@ -2267,6 +2323,102 @@ UI_HTML = r"""<!DOCTYPE html>
       showToast(`Triggering '${name}' in voice channel...`);
       quickEnqueueMood(query);
       closeSoundboardModal();
+    }
+
+    function openSleepTimerModal() {
+      document.getElementById('sleep-modal')?.classList.add('open');
+    }
+    function closeSleepTimerModal() {
+      document.getElementById('sleep-modal')?.classList.remove('open');
+    }
+    async function setWebSleepTimer(minutes) {
+      closeSleepTimerModal();
+      try {
+        const res = await fetch('/api/music/sleep-timer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ guild_id: currentGuildId, minutes: minutes })
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast(json.data.message || (minutes > 0 ? `Sleep timer set for ${minutes}m 🌙` : "Sleep timer cancelled ⏰"));
+          await syncSession();
+        } else {
+          showToast(json.error?.message || "Failed to set sleep timer", "danger");
+        }
+      } catch(e) {
+        showToast("Error communicating with sleep timer service", "danger");
+      }
+    }
+
+    async function openLyricsModal() {
+      const modal = document.getElementById('lyrics-modal');
+      if (!modal) return;
+      modal.classList.add('open');
+      const titleEl = document.getElementById('lyrics-title');
+      const artistEl = document.getElementById('lyrics-artist');
+      const bodyEl = document.getElementById('lyrics-body');
+
+      const t = currentSession?.current_track;
+      if (!t) {
+        if (titleEl) titleEl.innerHTML = '<span>🎤</span> Track Lyrics';
+        if (artistEl) artistEl.innerText = 'No track currently playing';
+        if (bodyEl) bodyEl.innerText = 'Play a track in voice to view live lyrics.';
+        return;
+      }
+
+      if (titleEl) titleEl.innerHTML = `<span>🎤</span> ${t.title}`;
+      if (artistEl) artistEl.innerText = t.artist || "Unknown Artist";
+      if (bodyEl) bodyEl.innerText = 'Searching lyrics database...';
+
+      try {
+        const q = encodeURIComponent(`${t.title} ${t.artist || ''}`);
+        const res = await fetch(`/api/music/lyrics?guild_id=${currentGuildId}&q=${q}`);
+        const json = await res.json();
+        if (json.success && json.data && json.data.lyrics) {
+          if (bodyEl) bodyEl.innerText = json.data.lyrics;
+        } else {
+          if (bodyEl) bodyEl.innerText = `No synced lyrics found for "${t.title}".\n\nEnjoy the music! 🎵`;
+        }
+      } catch(e) {
+        if (bodyEl) bodyEl.innerText = 'Unable to fetch lyrics at this moment.';
+      }
+    }
+    function closeLyricsModal() {
+      document.getElementById('lyrics-modal')?.classList.remove('open');
+    }
+
+    async function fetchVoiceChannels() {
+      try {
+        const sel = document.getElementById('voice-channel-selector');
+        if (!sel) return;
+        const res = await fetch(`/api/music/voice-channels?guild_id=${currentGuildId}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const channels = json.data.channels || [];
+          sel.innerHTML = '<option value="">🔊 Auto-Detect Channel</option>';
+          channels.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch.id;
+            const listenerTag = ch.listeners > 0 ? ` (${ch.listeners} listening)` : '';
+            const curTag = ch.is_current ? ' ★ Connected' : '';
+            opt.textContent = `🔊 #${ch.name}${listenerTag}${curTag}`;
+            if (selectedVoiceChannelId === ch.id || (!selectedVoiceChannelId && ch.is_current)) {
+              opt.selected = true;
+            }
+            sel.appendChild(opt);
+          });
+        }
+      } catch(e) {}
+    }
+
+    async function onVoiceChannelSelect(chId) {
+      selectedVoiceChannelId = chId || '';
+      localStorage.setItem('rai_selected_voice_channel', selectedVoiceChannelId);
+      if (chId) {
+        showToast("Connecting to selected voice channel... 🔊", "info");
+        await dispatchCmd('CONNECT_VOICE', { channel_id: chId });
+      }
     }
 
     // =========================================================================
@@ -2727,7 +2879,7 @@ UI_HTML = r"""<!DOCTYPE html>
     // CORE SYNC & DATA FETCHING
     // =========================================================================
     async function syncAll() {
-      await Promise.all([syncSession(), syncQueue(), syncFavorites()]);
+      await Promise.all([syncSession(), syncQueue(), syncFavorites(), fetchVoiceChannels()]);
       updateActiveView();
     }
 
@@ -2817,6 +2969,19 @@ UI_HTML = r"""<!DOCTYPE html>
       pill247.innerText = currentSession.twenty_four_seven ? "24/7 ON" : "24/7 OFF";
       pill247.className = "chip-pill " + (currentSession.twenty_four_seven ? "active" : "");
 
+      // Sleep Timer pill
+      const sleepBtn = document.getElementById('btn-sleep-pill');
+      if (sleepBtn) {
+        if (currentSession && currentSession.sleep_timer_seconds) {
+          const m = Math.ceil(currentSession.sleep_timer_seconds / 60);
+          sleepBtn.innerText = `🌙 ${m}m`;
+          sleepBtn.className = "chip-pill active";
+        } else {
+          sleepBtn.innerText = "🌙 Sleep";
+          sleepBtn.className = "chip-pill";
+        }
+      }
+
       // Voice connection state synchronization
       const vStatus = currentSession.voice_status || (currentSession.voice_channel_name ? "Connected" : "Disconnected");
       const vName = currentSession.voice_channel_name;
@@ -2877,6 +3042,10 @@ UI_HTML = r"""<!DOCTYPE html>
         return; // Prevent duplicate concurrent requests
       }
       pendingActions.add(action);
+
+      if (selectedVoiceChannelId && !payload.channel_id) {
+        payload.channel_id = selectedVoiceChannelId;
+      }
 
       try {
         const token = localStorage.getItem('rai_session_token') || sessionToken || '';

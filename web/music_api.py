@@ -281,8 +281,9 @@ class MusicApiRouter:
                 "twenty_four_seven": is_247_enabled,
                 "voice_channel_id": str(vc_id) if vc_id else None,
                 "voice_channel_name": vc_name,
-                "channel_name": vc_name,
                 "voice_status": voice_status,
+                "sleep_timer_end": int(session.sleep_timer_end) if getattr(session, "sleep_timer_end", 0) > 0 else None,
+                "sleep_timer_seconds": max(0, int(session.sleep_timer_end - time.time())) if getattr(session, "sleep_timer_end", 0) > time.time() else None,
                 "last_error": getattr(session, "last_error", None),
                 "permissions": perms,
             }
@@ -505,57 +506,77 @@ class MusicApiRouter:
             from music_bot.services.player_service import MusicPlayerService
             from music_bot.services.voice_service import VoiceManager
             try:
-                # Helper: attempt connecting to user's or active listener voice channel if bot is disconnected
-                async def _ensure_voice():
-                    if (not session.voice_client or not session.voice_client.is_connected()) and self.bot:
-                        g_obj = self.bot.get_guild(int(guild_id_val))
-                        if g_obj:
+                # Helper: attempt connecting to user's or selected voice channel if bot is disconnected or requested channel change
+                async def _ensure_voice(requested_ch_id: Optional[Union[int, str]] = None):
+                    g_obj = self.bot.get_guild(int(guild_id_val)) if self.bot else None
+                    if not g_obj:
+                        return
+
+                    target_ch = None
+                    if requested_ch_id:
+                        try:
+                            candidate = g_obj.get_channel(int(requested_ch_id))
+                            if candidate and VoiceManager.is_valid_music_voice_channel(candidate):
+                                target_ch = candidate
+                        except Exception:
                             target_ch = None
-                            # 1. Try to find user's current voice channel
-                            if user_id:
-                                m_obj = g_obj.get_member(user_id)
-                                if m_obj and m_obj.voice and m_obj.voice.channel:
-                                    target_ch = m_obj.voice.channel
 
-                            # 2. Try saved 24/7 channel
-                            if not target_ch and self.bot.db:
-                                try:
-                                    g_set = await self.bot.db.get_guild_settings(g_obj.id)
-                                    if g_set and g_set.twenty_four_seven_channel_id:
-                                        candidate = g_obj.get_channel(g_set.twenty_four_seven_channel_id)
-                                        if candidate and VoiceManager.is_valid_music_voice_channel(candidate):
-                                            target_ch = candidate
-                                except Exception:
-                                    pass
+                    # If already connected, but user explicitly selected a different channel, move there!
+                    if session.voice_client and session.voice_client.is_connected() and target_ch:
+                        if session.voice_client.channel and session.voice_client.channel.id != target_ch.id:
+                            try:
+                                await session.voice_client.move_to(target_ch)
+                                return
+                            except Exception as move_err:
+                                logger.warning(f"[Voice] Move channel failed: {move_err}")
 
-                            # 3. Look for active listening room with humans
-                            if not target_ch:
-                                for ch in g_obj.voice_channels:
-                                    if any(not m.bot for m in ch.members) and VoiceManager.is_valid_music_voice_channel(ch):
-                                        target_ch = ch
-                                        break
+                    if not session.voice_client or not session.voice_client.is_connected():
+                        # 1. Try to find user's current voice channel
+                        if not target_ch and user_id:
+                            m_obj = g_obj.get_member(user_id)
+                            if m_obj and m_obj.voice and m_obj.voice.channel:
+                                target_ch = m_obj.voice.channel
 
-                            # 4. Look for general music channel
-                            if not target_ch:
-                                for ch in g_obj.voice_channels:
-                                    if any(term in ch.name.lower() for term in ["general", "music", "lounge"]) and VoiceManager.is_valid_music_voice_channel(ch):
-                                        target_ch = ch
-                                        break
+                        # 2. Try saved 24/7 channel
+                        if not target_ch and self.bot.db:
+                            try:
+                                g_set = await self.bot.db.get_guild_settings(g_obj.id)
+                                if g_set and g_set.twenty_four_seven_channel_id:
+                                    candidate = g_obj.get_channel(g_set.twenty_four_seven_channel_id)
+                                    if candidate and VoiceManager.is_valid_music_voice_channel(candidate):
+                                        target_ch = candidate
+                            except Exception:
+                                pass
 
-                            if target_ch:
-                                try:
-                                    reconnected_vc = await VoiceManager.join_voice_channel(
-                                        g_obj.me, session.text_channel, session, target_channel=target_ch
-                                    )
-                                    if reconnected_vc:
-                                        session.voice_client = reconnected_vc
-                                        session.is_intentional_stop = False
-                                        session.is_intentional_disconnect = False
-                                except Exception as join_err:
-                                    logger.warning(f"[Voice] Auto voice join failed: {join_err}")
+                        # 3. Look for active listening room with humans
+                        if not target_ch:
+                            for ch in g_obj.voice_channels:
+                                if any(not m.bot for m in ch.members) and VoiceManager.is_valid_music_voice_channel(ch):
+                                    target_ch = ch
+                                    break
 
+                        # 4. Look for general music channel
+                        if not target_ch:
+                            for ch in g_obj.voice_channels:
+                                if any(term in ch.name.lower() for term in ["general", "music", "lounge"]) and VoiceManager.is_valid_music_voice_channel(ch):
+                                    target_ch = ch
+                                    break
+
+                        if target_ch:
+                            try:
+                                reconnected_vc = await VoiceManager.join_voice_channel(
+                                    g_obj.me, session.text_channel, session, target_channel=target_ch
+                                )
+                                if reconnected_vc:
+                                    session.voice_client = reconnected_vc
+                                    session.is_intentional_stop = False
+                                    session.is_intentional_disconnect = False
+                            except Exception as join_err:
+                                logger.warning(f"[Voice] Auto voice join failed: {join_err}")
+
+                req_channel_id = payload.get("channel_id")
                 if action in ("CONNECT_VOICE", "JOIN_VOICE"):
-                    await _ensure_voice()
+                    await _ensure_voice(req_channel_id)
                     vc_name = session.voice_channel_name or (session.voice_client.channel.name if session.voice_client and session.voice_client.channel else None)
                     is_conn = bool(session.voice_client and session.voice_client.is_connected())
                     msg = f"Connected to #{vc_name} 🔊" if is_conn else "Could not find an accessible voice channel to join."
@@ -664,7 +685,7 @@ class MusicApiRouter:
                     title_hint = payload.get("title", "").strip() or None
                     artist_hint = payload.get("artist", "").strip() or None
                     if query:
-                        await _ensure_voice()
+                        await _ensure_voice(req_channel_id)
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(
                             query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
@@ -688,7 +709,7 @@ class MusicApiRouter:
                     title_hint = payload.get("title", "").strip() or None
                     artist_hint = payload.get("artist", "").strip() or None
                     if query:
-                        await _ensure_voice()
+                        await _ensure_voice(req_channel_id)
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(
                             query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
@@ -707,7 +728,7 @@ class MusicApiRouter:
                     title_hint = payload.get("title", "").strip() or None
                     artist_hint = payload.get("artist", "").strip() or None
                     if query:
-                        await _ensure_voice()
+                        await _ensure_voice(req_channel_id)
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(
                             query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
@@ -1253,3 +1274,119 @@ class MusicApiRouter:
 
         await self.db.update_guild_settings(settings)
         return json_success({"message": "Guild settings updated successfully", "guild_id": str(guild_id)})
+
+    # ==========================================
+    # 7. VOICE CHANNELS DISCOVERY & SLEEP TIMER
+    # ==========================================
+    async def get_voice_channels(self, request: web.Request) -> web.Response:
+        """Fetch all available, connectable voice channels for the given guild."""
+        guild_id_str = request.query.get("guild_id", "").strip()
+        if not guild_id_str or not guild_id_str.isdigit():
+            return json_error("INVALID_GUILD", "Valid numeric guild_id parameter is required", 400)
+
+        guild_id = int(guild_id_str)
+        if not self.bot:
+            return json_success({"channels": []})
+
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            return json_success({"channels": []})
+
+        from music_bot.services.voice_service import VoiceManager
+
+        channels_data = []
+        bot_voice_channel_id = guild.me.voice.channel.id if (guild.me and guild.me.voice and guild.me.voice.channel) else None
+
+        for vc in guild.voice_channels:
+            if not VoiceManager.is_valid_music_voice_channel(vc):
+                continue
+            perms = vc.permissions_for(guild.me) if guild.me else None
+            can_connect = bool(perms and perms.connect)
+            can_speak = bool(perms and perms.speak)
+            human_count = sum(1 for m in vc.members if not m.bot)
+            is_current = (vc.id == bot_voice_channel_id)
+
+            channels_data.append({
+                "id": str(vc.id),
+                "name": vc.name,
+                "listeners": human_count,
+                "user_limit": vc.user_limit or 0,
+                "is_current": is_current,
+                "can_connect": can_connect and can_speak,
+            })
+
+        # Sort so current channel is first, then channels with listeners, then by name
+        channels_data.sort(key=lambda c: (not c["is_current"], -c["listeners"], c["name"]))
+        return json_success({"channels": channels_data, "current_channel_id": str(bot_voice_channel_id) if bot_voice_channel_id else None})
+
+    async def set_sleep_timer(self, request: web.Request) -> web.Response:
+        """Set, update, or cancel playback sleep timer from the web dashboard."""
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("INVALID_JSON", "Request body must be valid JSON", 400)
+
+        guild_id_raw = str(body.get("guild_id", "")).strip()
+        if not guild_id_raw.isdigit():
+            return json_error("INVALID_GUILD_ID", "guild_id must be a numeric Discord ID", 400)
+
+        guild_id = int(guild_id_raw)
+        minutes = int(body.get("minutes", 0))
+
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+        if not session and self.bot and hasattr(self.bot, "session_manager"):
+            try:
+                res = self.bot.session_manager.get_session(guild_id)
+                session = await res if inspect.isawaitable(res) else res
+            except Exception:
+                session = None
+
+        if not session:
+            return json_error("NO_SESSION", "No active session found for guild", 404)
+
+        # Cancel existing timer
+        if session.sleep_timer_task and not session.sleep_timer_task.done():
+            session.sleep_timer_task.cancel()
+            session.sleep_timer_task = None
+        session.sleep_timer_end = 0.0
+
+        if minutes <= 0:
+            return json_success({"status": "CANCELLED", "message": "Sleep timer cancelled ⏰", "remaining_seconds": None})
+
+        total_seconds = minutes * 60
+        end_timestamp = time.time() + total_seconds
+        session.sleep_timer_end = end_timestamp
+
+        async def _web_sleep_worker():
+            try:
+                fade_start = max(0, total_seconds - 30)
+                await asyncio.sleep(fade_start)
+                if session.voice_client and session.voice_client.is_playing() and hasattr(session.voice_client.source, "volume"):
+                    orig_vol = session.voice_client.source.volume
+                    for step in (0.75, 0.50, 0.25, 0.05):
+                        try:
+                            session.voice_client.source.volume = orig_vol * step
+                        except Exception:
+                            pass
+                        await asyncio.sleep(7.5)
+                if session.voice_client and session.voice_client.is_connected():
+                    session.queue.clear()
+                    session.voice_client.stop()
+                    session.reset()
+                if session.text_channel:
+                    try:
+                        await session.text_channel.send("🌙 **Sleep Timer Finished:** Music gently stopped. Goodnight! 💤")
+                    except Exception:
+                        pass
+            except asyncio.CancelledError:
+                pass
+
+        session.sleep_timer_task = asyncio.create_task(_web_sleep_worker())
+        return json_success({
+            "status": "SET",
+            "minutes": minutes,
+            "remaining_seconds": total_seconds,
+            "end_timestamp": int(end_timestamp),
+            "message": f"Sleep timer set for {minutes} minutes! 🌙",
+        })

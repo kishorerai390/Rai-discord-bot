@@ -451,6 +451,8 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
         app.router.add_get("/api/music/guild-settings", m.get_guild_settings)
         app.router.add_post("/api/music/guild-settings", m.update_guild_settings)
+        app.router.add_get("/api/music/voice-channels", m.get_voice_channels)
+        app.router.add_post("/api/music/sleep-timer", m.set_sleep_timer)
 
         # Premium Subscription & Payment API (Razorpay & Stripe)
         p = self.payment_router
