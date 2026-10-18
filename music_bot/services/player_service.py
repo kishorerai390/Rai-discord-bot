@@ -460,6 +460,7 @@ class MusicPlayerService:
         except Exception as e:
             logger.error(f"Failed to play track in guild {session.guild_id}: {e}", exc_info=True)
             session.state = PlaybackState.ERROR
+            session.last_error = f"Playback start error: {e}"
             return False
 
     @classmethod
@@ -512,6 +513,7 @@ class MusicPlayerService:
                 return False
 
             base_before = FFMPEG_OPTIONS.get("before_options", "")
+            resume_before = f"-ss {start_seconds} {base_before}" if start_seconds > 0 else base_before
             ffmpeg_opts = {
                 "executable": get_ffmpeg_executable(),
                 "before_options": resume_before,
