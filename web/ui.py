@@ -2048,7 +2048,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
       <!-- SIDEBAR FOOTER -->
       <div class="sidebar-footer">
-        <div class="voice-badge-card" id="sidebar-voice-pill">
+        <div class="voice-badge-card" id="sidebar-voice-pill" onclick="quickConnectVoice()" title="Click to summon / connect MusicMaid to your voice channel" style="cursor:pointer;">
           <span>🔊</span> <span id="sidebar-vc-text">320kbps Online (Ready)</span>
         </div>
         <div id="auth-box-sidebar">
@@ -2769,9 +2769,13 @@ UI_HTML = r"""<!DOCTYPE html>
       pendingActions.add(action);
 
       try {
+        const token = localStorage.getItem('rai_session_token') || sessionToken || '';
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
         const res = await fetch('/api/music/control', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify({
             guild_id: currentGuildId,
             action: action,
@@ -2791,6 +2795,15 @@ UI_HTML = r"""<!DOCTYPE html>
       } finally {
         setTimeout(() => pendingActions.delete(action), 350);
       }
+    }
+
+    async function quickConnectVoice() {
+      if (!currentGuildId) {
+        showToast("Please select a Discord server first", "warning");
+        return;
+      }
+      showToast("Summoning MusicMaid to voice channel... 🔊", "info");
+      await dispatchCmd('CONNECT_VOICE');
     }
 
     async function togglePlayPause() {

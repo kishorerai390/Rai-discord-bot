@@ -528,6 +528,41 @@ class MusicDatabase:
                 now,
             ))
             await self._db.commit()
+        self._save_persistent_247(settings.guild_id, settings.twenty_four_seven_enabled, settings.twenty_four_seven_channel_id)
+
+    def _save_persistent_247(self, guild_id: int, enabled: bool, channel_id: Optional[int]) -> None:
+        try:
+            p_file = self.db_path.parent / "persistent_247.json"
+            p_file.parent.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if p_file.exists():
+                try:
+                    with open(p_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    data = {}
+            if enabled:
+                data[str(guild_id)] = {
+                    "guild_id": guild_id,
+                    "twenty_four_seven_enabled": True,
+                    "twenty_four_seven_channel_id": channel_id,
+                }
+            else:
+                data.pop(str(guild_id), None)
+            with open(p_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.debug(f"[Database] Note saving persistent 24/7 file: {e}")
+
+    def _load_persistent_247(self) -> dict:
+        try:
+            p_file = self.db_path.parent / "persistent_247.json"
+            if p_file.exists():
+                with open(p_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.debug(f"[Database] Note loading persistent 24/7 file: {e}")
+        return {}
 
     async def get_all_247_guilds(self) -> List[MusicGuildSettings]:
         """Fetch all guilds that have 24/7 mode enabled."""
@@ -561,6 +596,18 @@ class MusicDatabase:
                             twenty_four_seven_enabled=bool(row["twenty_four_seven_enabled"]) if "twenty_four_seven_enabled" in keys else False,
                             twenty_four_seven_channel_id=row["twenty_four_seven_channel_id"] if "twenty_four_seven_channel_id" in keys else None,
                             updated_at=row["updated_at"],
+                        )
+                    )
+        if not results:
+            fallback = self._load_persistent_247()
+            for gid_str, item in fallback.items():
+                if item.get("twenty_four_seven_enabled"):
+                    g_id = int(gid_str)
+                    results.append(
+                        MusicGuildSettings(
+                            guild_id=g_id,
+                            twenty_four_seven_enabled=True,
+                            twenty_four_seven_channel_id=item.get("twenty_four_seven_channel_id"),
                         )
                     )
         return results

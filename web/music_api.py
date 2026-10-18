@@ -708,6 +708,8 @@ class MusicApiRouter:
 
                 elif action == "247_TOGGLE":
                     session.twenty_four_seven = not session.twenty_four_seven
+                    if session.twenty_four_seven:
+                        await _ensure_voice()
                     # Authoritatively update persistent database guild settings
                     if self.bot and getattr(self.bot, "db", None):
                         try:

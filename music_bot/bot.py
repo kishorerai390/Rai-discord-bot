@@ -474,6 +474,16 @@ class NekoSongsBot(commands.Bot):
                         vc_channel = guild.get_channel(target_vc_id) if target_vc_id else None
                         if not vc_channel:
                             for ch in guild.voice_channels:
+                                if any(not m.bot for m in ch.members) and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                                    vc_channel = ch
+                                    break
+                        if not vc_channel:
+                            for ch in guild.voice_channels:
+                                if "general" in ch.name.lower() and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                                    vc_channel = ch
+                                    break
+                        if not vc_channel:
+                            for ch in guild.voice_channels:
                                 if ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
                                     vc_channel = ch
                                     break
@@ -731,6 +741,21 @@ class NekoSongsBot(commands.Bot):
 
         try:
             twenty_four_seven_guilds = await self.db.get_all_247_guilds()
+            active_gids = {g_set.guild_id for g_set in twenty_four_seven_guilds}
+            from music_bot.database.models import MusicGuildSettings
+            for g in self.guilds:
+                if g.id not in active_gids:
+                    s = self.session_manager.get_session_sync(g.id)
+                    if s and getattr(s, "twenty_four_seven", False):
+                        twenty_four_seven_guilds.append(
+                            MusicGuildSettings(
+                                guild_id=g.id,
+                                twenty_four_seven_enabled=True,
+                                twenty_four_seven_channel_id=s.voice_channel_id if hasattr(s, "voice_channel_id") else None,
+                            )
+                        )
+                        active_gids.add(g.id)
+
             for g_set in twenty_four_seven_guilds:
                 guild = self.get_guild(g_set.guild_id)
                 if not guild:
@@ -759,6 +784,16 @@ class NekoSongsBot(commands.Bot):
                         target_vc = await guild.fetch_channel(target_vc_id)
                     except Exception:
                         pass
+                if not target_vc:
+                    for ch in guild.voice_channels:
+                        if any(not m.bot for m in ch.members) and guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                            target_vc = ch
+                            break
+                if not target_vc:
+                    for ch in guild.voice_channels:
+                        if "general" in ch.name.lower() and guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
+                            target_vc = ch
+                            break
                 if not target_vc:
                     for ch in guild.voice_channels:
                         if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
