@@ -54,6 +54,9 @@ data/transcripts/
 data/logs/
 logs/
 *.log
+scratch/
+persistent_247.json
+test_*.db
 
 # IDE & OS
 .vscode/
