@@ -12,6 +12,8 @@ import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import urllib.parse
+import aiohttp
 from aiohttp import web
 
 from music_bot.config import MUSIC_DATABASE_PATH

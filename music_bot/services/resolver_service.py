@@ -903,6 +903,7 @@ class AudioResolver:
             return []
 
         entries = data.get("entries") if "entries" in data else [data]
+        raw_candidates: List[Dict[str, Any]] = []
         for entry in entries:
             if not entry or entry.get("has_drm"):
                 continue
