@@ -548,7 +548,7 @@ class MusicDatabase:
                         data = json.load(f)
                 except Exception:
                     data = {}
-            if enabled:
+            if enabled and channel_id:
                 data[str(guild_id)] = {
                     "guild_id": guild_id,
                     "twenty_four_seven_enabled": True,
@@ -572,11 +572,11 @@ class MusicDatabase:
         return {}
 
     async def get_all_247_guilds(self) -> List[MusicGuildSettings]:
-        """Fetch all guilds that have 24/7 mode enabled."""
+        """Fetch all guilds that have 24/7 mode enabled with an explicit voice channel configured."""
         results = []
         async with self._lock:
             async with self._db.execute(
-                "SELECT * FROM music_guild_settings WHERE twenty_four_seven_enabled = 1"
+                "SELECT * FROM music_guild_settings WHERE twenty_four_seven_enabled = 1 AND twenty_four_seven_channel_id IS NOT NULL"
             ) as cursor:
                 rows = await cursor.fetchall()
                 for row in rows:
@@ -608,7 +608,7 @@ class MusicDatabase:
         if not results:
             fallback = self._load_persistent_247()
             for gid_str, item in fallback.items():
-                if item.get("twenty_four_seven_enabled"):
+                if item.get("twenty_four_seven_enabled") and item.get("twenty_four_seven_channel_id"):
                     g_id = int(gid_str)
                     results.append(
                         MusicGuildSettings(

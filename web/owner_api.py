@@ -114,7 +114,9 @@ class OwnerApiRouter:
         playing_count = 0
         if self.bot and hasattr(self.bot, "session_manager"):
             sessions = self.bot.session_manager.get_all_sessions()
-            active_sessions = len(sessions)
+            active_sessions = sum(
+                1 for s in sessions if s.voice_client and s.voice_client.is_connected() and s.voice_client.channel
+            )
             playing_count = sum(1 for s in sessions if getattr(s, "is_playing", False))
 
         guilds_count = len(self.bot.guilds) if self.bot and hasattr(self.bot, "guilds") else 0

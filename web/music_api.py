@@ -517,24 +517,28 @@ class MusicApiRouter:
                                 if m_obj and m_obj.voice and m_obj.voice.channel:
                                     target_ch = m_obj.voice.channel
 
-                            # 2. Look for any voice channel with non-bot listeners sitting in it
+                            # 2. Try saved 24/7 channel
+                            if not target_ch and self.bot.db:
+                                try:
+                                    g_set = await self.bot.db.get_guild_settings(g_obj.id)
+                                    if g_set and g_set.twenty_four_seven_channel_id:
+                                        candidate = g_obj.get_channel(g_set.twenty_four_seven_channel_id)
+                                        if candidate and VoiceManager.is_valid_music_voice_channel(candidate):
+                                            target_ch = candidate
+                                except Exception:
+                                    pass
+
+                            # 3. Look for active listening room with humans
                             if not target_ch:
                                 for ch in g_obj.voice_channels:
-                                    if any(not m.bot for m in ch.members) and ch.permissions_for(g_obj.me).connect:
+                                    if any(not m.bot for m in ch.members) and VoiceManager.is_valid_music_voice_channel(ch):
                                         target_ch = ch
                                         break
 
-                            # 3. Look for channel named 'General'
+                            # 4. Look for general music channel
                             if not target_ch:
                                 for ch in g_obj.voice_channels:
-                                    if "general" in ch.name.lower() and ch.permissions_for(g_obj.me).connect and ch.permissions_for(g_obj.me).speak:
-                                        target_ch = ch
-                                        break
-
-                            # 4. Fallback to first accessible voice channel
-                            if not target_ch:
-                                for ch in g_obj.voice_channels:
-                                    if ch.permissions_for(g_obj.me).connect and ch.permissions_for(g_obj.me).speak:
+                                    if any(term in ch.name.lower() for term in ["general", "music", "lounge"]) and VoiceManager.is_valid_music_voice_channel(ch):
                                         target_ch = ch
                                         break
 

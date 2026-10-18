@@ -118,6 +118,52 @@ class VoiceManager:
         return cleaned
 
     @classmethod
+    def is_valid_music_voice_channel(cls, channel: Any) -> bool:
+        """
+        Validates whether a Discord channel is an eligible music listening voice channel.
+        Rejects AFK channels, text channels, and server counter/stat channels.
+        """
+        if not isinstance(channel, (discord.VoiceChannel, discord.StageChannel)):
+            return False
+
+        guild = getattr(channel, "guild", None)
+        if not guild:
+            return False
+
+        # 1. AFK Channel check
+        if getattr(guild, "afk_channel_id", None) == channel.id or getattr(guild, "afk_channel", None) == channel:
+            return False
+
+        # 2. Check channel name for server stats / member count patterns
+        name_lower = str(getattr(channel, "name", "")).lower()
+        import re
+        stat_patterns = [
+            r"\b\d+\s*(?:online|members?|users?|bots?|humans?|boosts?)\b",
+            r"(?:member|online|status|count|counter|goal|stat|server\s*info|all\s*members)\b",
+            r"^[^\w]*(?:members?|online|stats?|status|goal|boosts?|counter)[\s:|-]",
+            r"(?:members?|online|users?|bots?|goal|count|boosts?|stat|status)[\s:|-]+\d+\s*$",
+        ]
+        for pat in stat_patterns:
+            if re.search(pat, name_lower, re.I):
+                return False
+
+        # 3. Check Category name
+        category = getattr(channel, "category", None)
+        if category:
+            cat_lower = str(getattr(category, "name", "")).lower()
+            if any(term in cat_lower for term in ["server status", "stats", "stat", "counter", "counters", "server info"]):
+                return False
+
+        # 4. Check permissions for guild.me
+        me = getattr(guild, "me", None)
+        if me:
+            perms = channel.permissions_for(me)
+            if not perms.connect or not perms.speak:
+                return False
+
+        return True
+
+    @classmethod
     def _inspect_failed_stage(cls, guild: Optional[discord.Guild], exc: Optional[Exception]) -> Tuple[str, str, Optional[str]]:
         """
         Inspects the exact Discord voice connection flow state to pinpoint the true failure stage

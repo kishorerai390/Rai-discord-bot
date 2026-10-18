@@ -431,16 +431,9 @@ class MusicSessionMemoryService:
                 return
 
             if not target_ch_id:
-                # If target channel unknown but 24/7 is on, look for any accessible voice channel
-                if is_247:
-                    for ch in guild.voice_channels:
-                        if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                            target_ch_id = ch.id
-                            break
-                if not target_ch_id:
-                    logger.warning(f"[SessionMemory] Guild {guild_id}: Target voice channel cannot be determined. Aborting reconnect.")
-                    session.state = PlaybackState.IDLE
-                    return
+                logger.info(f"[SessionMemory] Guild {guild_id}: No target voice channel recorded. Waiting for user summon.")
+                session.state = PlaybackState.IDLE
+                return
 
             vc_channel = guild.get_channel(target_ch_id)
             if not vc_channel:
@@ -449,16 +442,11 @@ class MusicSessionMemoryService:
                 except Exception:
                     pass
 
-            if not isinstance(vc_channel, (discord.VoiceChannel, discord.StageChannel)):
-                if is_247:
-                    for ch in guild.voice_channels:
-                        if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                            vc_channel = ch
-                            break
-                if not vc_channel:
-                    logger.warning(f"[SessionMemory] Voice channel {target_ch_id} no longer exists. Aborting reconnect.")
-                    session.state = PlaybackState.IDLE
-                    return
+            from music_bot.services.voice_service import VoiceManager
+            if not vc_channel or not VoiceManager.is_valid_music_voice_channel(vc_channel):
+                logger.warning(f"[SessionMemory] Guild {guild_id}: Target voice channel {target_ch_id} is missing or an invalid stat/AFK channel. Aborting reconnect.")
+                session.state = PlaybackState.IDLE
+                return
 
             if guild.me:
                 perms = vc_channel.permissions_for(guild.me)

@@ -462,6 +462,7 @@ class NekoSongsBot(commands.Bot):
 
             # Auto-Join 24/7 Guild Voice Channels
             try:
+                from music_bot.services.voice_service import VoiceManager
                 twenty_four_seven_guilds = await self.db.get_all_247_guilds()
                 for g_set in twenty_four_seven_guilds:
                     guild = self.get_guild(g_set.guild_id)
@@ -471,34 +472,33 @@ class NekoSongsBot(commands.Bot):
                     session.twenty_four_seven = True
                     if not session.is_active:
                         target_vc_id = g_set.twenty_four_seven_channel_id
-                        vc_channel = guild.get_channel(target_vc_id) if target_vc_id else None
+                        if not target_vc_id:
+                            logger.info(f"[24/7 Startup] Guild '{guild.name}' ({guild.id}): 24/7 active in DB but no target channel configured. Waiting for user summon.")
+                            continue
+
+                        vc_channel = guild.get_channel(target_vc_id)
                         if not vc_channel:
-                            for ch in guild.voice_channels:
-                                if any(not m.bot for m in ch.members) and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                                    vc_channel = ch
-                                    break
-                        if not vc_channel:
-                            for ch in guild.voice_channels:
-                                if "general" in ch.name.lower() and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                                    vc_channel = ch
-                                    break
-                        if not vc_channel:
-                            for ch in guild.voice_channels:
-                                if ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                                    vc_channel = ch
-                                    break
-                        if isinstance(vc_channel, (discord.VoiceChannel, discord.StageChannel)):
                             try:
-                                from music_bot.services.voice_service import VoiceManager
-                                vc = await VoiceManager.join_voice_channel(
-                                    guild.me, session.text_channel, session, target_channel=vc_channel
-                                )
-                                if vc and vc.is_connected():
-                                    session.voice_client = vc
-                                    session.is_intentional_stop = False
-                                    logger.info(f"24/7 mode: Connected to #{vc_channel.name} in {guild.name}")
-                            except Exception as vc_err:
-                                logger.warning(f"Failed to 24/7 connect in guild {guild.id}: {vc_err}")
+                                vc_channel = await guild.fetch_channel(target_vc_id)
+                            except Exception:
+                                vc_channel = None
+
+                        if not vc_channel or not VoiceManager.is_valid_music_voice_channel(vc_channel):
+                            logger.warning(
+                                f"[24/7 Startup] Guild '{guild.name}' ({guild.id}): Saved 24/7 channel {target_vc_id} is unavailable or a stat/AFK channel. Waiting for user summon."
+                            )
+                            continue
+
+                        try:
+                            vc = await VoiceManager.join_voice_channel(
+                                guild.me, session.text_channel, session, target_channel=vc_channel
+                            )
+                            if vc and vc.is_connected():
+                                session.voice_client = vc
+                                session.is_intentional_stop = False
+                                logger.info(f"24/7 mode: Connected to #{vc_channel.name} in {guild.name}")
+                        except Exception as vc_err:
+                            logger.warning(f"Failed to 24/7 connect in guild {guild.id}: {vc_err}")
             except Exception as e:
                 logger.warning(f"24/7 guilds recovery error: {e}")
 
@@ -759,15 +759,17 @@ class NekoSongsBot(commands.Bot):
             twenty_four_seven_guilds = await self.db.get_all_247_guilds()
             active_gids = {g_set.guild_id for g_set in twenty_four_seven_guilds}
             from music_bot.database.models import MusicGuildSettings
+            from music_bot.services.voice_service import VoiceManager
+
             for g in self.guilds:
                 if g.id not in active_gids:
                     s = self.session_manager.get_session_sync(g.id)
-                    if s and getattr(s, "twenty_four_seven", False):
+                    if s and getattr(s, "twenty_four_seven", False) and getattr(s, "voice_channel_id", None):
                         twenty_four_seven_guilds.append(
                             MusicGuildSettings(
                                 guild_id=g.id,
                                 twenty_four_seven_enabled=True,
-                                twenty_four_seven_channel_id=s.voice_channel_id if hasattr(s, "voice_channel_id") else None,
+                                twenty_four_seven_channel_id=s.voice_channel_id,
                             )
                         )
                         active_gids.add(g.id)
@@ -786,37 +788,38 @@ class NekoSongsBot(commands.Bot):
 
                 vc = guild.voice_client
                 if vc and vc.is_connected() and getattr(vc, "channel", None):
-                    session.voice_client = vc
-                    continue
+                    # Guard: If bot was mistakenly placed into a server counter/stat/AFK channel, evict it immediately
+                    if not VoiceManager.is_valid_music_voice_channel(vc.channel):
+                        logger.warning(
+                            f"[Voice] [24/7 Guardian] Bot detected in invalid/stat channel #{vc.channel.name} "
+                            f"({vc.channel.id}) in guild {guild.id}. Evicting immediately."
+                        )
+                        await VoiceManager._purge_voice_client_state(guild)
+                        session.voice_client = None
+                    else:
+                        session.voice_client = vc
+                        continue
                 elif vc:
                     # Stale / dead voice client state; purge before attempting clean reconnect
-                    from music_bot.services.voice_service import VoiceManager
                     await VoiceManager._purge_voice_client_state(guild)
 
                 target_vc_id = g_set.twenty_four_seven_channel_id
-                target_vc = guild.get_channel(target_vc_id) if target_vc_id else None
+                if not target_vc_id:
+                    # STRICT GUARD: Never guess or hop into arbitrary voice channels!
+                    continue
+
+                target_vc = guild.get_channel(target_vc_id)
                 if not target_vc and target_vc_id:
                     try:
                         target_vc = await guild.fetch_channel(target_vc_id)
                     except Exception:
                         pass
-                if not target_vc:
-                    for ch in guild.voice_channels:
-                        if any(not m.bot for m in ch.members) and guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                            target_vc = ch
-                            break
-                if not target_vc:
-                    for ch in guild.voice_channels:
-                        if "general" in ch.name.lower() and guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                            target_vc = ch
-                            break
-                if not target_vc:
-                    for ch in guild.voice_channels:
-                        if guild.me and ch.permissions_for(guild.me).connect and ch.permissions_for(guild.me).speak:
-                            target_vc = ch
-                            break
 
-                if not isinstance(target_vc, (discord.VoiceChannel, discord.StageChannel)):
+                if not target_vc or not VoiceManager.is_valid_music_voice_channel(target_vc):
+                    logger.debug(
+                        f"[Voice] [24/7 Guardian] Guild {guild.id}: Target channel {target_vc_id} is unavailable "
+                        f"or an invalid stat/AFK channel. Skipping auto-reconnect."
+                    )
                     continue
 
                 if guild.me:
