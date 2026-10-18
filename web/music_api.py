@@ -488,19 +488,60 @@ class MusicApiRouter:
             from music_bot.services.player_service import MusicPlayerService
             from music_bot.services.voice_service import VoiceManager
             try:
-                # Helper: attempt connecting to user's current voice channel if bot is disconnected
+                # Helper: attempt connecting to user's or active listener voice channel if bot is disconnected
                 async def _ensure_voice():
                     if (not session.voice_client or not session.voice_client.is_connected()) and self.bot:
                         g_obj = self.bot.get_guild(int(guild_id_val))
                         if g_obj:
-                            m_obj = g_obj.get_member(user_id)
-                            if m_obj and m_obj.voice and m_obj.voice.channel:
-                                try:
-                                    await VoiceManager.join_voice_channel(m_obj, None, session)
-                                except Exception as join_err:
-                                    logger.debug(f"Auto voice join note: {join_err}")
+                            target_ch = None
+                            # 1. Try to find user's current voice channel
+                            if user_id:
+                                m_obj = g_obj.get_member(user_id)
+                                if m_obj and m_obj.voice and m_obj.voice.channel:
+                                    target_ch = m_obj.voice.channel
 
-                if action == "PAUSE":
+                            # 2. Look for any voice channel with non-bot listeners sitting in it
+                            if not target_ch:
+                                for ch in g_obj.voice_channels:
+                                    if any(not m.bot for m in ch.members) and ch.permissions_for(g_obj.me).connect:
+                                        target_ch = ch
+                                        break
+
+                            # 3. Look for channel named 'General'
+                            if not target_ch:
+                                for ch in g_obj.voice_channels:
+                                    if "general" in ch.name.lower() and ch.permissions_for(g_obj.me).connect and ch.permissions_for(g_obj.me).speak:
+                                        target_ch = ch
+                                        break
+
+                            # 4. Fallback to first accessible voice channel
+                            if not target_ch:
+                                for ch in g_obj.voice_channels:
+                                    if ch.permissions_for(g_obj.me).connect and ch.permissions_for(g_obj.me).speak:
+                                        target_ch = ch
+                                        break
+
+                            if target_ch:
+                                try:
+                                    reconnected_vc = await VoiceManager.join_voice_channel(
+                                        g_obj.me, session.text_channel, session, target_channel=target_ch
+                                    )
+                                    if reconnected_vc:
+                                        session.voice_client = reconnected_vc
+                                        session.is_intentional_stop = False
+                                        session.is_intentional_disconnect = False
+                                except Exception as join_err:
+                                    logger.warning(f"[Voice] Auto voice join failed: {join_err}")
+
+                if action in ("CONNECT_VOICE", "JOIN_VOICE"):
+                    await _ensure_voice()
+                    vc_name = session.voice_channel_name or (session.voice_client.channel.name if session.voice_client and session.voice_client.channel else None)
+                    is_conn = bool(session.voice_client and session.voice_client.is_connected())
+                    msg = f"Connected to #{vc_name} 🔊" if is_conn else "Could not find an accessible voice channel to join."
+                    await self.db.mark_web_action_completed(action_id, {"status": "connected" if is_conn else "failed", "channel": vc_name, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "CONNECTED" if is_conn else "FAILED", "channel": vc_name, "message": msg})
+
+                elif action == "PAUSE":
                     if not session.has_active_track and not (session.voice_client and session.voice_client.is_playing()):
                         return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "Nothing is currently playing to pause"})
                     success, msg = await MusicPlayerService.pause(session)
