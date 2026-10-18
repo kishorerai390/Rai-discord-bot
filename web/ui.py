@@ -4061,9 +4061,9 @@ UI_HTML = r"""<!DOCTYPE html>
                   </div>
                 </div>
                 <div class="track-card-actions">
-                  <button class="btn btn-primary btn-sm" id="play-${trackId}" onclick="actionPlayNow('${encodeURIComponent(track.url || track.title)}', '${trackId}')" title="Play Immediately">⚡ Play Now</button>
-                  <button class="btn btn-secondary btn-sm" id="next-${trackId}" onclick="actionPlayNext('${encodeURIComponent(track.url || track.title)}', '${trackId}')" title="Play Next in Queue">⏭ Next</button>
-                  <button class="btn btn-secondary btn-sm" id="queue-${trackId}" onclick="actionEnqueue('${encodeURIComponent(track.url || track.title)}', '${trackId}')" title="Add to End of Queue">➕ Queue</button>
+                  <button class="btn btn-primary btn-sm" id="play-${trackId}" onclick="actionPlayNow('${encodeURIComponent(track.url || track.title)}', '${trackId}', '${encodeURIComponent(track.title || '')}', '${encodeURIComponent(track.artist || '')}')" title="Play Immediately">⚡ Play Now</button>
+                  <button class="btn btn-secondary btn-sm" id="next-${trackId}" onclick="actionPlayNext('${encodeURIComponent(track.url || track.title)}', '${trackId}', '${encodeURIComponent(track.title || '')}', '${encodeURIComponent(track.artist || '')}')" title="Play Next in Queue">⏭ Next</button>
+                  <button class="btn btn-secondary btn-sm" id="queue-${trackId}" onclick="actionEnqueue('${encodeURIComponent(track.url || track.title)}', '${trackId}', '${encodeURIComponent(track.title || '')}', '${encodeURIComponent(track.artist || '')}')" title="Add to End of Queue">➕ Queue</button>
                 </div>
               </div>
             `;
@@ -4078,16 +4078,18 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
-    async function actionPlayNow(enc, trackId = null) {
+    async function actionPlayNow(enc, trackId = null, titleEnc = '', artistEnc = '') {
       const q = decodeURIComponent(enc);
+      const title = decodeURIComponent(titleEnc || '');
+      const artist = decodeURIComponent(artistEnc || '');
       const btn = trackId ? document.getElementById(`play-${trackId}`) : null;
       if (btn) {
         btn.disabled = true;
         btn.innerText = "⏳ Playing...";
       }
-      showToast(`Playing "${q}" immediately...`);
+      showToast(`Playing "${title || q}" immediately...`);
       try {
-        await dispatchCmd('PLAY_NOW', { query: q });
+        await dispatchCmd('PLAY_NOW', { query: q, title: title, artist: artist });
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -4096,16 +4098,18 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
-    async function actionPlayNext(enc, trackId = null) {
+    async function actionPlayNext(enc, trackId = null, titleEnc = '', artistEnc = '') {
       const q = decodeURIComponent(enc);
+      const title = decodeURIComponent(titleEnc || '');
+      const artist = decodeURIComponent(artistEnc || '');
       const btn = trackId ? document.getElementById(`next-${trackId}`) : null;
       if (btn) {
         btn.disabled = true;
         btn.innerText = "⏳ Adding...";
       }
-      showToast(`Added "${q}" as next song`);
+      showToast(`Added "${title || q}" as next song`);
       try {
-        await dispatchCmd('PLAY_NEXT', { query: q });
+        await dispatchCmd('PLAY_NEXT', { query: q, title: title, artist: artist });
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -4114,16 +4118,18 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
-    async function actionEnqueue(enc, trackId = null) {
+    async function actionEnqueue(enc, trackId = null, titleEnc = '', artistEnc = '') {
       const q = decodeURIComponent(enc);
+      const title = decodeURIComponent(titleEnc || '');
+      const artist = decodeURIComponent(artistEnc || '');
       const btn = trackId ? document.getElementById(`queue-${trackId}`) : null;
       if (btn) {
         btn.disabled = true;
         btn.innerText = "⏳ Adding...";
       }
-      showToast(`Added "${q}" to queue`);
+      showToast(`Added "${title || q}" to queue`);
       try {
-        await dispatchCmd('ENQUEUE', { query: q });
+        await dispatchCmd('ENQUEUE', { query: q, title: title, artist: artist });
       } finally {
         if (btn) {
           btn.disabled = false;

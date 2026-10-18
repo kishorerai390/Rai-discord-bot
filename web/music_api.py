@@ -661,10 +661,14 @@ class MusicApiRouter:
 
                 elif action == "ENQUEUE":
                     query = payload.get("query", "").strip()
+                    title_hint = payload.get("title", "").strip() or None
+                    artist_hint = payload.get("artist", "").strip() or None
                     if query:
                         await _ensure_voice()
                         from music_bot.services.resolver_service import AudioResolver
-                        track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                        track = await AudioResolver.resolve_track(
+                            query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
+                        )
                         if track:
                             session.queue.append(track)
                             played_immediately = False
@@ -681,10 +685,14 @@ class MusicApiRouter:
 
                 elif action == "PLAY_NEXT":
                     query = payload.get("query", "").strip()
+                    title_hint = payload.get("title", "").strip() or None
+                    artist_hint = payload.get("artist", "").strip() or None
                     if query:
                         await _ensure_voice()
                         from music_bot.services.resolver_service import AudioResolver
-                        track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                        track = await AudioResolver.resolve_track(
+                            query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
+                        )
                         if track:
                             session.queue.appendleft(track)
                             await MusicPlayerService.send_now_playing_panel(session)
@@ -696,10 +704,14 @@ class MusicApiRouter:
 
                 elif action == "PLAY_NOW":
                     query = payload.get("query", "").strip()
+                    title_hint = payload.get("title", "").strip() or None
+                    artist_hint = payload.get("artist", "").strip() or None
                     if query:
                         await _ensure_voice()
                         from music_bot.services.resolver_service import AudioResolver
-                        track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                        track = await AudioResolver.resolve_track(
+                            query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
+                        )
                         if track:
                             if session.is_playing:
                                 session.queue.appendleft(track)

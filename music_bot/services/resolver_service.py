@@ -607,7 +607,7 @@ def _build_ytdl_options(
     Optimized strictly for authorized YouTube stream resolution.
     Cookies are strictly optional and only attached when use_cookies is True.
     """
-    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["android", "mweb"])
+    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["android", "android_creator"])
     opts: Dict[str, Any] = {
         "format": "bestaudio/bestaudio*/best[height<=720]/best/worstaudio/worst",
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
@@ -1061,7 +1061,12 @@ class AudioResolver:
 
     @classmethod
     async def resolve_track(
-        cls, query_or_url: str, requester_id: int, requester_name: str
+        cls,
+        query_or_url: str,
+        requester_id: int,
+        requester_name: str,
+        title_hint: Optional[str] = None,
+        artist_hint: Optional[str] = None,
     ) -> Optional[QueuedTrack]:
         """
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
@@ -1131,7 +1136,9 @@ class AudioResolver:
 
         # 4. Create background resolution task
         task = asyncio.create_task(
-            cls._execute_resolution_pipeline(query_or_url, requester_id, requester_name)
+            cls._execute_resolution_pipeline(
+                query_or_url, requester_id, requester_name, title_hint=title_hint, artist_hint=artist_hint
+            )
         )
         cls._pending_tasks[cache_key] = task
 
@@ -1248,7 +1255,12 @@ class AudioResolver:
 
     @classmethod
     async def _execute_resolution_pipeline(
-        cls, query_or_url: str, requester_id: int, requester_name: str
+        cls,
+        query_or_url: str,
+        requester_id: int,
+        requester_name: str,
+        title_hint: Optional[str] = None,
+        artist_hint: Optional[str] = None,
     ) -> Optional[QueuedTrack]:
         """
         Internal multi-tiered resolution pipeline strictly utilizing authorized YouTube clients.
@@ -1398,7 +1410,7 @@ class AudioResolver:
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (android, no cookies) - 18.0s timeout
+            # Tier 1: Primary Public Profile (android) - 14.0s timeout for cold cloud responses
             try:
                 tier1_opts = _build_ytdl_options(["android"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
@@ -1406,7 +1418,7 @@ class AudioResolver:
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier1_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=6.0,
+                    timeout=14.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1422,15 +1434,15 @@ class AudioResolver:
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
 
-            # Tier 2: Fallback Public Profile (mweb / web / tv_embedded / ios) - 5.0s timeout
+            # Tier 2: Fallback Public Profile (android_creator) - 10.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["mweb", "web", "tv_embedded", "ios"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(["android_creator", "mweb"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier2_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=5.0,
+                    timeout=10.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1458,7 +1470,7 @@ class AudioResolver:
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier3_ydl.extract_info, top_target, download=False)
                     ),
-                    timeout=6.0,
+                    timeout=8.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1471,29 +1483,34 @@ class AudioResolver:
                         return track
             except Exception as t3_err:
                 last_failure_reason = _format_error(t3_err)
+
         # Stage 5: Secondary Provider Fallback (SoundCloud) for zero-interruption playback
         try:
             logger.info(f"[Resolver] [Ref: MM-{corr_id}] Attempting SoundCloud resolution fallback for '{cleaned_query[:50]}'")
-            sc_query = cleaned_query
-            if is_direct_url and ("youtube" in cleaned_query or "youtu.be" in cleaned_query):
+            sc_query = f"{title_hint} {artist_hint or ''}".strip() if title_hint else cleaned_query
+            if is_direct_url and ("youtube" in cleaned_query or "youtu.be" in cleaned_query) and not title_hint:
+                sc_query = ""
                 try:
                     import urllib.request
                     oembed_url = f"https://www.youtube.com/oembed?url={cleaned_query}&format=json"
-                    with urllib.request.urlopen(oembed_url, timeout=3.0) as o_resp:
+                    req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                    with urllib.request.urlopen(req, timeout=5.0) as o_resp:
                         o_data = json.loads(o_resp.read().decode())
                         if o_data and o_data.get("title"):
-                            sc_query = f"{o_data.get('title')} {o_data.get('author_name', '')}".strip()
+                            author = (o_data.get("author_name") or "").replace(" - Topic", "").strip()
+                            sc_query = f"{o_data.get('title')} {author}".strip()
                 except Exception as o_err:
                     logger.debug(f"[Resolver] oEmbed lookup notice: {o_err}")
 
-            sc_track = await cls.resolve_soundcloud_track(sc_query, requester_id, requester_name)
-            if sc_track:
-                sc_track = _apply_metadata_enhancements(sc_track)
-                dur = time.time() - start_t
-                logger.info(
-                    f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback successfully resolved '{sc_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
-                )
-                return sc_track
+            if sc_query and not sc_query.startswith("http"):
+                sc_track = await cls.resolve_soundcloud_track(sc_query, requester_id, requester_name)
+                if sc_track:
+                    sc_track = _apply_metadata_enhancements(sc_track)
+                    dur = time.time() - start_t
+                    logger.info(
+                        f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback successfully resolved '{sc_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
+                    )
+                    return sc_track
         except Exception as sc_err:
             logger.warning(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback failed: {_format_error(sc_err)}")
 
