@@ -253,7 +253,7 @@ async def get_redis_client() -> Any:
 
 # Global executor for thread-safe asynchronous yt-dlp operations
 _audio_executor = concurrent.futures.ThreadPoolExecutor(
-    max_workers=8, thread_name_prefix="AudioResolver"
+    max_workers=20, thread_name_prefix="AudioResolver"
 )
 
 # Writable temporary cookie file destination (yt-dlp requires write permissions)
@@ -1309,7 +1309,7 @@ class AudioResolver:
                         loop.run_in_executor(
                             _audio_executor, functools.partial(flat_ydl.extract_info, search_query, download=False)
                         ),
-                        timeout=14.0,
+                        timeout=5.0,
                     )
                     if search_data:
                         entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
@@ -1319,6 +1319,16 @@ class AudioResolver:
                     logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
 
                 if not search_entries:
+                    logger.info(f"[Resolver] [Ref: MM-{corr_id}] YouTube search returned 0 candidates ({search_error}). Invoking instant SoundCloud fallback...")
+                    try:
+                        sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
+                        if sc_track:
+                            dur = time.time() - start_t
+                            logger.info(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud instant fallback resolved '{cleaned_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'")
+                            return sc_track
+                    except Exception as sc_err:
+                        logger.warning(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud search fallback notice: {_format_error(sc_err)}")
+
                     dur = time.time() - start_t
                     if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
                         cat = "TIMEOUT"
@@ -1328,7 +1338,7 @@ class AudioResolver:
                         reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
                     else:
                         cat = "NO_RESULTS"
-                        reason = f"No search results returned from YouTube for '{cleaned_query[:60]}'."
+                        reason = f"No search results returned for '{cleaned_query[:60]}'."
 
                     cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
                     logger.warning(
@@ -1363,7 +1373,7 @@ class AudioResolver:
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier1_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=18.0,
+                    timeout=6.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1379,7 +1389,7 @@ class AudioResolver:
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
 
-            # Tier 2: Fallback Public Profile (android_music / tv_embedded) - 12.0s timeout
+            # Tier 2: Fallback Public Profile (android_music / tv_embedded) - 5.0s timeout
             try:
                 tier2_opts = _build_ytdl_options(["android_music", "tv_embedded"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
@@ -1387,7 +1397,7 @@ class AudioResolver:
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier2_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=12.0,
+                    timeout=5.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1415,7 +1425,7 @@ class AudioResolver:
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier3_ydl.extract_info, top_target, download=False)
                     ),
-                    timeout=15.0,
+                    timeout=6.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
