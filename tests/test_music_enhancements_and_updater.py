@@ -139,3 +139,47 @@ class TestMusicEnhancementsAndUpdater(unittest.IsolatedAsyncioTestCase):
             txt_lines.append(f"{i}. {it['title']} by {it['artist']} ({it['url']})")
         txt_out = "\n".join(txt_lines).encode("utf-8")
         self.assertIn(b"1. Track 1 by Artist 1", txt_out)
+
+    async def test_extractor_health_endpoint(self):
+        """Verify /api/music/extractor-health returns detailed self-healing diagnostics."""
+        from aiohttp.test_utils import make_mocked_request
+        from web.music_api import MusicApiRouter
+
+        router = MusicApiRouter(bot=MagicMock(), auth_manager=MagicMock())
+        req = make_mocked_request("GET", "/api/music/extractor-health")
+        resp = await router.get_extractor_health(req)
+
+        self.assertEqual(resp.status, 200)
+        body = json.loads(resp.text)
+        self.assertTrue(body.get("success"))
+        data = body.get("data", {})
+        self.assertEqual(data.get("status"), "HEALTHY")
+        self.assertIn("current_ytdl", data)
+        self.assertIn("diagnostics", data)
+        self.assertTrue(len(data["diagnostics"]) >= 3)
+
+    async def test_cyber_analog_turntable_and_autoupdate_ui_elements(self):
+        """Verify UI template contains vinyl turntable, VU meters, reactions, and extractor auto-updater."""
+        from web.ui import UI_HTML
+
+        # Cyber-analog turntable elements
+        self.assertIn("turntable-deck", UI_HTML)
+        self.assertIn("vinyl-disc", UI_HTML)
+        self.assertIn("tonearm", UI_HTML)
+        self.assertIn("vu-meter-left", UI_HTML)
+        self.assertIn("vu-meter-right", UI_HTML)
+        self.assertIn("vu-needle-left", UI_HTML)
+        self.assertIn("vu-needle-right", UI_HTML)
+        self.assertIn("updateDynamicTurntableAndVU", UI_HTML)
+
+        # Social & reaction features
+        self.assertIn("social-voice-dock", UI_HTML)
+        self.assertIn("pass-aux-btn", UI_HTML)
+        self.assertIn("spawnFloatingEmoji", UI_HTML)
+        self.assertIn("requestPassTheAux", UI_HTML)
+
+        # Autonomous Extractor Self-Healing & PyPI Auto-Updater
+        self.assertIn("Extractor Auto-Updater & Doctor", UI_HTML)
+        self.assertIn("triggerSelfHealingDoctor", UI_HTML)
+        self.assertIn("/api/music/extractor-health", UI_HTML)
+        self.assertIn("self-healing-console", UI_HTML)

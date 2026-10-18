@@ -488,6 +488,8 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/music/enqueue", m.enqueue_track)
         app.router.add_get("/api/music/lyrics", m.get_lyrics)
         app.router.add_get("/api/music/stats", m.get_stats)
+        app.router.add_get("/api/music/extractor-health", m.get_extractor_health)
+        app.router.add_post("/api/music/extractor-heal", m.get_extractor_health)
         app.router.add_get("/api/music/playlists", m.get_playlists)
         app.router.add_post("/api/music/playlists/save", m.save_playlist)
         app.router.add_post("/api/music/playlists/load", m.load_playlist)
