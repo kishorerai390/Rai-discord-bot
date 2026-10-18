@@ -133,8 +133,15 @@ class MusicApiRouter:
             is_active = g_id in active_guild_ids or g_id in db_guild_ids
             session = sm.get_session_nowait(g_id) if hasattr(sm, "get_session_nowait") else None
             voice_name = None
-            if session and session.voice_client and session.voice_client.channel:
+            voice_status = "Disconnected"
+            if session and session.voice_client and session.voice_client.is_connected() and session.voice_client.channel:
                 voice_name = session.voice_client.channel.name
+                voice_status = "Connected"
+            elif self.bot and hasattr(self.bot, "get_guild"):
+                guild_obj = self.bot.get_guild(g_id)
+                if guild_obj and guild_obj.voice_client and guild_obj.voice_client.is_connected() and guild_obj.voice_client.channel:
+                    voice_name = guild_obj.voice_client.channel.name
+                    voice_status = "Connected"
 
             # Determine authorization
             is_authorized = True
@@ -150,7 +157,8 @@ class MusicApiRouter:
                 "name": g["name"],
                 "icon": g.get("icon"),
                 "has_active_playback": is_active,
-                "voice_channel": voice_name or ("#❄️. Fun Time !" if g_id == 1525030316845301781 else None),
+                "voice_channel": voice_name,
+                "voice_status": voice_status,
                 "authorized": is_authorized,
                 "bot_in_guild": bot_present,
             })
@@ -181,6 +189,48 @@ class MusicApiRouter:
         is_staff = bool(user.get("is_staff", False)) if user else False
         perms = {"can_control": True, "is_admin": is_admin, "is_staff": is_staff}
 
+        # Determine real voice connection status across session and bot client
+        vc_name = None
+        vc_id = None
+        voice_status = "Disconnected"
+
+        if session and session.voice_client:
+            if session.voice_client.is_connected() and session.voice_client.channel:
+                vc_name = session.voice_client.channel.name
+                vc_id = session.voice_client.channel.id
+                voice_status = "Connected"
+            elif getattr(session.voice_client, "is_connecting", lambda: False)():
+                voice_status = "Connecting"
+            elif getattr(session, "recovery_attempts", 0) > 0 or session.state.value == "RECOVERING":
+                voice_status = "Reconnecting"
+                if session.voice_client.channel:
+                    vc_name = session.voice_client.channel.name
+                    vc_id = session.voice_client.channel.id
+
+        if not vc_name and self.bot and hasattr(self.bot, "get_guild"):
+            g = self.bot.get_guild(guild_id)
+            if g and g.voice_client:
+                if g.voice_client.is_connected() and g.voice_client.channel:
+                    vc_name = g.voice_client.channel.name
+                    vc_id = g.voice_client.channel.id
+                    voice_status = "Connected"
+                    if session and not session.voice_client:
+                        session.voice_client = g.voice_client
+                elif getattr(g.voice_client, "is_connecting", lambda: False)():
+                    voice_status = "Connecting"
+
+        # Check persistent 24/7 setting from database if not set in memory
+        is_247_enabled = getattr(session, "twenty_four_seven", False)
+        if not is_247_enabled and self.bot and getattr(self.bot, "db", None):
+            try:
+                g_settings = await self.bot.db.get_guild_settings(guild_id)
+                if g_settings and getattr(g_settings, "twenty_four_seven_enabled", False):
+                    is_247_enabled = True
+                    if session:
+                        session.twenty_four_seven = True
+            except Exception:
+                pass
+
         # If in-memory session found
         if session and session.current_track:
             track = session.current_track
@@ -188,9 +238,6 @@ class MusicApiRouter:
             total = track.duration or 0
             is_playing = session.is_playing
             is_paused = session.is_paused
-
-            vc_name = session.voice_client.channel.name if session.voice_client and session.voice_client.channel else None
-            vc_id = session.voice_client.channel.id if session.voice_client and session.voice_client.channel else None
 
             data = {
                 "guild_id": str(guild_id),
@@ -216,9 +263,10 @@ class MusicApiRouter:
                 "queue_count": len(session.queue),
                 "history_count": len(session.history),
                 "auto_dj": getattr(session, "dj_enabled", False) or session.autoplay,
-                "twenty_four_seven": session.twenty_four_seven,
+                "twenty_four_seven": is_247_enabled,
                 "voice_channel_id": str(vc_id) if vc_id else None,
-                "voice_channel_name": vc_name or "#Voice Channel",
+                "voice_channel_name": vc_name,
+                "voice_status": voice_status,
                 "last_error": getattr(session, "last_error", None),
                 "permissions": perms,
             }
@@ -252,9 +300,10 @@ class MusicApiRouter:
                     "queue_count": len(db_session.queue) if db_session.queue else 0,
                     "history_count": len(db_session.history) if db_session.history else 0,
                     "auto_dj": False,
-                    "twenty_four_seven": True,
+                    "twenty_four_seven": is_247_enabled,
                     "voice_channel_id": str(db_session.voice_channel_id) if db_session.voice_channel_id else None,
-                    "voice_channel_name": "#❄️. Fun Time !",
+                    "voice_channel_name": vc_name,
+                    "voice_status": voice_status,
                     "last_error": None,
                     "permissions": perms,
                 }
@@ -278,8 +327,10 @@ class MusicApiRouter:
             "queue_count": 0,
             "history_count": 0,
             "auto_dj": False,
-            "twenty_four_seven": False,
-            "voice_channel_name": None,
+            "twenty_four_seven": is_247_enabled,
+            "voice_channel_id": str(vc_id) if vc_id else None,
+            "voice_channel_name": vc_name,
+            "voice_status": voice_status,
             "last_error": None,
             "permissions": perms,
         })
@@ -402,46 +453,78 @@ class MusicApiRouter:
 
         if session and self.bot:
             from music_bot.services.player_service import MusicPlayerService
+            from music_bot.services.voice_service import VoiceManager
             try:
+                # Helper: attempt connecting to user's current voice channel if bot is disconnected
+                async def _ensure_voice():
+                    if (not session.voice_client or not session.voice_client.is_connected()) and self.bot:
+                        g_obj = self.bot.get_guild(int(guild_id_val))
+                        if g_obj:
+                            m_obj = g_obj.get_member(user_id)
+                            if m_obj and m_obj.voice and m_obj.voice.channel:
+                                try:
+                                    await VoiceManager.join_voice_channel(m_obj, None, session)
+                                except Exception as join_err:
+                                    logger.debug(f"Auto voice join note: {join_err}")
+
                 if action == "PAUSE":
                     success, msg = await MusicPlayerService.pause(session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "noop", "message": msg})
+                    await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "failed", "message": msg})
+                    if not success:
+                        return json_error("PAUSE_FAILED", msg, status=400)
+                    return json_success({"action_id": action_id, "action": action, "status": "PAUSED", "message": msg})
 
                 elif action == "RESUME":
                     success, msg = await MusicPlayerService.resume(self.bot, session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "resumed" if success else "noop", "message": msg})
+                    await self.db.mark_web_action_completed(action_id, {"status": "resumed" if success else "failed", "message": msg})
+                    if not success:
+                        return json_error("RESUME_FAILED", msg, status=400)
+                    return json_success({"action_id": action_id, "action": action, "status": "RESUMED", "message": msg})
 
                 elif action == "SKIP":
-                    await MusicPlayerService.skip(self.bot, session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "skipped"})
+                    success, msg, next_t = await MusicPlayerService.skip(self.bot, session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "skipped" if success else "failed", "message": msg})
+                    if not success:
+                        return json_error("SKIP_FAILED", msg, status=400)
+                    return json_success({"action_id": action_id, "action": action, "status": "SKIPPED", "message": msg, "next_track": next_t.title if next_t else None})
 
                 elif action == "PREVIOUS":
-                    await MusicPlayerService.previous(self.bot, session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "previous"})
+                    success, msg, prev_t = await MusicPlayerService.previous(self.bot, session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "previous" if success else "failed", "message": msg})
+                    if not success:
+                        return json_error("PREVIOUS_FAILED", msg, status=400)
+                    return json_success({"action_id": action_id, "action": action, "status": "PREVIOUS", "message": msg, "track": prev_t.title if prev_t else None})
 
                 elif action == "SEEK":
                     target = int(payload.get("seconds", 0))
                     await MusicPlayerService.seek(self.bot, session, target)
                     await self.db.mark_web_action_completed(action_id, {"status": "seeked", "position": target})
+                    return json_success({"action_id": action_id, "action": action, "status": "SEEKED", "position": target, "message": f"Seeked to {target}s"})
 
                 elif action == "VOLUME":
                     vol = max(0, min(150, int(payload.get("volume", 80))))
-                    await MusicPlayerService.set_volume(session, vol)
+                    success, msg = await MusicPlayerService.set_volume(session, vol)
                     await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
+                    return json_success({"action_id": action_id, "action": action, "status": "VOLUME_SET", "volume": vol, "message": msg})
 
                 elif action == "SHUFFLE":
                     success, msg = MusicPlayerService.shuffle(session)
                     await MusicPlayerService.send_now_playing_panel(session)
-                    await self.db.mark_web_action_completed(action_id, {"status": "shuffled", "message": msg})
+                    await self.db.mark_web_action_completed(action_id, {"status": "shuffled" if success else "failed", "message": msg})
+                    if not success:
+                        return json_error("SHUFFLE_FAILED", msg, status=400)
+                    return json_success({"action_id": action_id, "action": action, "status": "SHUFFLED", "message": msg})
 
                 elif action == "LOOP":
                     mode, msg = MusicPlayerService.cycle_loop(session)
                     await MusicPlayerService.send_now_playing_panel(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "loop_set", "mode": mode.value, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "LOOP_SET", "mode": mode.value, "message": msg})
 
                 elif action == "STOP":
                     success, msg = await MusicPlayerService.stop(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "stopped", "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "STOPPED", "message": msg})
 
                 elif action == "REMOVE":
                     idx = int(payload.get("index", 0))
@@ -450,11 +533,14 @@ class MusicApiRouter:
                         del session.queue[idx]
                         await MusicPlayerService.send_now_playing_panel(session)
                         await self.db.mark_web_action_completed(action_id, {"status": "removed", "title": removed.title})
+                        return json_success({"action_id": action_id, "action": action, "status": "REMOVED", "title": removed.title, "message": f"Removed '{removed.title}' from queue"})
+                    return json_error("INVALID_INDEX", "Track index not found in queue", status=400)
 
                 elif action == "CLEAR":
                     session.queue.clear()
                     await MusicPlayerService.send_now_playing_panel(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "cleared"})
+                    return json_success({"action_id": action_id, "action": action, "status": "CLEARED", "message": "Queue cleared"})
 
                 elif action == "MOVE":
                     from_pos = int(payload.get("from_index", 0))
@@ -465,32 +551,46 @@ class MusicApiRouter:
                         session.queue.insert(to_pos, item)
                         await MusicPlayerService.send_now_playing_panel(session)
                         await self.db.mark_web_action_completed(action_id, {"status": "moved", "from": from_pos, "to": to_pos})
+                        return json_success({"action_id": action_id, "action": action, "status": "MOVED", "message": f"Moved '{item.title}'"})
+                    return json_error("INVALID_RANGE", "Invalid queue positions", status=400)
 
                 elif action == "ENQUEUE":
                     query = payload.get("query", "").strip()
                     if query:
+                        await _ensure_voice()
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(query, user_id, "Web User")
                         if track:
                             session.queue.append(track)
+                            played_immediately = False
                             if not session.is_playing and not session.has_active_track:
-                                await MusicPlayerService.start_playback(self.bot, session, track)
+                                if session.voice_client and session.voice_client.is_connected():
+                                    await MusicPlayerService.start_playback(self.bot, session, track)
+                                    played_immediately = True
                             await MusicPlayerService.send_now_playing_panel(session)
-                            await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title})
+                            msg = f"Playing '{track.title}' now! ⚡" if played_immediately else f"Added '{track.title}' to queue ➕"
+                            await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title, "message": msg})
+                            return json_success({"action_id": action_id, "action": action, "status": "ENQUEUED", "title": track.title, "message": msg})
+                        return json_error("RESOLVE_FAILED", f"Could not find or resolve track for: '{query}'", status=404)
 
                 elif action == "PLAY_NEXT":
                     query = payload.get("query", "").strip()
                     if query:
+                        await _ensure_voice()
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(query, user_id, "Web User")
                         if track:
                             session.queue.appendleft(track)
                             await MusicPlayerService.send_now_playing_panel(session)
-                            await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title})
+                            msg = f"Queued '{track.title}' to play next ⏭"
+                            await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title, "message": msg})
+                            return json_success({"action_id": action_id, "action": action, "status": "PLAY_NEXT", "title": track.title, "message": msg})
+                        return json_error("RESOLVE_FAILED", f"Could not find or resolve track for: '{query}'", status=404)
 
                 elif action == "PLAY_NOW":
                     query = payload.get("query", "").strip()
                     if query:
+                        await _ensure_voice()
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(query, user_id, "Web User")
                         if track:
@@ -498,33 +598,59 @@ class MusicApiRouter:
                                 session.queue.appendleft(track)
                                 await MusicPlayerService.skip(self.bot, session)
                             else:
-                                await MusicPlayerService.start_playback(self.bot, session, track)
+                                if session.voice_client and session.voice_client.is_connected():
+                                    await MusicPlayerService.start_playback(self.bot, session, track)
+                                else:
+                                    session.queue.appendleft(track)
                             await MusicPlayerService.send_now_playing_panel(session)
-                            await self.db.mark_web_action_completed(action_id, {"status": "playing_now", "title": track.title})
+                            msg = f"Playing '{track.title}' immediately! ⚡"
+                            await self.db.mark_web_action_completed(action_id, {"status": "playing_now", "title": track.title, "message": msg})
+                            return json_success({"action_id": action_id, "action": action, "status": "PLAYING_NOW", "title": track.title, "message": msg})
+                        return json_error("RESOLVE_FAILED", f"Could not find or resolve track for: '{query}'", status=404)
 
                 elif action == "AUTODJ_TOGGLE":
                     session.dj_enabled = not getattr(session, "dj_enabled", False)
                     session.autoplay = session.dj_enabled
-                    await self.db.mark_web_action_completed(action_id, {"status": "autodj_toggled", "enabled": session.dj_enabled})
+                    msg = f"Smart Auto-DJ {'ENABLED' if session.dj_enabled else 'DISABLED'} 🤖"
+                    await self.db.mark_web_action_completed(action_id, {"status": "autodj_toggled", "enabled": session.dj_enabled, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "AUTODJ_TOGGLED", "enabled": session.dj_enabled, "message": msg})
 
                 elif action == "AUTODJ_MOOD":
                     mood = payload.get("mood", "balanced").lower()
                     session.dj_mood = mood
-                    await self.db.mark_web_action_completed(action_id, {"status": "autodj_mood_set", "mood": mood})
+                    msg = f"Auto-DJ mood set to **{mood.title()}** ✨"
+                    await self.db.mark_web_action_completed(action_id, {"status": "autodj_mood_set", "mood": mood, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "AUTODJ_MOOD_SET", "mood": mood, "message": msg})
 
                 elif action == "247_TOGGLE":
                     session.twenty_four_seven = not session.twenty_four_seven
-                    await self.db.mark_web_action_completed(action_id, {"status": "247_toggled", "enabled": session.twenty_four_seven})
+                    # Authoritatively update persistent database guild settings
+                    if self.bot and getattr(self.bot, "db", None):
+                        try:
+                            g_set = await self.bot.db.get_guild_settings(int(guild_id_val))
+                            if g_set:
+                                g_set.twenty_four_seven_enabled = session.twenty_four_seven
+                                if session.twenty_four_seven and session.voice_client and session.voice_client.channel:
+                                    g_set.twenty_four_seven_channel_id = session.voice_client.channel.id
+                                await self.bot.db.update_guild_settings(g_set)
+                        except Exception as db_err:
+                            logger.warning(f"Error persisting 24/7 setting: {db_err}")
+                    msg = f"24/7 persistence {'ENABLED' if session.twenty_four_seven else 'DISABLED'} 📻"
+                    await self.db.mark_web_action_completed(action_id, {"status": "247_toggled", "enabled": session.twenty_four_seven, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "247_TOGGLED", "enabled": session.twenty_four_seven, "message": msg})
 
                 elif action == "FAVORITE":
                     success, is_fav, msg = await MusicPlayerService.toggle_favorite(self.bot, user_id, session.current_track)
                     await self.db.mark_web_action_completed(action_id, {"status": "favorited" if is_fav else "unfavorited", "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "favorited": is_fav, "message": msg})
 
                 elif action == "FILTER":
                     preset = payload.get("preset", "flat").lower()
                     name = payload.get("name", preset.title())
                     await MusicPlayerService.apply_filter_or_eq(self.bot, session, preset, name)
-                    await self.db.mark_web_action_completed(action_id, {"status": "filter_applied", "preset": preset})
+                    msg = f"Applied DSP Filter: {name} 🎛️"
+                    await self.db.mark_web_action_completed(action_id, {"status": "filter_applied", "preset": preset, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "FILTER_APPLIED", "preset": preset, "message": msg})
 
                 # Instant real-time broadcast to all connected WebSocket clients & SSE listeners
                 try:
@@ -548,22 +674,56 @@ class MusicApiRouter:
     # 5. SEARCH & TRACK ENQUEUE
     # ==========================================
     async def search_tracks(self, request: web.Request) -> web.Response:
-        """Search tracks via YouTube / AudioResolver for instant web autocomplete."""
+        """Search tracks via YouTube / AudioResolver with independent metadata & artwork per card."""
         q = request.query.get("q", "").strip()
         if not q:
             return json_success([])
 
-        # 1. Direct URL check
+        from music_bot.services.resolver_service import AudioResolver
+
+        # 1. Direct URL check (Spotify / YouTube)
         if q.startswith("http://") or q.startswith("https://"):
+            if "spotify.com" in q:
+                try:
+                    sp = await AudioResolver.resolve_spotify_metadata(q)
+                    if sp:
+                        return json_success([{
+                            "id": str(sp.get("id") or f"sp_{abs(hash(q))}"),
+                            "title": sp.get("title", "Spotify Track"),
+                            "artist": sp.get("artist", "Spotify Artist"),
+                            "url": q,
+                            "duration": sp.get("duration", 0),
+                            "thumbnail": sp.get("thumbnail"),
+                            "provider": "spotify",
+                        }])
+                except Exception as sp_err:
+                    logger.debug(f"Direct Spotify search note: {sp_err}")
+
+            # YouTube direct URL thumbnail extraction
+            vid = None
+            if "v=" in q:
+                try:
+                    vid = q.split("v=")[1].split("&")[0]
+                except Exception:
+                    pass
+            elif "youtu.be/" in q:
+                try:
+                    vid = q.split("youtu.be/")[1].split("?")[0]
+                except Exception:
+                    pass
+
+            thumb = f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg" if vid else None
             return json_success([{
+                "id": str(vid or f"url_{abs(hash(q))}"),
                 "title": q,
                 "url": q,
                 "duration": 0,
                 "artist": "Direct Stream URL",
-                "thumbnail": "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150",
+                "thumbnail": thumb,
+                "provider": "youtube" if vid else "direct",
             }])
 
-        from music_bot.services.resolver_service import AudioResolver
+        # 2. Primary Search via AudioResolver (fetches individual YouTube thumbnails)
         results = []
         try:
             results = await AudioResolver.search(q, limit=6)
@@ -573,7 +733,7 @@ class MusicApiRouter:
         if results and len(results) > 0:
             return json_success(results)
 
-        # 2. Resilient multi-lingual metadata fallback (fast, unblocked on datacenter IPs, high-res covers)
+        # 3. High-resolution iTunes metadata fallback (fast, unblocked on datacenter IPs, unique album covers)
         try:
             async with aiohttp.ClientSession() as session:
                 itunes_url = f"https://itunes.apple.com/search?term={urllib.parse.quote(q)}&entity=song&limit=6"
@@ -583,26 +743,23 @@ class MusicApiRouter:
                         candidates = []
                         for item in data.get("results", []):
                             dur = int((item.get("trackTimeMillis", 0) or 0) / 1000)
+                            art = (item.get("artworkUrl100") or "").replace("100x100bb", "600x600bb")
+                            t_id = str(item.get("trackId") or f"itunes_{abs(hash(item.get('trackName', '')))}")
                             candidates.append({
+                                "id": t_id,
                                 "title": item.get("trackName", "Track"),
                                 "url": f"https://www.youtube.com/results?search_query={urllib.parse.quote(item.get('trackName', '') + ' ' + item.get('artistName', '') + ' audio')}",
                                 "duration": dur,
                                 "artist": item.get("artistName", "Artist"),
-                                "thumbnail": (item.get("artworkUrl100") or "").replace("100x100bb", "300x300bb") or "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150",
+                                "thumbnail": art,
+                                "provider": "itunes",
                             })
                         if candidates:
                             return json_success(candidates)
         except Exception as itunes_err:
             logger.debug(f"iTunes metadata fallback note: {itunes_err}")
 
-        # 3. Direct YouTube fallback query candidate if no other results
-        return json_success([{
-            "title": q,
-            "url": f"https://www.youtube.com/results?search_query={urllib.parse.quote(q)}",
-            "duration": 210,
-            "artist": "YouTube Audio Resolution",
-            "thumbnail": "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150",
-        }])
+        return json_success([])
 
 
     async def enqueue_track(self, request: web.Request) -> web.Response:

@@ -219,6 +219,25 @@ UI_HTML = r"""<!DOCTYPE html>
       background: var(--emerald);
       box-shadow: 0 0 8px var(--emerald);
       animation: pulseAnim 2s infinite;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .pulse-dot.connected {
+      background: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+    }
+    .pulse-dot.connecting {
+      background: #FBBF24;
+      box-shadow: 0 0 8px #FBBF24;
+    }
+    .pulse-dot.reconnecting {
+      background: #F97316;
+      box-shadow: 0 0 8px #F97316;
+    }
+    .pulse-dot.disconnected {
+      background: rgba(255, 255, 255, 0.4);
+      box-shadow: none;
+      animation: none;
     }
     @keyframes pulseAnim {
       0%, 100% { opacity: 1; transform: scale(1); }
@@ -2057,7 +2076,7 @@ UI_HTML = r"""<!DOCTYPE html>
   <footer class="player-bar">
     <!-- LEFT: TRACK METADATA -->
     <div class="player-bar-left">
-      <img id="bar-art" class="bar-thumb" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120" alt="Album Cover">
+      <img id="bar-art" class="bar-thumb" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Crect width='100%25' height='100%25' fill='%2312131C'/%3E%3Ccircle cx='60' cy='60' r='30' fill='none' stroke='%2300E5FF' stroke-width='2' opacity='0.3'/%3E%3Ctext x='50%25' y='55%25' fill='%2300E5FF' font-size='24' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'%3E%E2%99%AA%3C/text%3E%3C/svg%3E" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
       <div class="bar-meta">
         <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
         <span class="bar-artist" id="bar-artist">Join a voice channel and play a song</span>
@@ -2128,6 +2147,8 @@ UI_HTML = r"""<!DOCTYPE html>
     let currentUser = null;
     let ws = null;
     let userFavorites = [];
+    const pendingActions = new Set();
+    const DEFAULT_ARTWORK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'><defs><linearGradient id='neonG' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%2312131C'/><stop offset='100%' stop-color='%2308090D'/></linearGradient></defs><rect width='100%' height='100%' fill='url(%23neonG)'/><circle cx='150' cy='150' r='75' fill='none' stroke='%2300E5FF' stroke-width='4' opacity='0.35'/><circle cx='150' cy='150' r='30' fill='%23FF0055' opacity='0.55'/><text x='150' y='162' fill='%2300E5FF' font-family='system-ui, sans-serif' font-size='36' text-anchor='middle'>🎵</text></svg>";
 
     // =========================================================================
     // INITIALIZATION & REAL-TIME WEBSOCKET
@@ -2177,6 +2198,9 @@ UI_HTML = r"""<!DOCTYPE html>
     });
 
     function setupRealtimeWebSocket() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return; // Prevent duplicate active socket connections
+      }
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = `${proto}//${location.host}/api/realtime/ws`;
       try {
@@ -2185,11 +2209,19 @@ UI_HTML = r"""<!DOCTYPE html>
           try {
             const data = JSON.parse(event.data);
             if (data.event === "MUSIC_UPDATED" || data.event === "PULSE_UPDATED") {
-              syncAll();
+              if (!data.guild_id || data.guild_id === currentGuildId) {
+                syncAll();
+              }
             }
           } catch(e){}
         };
-        ws.onclose = () => { setTimeout(setupRealtimeWebSocket, 5000); };
+        ws.onclose = () => {
+          ws = null;
+          setTimeout(setupRealtimeWebSocket, 4000);
+        };
+        ws.onerror = () => {
+          try { if (ws) ws.close(); } catch(e){}
+        };
       } catch(e) {
         console.warn("WebSocket fallback to polling:", e);
       }
@@ -2372,13 +2404,28 @@ UI_HTML = r"""<!DOCTYPE html>
       document.getElementById('server-icon-badge').innerText = active.name.charAt(0);
 
       const menu = document.getElementById('server-dropdown-menu');
-      menu.innerHTML = activeGuilds.map(g => `
-        <div class="server-opt ${g.id === currentGuildId ? 'selected' : ''} ${g.authorized === false ? 'unauthorized' : ''}" onclick="selectServer('${g.id}')">
-          <div class="server-icon" style="width:24px; height:24px; font-size:0.75rem;">${g.name.charAt(0)}</div>
-          <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</span>
-          ${g.bot_in_guild === false ? '<span style="color:var(--danger); font-size:0.68rem; margin-left:auto;">Not in server</span>' : (g.authorized === false ? '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">🔒</span>' : (g.has_active_playback ? '<span style="color:var(--emerald); margin-left:auto;">▶</span>' : ''))}
-        </div>
-      `).join('');
+      menu.innerHTML = activeGuilds.map(g => {
+        let statusBadge = '';
+        if (g.bot_in_guild === false) {
+          statusBadge = '<span style="color:var(--danger); font-size:0.68rem; margin-left:auto;">Not in server</span>';
+        } else if (g.authorized === false) {
+          statusBadge = '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">🔒</span>';
+        } else if (g.voice_channel) {
+          statusBadge = `<span style="color:var(--emerald); font-size:0.72rem; margin-left:auto; display:flex; align-items:center; gap:0.25rem;"><span class="pulse-dot connected"></span> 🔊 #${g.voice_channel}</span>`;
+        } else if (g.has_active_playback) {
+          statusBadge = '<span style="color:var(--emerald); margin-left:auto;">▶</span>';
+        } else {
+          statusBadge = '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">⚪ Idle</span>';
+        }
+
+        return `
+          <div class="server-opt ${g.id === currentGuildId ? 'selected' : ''} ${g.authorized === false ? 'unauthorized' : ''}" onclick="selectServer('${g.id}')">
+            <div class="server-icon" style="width:24px; height:24px; font-size:0.75rem;">${g.name.charAt(0)}</div>
+            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</span>
+            ${statusBadge}
+          </div>
+        `;
+      }).join('');
     }
 
     function toggleServerMenu(e) {
@@ -2400,7 +2447,13 @@ UI_HTML = r"""<!DOCTYPE html>
         return;
       }
       currentGuildId = guildId;
+      // Immediately reset stale playback state from previous guild
+      currentSession = null;
+      currentQueue = [];
+      playbackSeconds = 0;
+      trackDurationSeconds = 0;
       renderGuildDropdown();
+      updatePlaybackBarUI();
       showToast(`Switched active server to ${target ? target.name : guildId}`);
       await syncAll();
     }
@@ -2464,8 +2517,8 @@ UI_HTML = r"""<!DOCTYPE html>
       const activeVcEl = document.getElementById('active-server-vc');
 
       if (!currentSession) {
-        if (vcText) vcText.innerText = "320kbps Online (Ready)";
-        if (activeVcEl) activeVcEl.innerText = "320kbps Online";
+        if (vcText) vcText.innerText = "⚪ Not in Voice Channel";
+        if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot disconnected"></span> ⚪ Disconnected';
         return;
       }
 
@@ -2480,10 +2533,12 @@ UI_HTML = r"""<!DOCTYPE html>
       if (t) {
         titleEl.innerText = t.title;
         artistEl.innerText = t.artist || "Unknown Artist";
-        if (t.thumbnail) artEl.src = t.thumbnail;
+        artEl.src = t.thumbnail || DEFAULT_ARTWORK;
+        artEl.onerror = () => { artEl.src = DEFAULT_ARTWORK; };
       } else {
         titleEl.innerText = "Queue is Empty";
-        artistEl.innerText = "Ready for songs — type a query or play from search";
+        artistEl.innerText = "Ready for songs — search or play a track";
+        artEl.src = DEFAULT_ARTWORK;
       }
 
       playBtn.innerText = isPlaying && !isPaused ? "⏸" : "▶";
@@ -2497,10 +2552,36 @@ UI_HTML = r"""<!DOCTYPE html>
       pill247.innerText = currentSession.twenty_four_seven ? "24/7 ON" : "24/7 OFF";
       pill247.className = "chip-pill " + (currentSession.twenty_four_seven ? "active" : "");
 
-      // Voice channel pill
-      const vc = currentSession.voice_channel_name || "320kbps Lossless Ready";
-      if (vcText) vcText.innerText = vc;
-      if (activeVcEl) activeVcEl.innerText = currentSession.voice_channel_name || "320kbps Online";
+      // Voice connection state synchronization
+      const vStatus = currentSession.voice_status || (currentSession.voice_channel_name ? "Connected" : "Disconnected");
+      const vName = currentSession.voice_channel_name;
+
+      if (vStatus === "Connected" && vName) {
+        if (activeVcEl) activeVcEl.innerHTML = `<span class="pulse-dot connected"></span> 🔊 #${vName}`;
+        if (vcText) vcText.innerText = `🔊 #${vName} (320kbps)`;
+      } else if (vStatus === "Connecting") {
+        if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot connecting"></span> 🟡 Connecting...';
+        if (vcText) vcText.innerText = '🟡 Connecting to Voice...';
+      } else if (vStatus === "Reconnecting") {
+        if (activeVcEl) activeVcEl.innerHTML = `<span class="pulse-dot reconnecting"></span> 🟠 Reconnecting...`;
+        if (vcText) vcText.innerText = `🟠 Reconnecting (${vName || 'Voice'})...`;
+      } else {
+        if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot disconnected"></span> ⚪ Disconnected';
+        if (vcText) vcText.innerText = '⚪ Not in Voice Channel';
+      }
+
+      const heroVc = document.getElementById('hero-vc-pill');
+      if (heroVc) {
+        if (vStatus === "Connected" && vName) {
+          heroVc.innerText = `🔊 #${vName} (Connected)`;
+        } else if (vStatus === "Connecting") {
+          heroVc.innerText = `🟡 Connecting...`;
+        } else if (vStatus === "Reconnecting") {
+          heroVc.innerText = `🟠 Reconnecting...`;
+        } else {
+          heroVc.innerText = `⚪ Voice Disconnected`;
+        }
+      }
 
       // Volume
       document.getElementById('vol-slider').value = currentSession.volume || 80;
@@ -2524,9 +2605,14 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // =========================================================================
-    // DISPATCH ACTIONS
+    // DISPATCH ACTIONS WITH DEBOUNCE PROTECTION
     // =========================================================================
     async function dispatchCmd(action, payload = {}) {
+      if (pendingActions.has(action)) {
+        return; // Prevent duplicate concurrent requests
+      }
+      pendingActions.add(action);
+
       try {
         const res = await fetch('/api/music/control', {
           method: 'POST',
@@ -2539,21 +2625,31 @@ UI_HTML = r"""<!DOCTYPE html>
         });
         const json = await res.json();
         if (json.success) {
-          showToast(`Executed: ${action}`);
+          const msg = json.data?.message || json.message || `Executed: ${action}`;
+          showToast(msg);
           await syncAll();
         } else {
-          showToast(json.error?.message || "Command failed", "danger");
+          showToast(json.error?.message || json.message || "Command failed", "danger");
         }
       } catch(e) {
         showToast("Network error executing command", "danger");
+      } finally {
+        setTimeout(() => pendingActions.delete(action), 350);
       }
     }
 
     async function togglePlayPause() {
       if (isPlaying && !isPaused) {
         await dispatchCmd('PAUSE');
-      } else {
+      } else if (isPaused) {
         await dispatchCmd('RESUME');
+      } else {
+        if (currentQueue && currentQueue.length > 0) {
+          const first = currentQueue[0];
+          await dispatchCmd('PLAY_NOW', { query: first.url || first.title });
+        } else {
+          showToast("No track in queue. Search and queue a song! 🎵", "info");
+        }
       }
     }
 
@@ -2741,7 +2837,7 @@ UI_HTML = r"""<!DOCTYPE html>
             <!-- ALBUM OF THE DAY HERO CARD (Muify Layout) -->
             <div class="muify-hero-card">
               <div style="position:relative; width:160px; height:160px; flex-shrink:0; border-radius:var(--radius-md); overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.6);">
-                <img id="hero-vinyl-art" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" src="${t?.thumbnail || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400'}" style="width:100%; height:100%; object-fit:cover;" alt="Cover">
+                <img id="hero-vinyl-art" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:100%; height:100%; object-fit:cover;" alt="Cover">
                 <button class="btn btn-primary" onclick="togglePlayPause()" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:48px; height:48px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(147,51,234,0.6);" id="hero-play-btn">
                   ${isPlaying && !isPaused ? '⏸' : '▶'}
                 </button>
@@ -3391,7 +3487,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <div class="queue-row">
           <div class="queue-row-left">
             <span class="queue-num">${i + 1}</span>
-            <img class="queue-thumb" src="${q.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}" alt="Thumb">
+            <img class="queue-thumb" src="${q.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Thumb">
             <div class="queue-meta">
               <span class="queue-title">${q.title}</span>
               <span class="queue-artist">${q.artist || 'Unknown'} • Req by ${q.requester_name || 'User'}</span>
@@ -3513,23 +3609,39 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success && json.data && json.data.length > 0) {
           label.innerText = `Found ${json.data.length} matches`;
-          grid.innerHTML = json.data.map(track => `
-            <div class="track-card">
-              <div class="track-card-top">
-                <img class="track-card-thumb" src="${track.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150'}" alt="Art">
-                <div class="track-card-info">
-                  <span class="track-card-title" title="${track.title}">${track.title}</span>
-                  <span class="track-card-artist">${track.artist || 'YouTube / Spotify'}</span>
-                  <span class="track-card-dur">${formatTime(track.duration)}</span>
+          grid.innerHTML = json.data.map((track, idx) => {
+            const trackId = track.id || `track_${idx}_${Math.random().toString(36).slice(2, 7)}`;
+            const thumbUrl = track.thumbnail || DEFAULT_ARTWORK;
+            const safeTitle = (track.title || 'Unknown Track').replace(/"/g, '&quot;');
+            const safeArtist = (track.artist || 'YouTube / Spotify').replace(/"/g, '&quot;');
+            const provider = (track.provider || 'youtube').toLowerCase();
+            const providerBadge = provider === 'spotify' ? 'SPOTIFY' : (provider === 'itunes' ? 'APPLE' : 'YOUTUBE');
+
+            return `
+              <div class="track-card" id="card-${trackId}" data-track-id="${trackId}">
+                <div class="track-card-top">
+                  <img class="track-card-thumb" 
+                       src="${thumbUrl}" 
+                       alt="Art" 
+                       loading="lazy" 
+                       onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;">
+                  <div class="track-card-info">
+                    <span class="track-card-title" title="${safeTitle}">${safeTitle}</span>
+                    <span class="track-card-artist">${safeArtist}</span>
+                    <div style="display:flex; align-items:center; gap:0.5rem; margin-top:0.3rem;">
+                      <span class="user-badge-sub free" style="font-size:0.65rem; padding:0.1rem 0.4rem;">${providerBadge}</span>
+                      <span class="track-card-dur">${formatTime(track.duration)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="track-card-actions">
+                  <button class="btn btn-primary btn-sm" id="play-${trackId}" onclick="actionPlayNow('${encodeURIComponent(track.url || track.title)}', '${trackId}')" title="Play Immediately">⚡ Play Now</button>
+                  <button class="btn btn-secondary btn-sm" id="next-${trackId}" onclick="actionPlayNext('${encodeURIComponent(track.url || track.title)}', '${trackId}')" title="Play Next in Queue">⏭ Next</button>
+                  <button class="btn btn-secondary btn-sm" id="queue-${trackId}" onclick="actionEnqueue('${encodeURIComponent(track.url || track.title)}', '${trackId}')" title="Add to End of Queue">➕ Queue</button>
                 </div>
               </div>
-              <div class="track-card-actions">
-                <button class="btn btn-primary btn-sm" onclick="actionPlayNow('${encodeURIComponent(track.url || track.title)}')" title="Play Immediately">⚡ Play Now</button>
-                <button class="btn btn-secondary btn-sm" onclick="actionPlayNext('${encodeURIComponent(track.url || track.title)}')" title="Play Next in Queue">⏭ Next</button>
-                <button class="btn btn-secondary btn-sm" onclick="actionEnqueue('${encodeURIComponent(track.url || track.title)}')" title="Add to End of Queue">➕ Queue</button>
-              </div>
-            </div>
-          `).join('');
+            `;
+          }).join('');
         } else {
           label.innerText = "No results found";
           grid.innerHTML = `<div style="grid-column:1 / -1; text-align:center; padding:3rem; color:var(--danger);">No playable tracks found. Please try another query or direct URL.</div>`;
@@ -3540,22 +3652,58 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
-    async function actionPlayNow(enc) {
+    async function actionPlayNow(enc, trackId = null) {
       const q = decodeURIComponent(enc);
+      const btn = trackId ? document.getElementById(`play-${trackId}`) : null;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Playing...";
+      }
       showToast(`Playing "${q}" immediately...`);
-      await dispatchCmd('PLAY_NOW', { query: q });
+      try {
+        await dispatchCmd('PLAY_NOW', { query: q });
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "⚡ Play Now";
+        }
+      }
     }
 
-    async function actionPlayNext(enc) {
+    async function actionPlayNext(enc, trackId = null) {
       const q = decodeURIComponent(enc);
+      const btn = trackId ? document.getElementById(`next-${trackId}`) : null;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Adding...";
+      }
       showToast(`Added "${q}" as next song`);
-      await dispatchCmd('PLAY_NEXT', { query: q });
+      try {
+        await dispatchCmd('PLAY_NEXT', { query: q });
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "⏭ Next";
+        }
+      }
     }
 
-    async function actionEnqueue(enc) {
+    async function actionEnqueue(enc, trackId = null) {
       const q = decodeURIComponent(enc);
+      const btn = trackId ? document.getElementById(`queue-${trackId}`) : null;
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Adding...";
+      }
       showToast(`Added "${q}" to queue`);
-      await dispatchCmd('ENQUEUE', { query: q });
+      try {
+        await dispatchCmd('ENQUEUE', { query: q });
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "➕ Queue";
+        }
+      }
     }
 
     // =========================================================================
@@ -3570,7 +3718,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- CURRENT TRACK BANNER -->
           <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
             <div style="display:flex; align-items:center; gap:1.2rem;">
-              <img src="${t?.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150'}" style="width:68px; height:68px; border-radius:12px; object-fit:cover;">
+              <img src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:68px; height:68px; border-radius:12px; object-fit:cover;">
               <div>
                 <span class="chip-pill" style="color:var(--emerald);">NOW STREAMING</span>
                 <h3 style="font-size:1.25rem; font-weight:800; color:#fff; margin-top:0.3rem;">${t ? t.title : 'No Song Currently Playing'}</h3>
@@ -3656,7 +3804,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="queue-row-left">
             <span class="queue-drag-handle" title="Drag to reorder queue position">⋮⋮</span>
             <span class="queue-num">${i + 1}</span>
-            <img class="queue-thumb" src="${q.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}">
+            <img class="queue-thumb" src="${q.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Thumb">
             <div class="queue-meta">
               <span class="queue-title">${q.title}</span>
               <span class="queue-artist">${q.artist || 'Unknown'} • Req by ${q.requester_name || 'Web'}</span>
@@ -3732,7 +3880,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- CENTER VINYL & METADATA -->
           <div class="canvas-hero-center">
             <div class="vinyl-wrapper" style="width:220px; height:220px;">
-              <img id="stage-vinyl-disc" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" style="width:220px; height:220px; box-shadow: 0 0 50px rgba(0, 229, 255, 0.4);" src="${t?.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=350'}" alt="Cover">
+              <img id="stage-vinyl-disc" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" style="width:220px; height:220px; box-shadow: 0 0 50px rgba(0, 229, 255, 0.4);" src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
             </div>
             <div style="text-align:center; max-width:650px; z-index:5;">
               <h2 id="stage-track-title" style="font-size:2.2rem; font-weight:800; color:#fff; text-shadow: 0 0 20px rgba(0,229,255,0.6); margin-bottom:0.4rem;">
@@ -3959,7 +4107,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   recs.map(r => `
                     <div class="track-card">
                       <div class="track-card-top">
-                        <img class="track-card-thumb" src="${r.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120'}">
+                        <img class="track-card-thumb" src="${r.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Thumbnail">
                         <div class="track-card-info">
                           <span class="track-card-title">${r.title}</span>
                           <span class="track-card-artist">${r.artist}</span>
@@ -4054,7 +4202,7 @@ UI_HTML = r"""<!DOCTYPE html>
               ${favs.map(f => `
                 <div class="track-card">
                   <div class="track-card-top">
-                    <img class="track-card-thumb" src="${f.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}">
+                    <img class="track-card-thumb" src="${f.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Thumbnail">
                     <div class="track-card-info">
                       <span class="track-card-title">${f.title}</span>
                       <span class="track-card-artist">${f.artist || 'Favorite'}</span>
@@ -4114,7 +4262,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div class="queue-row">
                   <div class="queue-row-left">
                     <span class="queue-num">${i + 1}</span>
-                    <img class="queue-thumb" src="${h.thumbnail || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100'}">
+                    <img class="queue-thumb" src="${h.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Thumbnail">
                     <div class="queue-meta">
                       <span class="queue-title">${h.title}</span>
                       <span class="queue-artist">${h.artist || 'Unknown'} • Req by ${h.requester_name || 'User'}</span>

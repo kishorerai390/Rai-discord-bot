@@ -80,3 +80,15 @@ export interface DSPEqualizerPreset {
   is_premium: boolean;
   filters: Record<string, string | number>;
 }
+
+export interface SearchResult {
+  id: string;
+  title: string;
+  artist: string;
+  url: string;
+  duration: number;
+  duration_fmt?: string;
+  thumbnail: string;
+  provider?: string;
+  source?: string;
+}

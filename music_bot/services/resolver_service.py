@@ -903,17 +903,31 @@ class AudioResolver:
             return []
 
         entries = data.get("entries") if "entries" in data else [data]
-        raw_candidates = []
         for entry in entries:
             if not entry or entry.get("has_drm"):
                 continue
+
+            # Extract highest-quality thumbnail from yt-dlp metadata
+            thumb = entry.get("thumbnail")
+            if not thumb and entry.get("thumbnails"):
+                thumbs = entry.get("thumbnails")
+                if isinstance(thumbs, list) and thumbs:
+                    thumb = thumbs[-1].get("url") or thumbs[0].get("url")
+            vid_id = entry.get("id")
+            if not thumb and vid_id:
+                thumb = f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg"
+
+            track_url = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else entry.get("url", ""))
+            track_id = vid_id or f"yt_{abs(hash(entry.get('title', '')))}"
+
             raw_candidates.append({
+                "id": str(track_id),
                 "title": entry.get("title", "Unknown Track"),
-                "url": entry.get("webpage_url") or entry.get("url", ""),
+                "url": track_url,
                 "duration": int(entry.get("duration", 0) or 0),
                 "artist": entry.get("uploader") or entry.get("channel", "Unknown Artist"),
-                "thumbnail": entry.get("thumbnail"),
-                "id": entry.get("id"),
+                "thumbnail": thumb,
+                "provider": "youtube",
             })
 
         # Rank candidates using query intent analysis
