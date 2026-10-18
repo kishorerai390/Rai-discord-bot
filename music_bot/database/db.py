@@ -256,6 +256,13 @@ class MusicDatabase:
                     last_heartbeat TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS music_bot_roles (
+                    guild_id INTEGER PRIMARY KEY,
+                    role_id INTEGER NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS persistent_music_sessions (
                     guild_id INTEGER NOT NULL,
                     session_id TEXT NOT NULL,
@@ -611,6 +618,36 @@ class MusicDatabase:
                         )
                     )
         return results
+
+    async def get_bot_role_id(self, guild_id: int) -> Optional[int]:
+        """Retrieve stored MusicMaid dedicated role ID for guild."""
+        if not self._db:
+            return None
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT role_id FROM music_bot_roles WHERE guild_id = ?;",
+                (guild_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else None
+
+    async def set_bot_role_id(self, guild_id: int, role_id: int) -> None:
+        """Upsert stored MusicMaid dedicated role ID for guild."""
+        if not self._db:
+            return
+        now_iso = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            await self._db.execute(
+                """
+                INSERT INTO music_bot_roles (guild_id, role_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(guild_id) DO UPDATE SET
+                    role_id = excluded.role_id,
+                    updated_at = excluded.updated_at;
+                """,
+                (guild_id, role_id, now_iso, now_iso),
+            )
+            await self._db.commit()
 
     # =========================================================================
     # NEKO DJ SETTINGS

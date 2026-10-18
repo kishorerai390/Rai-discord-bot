@@ -525,6 +525,22 @@ class NekoSongsBot(commands.Bot):
         except Exception as e:
             logger.warning(f"Failed to start MusicAutoUpdater: {e}")
 
+        # Automated Dedicated Bot Role Provisioning & Hierarchy Verification
+        try:
+            from music_bot.services.role_service import BotRoleService
+            asyncio.create_task(BotRoleService.setup_all_guilds(self, self.db))
+        except Exception as role_init_err:
+            logger.warning(f"Failed to schedule automated bot role setup: {role_init_err}")
+
+    async def on_guild_join(self, guild: discord.Guild) -> None:
+        """Handle new guild additions with automatic role creation and permission diagnostics."""
+        logger.info(f"✨ MusicMaid joined new guild: '{guild.name}' (ID: {guild.id}) with {guild.member_count} members.")
+        try:
+            from music_bot.services.role_service import BotRoleService
+            await BotRoleService.setup_guild_role(guild, self.db)
+        except Exception as role_err:
+            logger.error(f"[RoleSetup] Error setting up role for joined guild {guild.id}: {role_err}")
+
     async def on_voice_state_update(
         self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
     ) -> None:
