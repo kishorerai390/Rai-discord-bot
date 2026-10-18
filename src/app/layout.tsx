@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { MusicProvider } from "@/context/MusicContext";
@@ -16,6 +16,10 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#8b5cf6",
+};
+
 export const metadata: Metadata = {
   title: "MusicMaid ✦ Discord Music Engine & Master Control Panel",
   description:
@@ -28,6 +32,11 @@ export const metadata: Metadata = {
     "Equalizer DSP",
     "Discord bot control panel",
   ],
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({
