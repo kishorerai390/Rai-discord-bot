@@ -290,6 +290,7 @@ class TestMasterBuildSuite(unittest.IsolatedAsyncioTestCase):
         """Verify all declared UI routes return 200 HTML on direct refresh or navigation."""
         routes = [
             "/",
+            "/login",
             "/dashboard",
             "/search",
             "/queue",

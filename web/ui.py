@@ -2370,6 +2370,54 @@ UI_HTML = r"""<!DOCTYPE html>
       background: rgba(16, 185, 129, 0.2);
       border-color: var(--emerald);
     }
+
+    /* WORKSPACE ORDER SWITCHER BAR */
+    .workspace-switcher-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(15, 15, 24, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius-md);
+      padding: 0.35rem 0.5rem;
+      backdrop-filter: blur(16px);
+      margin-bottom: 1.4rem;
+      flex-wrap: wrap;
+    }
+    .workspace-tab {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .workspace-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .workspace-tab.active {
+      color: #fff;
+      background: linear-gradient(135deg, rgba(147, 51, 234, 0.35) 0%, rgba(0, 229, 255, 0.15) 100%);
+      border-color: rgba(147, 51, 234, 0.5);
+      box-shadow: 0 4px 14px rgba(147, 51, 234, 0.25);
+    }
+    .workspace-tab.owner-tab:hover {
+      color: #ffd700;
+      border-color: rgba(255, 215, 0, 0.35);
+    }
+    .workspace-tab.active.owner-tab {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.2) 0%, rgba(147, 51, 234, 0.25) 100%);
+      border-color: rgba(255, 215, 0, 0.55);
+      color: #ffd700;
+      box-shadow: 0 4px 14px rgba(255, 215, 0, 0.2);
+    }
   </style>
 </head>
 <body>
@@ -2440,19 +2488,21 @@ UI_HTML = r"""<!DOCTYPE html>
         <button class="promo-btn">View Plans ⚡</button>
       </div>
 
-      <!-- MAIN NAVIGATION -->
-      <span class="nav-group-title">Discover & Listen</span>
+      <!-- 1. LOGIN & ACCESS GATEWAY -->
+      <span class="nav-group-title">1. Access & Gateway</span>
       <ul class="nav-list">
-        <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">🏠</span> Home / Discover</a></li>
-        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search Songs</a></li>
+        <li><a class="nav-link" id="nav-login" onclick="navigate('/login')"><span class="nav-icon">🔑</span> Login / Welcome Page</a></li>
+      </ul>
+
+      <!-- 2. USER DASHBOARD & LISTENER HUB -->
+      <span class="nav-group-title" style="margin-top:0.6rem;">2. User Dashboard (Listener Hub)</span>
+      <ul class="nav-list">
+        <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">📻</span> Turntable & Deck</a></li>
+        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Aux</a></li>
         <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
         <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Audio Visualizer</a></li>
-      </ul>
-
-      <span class="nav-group-title" style="margin-top:0.6rem;">Collection & Engine</span>
-      <ul class="nav-list">
-        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library</a></li>
+        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library & Favs</a></li>
         <li><a class="nav-link" id="nav-playlists" onclick="navigate('/playlists')"><span class="nav-icon">📁</span> Playlists</a></li>
         <li><a class="nav-link" id="nav-history" onclick="navigate('/history')"><span class="nav-icon">🕒</span> Listening History</a></li>
         <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
@@ -2460,13 +2510,14 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> MusicMaid VIP</a></li>
       </ul>
 
-      <span class="nav-group-title" style="margin-top:0.6rem;">Control & Health</span>
+      <!-- 3. OWNER DASHBOARD & CREATOR ROOM (SEPARATE) -->
+      <span class="nav-group-title" style="margin-top:0.6rem; color:#ffd700;">3. Owner Dashboard (Creator Room)</span>
       <ul class="nav-list">
-        <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Analytics</a></li>
-        <li><a class="nav-link" id="nav-guilds" onclick="navigate('/dashboard/guilds')"><span class="nav-icon">⚙️</span> Server Dashboard</a></li>
-        <li><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">🔧</span> Settings</a></li>
+        <li id="nav-owner-li"><a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(255,215,0,0.35); background:linear-gradient(135deg,rgba(255,215,0,0.06),rgba(147,51,234,0.1)); color:#ffd700;"><span class="nav-icon">👑</span> Creator Control Center</a></li>
         <li id="nav-system-li"><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🛡️</span> Security & Health</a></li>
-        <li id="nav-owner-li" style="display:none;"><a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(168,85,247,0.4);"><span class="nav-icon">⚡</span> Creator Panel</a></li>
+        <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Telemetry & Analytics</a></li>
+        <li><a class="nav-link" id="nav-guilds" onclick="navigate('/dashboard/guilds')"><span class="nav-icon">⚙️</span> Server Management</a></li>
+        <li><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">🔧</span> Global Settings</a></li>
       </ul>
 
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin:0.5rem 0 0.2rem 0;">
@@ -3579,7 +3630,10 @@ UI_HTML = r"""<!DOCTYPE html>
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
-      if (path === '/' || path === '/dashboard') {
+      if (path === '/login') {
+        document.getElementById('nav-login')?.classList.add('active');
+        renderLoginView();
+      } else if (path === '/' || path === '/dashboard') {
         document.getElementById('nav-dashboard')?.classList.add('active');
         renderDashboard();
       } else if (path === '/search') {
@@ -3633,7 +3687,7 @@ UI_HTML = r"""<!DOCTYPE html>
       } else if (path === '/premium/manage') {
         document.getElementById('nav-premium')?.classList.add('active');
         renderPremiumManage();
-      } else if (path === '/owner') {
+      } else if (path === '/owner' || path === '/creator') {
         document.getElementById('nav-owner')?.classList.add('active');
         renderCreatorControlRoom();
       } else if (path === '/dashboard/guilds' || path === '/guilds') {
@@ -3717,7 +3771,133 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     // =========================================================================
-    // VIEW 1: DASHBOARD OVERVIEW
+    // VIEW 0: LOGIN & WELCOME GATEWAY
+    // =========================================================================
+    function renderLoginView() {
+      const container = document.getElementById('view-container');
+      const isAuth = Boolean(currentUser);
+      const isOwner = Boolean(currentUser && currentUser.is_owner);
+
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+
+          <!-- WORKSPACE ORDER SWITCHER -->
+          <div class="workspace-switcher-bar">
+            <div class="workspace-tab active" onclick="navigate('/login')">
+              <span>🔑</span> 1. Login & Welcome
+            </div>
+            <div class="workspace-tab" onclick="navigate('/dashboard')">
+              <span>🎧</span> 2. User Dashboard (Turntable & Deck)
+            </div>
+            <div class="workspace-tab owner-tab" onclick="navigate('/owner')">
+              <span>👑</span> 3. Owner Dashboard (Creator Room)
+            </div>
+          </div>
+
+          <!-- HERO LOGIN & WELCOME CARD -->
+          <div class="glass-card" style="padding:2.5rem 1.8rem; text-align:center; position:relative; overflow:hidden; border:1px solid rgba(147,51,234,0.35); background:radial-gradient(circle at 50% 0%, rgba(147,51,234,0.22) 0%, rgba(10,10,16,0.9) 75%);">
+            <div style="position:relative; z-index:2; display:flex; flex-direction:column; align-items:center;">
+              <div style="position:relative; width:92px; height:92px; margin-bottom:1.2rem;">
+                <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid Avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:2px solid var(--primary); box-shadow:0 0 32px rgba(147,51,234,0.6);" onerror="this.src=DEFAULT_ARTWORK">
+                <span class="pulse-dot connected" style="position:absolute; bottom:4px; right:4px; width:14px; height:14px; border:2px solid #000;"></span>
+              </div>
+
+              <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem; flex-wrap:wrap; justify-content:center;">
+                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 24/7 Voice Ready</span>
+                <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ 0.5ms Gateway Ping</span>
+                <span class="chip-pill" style="color:#f472b6; background:rgba(236,72,153,0.15);">🛡️ Extractor Auto-Heal ON</span>
+              </div>
+
+              <h1 style="font-size:2.2rem; font-weight:800; color:#fff; line-height:1.2; margin-bottom:0.6rem;">
+                Welcome to MusicMaid Studio
+              </h1>
+              <p style="font-size:1rem; color:var(--text-muted); max-width:620px; line-height:1.55; margin-bottom:1.8rem;">
+                Lossless 320kbps Discord audio streaming with cyber-analog turntable controls, dual stereo VU meters, social aux sharing, and autonomous self-healing.
+              </p>
+
+              ${isAuth ? `
+                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:1rem 1.6rem; margin-bottom:1.6rem; display:flex; align-items:center; gap:1rem;">
+                  <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:42px; height:42px; border-radius:50%;" alt="Avatar">
+                  <div style="text-align:left;">
+                    <div style="font-weight:700; color:#fff; font-size:0.95rem;">Signed in as ${currentUser.display_name || currentUser.username}</div>
+                    <div style="font-size:0.75rem; color:${isOwner ? '#ffd700' : 'var(--cyan)'}; font-weight:700;">${isOwner ? '👑 Bot Creator / Owner' : '🎧 Listener / Server Member'}</div>
+                  </div>
+                </div>
+                <div style="display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center;">
+                  <button class="btn btn-primary btn-lg" onclick="navigate('/dashboard')" style="padding:0.75rem 1.8rem; font-weight:800; font-size:1rem;">
+                    <span>🎧</span> Enter User Dashboard ↗
+                  </button>
+                  ${isOwner ? `
+                    <button class="btn btn-secondary btn-lg" onclick="navigate('/owner')" style="padding:0.75rem 1.5rem; font-weight:800; font-size:1rem; border-color:rgba(255,215,0,0.5); color:#ffd700;">
+                      <span>👑</span> Open Owner Dashboard ↗
+                    </button>
+                  ` : ''}
+                  <button class="btn btn-secondary btn-lg" onclick="logoutUser()" style="padding:0.75rem 1.2rem; font-size:0.95rem;">
+                    🚪 Logout
+                  </button>
+                </div>
+              ` : `
+                <div style="display:flex; flex-direction:column; gap:0.9rem; align-items:center; width:100%; max-width:380px;">
+                  <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)" style="width:100%; justify-content:center; padding:0.85rem 1.4rem; font-size:1.05rem; font-weight:800; box-shadow:0 6px 20px rgba(88,101,242,0.4);">
+                    <span>👾 Sign in with Discord</span>
+                  </a>
+                  <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="width:100%; justify-content:center; padding:0.7rem 1.2rem; font-size:0.9rem;">
+                    <span>🎧</span> Preview User Dashboard as Listener
+                  </button>
+                </div>
+              `}
+            </div>
+          </div>
+
+          <!-- FEATURES TRIO: WHY MUSICMAID -->
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem;">
+            <div class="glass-card" style="padding:1.6rem; cursor:pointer;" onclick="navigate('/dashboard')">
+              <div style="font-size:2rem; margin-bottom:0.6rem;">🎛️</div>
+              <h3 style="font-size:1.15rem; font-weight:700; color:#fff; margin-bottom:0.4rem;">Cyber-Analog Turntable</h3>
+              <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;">
+                Dual stereo analog VU meters with dB scales, metallic tonearm tracking, spinning vinyl micro-grooves, and 10-band DSP filters.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding:1.6rem; cursor:pointer;" onclick="navigate('/search')">
+              <div style="font-size:2rem; margin-bottom:0.6rem;">🎵</div>
+              <h3 style="font-size:1.15rem; font-weight:700; color:#fff; margin-bottom:0.4rem;">Social Aux & Reactions</h3>
+              <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;">
+                See who's currently in your voice channel, pass the aux cord to friends, and react with floating live emojis directly to the track.
+              </p>
+            </div>
+
+            <div class="glass-card" style="padding:1.6rem; cursor:pointer;" onclick="navigate('/owner')">
+              <div style="font-size:2rem; margin-bottom:0.6rem;">🛡️</div>
+              <h3 style="font-size:1.15rem; font-weight:700; color:#fff; margin-bottom:0.4rem;">Autonomous Self-Healing</h3>
+              <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;">
+                Continuous PyPI hotfix watchdog for yt-dlp, Node.js EJS solver, and 24/7 session recovery that re-joins your VC if Discord drops.
+              </p>
+            </div>
+          </div>
+
+          <!-- BOTTOM COMMUNITY & INVITE BANNER -->
+          <div class="glass-card" style="padding:1.6rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <div style="font-size:1.1rem; font-weight:800; color:#fff;">Want MusicMaid in Your Discord Server?</div>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">Zero admin privileges needed — auto-configures dedicated <code>MusicMaid</code> voice role.</div>
+            </div>
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+              <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
+                ➕ Add to Discord
+              </a>
+              <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">
+                💬 Community Server
+              </a>
+            </div>
+          </div>
+
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // VIEW 1: DASHBOARD OVERVIEW (USER DASHBOARD)
     // =========================================================================
     function renderDashboard() {
       const container = document.getElementById('view-container');
@@ -3725,6 +3905,19 @@ UI_HTML = r"""<!DOCTYPE html>
       const favCount = (typeof userFavorites !== 'undefined' && Array.isArray(userFavorites)) ? userFavorites.length : 0;
 
       container.innerHTML = `
+        <!-- WORKSPACE ORDER SWITCHER -->
+        <div class="workspace-switcher-bar">
+          <div class="workspace-tab" onclick="navigate('/login')">
+            <span>🔑</span> 1. Login & Welcome
+          </div>
+          <div class="workspace-tab active" onclick="navigate('/dashboard')">
+            <span>🎧</span> 2. User Dashboard (Turntable & Deck)
+          </div>
+          <div class="workspace-tab owner-tab" onclick="navigate('/owner')">
+            <span>👑</span> 3. Owner Dashboard (Creator Room)
+          </div>
+        </div>
+
         <div class="muify-dashboard-grid">
 
           <!-- LEFT WORKSPACE (2.2fr) -->
@@ -4103,6 +4296,19 @@ UI_HTML = r"""<!DOCTYPE html>
       const container = document.getElementById('view-container');
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
+          <!-- WORKSPACE ORDER SWITCHER -->
+          <div class="workspace-switcher-bar">
+            <div class="workspace-tab" onclick="navigate('/login')">
+              <span>🔑</span> 1. Login & Welcome
+            </div>
+            <div class="workspace-tab" onclick="navigate('/dashboard')">
+              <span>🎧</span> 2. User Dashboard (Turntable & Deck)
+            </div>
+            <div class="workspace-tab active owner-tab" onclick="navigate('/owner')">
+              <span>👑</span> 3. Owner Dashboard (Creator Room)
+            </div>
+          </div>
+
           <div class="control-header-bar">
             <div>
               <h2 style="color:#fff; font-weight:800; font-size:1.4rem; margin:0;">⚡ Creator Control Center</h2>
