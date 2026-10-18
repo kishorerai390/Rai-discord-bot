@@ -32,25 +32,31 @@ function initMusicSchema(db: Database.Database): void {
         is_playing INTEGER DEFAULT 0,
         is_paused INTEGER DEFAULT 0,
         volume INTEGER DEFAULT 80,
+        current_track_json TEXT,
         current_track_title TEXT,
         current_track_author TEXT,
         current_track_url TEXT,
         current_track_thumbnail TEXT,
         current_track_duration INTEGER DEFAULT 0,
         position_seconds REAL DEFAULT 0,
-        loop_mode TEXT DEFAULT 'NONE',
+        elapsed_seconds REAL DEFAULT 0,
+        loop_mode TEXT DEFAULT 'off',
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE TABLE IF NOT EXISTS music_queues (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         guild_id TEXT NOT NULL,
-        position INTEGER NOT NULL,
+        track_index INTEGER DEFAULT 0,
+        position INTEGER DEFAULT 0,
         title TEXT NOT NULL,
         url TEXT NOT NULL,
+        stream_url TEXT,
         author TEXT,
+        artist TEXT,
         duration INTEGER DEFAULT 0,
         thumbnail TEXT,
+        requester_name TEXT,
         requested_by TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
       );
@@ -192,12 +198,19 @@ export function getActiveSession(guildId: string) {
 export function getQueue(guildId: string) {
   try {
     const db = getMusicDb();
-    const rows = db
-      .prepare(
-        "SELECT * FROM music_queues WHERE guild_id = ? ORDER BY position ASC"
-      )
-      .all(guildId);
-    return rows as any[];
+    try {
+      return db
+        .prepare(
+          "SELECT * FROM music_queues WHERE guild_id = ? ORDER BY track_index ASC"
+        )
+        .all(guildId) as any[];
+    } catch {
+      return db
+        .prepare(
+          "SELECT * FROM music_queues WHERE guild_id = ? ORDER BY position ASC"
+        )
+        .all(guildId) as any[];
+    }
   } catch {
     return [];
   }

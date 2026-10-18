@@ -71,39 +71,49 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
       const uData = await uRes.json();
       const gData = await gRes.json();
 
-      if (uData.success && uData.user) {
-        setCurrentUser(uData.user);
+      const user = uData.data?.user ?? uData.user ?? null;
+      if (user) {
+        setCurrentUser(user);
       }
-      if (gData.success && Array.isArray(gData.guilds) && gData.guilds.length > 0) {
-        setGuilds(gData.guilds);
-        if (!activeGuildId || activeGuildId === "1525030316845301781") {
-          setActiveGuildId(gData.guilds[0].id);
-        }
+
+      const rawGuilds = gData.data?.guilds ?? gData.guilds ?? [];
+      if (Array.isArray(rawGuilds) && rawGuilds.length > 0) {
+        setGuilds(rawGuilds);
+        setActiveGuildId((prev) => {
+          if (!prev || prev === "1525030316845301781" || !rawGuilds.some((g: any) => g.id === prev)) {
+            return rawGuilds[0].id;
+          }
+          return prev;
+        });
       }
     } catch (e) {
       console.warn("Auth & Guilds fetch notice:", e);
     }
-  }, [activeGuildId]);
+  }, []);
 
   // Synchronize playback session and queue
   const syncPlayback = useCallback(async () => {
     if (!activeGuildId) return;
     try {
       const [sRes, qRes] = await Promise.all([
-        fetch(`/api/music/session?guild_id=${activeGuildId}`),
-        fetch(`/api/music/queue?guild_id=${activeGuildId}`),
+        fetch(`/api/music/session?guild_id=${encodeURIComponent(activeGuildId)}`),
+        fetch(`/api/music/queue?guild_id=${encodeURIComponent(activeGuildId)}`),
       ]);
       const sData = await sRes.json();
       const qData = await qRes.json();
 
-      if (sData.success && sData.session) {
-        setSession(sData.session);
-        if (typeof sData.session.position_seconds === "number") {
-          setPlaybackSeconds(sData.session.position_seconds);
+      const sess = sData.data?.session ?? sData.session ?? null;
+      if (sess) {
+        setSession(sess);
+        const pos = typeof sess.elapsed_seconds === "number" ? sess.elapsed_seconds : sess.position_seconds;
+        if (typeof pos === "number") {
+          setPlaybackSeconds(pos);
         }
       }
-      if (qData.success && Array.isArray(qData.queue)) {
-        setQueue(qData.queue);
+
+      const q = qData.data?.queue ?? qData.queue ?? [];
+      if (Array.isArray(q)) {
+        setQueue(q);
       }
     } catch (e) {
       console.warn("Playback sync notice:", e);
