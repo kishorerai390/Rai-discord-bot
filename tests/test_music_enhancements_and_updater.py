@@ -183,3 +183,11 @@ class TestMusicEnhancementsAndUpdater(unittest.IsolatedAsyncioTestCase):
         self.assertIn("triggerSelfHealingDoctor", UI_HTML)
         self.assertIn("/api/music/extractor-health", UI_HTML)
         self.assertIn("self-healing-console", UI_HTML)
+
+        # Three-tier Workspace Order: Login Page -> User Dashboard -> Owner Dashboard
+        self.assertIn("renderLoginView", UI_HTML)
+        self.assertIn("workspace-switcher-bar", UI_HTML)
+        self.assertIn("1. Login & Welcome", UI_HTML)
+        self.assertIn("2. User Dashboard (Turntable & Deck)", UI_HTML)
+        self.assertIn("3. Owner Dashboard (Creator Room)", UI_HTML)
+        self.assertIn("Welcome to MusicMaid Studio", UI_HTML)
