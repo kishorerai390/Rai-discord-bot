@@ -4,12 +4,12 @@ import { getMusicDb } from "@/lib/db";
 export async function GET() {
   try {
     const db = getMusicDb();
-    const rows = db
-      .prepare(
-        `SELECT guild_id, prefix, twenty_four_seven_enabled, default_volume, autodj_enabled 
-         FROM music_guild_settings LIMIT 100`
-      )
-      .all() as any[];
+    let rows: any[] = [];
+    try {
+      rows = db.prepare("SELECT * FROM music_guild_settings LIMIT 100").all() as any[];
+    } catch {
+      rows = [];
+    }
 
     const activeSessions = db
       .prepare("SELECT guild_id, state FROM music_sessions")
