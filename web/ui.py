@@ -2083,8 +2083,9 @@ UI_HTML = r"""<!DOCTYPE html>
             <span>👾 Sign in with Discord</span>
           </a>
         </div>
-        <div style="font-size:0.7rem; color:var(--text-dim); text-align:center; padding:0.4rem 0 0.1rem 0; line-height:1.4;">
-          Handcrafted by <a href="https://github.com/kishorerai390" target="_blank" rel="noopener" style="color:#a78bfa; text-decoration:none; font-weight:600;">Kishore</a> ✦ Open Discord Project
+        <div style="font-size:0.68rem; color:var(--text-dim); text-align:center; padding:0.4rem 0 0.1rem 0; line-height:1.4;">
+          MusicMaid is an independent open-source music bot. Not affiliated with or endorsed by Discord, Inc.<br>
+          Handcrafted by <a href="https://github.com/kishorerai390" target="_blank" rel="noopener" style="color:#a78bfa; text-decoration:none; font-weight:600;">Kishore</a>
         </div>
       </div>
     </aside>
@@ -2638,111 +2639,8 @@ UI_HTML = r"""<!DOCTYPE html>
             <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)" style="margin-bottom:0;">
               <span>👾 Sign in with Discord</span>
             </a>
-            <button class="btn-quick-login" onclick="openDirectLoginModal()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:0.4rem; padding:0.45rem 0.6rem; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); color:var(--text-dim); font-size:0.75rem; font-weight:700; cursor:pointer; transition:all 0.2s ease;">
-              <span>⚡ Quick ID / Creator Login</span>
-            </button>
           </div>
         `;
-      }
-    }
-
-    function openDirectLoginModal() {
-      const existing = document.getElementById('direct-login-modal');
-      if (existing) existing.remove();
-
-      const modal = document.createElement('div');
-      modal.id = 'direct-login-modal';
-      modal.className = 'custom-modal-backdrop active';
-      modal.style.position = 'fixed';
-      modal.style.top = '0';
-      modal.style.left = '0';
-      modal.style.width = '100vw';
-      modal.style.height = '100vh';
-      modal.style.background = 'rgba(0,0,0,0.75)';
-      modal.style.display = 'flex';
-      modal.style.alignItems = 'center';
-      modal.style.justifyContent = 'center';
-      modal.style.zIndex = '99999';
-      modal.style.padding = '1rem';
-
-      modal.innerHTML = `
-        <div class="custom-modal-dialog" style="max-width:440px; width:100%; background:var(--bg-card); border:1px solid rgba(255,255,255,0.15); border-radius:16px; padding:1.5rem; box-shadow:0 25px 60px rgba(0,0,0,0.8); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px);">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1.2rem;">
-            <div style="display:flex; align-items:center; gap:0.6rem;">
-              <span style="font-size:1.4rem;">⚡</span>
-              <div>
-                <h3 style="font-size:1.15rem; font-weight:800; color:#fff; margin:0;">Direct Discord Sign-In</h3>
-                <p style="font-size:0.75rem; color:var(--text-dim); margin:0;">Fast authorization via Creator VIP pass or Discord User ID</p>
-              </div>
-            </div>
-            <button onclick="document.getElementById('direct-login-modal').remove()" style="background:none; border:none; color:var(--text-dim); font-size:1.3rem; cursor:pointer; line-height:1;">✕</button>
-          </div>
-
-          <div style="display:flex; flex-direction:column; gap:0.9rem;">
-            <button onclick="executeDirectLogin('1457380609641938981', 'Rai (Creator)')" style="width:100%; padding:0.8rem 1rem; border-radius:12px; border:1px solid rgba(255, 215, 0, 0.45); background:linear-gradient(135deg, rgba(255,215,0,0.18), rgba(245,158,11,0.25)); color:#ffd700; font-weight:800; font-size:0.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:0.5rem; box-shadow:0 4px 15px rgba(255,215,0,0.15);">
-              <span>👑 Instant Sign In as Creator (Rai VIP)</span>
-            </button>
-
-            <div style="display:flex; align-items:center; gap:0.5rem; margin:0.3rem 0;">
-              <hr style="flex:1; border:none; border-top:1px solid rgba(255,255,255,0.1);">
-              <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em;">or sign in with your discord id</span>
-              <hr style="flex:1; border:none; border-top:1px solid rgba(255,255,255,0.1);">
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:0.4rem;">
-              <label style="font-size:0.75rem; color:var(--text-dim); font-weight:600;">Discord User ID</label>
-              <input id="direct-login-userid" type="text" placeholder="e.g. 1457380609641938981" style="width:100%; padding:0.7rem 0.9rem; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.35); color:#fff; font-size:0.85rem; outline:none;" />
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:0.4rem;">
-              <label style="font-size:0.75rem; color:var(--text-dim); font-weight:600;">Display Name (Optional)</label>
-              <input id="direct-login-username" type="text" placeholder="e.g. Rai" style="width:100%; padding:0.7rem 0.9rem; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.35); color:#fff; font-size:0.85rem; outline:none;" />
-            </div>
-
-            <div style="display:flex; gap:0.6rem; margin-top:0.4rem;">
-              <button onclick="document.getElementById('direct-login-modal').remove()" style="flex:1; padding:0.65rem; border-radius:10px; border:1px solid rgba(255,255,255,0.1); background:transparent; color:var(--text-dim); font-size:0.82rem; cursor:pointer;">Cancel</button>
-              <button onclick="submitCustomDirectLogin()" style="flex:1; padding:0.65rem; border-radius:10px; border:none; background:linear-gradient(135deg, var(--neon-cyan), var(--neon-purple)); color:#fff; font-weight:700; font-size:0.82rem; cursor:pointer; box-shadow:0 4px 15px rgba(0,229,255,0.25);">Authenticate</button>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(modal);
-    }
-
-    async function submitCustomDirectLogin() {
-      const uid = document.getElementById('direct-login-userid')?.value?.trim();
-      const uname = document.getElementById('direct-login-username')?.value?.trim() || 'Discord Member';
-      if (!uid) {
-        showToast("Please enter your Discord User ID", "warning");
-        return;
-      }
-      await executeDirectLogin(uid, uname);
-    }
-
-    async function executeDirectLogin(userId, username) {
-      try {
-        const res = await fetch('/api/auth/dev-login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, username: username })
-        });
-        const json = await res.json();
-        if (json.success && json.data) {
-          const token = json.data.token || json.data.session_id;
-          if (token) {
-            localStorage.setItem('rai_session_token', token);
-          }
-          currentUser = json.data.user;
-          renderAuthBox(currentUser);
-          document.getElementById('direct-login-modal')?.remove();
-          showToast(`Welcome back, ${currentUser.display_name || currentUser.username}! ✦`, "success");
-          await fetchGuilds();
-          await syncAll();
-        } else {
-          showToast(json.error?.message || "Failed to log in", "danger");
-        }
-      } catch (err) {
-        showToast("Authentication request error", "danger");
       }
     }
 
