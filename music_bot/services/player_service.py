@@ -2401,7 +2401,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="↺", label="Rewind 10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_rewind_10", row=0)
+    @discord.ui.button(emoji="⏪", label="Rewind 10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_rewind_10", row=0)
     async def rewind_10_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
@@ -2469,7 +2469,7 @@ class NowPlayingControlView(discord.ui.View):
         except Exception:
             pass
 
-    @discord.ui.button(emoji="↻", label="Forward 10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_forward_10", row=0)
+    @discord.ui.button(emoji="⏩", label="Forward 10s", style=discord.ButtonStyle.secondary, custom_id="music_btn_forward_10", row=0)
     async def forward_10_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             if not interaction.response.is_done():
