@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { FolderHeart, Bookmark, Heart, Play, Trash2, Plus, Loader2 } from "lucide-react";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 import type { Playlist, FavoriteItem } from "@/types/music";
 
 interface LibraryViewProps {
@@ -225,8 +225,11 @@ export function LibraryView({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src={fav.thumbnail || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120"}
+                    src={fav.thumbnail || DEFAULT_TRACK_ARTWORK}
                     alt={fav.title}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+                    }}
                     className="w-11 h-11 rounded-lg object-cover shrink-0"
                   />
                   <div className="min-w-0">

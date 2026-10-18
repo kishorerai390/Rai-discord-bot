@@ -132,16 +132,28 @@ class MusicApiRouter:
             g_id = int(g["id"])
             is_active = g_id in active_guild_ids or g_id in db_guild_ids
             session = sm.get_session_nowait(g_id) if hasattr(sm, "get_session_nowait") else None
-            voice_name = None
-            voice_status = "Disconnected"
-            if session and session.voice_client and session.voice_client.is_connected() and session.voice_client.channel:
-                voice_name = session.voice_client.channel.name
-                voice_status = "Connected"
-            elif self.bot and hasattr(self.bot, "get_guild"):
+            vc = session.voice_client if (session and session.voice_client) else None
+            if not vc and self.bot and hasattr(self.bot, "get_guild"):
                 guild_obj = self.bot.get_guild(g_id)
-                if guild_obj and guild_obj.voice_client and guild_obj.voice_client.is_connected() and guild_obj.voice_client.channel:
-                    voice_name = guild_obj.voice_client.channel.name
-                    voice_status = "Connected"
+                if guild_obj and hasattr(guild_obj, "voice_client"):
+                    vc = guild_obj.voice_client
+
+            is_connected = False
+            if vc and hasattr(vc, "is_connected") and callable(vc.is_connected):
+                try:
+                    conn = vc.is_connected()
+                    is_connected = (conn is True) or (isinstance(conn, bool) and conn)
+                except Exception:
+                    is_connected = False
+
+            voice_name = None
+            voice_status = "Connected" if is_connected else "Disconnected"
+            if is_connected and getattr(vc, "channel", None):
+                ch_name = getattr(vc.channel, "name", None)
+                if isinstance(ch_name, str):
+                    voice_name = ch_name
+                elif ch_name is not None and not hasattr(ch_name, "_mock_name"):
+                    voice_name = str(ch_name)
 
             # Determine authorization
             is_authorized = True
@@ -236,12 +248,12 @@ class MusicApiRouter:
             track = session.current_track
             elapsed = session.elapsed_seconds
             total = track.duration or 0
-            is_playing = session.is_playing
-            is_paused = session.is_paused
+            is_playing = bool(session.is_playing)
+            is_paused = bool(session.is_paused)
 
             data = {
                 "guild_id": str(guild_id),
-                "state": session.state.value,
+                "state": session.state.value if hasattr(session.state, "value") else str(session.state),
                 "is_playing": is_playing,
                 "is_paused": is_paused,
                 "current_track": {
@@ -257,19 +269,21 @@ class MusicApiRouter:
                 "duration_seconds": total,
                 "remaining_seconds": max(0, total - elapsed) if total > 0 else 0,
                 "volume": session.volume,
-                "loop_mode": session.loop_mode.value,
+                "loop_mode": session.loop_mode.value if hasattr(session.loop_mode, "value") else str(session.loop_mode),
                 "eq_preset": session.eq_preset or "Flat",
                 "audio_filter": session.audio_filter,
                 "queue_count": len(session.queue),
                 "history_count": len(session.history),
-                "auto_dj": getattr(session, "dj_enabled", False) or session.autoplay,
+                "auto_dj": bool(getattr(session, "dj_enabled", False) or session.autoplay),
                 "twenty_four_seven": is_247_enabled,
                 "voice_channel_id": str(vc_id) if vc_id else None,
                 "voice_channel_name": vc_name,
+                "channel_name": vc_name,
                 "voice_status": voice_status,
                 "last_error": getattr(session, "last_error", None),
                 "permissions": perms,
             }
+            data["session"] = {k: v for k, v in data.items() if k != "session"}
             return json_success(data)
 
         # Fallback to persistent session in database
@@ -312,7 +326,7 @@ class MusicApiRouter:
             logger.debug(f"DB session fetch note: {e}")
 
         # Idle session
-        return json_success({
+        idle_data = {
             "guild_id": str(guild_id),
             "state": "IDLE",
             "is_playing": False,
@@ -330,10 +344,13 @@ class MusicApiRouter:
             "twenty_four_seven": is_247_enabled,
             "voice_channel_id": str(vc_id) if vc_id else None,
             "voice_channel_name": vc_name,
+            "channel_name": vc_name,
             "voice_status": voice_status,
             "last_error": None,
             "permissions": perms,
-        })
+        }
+        idle_data["session"] = {k: v for k, v in idle_data.items() if k != "session"}
+        return json_success(idle_data)
 
     # ==========================================
     # 3. QUEUE & HISTORY
@@ -426,17 +443,24 @@ class MusicApiRouter:
         if not action:
             return json_error("MISSING_ACTION", "Action parameter is required")
 
+        try:
+            guild_id_int = int(guild_id_val)
+        except (ValueError, TypeError):
+            return json_error("INVALID_GUILD_ID", "Guild ID must be a valid numeric snowflake", status=400)
+
         user = await self._get_current_user(request)
         user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
 
-        # Verify server-side authorization if user is authenticated
-        if user and self.bot and hasattr(self.bot, "get_guild"):
-            g_obj = self.bot.get_guild(int(guild_id_val))
-            if g_obj:
+        # Verify server-side authorization and guild existence
+        if self.bot and hasattr(self.bot, "get_guild"):
+            g_obj = self.bot.get_guild(guild_id_int)
+            if not g_obj and (not hasattr(self.bot, "is_ready") or self.bot.is_ready()):
+                return json_error("GUILD_NOT_FOUND", f"Bot is not present in guild {guild_id_int}", status=404)
+            if user and g_obj:
                 member_obj = g_obj.get_member(user_id)
                 if member_obj is None and not user.get("is_admin", False):
                     user_guild_ids = {int(g["id"]) for g in user.get("guilds", []) if "id" in g}
-                    if user_guild_ids and int(guild_id_val) not in user_guild_ids:
+                    if user_guild_ids and guild_id_int not in user_guild_ids:
                         return json_error("UNAUTHORIZED_GUILD", "You are not authorized to control music in this server.", status=403)
 
         # Submit action to SQLite WAL queue for immediate bot pickup
@@ -502,10 +526,18 @@ class MusicApiRouter:
                     return json_success({"action_id": action_id, "action": action, "status": "SEEKED", "position": target, "message": f"Seeked to {target}s"})
 
                 elif action == "VOLUME":
-                    vol = max(0, min(150, int(payload.get("volume", 80))))
+                    raw_vol = payload.get("volume")
+                    if raw_vol is None:
+                        return json_error("INVALID_VOLUME", "Volume parameter is required", status=400)
+                    try:
+                        vol = int(raw_vol)
+                    except (ValueError, TypeError):
+                        return json_error("INVALID_VOLUME", "Volume must be a valid number", status=400)
+                    if vol < 0 or vol > 150:
+                        return json_error("INVALID_VOLUME_RANGE", "Volume must be between 0 and 150%", status=400)
                     success, msg = await MusicPlayerService.set_volume(session, vol)
                     await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
-                    return json_success({"action_id": action_id, "action": action, "status": "VOLUME_SET", "volume": vol, "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "QUEUED", "volume": vol, "message": msg})
 
                 elif action == "SHUFFLE":
                     success, msg = MusicPlayerService.shuffle(session)

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ListMusic, Trash2, Shuffle, Bookmark, ArrowUp, ArrowDown, Search, X } from "lucide-react";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 import type { Track } from "@/types/music";
 
 interface QueueViewProps {
@@ -128,8 +128,11 @@ export function QueueView({
                     <td className="py-3">
                       <div className="flex items-center gap-3">
                         <img
-                          src={track.thumbnail || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120"}
+                          src={track.thumbnail || DEFAULT_TRACK_ARTWORK}
                           alt={track.title}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+                          }}
                           className="w-11 h-11 rounded-lg object-cover shrink-0"
                         />
                         <div className="min-w-0 max-w-sm md:max-w-md">

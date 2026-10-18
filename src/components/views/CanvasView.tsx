@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Maximize2, Minimize2, Radio } from "lucide-react";
+import { DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 import type { MusicSession } from "@/types/music";
 
 interface CanvasViewProps {
@@ -188,8 +189,11 @@ export function CanvasView({ session, playbackSeconds }: CanvasViewProps) {
       <div className="absolute bottom-6 left-6 right-6 z-10 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 max-w-md">
           <img
-            src={currentTrack?.thumbnail || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120"}
+            src={currentTrack?.thumbnail || DEFAULT_TRACK_ARTWORK}
             alt="Track"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+            }}
             className="w-10 h-10 rounded-lg object-cover"
           />
           <div className="min-w-0">

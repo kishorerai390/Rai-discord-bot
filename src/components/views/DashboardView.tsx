@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Play, Pause, Square, SkipForward, Shuffle, Search, Bookmark, Radio, Sliders } from "lucide-react";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 import type { MusicSession, Track } from "@/types/music";
 import type { DiscordUser } from "@/types/auth";
 
@@ -41,8 +41,11 @@ export function DashboardView({
           <div className="relative group shrink-0">
             <div className="w-36 h-36 md:w-44 md:h-44 rounded-full p-2 bg-gradient-to-tr from-purple-900/60 via-black to-cyan-900/60 shadow-[0_0_25px_rgba(147,51,234,0.35)] flex items-center justify-center">
               <img
-                src={currentTrack?.thumbnail || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=350"}
+                src={currentTrack?.thumbnail || DEFAULT_TRACK_ARTWORK}
                 alt="Vinyl Art"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+                }}
                 className={`w-32 h-32 md:w-40 md:h-40 rounded-full object-cover border-4 border-[#07090e] ${
                   isPlaying ? "animate-[spin_12s_linear_infinite]" : ""
                 }`}
@@ -175,8 +178,11 @@ export function DashboardView({
                       {idx + 1}
                     </span>
                     <img
-                      src={track.thumbnail || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120"}
+                      src={track.thumbnail || DEFAULT_TRACK_ARTWORK}
                       alt={track.title}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+                      }}
                       className="w-10 h-10 rounded-lg object-cover shrink-0"
                     />
                     <div className="min-w-0">

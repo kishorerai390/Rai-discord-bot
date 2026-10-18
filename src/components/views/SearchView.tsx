@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Search, Plus, Music2, Check, Loader2 } from "lucide-react";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 
 interface SearchViewProps {
   guildId: string;
@@ -11,12 +11,14 @@ interface SearchViewProps {
 }
 
 interface SearchResultItem {
+  id?: string;
   title: string;
   artist: string;
   url: string;
   duration: number;
   duration_fmt?: string;
   thumbnail?: string;
+  provider?: string;
   source?: string;
 }
 
@@ -144,16 +146,20 @@ export function SearchView({ guildId, onEnqueue, onShowToast }: SearchViewProps)
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {results.map((item, idx) => {
               const itemKey = item.url || item.title;
+              const stableKey = item.id || `search_res_${idx}_${itemKey}`;
               const isEnqueued = Boolean(enqueuedMap[itemKey]);
 
               return (
                 <div
-                  key={idx}
+                  key={stableKey}
                   className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all group"
                 >
                   <img
-                    src={item.thumbnail || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120"}
+                    src={item.thumbnail || DEFAULT_TRACK_ARTWORK}
                     alt={item.title}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+                    }}
                     className="w-14 h-14 rounded-lg object-cover shrink-0"
                   />
                   <div className="min-w-0 flex-1">

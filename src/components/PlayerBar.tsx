@@ -14,7 +14,7 @@ import {
   Radio,
   ListMusic,
 } from "lucide-react";
-import { formatDuration } from "@/lib/utils";
+import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 import { MusicSession } from "@/types/music";
 
 interface PlayerBarProps {
@@ -71,11 +71,11 @@ export function PlayerBar({ session, onDispatchControl }: PlayerBarProps) {
       {/* LEFT: TRACK METADATA */}
       <div className="flex items-center gap-3 w-1/4 min-w-[180px]">
         <img
-          src={
-            track?.thumbnail ||
-            "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=120"
-          }
+          src={track?.thumbnail || DEFAULT_TRACK_ARTWORK}
           alt={track?.title || "No track"}
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = DEFAULT_TRACK_ARTWORK;
+          }}
           className="w-12 h-12 rounded-lg object-cover bg-purple-950/50 border border-white/10 shrink-0 shadow"
         />
         <div className="truncate">

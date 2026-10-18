@@ -258,7 +258,7 @@ class VoiceManager:
                 return None
             target_channel = member.voice.channel
 
-        guild = target_channel.guild
+        guild = (member.guild if member and hasattr(member, "guild") and member.guild else None) or getattr(target_channel, "guild", None)
         if not guild:
             return None
         guild_id = guild.id
@@ -332,7 +332,7 @@ class VoiceManager:
         if not target_channel or not target_channel.guild:
             return None
 
-        guild = target_channel.guild
+        guild = (member.guild if member and hasattr(member, "guild") and member.guild else None) or getattr(target_channel, "guild", None)
         guild_id = guild.id
         if text_channel:
             session.text_channel = text_channel
