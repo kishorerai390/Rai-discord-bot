@@ -607,7 +607,7 @@ def _build_ytdl_options(
     Optimized strictly for authorized YouTube stream resolution.
     Cookies are strictly optional and only attached when use_cookies is True.
     """
-    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["android", "android_creator"])
+    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["android", "mweb"])
     opts: Dict[str, Any] = {
         "format": "bestaudio/bestaudio*/best[height<=720]/best/worstaudio/worst",
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
@@ -1434,9 +1434,9 @@ class AudioResolver:
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
 
-            # Tier 2: Fallback Public Profile (android_creator) - 10.0s timeout
+            # Tier 2: Fallback Public Profile (mweb) - 10.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["android_creator", "mweb"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(["mweb", "android"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(

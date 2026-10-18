@@ -700,16 +700,81 @@ class NekoSongsBot(commands.Bot):
                         success = await MusicPlayerService.apply_filter_or_eq(self, session, preset_key, display_name)
                         await self.db.mark_web_action_completed(action_id, {"status": "filter_applied" if success else "failed", "preset": preset_key})
 
+                    elif action_type == "CONNECT_VOICE":
+                        from music_bot.services.voice_service import VoiceManager
+                        g_obj = self.get_guild(guild_id)
+                        if g_obj:
+                            target_ch = None
+                            if user_id:
+                                m = g_obj.get_member(user_id)
+                                if m and m.voice and m.voice.channel:
+                                    target_ch = m.voice.channel
+                            if not target_ch:
+                                for ch in g_obj.voice_channels:
+                                    if any(not mb.bot for mb in ch.members) and VoiceManager.is_valid_music_voice_channel(ch):
+                                        target_ch = ch
+                                        break
+                            if target_ch:
+                                await VoiceManager.join_voice_channel(g_obj.me, session.text_channel, session, target_channel=target_ch)
+                        await self.db.mark_web_action_completed(action_id, {"status": "connected"})
+
                     elif action_type == "ENQUEUE":
                         query = payload.get("query", "").strip()
+                        title_hint = payload.get("title", "").strip() or None
+                        artist_hint = payload.get("artist", "").strip() or None
                         if query:
                             from music_bot.services.resolver_service import AudioResolver
-                            track = await AudioResolver.resolve_track(query, user_id, "Web User")
+                            track = await AudioResolver.resolve_track(
+                                query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
+                            )
                             if track:
                                 session.queue.append(track)
                                 if not session.is_playing and not session.is_paused:
                                     await MusicPlayerService.start_playback(self, session, session.queue.popleft())
                                 await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title})
+                            else:
+                                await self.db.mark_web_action_failed(action_id, "Could not resolve audio track")
+                        else:
+                            await self.db.mark_web_action_failed(action_id, "Empty query")
+
+                    elif action_type == "PLAY_NOW":
+                        query = payload.get("query", "").strip()
+                        title_hint = payload.get("title", "").strip() or None
+                        artist_hint = payload.get("artist", "").strip() or None
+                        if query:
+                            from music_bot.services.resolver_service import AudioResolver
+                            track = await AudioResolver.resolve_track(
+                                query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
+                            )
+                            if track:
+                                if session.is_playing:
+                                    session.queue.appendleft(track)
+                                    await MusicPlayerService.skip(self, session)
+                                else:
+                                    if session.voice_client and session.voice_client.is_connected():
+                                        await MusicPlayerService.start_playback(self, session, track)
+                                    else:
+                                        session.queue.appendleft(track)
+                                await MusicPlayerService.send_now_playing_panel(session)
+                                await self.db.mark_web_action_completed(action_id, {"status": "playing_now", "title": track.title})
+                            else:
+                                await self.db.mark_web_action_failed(action_id, "Could not resolve audio track")
+                        else:
+                            await self.db.mark_web_action_failed(action_id, "Empty query")
+
+                    elif action_type == "PLAY_NEXT":
+                        query = payload.get("query", "").strip()
+                        title_hint = payload.get("title", "").strip() or None
+                        artist_hint = payload.get("artist", "").strip() or None
+                        if query:
+                            from music_bot.services.resolver_service import AudioResolver
+                            track = await AudioResolver.resolve_track(
+                                query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
+                            )
+                            if track:
+                                session.queue.appendleft(track)
+                                await MusicPlayerService.send_now_playing_panel(session)
+                                await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title})
                             else:
                                 await self.db.mark_web_action_failed(action_id, "Could not resolve audio track")
                         else:
