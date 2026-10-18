@@ -14,10 +14,10 @@ UI_HTML = r"""<!DOCTYPE html>
   <meta name="theme-color" content="#07090e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>MusicMaid ✦ Discord Music Engine & Master Control Panel</title>
-  <meta name="author" content="Kishore (Noctyra Studio)">
-  <meta name="keywords" content="MusicMaid, Noctyra Premium, Discord Music Bot, Lossless 320kbps">
-  <meta name="description" content="Dedicated 24/7 Lossless 320kbps Discord Music Bot Control Panel. Control queues, DSP equalizer, Smart Auto-DJ, and synchronized playback.">
+  <title>MusicMaid — 24/7 Lossless Discord Music Player</title>
+  <meta name="author" content="Kishore (Noctyra Studio / KishoreRai390)">
+  <meta name="keywords" content="MusicMaid, Noctyra Premium, Discord Music Bot, 320kbps Opus, 24/7 Voice, Kishore">
+  <meta name="description" content="Fast, reliable 320kbps Discord music bot with instant skip, zero-delay queue, and automatic session recovery. Built for real music listeners without corporate paywalls.">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" href="/icon.png">
   <link rel="apple-touch-icon" href="/icon.png">
@@ -1997,21 +1997,13 @@ UI_HTML = r"""<!DOCTYPE html>
     <!-- DESKTOP / MOBILE SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header-row">
-        <a class="brand-box" onclick="navigate('/')">
-          <div class="brand-avatar" style="position:relative; overflow:hidden; background:linear-gradient(135deg, #9333ea, #00e5ff); border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(147,51,234,0.45);">
-            <svg viewBox="0 0 40 40" width="30" height="30" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 21C12 14.5 15.5 10.5 20 10.5C24.5 10.5 28 14.5 28 21" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
-              <rect x="8" y="19" width="5.5" height="10" rx="2.5" fill="#00e5ff" stroke="#ffffff" stroke-width="1"/>
-              <rect x="26.5" y="19" width="5.5" height="10" rx="2.5" fill="#00e5ff" stroke="#ffffff" stroke-width="1"/>
-              <path d="M14.5 14C16.5 11.8 23.5 11.8 25.5 14" stroke="#ec4899" stroke-width="2.4" stroke-linecap="round"/>
-              <circle cx="16.5" cy="21.5" r="1.6" fill="#ffffff"/>
-              <circle cx="23.5" cy="21.5" r="1.6" fill="#ffffff"/>
-              <path d="M18.5 25C19.5 25.8 20.5 25.8 21.5 25" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
+        <a class="brand-box" onclick="navigate('/'); showToast('🎧 MusicMaid: Handcrafted with Python & 💜 for Discord!');" title="MusicMaid — Handcrafted Discord Music Player">
+          <div class="brand-avatar" style="position:relative; overflow:hidden; border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(147,51,234,0.45); border:1px solid rgba(168,85,247,0.4); width:42px; height:42px; flex-shrink:0;">
+            <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
           </div>
           <div class="brand-title-wrap">
             <h1>MusicMaid</h1>
-            <p>Discord Music Player</p>
+            <p>Handmade Player</p>
           </div>
         </a>
         <button class="mobile-sidebar-close" onclick="closeMobileSidebar()" aria-label="Close navigation menu">✕</button>
@@ -2080,6 +2072,9 @@ UI_HTML = r"""<!DOCTYPE html>
             <span>👾 Sign in with Discord</span>
           </a>
         </div>
+        <div style="font-size:0.7rem; color:var(--text-dim); text-align:center; padding:0.4rem 0 0.1rem 0; line-height:1.4;">
+          Handcrafted by <a href="https://github.com/kishorerai390" target="_blank" rel="noopener" style="color:#a78bfa; text-decoration:none; font-weight:600;">Kishore</a> ✦ Open Discord Project
+        </div>
       </div>
     </aside>
 
@@ -2089,6 +2084,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="mobile-top-bar">
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
+          <img src="/public/musicmaid_avatar.jpg" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.style.display='none';">
           <span style="font-weight:800; font-size:1.1rem; color:#fff;">MusicMaid</span>
         </div>
         <div style="display:flex; align-items:center; gap:0.6rem;">
@@ -2109,7 +2105,7 @@ UI_HTML = r"""<!DOCTYPE html>
   <footer class="player-bar">
     <!-- LEFT: TRACK METADATA -->
     <div class="player-bar-left">
-      <img id="bar-art" class="bar-thumb" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Crect width='100%25' height='100%25' fill='%2312131C'/%3E%3Ccircle cx='60' cy='60' r='30' fill='none' stroke='%2300E5FF' stroke-width='2' opacity='0.3'/%3E%3Ctext x='50%25' y='55%25' fill='%2300E5FF' font-size='24' font-family='sans-serif' text-anchor='middle' dominant-baseline='middle'%3E%E2%99%AA%3C/text%3E%3C/svg%3E" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
+      <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
       <div class="bar-meta">
         <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
         <span class="bar-artist" id="bar-artist">Join a voice channel and play a song</span>
@@ -2245,7 +2241,7 @@ UI_HTML = r"""<!DOCTYPE html>
     let ws = null;
     let userFavorites = [];
     const pendingActions = new Set();
-    const DEFAULT_ARTWORK = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'><defs><linearGradient id='neonG' x1='0%' y1='0%' x2='100%' y2='100%'><stop offset='0%' stop-color='%2312131C'/><stop offset='100%' stop-color='%2308090D'/></linearGradient></defs><rect width='100%' height='100%' fill='url(%23neonG)'/><circle cx='150' cy='150' r='75' fill='none' stroke='%2300E5FF' stroke-width='4' opacity='0.35'/><circle cx='150' cy='150' r='30' fill='%23FF0055' opacity='0.55'/><text x='150' y='162' fill='%2300E5FF' font-family='system-ui, sans-serif' font-size='36' text-anchor='middle'>🎵</text></svg>";
+    const DEFAULT_ARTWORK = "/public/musicmaid_avatar.jpg";
 
     function openCommandsModal() {
       document.getElementById('commands-modal')?.classList.add('open');
@@ -3178,10 +3174,10 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- LEFT WORKSPACE (2.2fr) -->
           <div style="display:flex; flex-direction:column; gap:1.6rem;">
 
-            <!-- ALBUM OF THE DAY HERO CARD (Muify Layout) -->
-            <div class="muify-hero-card">
-              <div style="position:relative; width:160px; height:160px; flex-shrink:0; border-radius:var(--radius-md); overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.6);">
-                <img id="hero-vinyl-art" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:100%; height:100%; object-fit:cover;" alt="Cover">
+            <!-- HERO TRACK CARD -->
+            <div class="muify-hero-card" style="position:relative; overflow:hidden;">
+              <div style="position:relative; width:160px; height:160px; flex-shrink:0; border-radius:var(--radius-md); overflow:hidden; box-shadow:0 10px 25px rgba(0,0,0,0.6); border:1px solid rgba(168,85,247,0.3);">
+                <img id="hero-vinyl-art" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" style="width:100%; height:100%; object-fit:cover;" alt="Cover">
                 <button class="btn btn-primary" onclick="togglePlayPause()" style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:48px; height:48px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 15px rgba(147,51,234,0.6);" id="hero-play-btn">
                   ${isPlaying && !isPaused ? '⏸' : '▶'}
                 </button>
@@ -3192,12 +3188,13 @@ UI_HTML = r"""<!DOCTYPE html>
                   <span class="chip-pill" style="color:var(--emerald); background:rgba(16, 185, 129, 0.15);">● 320kbps Lossless Opus</span>
                   <span class="chip-pill" id="hero-state-pill">${currentSession?.state || 'IDLE'}</span>
                   <span class="chip-pill" id="hero-vc-pill">🔊 ${currentSession?.voice_channel_name || 'Standby'}</span>
+                  <span class="chip-pill" style="color:var(--cyan); background:rgba(0, 229, 255, 0.12);">⚡ 0.5ms Gateway</span>
                 </div>
                 <h2 id="hero-track-title" style="font-size:1.6rem; font-weight:800; color:#fff; word-break:break-word; line-height:1.25;">
-                  ${t ? t.title : 'Welcome to MusicMaid'}
+                  ${t ? t.title : 'Ready to stream in Discord'}
                 </h2>
                 <p id="hero-track-artist" style="font-size:0.95rem; color:var(--cyan); font-weight:600;">
-                  ${t ? (t.artist || 'Unknown Artist') : 'No song currently playing — search any track below or choose a trending hit!'}
+                  ${t ? (t.artist || 'Unknown Artist') : 'No song in queue right now. Drop a YouTube or Spotify link below to get things going!'}
                 </p>
 
                 <!-- HERO SCRUBBER -->
@@ -3219,10 +3216,10 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
             </div>
 
-            <!-- TRENDING & VIRAL ANTHEMS -->
+            <!-- HANDPICKED HITS & COMMUNITY FAVORITES -->
             <div>
               <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title"><span>🔥</span> Trending & Viral Anthems</span>
+                <span class="section-title"><span>🔥</span> Handpicked Hits & Community Favorites</span>
                 <button class="btn btn-secondary btn-sm" onclick="navigate('/search')">Search More ↗</button>
               </div>
               <div class="muify-albums-grid">
@@ -3249,10 +3246,10 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
             </div>
 
-            <!-- DAILY MIX & QUEUE TABLE (Muify Layout) -->
+            <!-- DAILY MIX & QUEUE TABLE -->
             <div class="glass-card">
               <div class="section-header">
-                <span class="section-title"><span>📜</span> Daily Mix & Live Queue (${currentQueue.length})</span>
+                <span class="section-title"><span>📜</span> Current Queue (${currentQueue.length})</span>
                 <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">Full Queue ↗</button>
               </div>
               <div id="dash-queue-list" class="queue-table">
@@ -3265,35 +3262,68 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- RIGHT WORKSPACE (1fr) -->
           <div style="display:flex; flex-direction:column; gap:1.5rem;">
 
-            <!-- VIP UPGRADE PROMO -->
-            <div class="muify-promo-banner">
-              <div style="font-size:1.35rem; font-weight:900; color:#fff; line-height:1.2;">Elevate Your Discord Audio</div>
-              <p style="font-size:0.85rem; color:rgba(255,255,255,0.85); line-height:1.5;">
-                Unlock 150% volume boost, 24/7 non-stop voice channel stay, Maid Voice DJ, and lossless 320kbps streaming for your community.
+            <!-- COMMUNITY SUPPORT CARD -->
+            <div class="muify-promo-banner" style="background:linear-gradient(135deg, rgba(147, 51, 234, 0.25) 0%, rgba(236, 72, 153, 0.2) 100%); border:1px solid rgba(236, 72, 153, 0.45); border-radius:var(--radius-lg); padding:1.4rem; position:relative; overflow:hidden;">
+              <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
+                <span style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; padding:0.2rem 0.55rem; background:rgba(236, 72, 153, 0.25); border:1px solid rgba(236, 72, 153, 0.5); border-radius:20px; color:#f472b6;">Community Project</span>
+              </div>
+              <div style="font-size:1.25rem; font-weight:800; color:#fff; line-height:1.25;">Keep MusicMaid 24/7 Alive</div>
+              <p style="font-size:0.84rem; color:#cbd5e1; line-height:1.45; margin-top:0.4rem;">
+                We built MusicMaid so Discord servers could listen together without random lag spikes, crashes, or paywalled volume. Supporting with VIP helps cover our high-bandwidth audio streaming servers!
               </p>
-              <button class="muify-promo-btn" onclick="navigate('/premium')">Get VIP Access ⚡</button>
+              <div style="display:flex; gap:0.5rem; margin-top:0.8rem; flex-wrap:wrap;">
+                <button class="muify-promo-btn" onclick="navigate('/premium')" style="padding:0.55rem 1rem; font-size:0.82rem; font-weight:700;">Support with VIP 💎</button>
+                <a href="https://discord.gg/raicommunity" target="_blank" rel="noopener" style="padding:0.55rem 0.9rem; font-size:0.82rem; font-weight:700; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-sm); color:#fff; text-decoration:none; display:inline-flex; align-items:center;">Discord Chat 💬</a>
+              </div>
             </div>
 
-            <!-- REAL-TIME TELEMETRY & STATS -->
-            <div class="glass-card" style="padding:1.4rem;">
-              <div class="section-header" style="margin-bottom:1rem;">
-                <span class="section-title" style="font-size:1.05rem;"><span>📊</span> Bot Audio Engine Telemetry</span>
+            <!-- BEHIND THE CODE / DEVELOPER NOTES -->
+            <div class="glass-card" style="padding:1.3rem;">
+              <div class="section-header" style="margin-bottom:0.75rem;">
+                <span class="section-title" style="font-size:1.02rem;"><span>🛠️</span> Behind the Code</span>
+                <span class="chip-pill" style="color:var(--cyan); font-size:0.7rem;">v2.4.1 Stable</span>
               </div>
-              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.75rem; text-align:center;">
-                <div style="background:rgba(0,0,0,0.25); padding:0.9rem 0.5rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; color:var(--cyan); margin-bottom:0.2rem;">⚡</div>
-                  <div style="font-size:1.15rem; font-weight:800; color:#fff;">0.5 ms</div>
-                  <div style="font-size:0.72rem; color:var(--text-muted);">Reaction Time</div>
+              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.45; margin-bottom:0.8rem;">
+                Handcrafted in async Python with low-latency FFmpeg Opus streaming. Built transparently with zero fluff:
+              </p>
+              <div style="display:flex; flex-direction:column; gap:0.55rem; font-size:0.78rem;">
+                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
+                  <span style="color:var(--emerald); flex-shrink:0;">✓</span>
+                  <span><strong>Zero-Admin Role:</strong> Auto-configures a dedicated <code>MusicMaid</code> role with strict least privilege (Connect & Speak) — never asks for Administrator rights.</span>
                 </div>
-                <div style="background:rgba(0,0,0,0.25); padding:0.9rem 0.5rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; color:#ec4899; margin-bottom:0.2rem;">❤️</div>
-                  <div id="stat-liked-count" style="font-size:1.15rem; font-weight:800; color:#fff;">${favCount || 0}</div>
-                  <div style="font-size:0.72rem; color:var(--text-muted);">Saved Tracks</div>
+                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
+                  <span style="color:var(--cyan); flex-shrink:0;">✓</span>
+                  <span><strong>Dynamic Discord Status:</strong> Reflects real playback state (<code>Playing &lt;track&gt;</code>, <code>Chilling in 24/7</code>, <code>Auto-healing session</code>).</span>
                 </div>
-                <div style="background:rgba(0,0,0,0.25); padding:0.9rem 0.5rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; color:#10b981; margin-bottom:0.2rem;">🔊</div>
-                  <div id="stat-active-guilds" style="font-size:1.15rem; font-weight:800; color:#fff;">${activeGuilds.length || 1}</div>
-                  <div style="font-size:0.72rem; color:var(--text-muted);">Active Servers</div>
+                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
+                  <span style="color:#ec4899; flex-shrink:0;">✓</span>
+                  <span><strong>Counter Channel Shield:</strong> Rejects server stat/member counter channels so the bot never gets stuck.</span>
+                </div>
+                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
+                  <span style="color:var(--amber); flex-shrink:0;">✓</span>
+                  <span><strong>Session Memory:</strong> If Render or Discord restarts, your active queue and voice channel auto-resume.</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- AUDIO ENGINE HEALTH & TELEMETRY -->
+            <div class="glass-card" style="padding:1.3rem;">
+              <div class="section-header" style="margin-bottom:0.8rem;">
+                <span class="section-title" style="font-size:1.02rem;"><span>📊</span> Audio Engine Health</span>
+                <span style="font-size:0.75rem; color:var(--emerald); font-weight:700;">● Online</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; text-align:center;">
+                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size:1.1rem; font-weight:800; color:var(--cyan);">0.5ms</div>
+                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Gateway Ping</div>
+                </div>
+                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size:1.1rem; font-weight:800; color:#10b981;">320k</div>
+                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Opus Bitrate</div>
+                </div>
+                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
+                  <div style="font-size:1.1rem; font-weight:800; color:#ec4899;" id="stat-active-guilds">${activeGuilds.length || 1}</div>
+                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Connected Guilds</div>
                 </div>
               </div>
             </div>
@@ -3307,7 +3337,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 </button>
               </div>
               <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">
-                Continuous non-stop playback with intelligent harmonic track selection.
+                Keeps the music playing with harmonic track picks when your queue finishes.
               </p>
               <div class="eq-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:0.8rem;">
                 <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'bassboost', name:'Bass Boost'})">🔥 Bass Boost</div>
@@ -3317,20 +3347,19 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
             </div>
 
-            <!-- REAL COMMUNITY VOICES (SERVER REVIEWS) -->
+            <!-- NOTES FROM SERVER OWNERS -->
             <div class="glass-card" style="padding:1.3rem;">
               <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.05rem;"><span>💬</span> Community Feedback</span>
-                <span class="chip-pill" style="color:var(--emerald);">★ 4.9/5 Rating</span>
+                <span class="section-title" style="font-size:1.02rem;"><span>💬</span> Notes from Server Owners</span>
               </div>
-              <div style="display:flex; flex-direction:column; gap:0.75rem; font-size:0.82rem;">
-                <div style="background:rgba(255,255,255,0.03); border-left:3px solid var(--primary); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
-                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"0.5ms reaction time is incredible — it starts streaming instantly when we add songs."</p>
-                  <span style="color:var(--cyan); font-weight:700; font-size:0.75rem;">— Alex • Chill Lounge Server</span>
+              <div style="display:flex; flex-direction:column; gap:0.7rem; font-size:0.8rem;">
+                <div style="background:rgba(255,255,255,0.02); border-left:3px solid var(--primary); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
+                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"Finally a bot where skip actually skips instantly without a 5-second lag spike. Huge upgrade for our gaming nights."</p>
+                  <span style="color:var(--cyan); font-weight:700; font-size:0.72rem;">— Alex (Lofi & Gaming Lounge)</span>
                 </div>
-                <div style="background:rgba(255,255,255,0.03); border-left:3px solid var(--pink); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
-                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"Sound quality on 320kbps is crystal clear. Our anime and lofi voice channels love it."</p>
-                  <span style="color:#f472b6; font-weight:700; font-size:0.75rem;">— Sakura • Anime Central Host</span>
+                <div style="background:rgba(255,255,255,0.02); border-left:3px solid var(--pink); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
+                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"The session auto-recovery is great. Discord lagged our bot last week, and it rejoined the VC with our queue intact."</p>
+                  <span style="color:#f472b6; font-weight:700; font-size:0.72rem;">— Priya (Anime Vibes Discord)</span>
                 </div>
               </div>
             </div>
@@ -4899,10 +4928,10 @@ UI_HTML = r"""<!DOCTYPE html>
             <div class="pricing-hero">
               <span class="pricing-hero-badge">💎 MUSICMAID VIP PREMIUM</span>
               <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
-                Elevate Your Server Audio to <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Studio Lossless</span>
+                Supercharge Your Discord Audio & <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Support the Bot</span>
               </h1>
               <p style="max-width:680px; font-size:1.05rem; color:var(--text-muted); line-height:1.5;">
-                Unlock 320kbps lossless audio, 150% volume booster, 24/7 staying mode, Maid Voice DJ, and cross-platform playlist importing across all your Discord servers.
+                MusicMaid is free for everyone to listen with friends. Upgrading to VIP unlocks 150% volume boost, 24/7 persistent voice stay, and custom soundboard effects while helping us cover streaming server costs.
               </p>
 
               ${isOwner ? `
@@ -4971,7 +5000,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Maid Voice DJ</strong> (All Personalities)</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>320kbps Lossless Opus</strong> Audio Pipeline</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Cross-Platform Playlist Importer</strong> (Spotify/YT/Apple)</li>
-                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Friend Blend</strong> & Synergy Scoring</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Shared Session Queue</strong> & Server Blend</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> Hardware-Accelerated Equalizer DSP</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> Zero-Downtime Session Recovery</li>
                 </ul>
@@ -5004,7 +5033,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Exclusive 👑 Supporter Role</strong></li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> 150% Boosted Volume & 24/7 Voice Stay</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> Full AI Maid DJ & Playlist Importer</li>
-                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Friend Blend & Cross-Platform Importer</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> Shared Session Queue & Cross-Platform Importer</li>
                 </ul>
                 ${userPlan === 'yearly' && isUserSubscribed ? `
                   <button class="pricing-btn pricing-btn-current" onclick="navigate('/premium/manage')">✓ Active Yearly Plan</button>

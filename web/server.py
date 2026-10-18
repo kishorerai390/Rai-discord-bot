@@ -480,6 +480,11 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/owner/backups/create", o.create_backup)
         app.router.add_get("/api/owner/audit-logs", o.list_audit_logs)
 
+        # Static assets serving (Avatar, Banner, Icons)
+        public_dir = Path(__file__).resolve().parent.parent / "public"
+        if public_dir.exists():
+            app.router.add_static("/public", str(public_dir))
+
         # Fallback SPA routing for direct navigation and browser refresh (e.g. /search, /queue)
         async def fallback_spa(request: web.Request) -> web.Response:
             if request.path.startswith("/api/"):

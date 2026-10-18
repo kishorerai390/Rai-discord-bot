@@ -86,6 +86,14 @@ class PaymentApiRouter:
                 "a": "Payments are processed securely via Stripe. The bot backend cryptographically verifies Stripe webhook signatures and checkout receipts before granting access. We never store credit card numbers."
             },
             {
+                "q": "Why does MusicMaid exist?",
+                "a": "Built by Kishore & friends because commercial music bots started paywalling basic volume controls and adding 10-second lag to simple commands. MusicMaid is designed for fast, crisp, community listening."
+            },
+            {
+                "q": "Does MusicMaid require Administrator permissions?",
+                "a": "Never. MusicMaid operates under strict least-privilege (Connect, Speak, Use Voice Activity). It will never request or require Administrator rights."
+            },
+            {
                 "q": "Can I cancel my subscription anytime?",
                 "a": "Yes! You can cancel anytime from /premium/manage. Your perks remain active until the end of your current paid billing period with no further charges."
             },
