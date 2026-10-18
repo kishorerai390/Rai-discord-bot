@@ -657,11 +657,11 @@ def _build_ytdl_options(
 FFMPEG_OPTIONS = {
     "executable": get_ffmpeg_executable(),
     "before_options": (
-        "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
-        "-analyzeduration 0 -probesize 32768 -loglevel warning "
+        "-nostdin -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 "
+        "-analyzeduration 1000000 -probesize 1000000 -loglevel warning "
         '-user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"'
     ),
-    "options": "-vn",
+    "options": "-vn -bufsize 4096k",
 }
 
 YTDL_OPTIONS = {
