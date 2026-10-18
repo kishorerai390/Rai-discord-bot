@@ -808,7 +808,7 @@ class MusicPlayerService:
                                 continue
 
                             resolved = await AudioResolver.resolve_track(
-                                c["url"], 0, "Neko 24/7 Radio"
+                                c["url"], 0, "MusicMaid 24/7 Radio"
                             )
                             if resolved:
                                 # Feature 93: Night-Time Bedtime Audio Fade-Out Curve (00:00-05:00 UTC)
@@ -833,8 +833,8 @@ class MusicPlayerService:
                     pass
 
             embed = discord.Embed(
-                title="🐾 QUEUE FINISHED",
-                description="The queue is empty. Give Neko another song? 🐱\nUse `/music play` or `/play` to continue.",
+                title="Queue Finished",
+                description="The playback queue is empty. Use /play or /music play to add more tracks.",
                 color=0x00B0FF,
             )
             if session.now_playing_message:
@@ -1329,8 +1329,8 @@ class MusicPlayerService:
 
                 # Update Now Playing panel to idle / finished
                 embed = discord.Embed(
-                    title="🐾 QUEUE FINISHED",
-                    description="The queue is empty. Give Neko another song? 🐱\nUse `/music play` or `/play` to continue.",
+                    title="Queue Finished",
+                    description="The playback queue is empty. Use /play or /music play to add more tracks.",
                     color=0x00B0FF,
                 )
                 if session.now_playing_message:

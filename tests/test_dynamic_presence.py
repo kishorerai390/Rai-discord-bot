@@ -139,6 +139,53 @@ class TestDynamicPresenceService(unittest.TestCase):
         asyncio.run(DynamicPresenceService.sync_presence(self.bot, force=False))
         self.bot.change_presence.assert_called_once()
 
+    def test_manual_override_presence(self):
+        import asyncio
+        asyncio.run(DynamicPresenceService.update_state(
+            self.bot,
+            mode="manual",
+            status="dnd",
+            activity_type="playing",
+            activity_text="Custom Game | /help",
+        ))
+
+        act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
+        self.assertEqual(act.name, "Custom Game | /help")
+        self.assertEqual(act.type, discord.ActivityType.playing)
+        self.assertEqual(status, discord.Status.dnd)
+        self.assertTrue(sig.startswith("STATE:MANUAL:dnd:playing:Custom Game | /help"))
+
+        # Reset back to dynamic
+        asyncio.run(DynamicPresenceService.update_state(
+            self.bot,
+            mode="dynamic",
+            status="online",
+            activity_type="listening",
+            activity_text="",
+            idle_text="",
+        ))
+        state = DynamicPresenceService.get_state()
+        self.assertEqual(state["mode"], "dynamic")
+        self.assertEqual(state["status"], "online")
+
+    def test_custom_idle_text_override(self):
+        import asyncio
+        asyncio.run(DynamicPresenceService.update_state(
+            self.bot,
+            mode="dynamic",
+            idle_text="Special Community Jam",
+        ))
+
+        act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
+        self.assertEqual(act.name, "Special Community Jam")
+        self.assertEqual(sig, "STATE:IDLE")
+
+        # Cleanup
+        asyncio.run(DynamicPresenceService.update_state(
+            self.bot,
+            idle_text="",
+        ))
+
 
 if __name__ == "__main__":
     unittest.main()

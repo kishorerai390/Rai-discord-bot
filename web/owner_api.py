@@ -588,3 +588,42 @@ class OwnerApiRouter:
         if hasattr(self.db, "get_subscription_audit_logs"):
             logs = await self.db.get_subscription_audit_logs(limit=limit)
         return web.json_response({"success": True, "data": {"total": len(logs), "logs": logs}})
+
+    # =========================================================================
+    # I. BOT PRESENCE & ACTIVITY CONTROL
+    # =========================================================================
+    async def get_presence(self, request: web.Request) -> web.Response:
+        """Fetch current bot presence control settings and live status."""
+        await self.auth.require_owner(request)
+        from music_bot.services.presence_service import DynamicPresenceService
+        data = DynamicPresenceService.get_state(self.bot)
+        return web.json_response({"success": True, "data": data})
+
+    async def update_presence(self, request: web.Request) -> web.Response:
+        """Update bot presence control settings (Mode, Status, Activity)."""
+        session = await self.auth.require_owner(request)
+        actor_id = session.get("discord_user_id", BOT_OWNER_ID)
+
+        try:
+            body = await request.json()
+        except Exception:
+            return web.json_response({"success": False, "error": {"message": "Invalid JSON body"}}, status=400)
+
+        from music_bot.services.presence_service import DynamicPresenceService
+        res = await DynamicPresenceService.update_state(
+            bot=self.bot,
+            mode=body.get("mode"),
+            status=body.get("status"),
+            activity_type=body.get("activity_type"),
+            activity_text=body.get("activity_text"),
+            idle_text=body.get("idle_text"),
+        )
+
+        log_incident(
+            "presence",
+            "info",
+            f"Bot presence updated by {actor_id}",
+            details=f"Mode: {res.get('mode')}, Status: {res.get('status')}, Activity: {res.get('activity_type')} '{res.get('activity_text') or res.get('idle_text')}'",
+        )
+
+        return web.json_response({"success": True, "data": res})

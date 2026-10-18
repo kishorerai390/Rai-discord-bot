@@ -123,7 +123,7 @@ class RaiCommunityOSServer:
 
         return web.json_response({
             "status": "healthy",
-            "bot_name": "MusicMaid (Neko Songs)",
+            "bot_name": "MusicMaid",
             "bot_status": music_status,
             "platform": "MusicMaid Web Player & Platform",
             "timestamp": int(time.time()),
@@ -481,6 +481,8 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/owner/backups", o.list_backups)
         app.router.add_post("/api/owner/backups/create", o.create_backup)
         app.router.add_get("/api/owner/audit-logs", o.list_audit_logs)
+        app.router.add_get("/api/owner/presence", o.get_presence)
+        app.router.add_post("/api/owner/presence", o.update_presence)
 
         # Static assets serving (Avatar, Banner, Icons)
         public_dir = Path(__file__).resolve().parent.parent / "public"

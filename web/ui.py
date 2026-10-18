@@ -3483,20 +3483,22 @@ UI_HTML = r"""<!DOCTYPE html>
       `;
 
       try {
-        const [resOverview, resHealth, resIncidents, resFlags, resBackups] = await Promise.all([
+        const [resOverview, resHealth, resIncidents, resFlags, resBackups, resPresence] = await Promise.all([
           fetch('/api/owner/overview'),
           fetch('/api/owner/health'),
           fetch('/api/owner/incidents'),
           fetch('/api/owner/feature-flags'),
           fetch('/api/owner/backups'),
+          fetch('/api/owner/presence'),
         ]);
 
-        const [ovData, hlData, incData, flagData, bkpData] = await Promise.all([
+        const [ovData, hlData, incData, flagData, bkpData, presData] = await Promise.all([
           resOverview.json(),
           resHealth.json(),
           resIncidents.json(),
           resFlags.json(),
           resBackups.json(),
+          resPresence.json(),
         ]);
 
         if (!ovData.success) {
@@ -3514,6 +3516,7 @@ UI_HTML = r"""<!DOCTYPE html>
         const incidents = incData.data?.incidents || [];
         const flags = flagData.data?.flags || {};
         const backups = bkpData.data?.backups || [];
+        const presence = presData.data || {};
 
         document.getElementById('control-room-body').innerHTML = `
           <!-- 4 METRIC TILES (Infini-Dash Ref) -->
@@ -3614,6 +3617,94 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
             </div>
 
+          </div>
+
+          <!-- BOT PRESENCE & DISCORD ACTIVITY MANAGER -->
+          <div class="glass-card" style="padding:1.5rem;">
+            <div class="section-header" style="margin-bottom:1.2rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;">
+              <div style="display:flex; align-items:center; gap:0.6rem;">
+                <span class="section-title"><span>🎮</span> Bot Presence & Discord Activity Control</span>
+                <span id="owner-presence-live-badge" class="chip-pill" style="font-size:0.75rem; text-transform:uppercase; color:${presence.status === 'online' ? 'var(--emerald)' : (presence.status === 'dnd' ? 'var(--danger)' : 'var(--amber)')};">
+                  ● ${presence.mode === 'manual' ? 'Manual Override Active' : 'Dynamic Auto-Sync'}
+                </span>
+              </div>
+              <div style="display:flex; gap:0.5rem; align-items:center;">
+                <button class="btn btn-secondary btn-sm" onclick="resetPresenceToDynamic()">⚡ Reset to Dynamic Auto</button>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.2rem;">
+              <!-- Current Live Presence Display -->
+              <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-sm); padding:1rem; display:flex; flex-direction:column; gap:0.75rem;">
+                <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Live Discord Gateway State</span>
+                <div style="display:flex; align-items:center; gap:0.8rem;">
+                  <span style="font-size:1.8rem;">
+                    ${presence.status === 'online' ? '🟢' : (presence.status === 'idle' ? '🟡' : (presence.status === 'dnd' ? '🔴' : '⚪'))}
+                  </span>
+                  <div>
+                    <div id="owner-pres-live-act" style="font-weight:700; color:#fff; font-size:1.05rem;">
+                      ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'MusicMaid Lossless Audio')}
+                    </div>
+                    <div style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
+                      Status: ${presence.live_status || presence.status || 'online'} • Mode: ${presence.mode}
+                    </div>
+                  </div>
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted); line-height:1.45; border-top:1px solid rgba(255,255,255,0.06); padding-top:0.6rem;">
+                  ${presence.mode === 'manual' 
+                    ? '🔒 <strong>Manual Mode Active:</strong> Bot activity and status are locked to your custom settings below. Dynamic track tracking is suspended.' 
+                    : '⚡ <strong>Dynamic Mode Active:</strong> Bot automatically reflects current track title & artist during playback, and displays your idle text when waiting.'}
+                </div>
+              </div>
+
+              <!-- Controls Form -->
+              <div style="display:flex; flex-direction:column; gap:0.9rem;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
+                  <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Control Mode</label>
+                    <select id="owner-pres-mode" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" onchange="togglePresenceModeUI()">
+                      <option value="dynamic" ${presence.mode === 'dynamic' ? 'selected' : ''}>⚡ Dynamic (Auto-Sync)</option>
+                      <option value="manual" ${presence.mode === 'manual' ? 'selected' : ''}>🔒 Manual (Override)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Bot Status</label>
+                    <select id="owner-pres-status" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;">
+                      <option value="online" ${presence.status === 'online' ? 'selected' : ''}>🟢 Online</option>
+                      <option value="idle" ${presence.status === 'idle' ? 'selected' : ''}>🟡 Idle</option>
+                      <option value="dnd" ${presence.status === 'dnd' ? 'selected' : ''}>🔴 Do Not Disturb</option>
+                      <option value="invisible" ${presence.status === 'invisible' ? 'selected' : ''}>⚪ Invisible / Offline</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.8rem;">
+                  <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Activity Type</label>
+                    <select id="owner-pres-act-type" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;">
+                      <option value="listening" ${presence.activity_type === 'listening' ? 'selected' : ''}>🎧 Listening to</option>
+                      <option value="playing" ${presence.activity_type === 'playing' ? 'selected' : ''}>🎮 Playing</option>
+                      <option value="watching" ${presence.activity_type === 'watching' ? 'selected' : ''}>📺 Watching</option>
+                      <option value="competing" ${presence.activity_type === 'competing' ? 'selected' : ''}>🏆 Competing in</option>
+                      <option value="custom" ${presence.activity_type === 'custom' ? 'selected' : ''}>💬 Custom Status</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Manual Activity Text</label>
+                    <input type="text" id="owner-pres-act-text" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="e.g. MusicMaid | /play" value="${(presence.activity_text || '').replace(/"/g, '&quot;')}">
+                  </div>
+                </div>
+
+                <div>
+                  <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Dynamic Idle Text (Shown when no music is playing)</label>
+                  <input type="text" id="owner-pres-idle-text" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="e.g. 24/7 high-fidelity lossless music player." value="${(presence.idle_text || '').replace(/"/g, '&quot;')}">
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:0.4rem;">
+                  <button class="btn btn-primary btn-sm" onclick="saveBotPresenceSettings()">💾 Apply Presence Changes</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- FEATURE FLAGS & PROMOTIONAL ENTITLEMENT MANAGEMENT -->
@@ -3841,6 +3932,74 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       } catch(e) {
         showToast("Error revoking entitlement", "danger");
+      }
+    }
+
+    async function saveBotPresenceSettings() {
+      const mode = document.getElementById('owner-pres-mode')?.value || 'dynamic';
+      const status = document.getElementById('owner-pres-status')?.value || 'online';
+      const actType = document.getElementById('owner-pres-act-type')?.value || 'listening';
+      const actText = document.getElementById('owner-pres-act-text')?.value || '';
+      const idleText = document.getElementById('owner-pres-idle-text')?.value || '';
+
+      showToast("Applying presence changes to Discord Gateway...", "info");
+      try {
+        const res = await fetch('/api/owner/presence', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            mode: mode,
+            status: status,
+            activity_type: actType,
+            activity_text: actText,
+            idle_text: idleText
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast("Discord bot presence updated successfully!", "success");
+          renderCreatorControlRoom();
+        } else {
+          showToast(json.error?.message || "Failed to update presence", "danger");
+        }
+      } catch(e) {
+        showToast("Network error updating presence", "danger");
+      }
+    }
+
+    async function resetPresenceToDynamic() {
+      showToast("Resetting presence to Dynamic Auto-Sync...", "info");
+      try {
+        const res = await fetch('/api/owner/presence', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            mode: 'dynamic',
+            status: 'online',
+            activity_type: 'listening',
+            activity_text: '',
+            idle_text: ''
+          })
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast("Bot presence reset to Dynamic Auto-Sync.", "success");
+          renderCreatorControlRoom();
+        } else {
+          showToast(json.error?.message || "Reset failed", "danger");
+        }
+      } catch(e) {
+        showToast("Error resetting presence", "danger");
+      }
+    }
+
+    function togglePresenceModeUI() {
+      const mode = document.getElementById('owner-pres-mode')?.value;
+      const actTextInput = document.getElementById('owner-pres-act-text');
+      if (actTextInput) {
+        if (mode === 'manual') {
+          actTextInput.focus();
+        }
       }
     }
 

@@ -7,10 +7,13 @@ Respects Discord Gateway rate limits and enforces strict data sanitization.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
+from pathlib import Path
 import re
 import time
-from typing import TYPE_CHECKING, Any, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import discord
 from music_bot.config import BOT_NAME
@@ -22,10 +25,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger("MusicMaid.Presence")
 
 # Constants
-DEFAULT_IDLE_ACTIVITY: str = "Your music, your vibe. 🎧"
-DEFAULT_RECOVERY_ACTIVITY: str = "Restoring session... 🔄"
+DEFAULT_IDLE_ACTIVITY: str = "24/7 high-fidelity lossless music player."
+DEFAULT_RECOVERY_ACTIVITY: str = "Restoring session..."
 MAX_ACTIVITY_LEN: int = 120  # Discord allows up to 128 chars, 120 provides safe buffer
 MIN_UPDATE_INTERVAL_SECONDS: float = 20.0  # Discord gateway presence update cooldown
+
+PRESENCE_CONFIG_FILE = Path("data/presence_config.json")
+
+STATUS_MAP = {
+    "online": discord.Status.online,
+    "idle": discord.Status.idle,
+    "dnd": discord.Status.dnd,
+    "invisible": discord.Status.invisible,
+}
+
+ACTIVITY_TYPE_MAP = {
+    "listening": discord.ActivityType.listening,
+    "playing": discord.ActivityType.playing,
+    "watching": discord.ActivityType.watching,
+    "competing": discord.ActivityType.competing,
+    "custom": discord.ActivityType.custom,
+}
 
 
 class DynamicPresenceService:
@@ -35,6 +55,104 @@ class DynamicPresenceService:
     _last_signature: Optional[str] = None
     _lock = asyncio.Lock()
     _loop_task: Optional[asyncio.Task] = None
+
+    # Owner presence control configuration
+    _mode: str = "dynamic"  # "dynamic" | "manual"
+    _custom_status: str = "online"  # "online" | "idle" | "dnd" | "invisible"
+    _custom_activity_type: str = "listening"  # "listening" | "playing" | "watching" | "competing" | "custom"
+    _custom_activity_text: str = ""
+    _custom_idle_text: Optional[str] = None
+    _config_loaded: bool = False
+
+    @classmethod
+    def load_config(cls) -> None:
+        """Load persistent presence settings from disk if available."""
+        cls._config_loaded = True
+        if PRESENCE_CONFIG_FILE.exists():
+            try:
+                with open(PRESENCE_CONFIG_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    cls._mode = data.get("mode", "dynamic")
+                    cls._custom_status = data.get("status", "online")
+                    cls._custom_activity_type = data.get("activity_type", "listening")
+                    cls._custom_activity_text = data.get("activity_text", "")
+                    cls._custom_idle_text = data.get("idle_text") or None
+            except Exception as e:
+                logger.warning(f"Could not load presence config: {e}")
+
+    @classmethod
+    def save_config(cls) -> None:
+        """Persist presence settings to disk."""
+        try:
+            PRESENCE_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(PRESENCE_CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump({
+                    "mode": cls._mode,
+                    "status": cls._custom_status,
+                    "activity_type": cls._custom_activity_type,
+                    "activity_text": cls._custom_activity_text,
+                    "idle_text": cls._custom_idle_text or "",
+                }, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Could not save presence config: {e}")
+
+    @classmethod
+    def get_state(cls, bot: Optional[Any] = None) -> Dict[str, Any]:
+        """Return full presence control state and live Discord activity information."""
+        if not cls._config_loaded:
+            cls.load_config()
+
+        live_activity_name = ""
+        live_status = cls._custom_status
+        if bot and hasattr(bot, "activity") and bot.activity:
+            live_activity_name = getattr(bot.activity, "name", "")
+        if bot and hasattr(bot, "status") and bot.status:
+            live_status = str(bot.status.value) if hasattr(bot.status, "value") else str(bot.status)
+
+        return {
+            "mode": cls._mode,
+            "status": cls._custom_status,
+            "activity_type": cls._custom_activity_type,
+            "activity_text": cls._custom_activity_text,
+            "idle_text": cls._custom_idle_text or "",
+            "live_activity_name": live_activity_name,
+            "live_status": live_status,
+            "last_update_time": cls._last_update_time,
+            "last_signature": cls._last_signature,
+        }
+
+    @classmethod
+    async def update_state(
+        cls,
+        bot: Optional[Any],
+        mode: Optional[str] = None,
+        status: Optional[str] = None,
+        activity_type: Optional[str] = None,
+        activity_text: Optional[str] = None,
+        idle_text: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Update presence configuration, save to disk, and immediately synchronize Discord presence."""
+        if not cls._config_loaded:
+            cls.load_config()
+
+        if mode in ("dynamic", "manual"):
+            cls._mode = mode
+        if status in STATUS_MAP:
+            cls._custom_status = status
+        if activity_type in ACTIVITY_TYPE_MAP:
+            cls._custom_activity_type = activity_type
+        if activity_text is not None:
+            cls._custom_activity_text = str(activity_text).strip()
+        if idle_text is not None:
+            cleaned = str(idle_text).strip()
+            cls._custom_idle_text = cleaned if cleaned else None
+
+        cls.save_config()
+
+        if bot:
+            await cls.sync_presence(bot, force=True)
+
+        return cls.get_state(bot)
 
     @classmethod
     def sanitize_track_metadata(cls, title: str, artist: Optional[str] = None) -> str:
@@ -63,10 +181,27 @@ class DynamicPresenceService:
     def resolve_target_activity(cls, bot: Any) -> Tuple[discord.Activity, discord.Status, str]:
         """
         Determines the authoritative global Discord activity across all active guild sessions:
-        Priority 1: Active session recovery in progress -> 'Restoring session... 🔄'
-        Priority 2: Genuine active playback -> '{title} • {artist}'
-        Priority 3: Idle / Paused / Stopped -> 'Your music, your vibe. 🎧'
+        - Manual Mode: Returns owner-configured activity and status override.
+        - Dynamic Mode:
+          Priority 1: Active session recovery in progress -> 'Restoring session...'
+          Priority 2: Genuine active playback -> '{title} • {artist}'
+          Priority 3: Idle / Paused / Stopped -> custom idle text or DEFAULT_IDLE_ACTIVITY
         """
+        if not cls._config_loaded:
+            cls.load_config()
+
+        # 0. Manual Override Mode Check
+        if cls._mode == "manual":
+            status = STATUS_MAP.get(cls._custom_status, discord.Status.online)
+            act_type = ACTIVITY_TYPE_MAP.get(cls._custom_activity_type, discord.ActivityType.listening)
+            act_name = cls._custom_activity_text or "MusicMaid"
+            if act_type == discord.ActivityType.custom:
+                act = discord.CustomActivity(name=act_name)
+            else:
+                act = discord.Activity(type=act_type, name=act_name)
+            sig = f"STATE:MANUAL:{cls._custom_status}:{cls._custom_activity_type}:{act_name}"
+            return act, status, sig
+
         sm = SessionManager.get_instance() if hasattr(SessionManager, "get_instance") else None
         sessions: list[GuildMusicSession] = sm.get_all_sessions() if sm else []
 
@@ -121,9 +256,10 @@ class DynamicPresenceService:
 
         # 3. Idle / Paused state default
         sig = "STATE:IDLE"
+        idle_name = cls._custom_idle_text or DEFAULT_IDLE_ACTIVITY
         act = discord.Activity(
             type=discord.ActivityType.listening,
-            name=DEFAULT_IDLE_ACTIVITY,
+            name=idle_name,
         )
         return act, discord.Status.online, sig
 

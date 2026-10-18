@@ -102,7 +102,7 @@ class NekoSongsBot(commands.Bot):
                 ),
                 color=0xFEE75C,
             )
-            embed.set_footer(text="Neko Songs • Continuous Live Playback")
+            embed.set_footer(text="MusicMaid • Continuous Playback Active")
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -214,7 +214,7 @@ class NekoSongsBot(commands.Bot):
                     ),
                     color=0xFEE75C,
                 )
-                embed.set_footer(text="Neko Songs • Continuous Live Playback")
+                embed.set_footer(text="MusicMaid • Continuous Playback Active")
                 try:
                     if not interaction.response.is_done():
                         await interaction.response.send_message(embed=embed, ephemeral=True)

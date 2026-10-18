@@ -29,9 +29,9 @@ PAYMENTS_ENABLED: bool = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true
 # MusicMaid Brand Identity
 BOT_NAME: str = os.getenv("BOT_NAME", "MusicMaid")
 STUDIO_BRAND_NAME: str = "MusicMaid Studios"
-BOT_BRAND_TAG: str = "🎧 MUSICMAID"
-BOT_ABOUT_ME: str = "Your music, your vibe. 🎧"
-BOT_TAGLINE: str = "Your music, your vibe. 🎧"
+BOT_BRAND_TAG: str = "MUSICMAID"
+BOT_ABOUT_ME: str = "24/7 high-fidelity lossless music player."
+BOT_TAGLINE: str = "24/7 high-fidelity lossless music player."
 MUSIC_BOT_VERSION: str = "2.7.0"
 
 # Import Theme & Emoji Tokens
@@ -56,13 +56,13 @@ COLOR_WHITE: int = 0xFFFFFF
 COLOR_VIOLET_ACCENT: int = COLOR_PRIMARY
 
 # Personality Dialogues
-DIALOGUE_JOIN: str = "✨ MusicMaid has entered the listening room!"
-DIALOGUE_START: str = "🎵 Found it! Let's listen."
-DIALOGUE_EMPTY_QUEUE: str = "✨ The queue is empty. Ready for another song!"
-DIALOGUE_UNPLAYABLE: str = "😿 I found the request, but couldn't resolve a playable audio source."
+DIALOGUE_JOIN: str = "MusicMaid connected to voice channel."
+DIALOGUE_START: str = "Playback started."
+DIALOGUE_EMPTY_QUEUE: str = "Queue is empty."
+DIALOGUE_UNPLAYABLE: str = "Could not resolve a playable audio source."
 DIALOGUE_NOTHING_PLAYABLE: str = DIALOGUE_UNPLAYABLE
-DIALOGUE_UNAVAILABLE: str = "✨ Music source is temporarily unavailable. Please try again later."
-DIALOGUE_PLAYBACK_END: str = "🎶 That was a good one!"
+DIALOGUE_UNAVAILABLE: str = "Audio source is temporarily unavailable."
+DIALOGUE_PLAYBACK_END: str = "Track completed."
 
 
 def _clean_token(t: Optional[str]) -> str:

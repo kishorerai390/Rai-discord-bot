@@ -43,11 +43,11 @@ class DJRecommendationCardView(discord.ui.View):
         self.bot = bot
         self.session = session
         self.track = track or QueuedTrack(
-            title=recommended_query or "Neko Recommendation",
+            title=recommended_query or "Recommended Track",
             url="https://youtube.com",
             duration=180,
             requester_id=requester_id or 0,
-            requester_name="Neko DJ",
+            requester_name="MusicMaid Auto-DJ",
         )
 
 
@@ -56,7 +56,7 @@ class DJRecommendationCardView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         async with self.session.lock:
             self.session.queue.append(self.track)
-        await interaction.followup.send(f"🐱 Added **{self.track.title}** to the queue!", ephemeral=True)
+        await interaction.followup.send(f"Added **{self.track.title}** to the queue.", ephemeral=True)
         self.stop()
         try:
             await interaction.message.delete()
@@ -68,7 +68,7 @@ class DJRecommendationCardView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         async with self.session.lock:
             self.session.queue.appendleft(self.track)
-        await interaction.followup.send(f"🎵 **{self.track.title}** will play next!", ephemeral=True)
+        await interaction.followup.send(f"**{self.track.title}** will play next.", ephemeral=True)
         self.stop()
         try:
             await interaction.message.delete()
@@ -237,17 +237,17 @@ class NekoDJService:
         current_artist = session.current_track.artist if session.current_track else "Recent Tracks"
 
         embed = discord.Embed(
-            title="🎧 NEKO DJ",
+            title="MusicMaid Auto-DJ",
             description=(
                 f"**Now Playing:**\n`{current_artist}` — **{current_title}**\n\n"
-                f"🐱 **Neko recommends:**\n`{track.artist}` — **[{track.title}]({track.url})**\n\n"
-                f"**Why:**\n{rationale}"
+                f"**Recommended Track:**\n`{track.artist}` — **[{track.title}]({track.url})**\n\n"
+                f"**Reason:**\n{rationale}"
             ),
             color=COLOR_ELECTRIC_CYAN,
         )
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
-        embed.set_footer(text="Neko DJ • Smart Music Companion")
+        embed.set_footer(text="MusicMaid Auto-DJ • Intelligent Recommendations")
 
         view = DJRecommendationCardView(bot, session, track)
         try:

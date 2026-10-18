@@ -21,7 +21,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "MusicMaid ✦ Discord Music Engine & Master Control Panel",
+  title: "MusicMaid - Discord Music Engine & Master Control Panel",
   description:
     "Dedicated 24/7 Lossless 320kbps Discord Music Bot Control Panel. Control queues, DSP equalizer, Smart Auto-DJ, and synchronized playback.",
   keywords: [
