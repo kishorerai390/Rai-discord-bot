@@ -16,10 +16,23 @@ export async function POST(req: NextRequest) {
     const user = await getCurrentUser(req);
     const userId = user?.id || "1457382179981099090";
 
-    const db = getMusicDb();
-    const nowIso = new Date().toISOString();
-
-    // 1. Enqueue action for autonomous Discord bot worker
+    const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
+    try {
+      const resBot = await fetch(`${botApiUrl}/api/music/control`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guild_id: guildId, action, payload, user_id: userId }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (resBot.ok) {
+        const botJson = await resBot.json();
+        if (botJson.success) {
+          return NextResponse.json(botJson);
+        }
+      }
+    } catch {
+      // Fallback to local SQLite web action queue
+    }
     const actionId = `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     try {
       db.prepare(

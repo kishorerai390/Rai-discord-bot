@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const guildId = req.nextUrl.searchParams.get("guild_id") || "1457382179981099090";
 
   // Try fetching live queue from backend Python bot if running
-  const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
   try {
     const resBot = await fetch(`${botApiUrl}/api/music/queue?guild_id=${encodeURIComponent(guildId)}`, {
       signal: AbortSignal.timeout(2000),

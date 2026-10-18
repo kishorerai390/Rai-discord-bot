@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Attempt to proxy to the backend python bot API if reachable
-    const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+    const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
     try {
       const resBot = await fetch(`${botApiUrl}/api/music/search?q=${encodeURIComponent(query)}`, {
         signal: AbortSignal.timeout(2500),

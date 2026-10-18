@@ -66,6 +66,7 @@ class RaiCommunityOSServer:
         from web.owner_api import OwnerApiRouter
         self.owner_router = OwnerApiRouter(bot=self.bot, db=self.db, auth=self.api_router.auth)
         self._outbox_task: Optional[asyncio.Task] = None
+        self._keepalive_task: Optional[asyncio.Task] = None
         self._is_running = False
 
     async def handle_ui(self, request: web.Request) -> web.Response:
@@ -537,13 +538,52 @@ class RaiCommunityOSServer:
 
             await asyncio.sleep(15.0)
 
+    async def _render_keepalive_worker_loop(self) -> None:
+        """Periodically ping Render's external health endpoint to prevent free tier spin-down."""
+        import aiohttp
+        await asyncio.sleep(45.0)  # Grace period after container start
+        while self._is_running:
+            try:
+                target_url = (
+                    os.getenv("RENDER_EXTERNAL_URL")
+                    or os.getenv("MUSICMAID_WEBSITE_URL")
+                    or os.getenv("PUBLIC_BASE_URL")
+                    or "https://rai-discord-bot.onrender.com"
+                )
+                health_url = f"{target_url.rstrip('/')}/api/health"
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+                    async with session.get(health_url) as resp:
+                        if resp.status == 200:
+                            logger.info(f"[KEEPALIVE] Keep-alive heartbeat success to {health_url} (HTTP 200)")
+                        else:
+                            logger.warning(f"[KEEPALIVE] Heartbeat received status {resp.status} from {health_url}")
+            except Exception as e:
+                logger.debug(f"[KEEPALIVE] Heartbeat notice: {e}")
+            # Ping every 8 minutes (480s), comfortably preventing Render's 15-minute idle shutdown
+            await asyncio.sleep(480.0)
+
     async def start(self) -> None:
         """Start the web server and background outbox sync worker."""
         if not self.db.is_connected:
             await self.db.connect()
 
+        @web.middleware
+        async def cors_middleware(request: web.Request, handler):
+            if request.method == "OPTIONS":
+                response = web.Response(status=204)
+            else:
+                try:
+                    response = await handler(request)
+                except web.HTTPException as ex:
+                    response = ex
+            response.headers["Access-Control-Allow-Origin"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Cookie, Accept"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+
         try:
-            self.app = web.Application()
+            self.app = web.Application(middlewares=[cors_middleware])
             self.setup_routes(self.app)
             self.runner = web.AppRunner(self.app)
             await self.runner.setup()
@@ -552,6 +592,7 @@ class RaiCommunityOSServer:
             self._is_running = True
             await self.realtime_gateway.start()
             self._outbox_task = asyncio.create_task(self._outbox_worker_loop())
+            self._keepalive_task = asyncio.create_task(self._render_keepalive_worker_loop())
             logger.info(f"✦ Rai Community OS Platform online at http://0.0.0.0:{self.port} ✦")
         except Exception as e:
             logger.warning(f"Could not start Rai Community OS on port {self.port}: {e}")
@@ -560,6 +601,12 @@ class RaiCommunityOSServer:
         """Gracefully stop web server and cleanup worker."""
         self._is_running = False
         await self.realtime_gateway.stop()
+        if self._keepalive_task:
+            self._keepalive_task.cancel()
+            try:
+                await self._keepalive_task
+            except asyncio.CancelledError:
+                pass
         if self._outbox_task:
             self._outbox_task.cancel()
             try:

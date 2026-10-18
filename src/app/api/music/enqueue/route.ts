@@ -18,6 +18,24 @@ export async function POST(req: NextRequest) {
     const user = await getCurrentUser(req);
     const userId = user?.id || "1457382179981099090";
 
+    const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
+    try {
+      const resBot = await fetch(`${botApiUrl}/api/music/enqueue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guild_id: guildId, query, user_id: userId }),
+        signal: AbortSignal.timeout(4000),
+      });
+      if (resBot.ok) {
+        const botJson = await resBot.json();
+        if (botJson.success) {
+          return NextResponse.json(botJson);
+        }
+      }
+    } catch {
+      // Fallback to local SQLite action
+    }
+
     const actionId = submitWebAction(guildId, "ENQUEUE", { query }, userId);
 
     return NextResponse.json({

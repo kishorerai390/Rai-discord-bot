@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { getMusicDb } from "@/lib/db";
 
 export async function GET() {
+  const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
+  try {
+    const resBot = await fetch(`${botApiUrl}/api/music/guilds`, {
+      signal: AbortSignal.timeout(2000),
+      cache: "no-store",
+    });
+    if (resBot.ok) {
+      const botJson = await resBot.json();
+      if (botJson.success && Array.isArray(botJson.data)) {
+        return NextResponse.json(botJson);
+      }
+    }
+  } catch {
+    // Fallback to local DB
+  }
+
   try {
     const db = getMusicDb();
     let rows: any[] = [];
