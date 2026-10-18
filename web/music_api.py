@@ -474,8 +474,15 @@ class MusicApiRouter:
         )
 
         # In-process immediate execution optimization if bot is running in same loop
-        sm = SessionManager.get_instance()
-        session = sm.get_session_nowait(int(guild_id_val)) if hasattr(sm, "get_session_nowait") else None
+        session = None
+        if self.bot and hasattr(self.bot, "session_manager"):
+            session = await self.bot.session_manager.get_session(guild_id_int)
+        elif hasattr(SessionManager, "get_instance"):
+            sm = SessionManager.get_instance()
+            if hasattr(sm, "get_session"):
+                session = await sm.get_session(guild_id_int)
+            elif hasattr(sm, "get_session_nowait"):
+                session = sm.get_session_nowait(guild_id_int)
 
         if session and self.bot:
             from music_bot.services.player_service import MusicPlayerService
@@ -494,32 +501,34 @@ class MusicApiRouter:
                                     logger.debug(f"Auto voice join note: {join_err}")
 
                 if action == "PAUSE":
+                    if not session.has_active_track and not (session.voice_client and session.voice_client.is_playing()):
+                        return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "Nothing is currently playing to pause"})
                     success, msg = await MusicPlayerService.pause(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "paused" if success else "failed", "message": msg})
-                    if not success:
-                        return json_error("PAUSE_FAILED", msg, status=400)
-                    return json_success({"action_id": action_id, "action": action, "status": "PAUSED", "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "PAUSED" if success else "NOOP", "message": msg})
 
                 elif action == "RESUME":
+                    if not session.has_active_track and session.queue:
+                        track = session.queue.popleft()
+                        await MusicPlayerService.start_playback(self.bot, session, track)
+                        return json_success({"action_id": action_id, "action": action, "status": "PLAYING", "message": f"Started playing '{track.title}' 🎵"})
+                    if not session.has_active_track and not (session.voice_client and session.voice_client.is_paused()):
+                        return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "Queue is empty. Search a song to play! 🎵"})
                     success, msg = await MusicPlayerService.resume(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "resumed" if success else "failed", "message": msg})
-                    if not success:
-                        return json_error("RESUME_FAILED", msg, status=400)
-                    return json_success({"action_id": action_id, "action": action, "status": "RESUMED", "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "RESUMED" if success else "NOOP", "message": msg})
 
                 elif action == "SKIP":
+                    if not session.has_active_track and not session.queue:
+                        return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "No track in queue to skip"})
                     success, msg, next_t = await MusicPlayerService.skip(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "skipped" if success else "failed", "message": msg})
-                    if not success:
-                        return json_error("SKIP_FAILED", msg, status=400)
                     return json_success({"action_id": action_id, "action": action, "status": "SKIPPED", "message": msg, "next_track": next_t.title if next_t else None})
 
                 elif action == "PREVIOUS":
                     success, msg, prev_t = await MusicPlayerService.previous(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "previous" if success else "failed", "message": msg})
-                    if not success:
-                        return json_error("PREVIOUS_FAILED", msg, status=400)
-                    return json_success({"action_id": action_id, "action": action, "status": "PREVIOUS", "message": msg, "track": prev_t.title if prev_t else None})
+                    return json_success({"action_id": action_id, "action": action, "status": "PREVIOUS" if success else "NOOP", "message": msg, "track": prev_t.title if prev_t else None})
 
                 elif action == "SEEK":
                     target = int(payload.get("seconds", 0))
@@ -542,14 +551,14 @@ class MusicApiRouter:
                     return json_success({"action_id": action_id, "action": action, "status": "QUEUED", "volume": vol, "message": msg})
 
                 elif action == "SHUFFLE":
+                    if not session.queue or len(session.queue) == 0:
+                        return json_success({"action_id": action_id, "action": action, "status": "NOOP", "message": "Queue is empty. Add songs to shuffle! 🔀"})
                     success, msg = MusicPlayerService.shuffle(session)
                     await MusicPlayerService.send_now_playing_panel(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "shuffled" if success else "failed", "message": msg})
-                    if not success:
-                        return json_error("SHUFFLE_FAILED", msg, status=400)
                     return json_success({"action_id": action_id, "action": action, "status": "SHUFFLED", "message": msg})
 
-                elif action == "LOOP":
+                elif action in ("LOOP", "LOOP_CYCLE"):
                     mode, msg = MusicPlayerService.cycle_loop(session)
                     await MusicPlayerService.send_now_playing_panel(session)
                     await self.db.mark_web_action_completed(action_id, {"status": "loop_set", "mode": mode.value, "message": msg})
@@ -558,7 +567,7 @@ class MusicApiRouter:
                 elif action == "STOP":
                     success, msg = await MusicPlayerService.stop(self.bot, session)
                     await self.db.mark_web_action_completed(action_id, {"status": "stopped", "message": msg})
-                    return json_success({"action_id": action_id, "action": action, "status": "STOPPED", "message": msg})
+                    return json_success({"action_id": action_id, "action": action, "status": "STOPPED", "message": msg or "Playback stopped"})
 
                 elif action == "REMOVE":
                     idx = int(payload.get("index", 0))

@@ -2117,7 +2117,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <span style="font-size:0.9rem; color:var(--text-dim);" id="vol-icon" onclick="quickMute()">🔊</span>
         <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
       </div>
-      <button class="p-btn" onclick="navigate('/canvas')" title="Open Stage Visualizer">✨</button>
+      <button class="p-btn" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ">✨</button>
       <button class="p-btn" onclick="navigate('/queue')" title="Open Queue">📜</button>
     </div>
   </footer>
@@ -2657,7 +2657,8 @@ UI_HTML = r"""<!DOCTYPE html>
           const first = currentQueue[0];
           await dispatchCmd('PLAY_NOW', { query: first.url || first.title });
         } else {
-          showToast("No track in queue. Search and queue a song! 🎵", "info");
+          showToast("Search and pick any song to play! 🎵", "info");
+          navigate('/search');
         }
       }
     }
