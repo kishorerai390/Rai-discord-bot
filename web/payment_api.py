@@ -11,7 +11,10 @@ from typing import Any, Dict, Optional
 import urllib.parse
 
 from aiohttp import web
-import stripe
+try:
+    import stripe
+except ImportError:
+    stripe = None
 
 from music_bot import config
 from music_bot.services.payment_service import PaymentService
@@ -343,10 +346,10 @@ class PaymentApiRouter:
         except ValueError as val_err:
             logger.warning(f"[PaymentAPI] Webhook verification error: {val_err}")
             return web.Response(text=f"Webhook Error: {val_err}", status=400)
-        except stripe.error.SignatureVerificationError as sig_err:
-            logger.warning(f"[PaymentAPI] Webhook signature verification failed: {sig_err}")
-            return web.Response(text="Invalid signature", status=400)
         except Exception as e:
+            if stripe and isinstance(e, getattr(stripe.error, 'SignatureVerificationError', ())):
+                logger.warning(f"[PaymentAPI] Webhook signature verification failed: {e}")
+                return web.Response(text="Invalid signature", status=400)
             logger.error(f"[PaymentAPI] Unexpected webhook verification exception: {e}")
             return web.Response(text="Internal verification error", status=500)
 

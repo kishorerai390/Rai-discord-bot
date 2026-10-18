@@ -22,7 +22,7 @@ export function TopBar({
         >
           <Menu className="w-5 h-5" />
         </button>
-        <span className="font-extrabold text-sm text-white tracking-tight">Noctyra Studio</span>
+        <span className="font-extrabold text-sm text-white tracking-tight">MusicMaid</span>
       </div>
 
       <div className="flex items-center gap-2">

@@ -4,7 +4,7 @@ export async function GET() {
   const commit = process.env.RENDER_GIT_COMMIT || "nextjs-ts";
   return NextResponse.json({
     status: "healthy",
-    bot_name: "MusicMaid (Noctyra Studio)",
+    bot_name: "MusicMaid",
     platform: "Next.js 15 TypeScript Platform",
     timestamp: Math.floor(Date.now() / 1000),
     commit: commit.slice(0, 8),

@@ -13,7 +13,10 @@ import logging
 import os
 from typing import Any, Dict, Optional, Tuple
 
-import stripe
+try:
+    import stripe
+except ImportError:
+    stripe = None
 
 from music_bot import config
 
@@ -26,10 +29,12 @@ class PaymentService:
     @classmethod
     def initialize(cls) -> None:
         """Configure Stripe API key from secure environment variable."""
-        if config.STRIPE_SECRET_KEY:
+        if stripe and config.STRIPE_SECRET_KEY:
             stripe.api_key = config.STRIPE_SECRET_KEY
             stripe.api_version = "2024-06-20"
             logger.info("[Payment] Stripe SDK initialized successfully.")
+        elif not stripe:
+            logger.warning("[Payment] Stripe package not installed in environment.")
         else:
             logger.warning("[Payment] STRIPE_SECRET_KEY is not set. Payment gateway in unconfigured state.")
 

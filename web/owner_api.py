@@ -125,7 +125,7 @@ class OwnerApiRouter:
             "success": True,
             "data": {
                 "bot_status": "ONLINE" if bot_ready else "STARTING",
-                "cluster_name": "Noctyra-Production-01",
+                "cluster_name": "MusicMaid-Core-01",
                 "uptime_seconds": uptime_seconds,
                 "gateway_latency_ms": latency_ms,
                 "active_guilds": guilds_count,
@@ -406,7 +406,7 @@ class OwnerApiRouter:
                     if d_user:
                         is_vip = "vip" in tier.lower() or "creator" in tier.lower()
                         badge_symbol = "👑" if is_vip else "💎"
-                        plan_title = "Noctyra Creator VIP Pass" if is_vip else "MusicMaid Premium VIP"
+                        plan_title = "MusicMaid Creator VIP Pass" if is_vip else "MusicMaid Premium VIP"
                         accent_color = 0xFFD700 if is_vip else 0x9333EA
                         exp_unix = int((now + datetime.timedelta(days=days)).timestamp())
 
@@ -418,7 +418,7 @@ class OwnerApiRouter:
                                 f"### 🌟 Your Unlocked VIP Features:\n"
                                 f"• **Studio Volume Booster** — Push volume up to 150% with zero clipping\n"
                                 f"• **24/7 Voice Stay** — Bot stays in your voice channel non-stop\n"
-                                f"• **AI Anime Maid Voice DJ** — Custom voice track intros & bumpers\n"
+                                f"• **Maid Voice DJ** — Custom voice track intros & bumpers\n"
                                 f"• **Lossless 320kbps Audio** — True studio master quality Opus DSP\n"
                                 f"• **Cross-Platform Importer** — Spotify, Apple Music & SoundCloud sync\n"
                                 f"• **Priority Audio Routing** — Sub-0.5ms reaction time & instant seeking\n\n"

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -481,11 +482,22 @@ class MusicApiRouter:
         # In-process immediate execution optimization if bot is running in same loop
         session = None
         if self.bot and hasattr(self.bot, "session_manager"):
-            session = await self.bot.session_manager.get_session(guild_id_int)
+            try:
+                res = self.bot.session_manager.get_session(guild_id_int)
+                if inspect.isawaitable(res):
+                    session = await res
+                elif hasattr(res, "guild_id"):
+                    session = res
+            except Exception:
+                session = None
         elif hasattr(SessionManager, "get_instance"):
             sm = SessionManager.get_instance()
             if hasattr(sm, "get_session"):
-                session = await sm.get_session(guild_id_int)
+                res = sm.get_session(guild_id_int)
+                if inspect.isawaitable(res):
+                    session = await res
+                else:
+                    session = res
             elif hasattr(sm, "get_session_nowait"):
                 session = sm.get_session_nowait(guild_id_int)
 
@@ -1204,14 +1216,14 @@ class MusicApiRouter:
         if "default_volume" in body:
             vol = max(1, min(150, int(body["default_volume"])))
             if vol > 100 and not is_premium:
-                return json_error("PREMIUM_REQUIRED", "Volumes above 100% require an active Noctyra Premium subscription", 403)
+                return json_error("PREMIUM_REQUIRED", "Volumes above 100% require an active MusicMaid VIP subscription", 403)
             settings.default_volume = vol
 
         # 24/7 Mode check (requires premium)
         if "twenty_four_seven_enabled" in body:
             tfs = bool(body["twenty_four_seven_enabled"])
             if tfs and not is_premium:
-                return json_error("PREMIUM_REQUIRED", "24/7 Voice Channel mode requires an active Noctyra Premium subscription", 403)
+                return json_error("PREMIUM_REQUIRED", "24/7 Voice Channel mode requires an active MusicMaid VIP subscription", 403)
             settings.twenty_four_seven_enabled = tfs
             if "twenty_four_seven_channel_id" in body and body["twenty_four_seven_channel_id"]:
                 settings.twenty_four_seven_channel_id = int(body["twenty_four_seven_channel_id"])

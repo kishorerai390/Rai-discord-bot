@@ -11,7 +11,7 @@ export const PAYMENTS_ENABLED =
 export const PRICING_PLANS = {
   monthly: {
     id: "monthly",
-    name: "Noctyra Monthly VIP",
+    name: "MusicMaid Monthly VIP",
     amount: 199,
     amount_paise: 19900,
     interval: "monthly" as const,
@@ -27,7 +27,7 @@ export const PRICING_PLANS = {
   },
   yearly: {
     id: "yearly",
-    name: "Noctyra Annual Pro",
+    name: "MusicMaid Annual Pro",
     amount: 1499,
     amount_paise: 149900,
     interval: "yearly" as const,
@@ -44,16 +44,16 @@ export const PRICING_PLANS = {
   },
   lifetime: {
     id: "lifetime",
-    name: "Noctyra Lifetime Founder",
+    name: "MusicMaid Lifetime VIP",
     amount: 3999,
     amount_paise: 399900,
     interval: "lifetime" as const,
     currency: "INR",
-    description: "Permanent lifetime VIP pass with all present and future AI music perks.",
+    description: "Permanent lifetime VIP pass with all present and future music perks.",
     features: [
       "Permanent Lifetime Unlocked Access",
       "Unlimited Discord Servers & Channels",
-      "Developer Showcase Early Access",
+      "Community Early Access",
       "Zero Renewal Fees Ever",
       "Direct Priority Support Channel",
     ],
@@ -121,7 +121,7 @@ export async function createRazorpayOrder(
         user_id: userId,
         guild_id: guildId || "global",
         plan_id: planId,
-        platform: "Noctyra_Studio_Web",
+        platform: "MusicMaid_Web",
       },
     }),
   });

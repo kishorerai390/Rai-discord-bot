@@ -15,6 +15,8 @@ UI_HTML = r"""<!DOCTYPE html>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>MusicMaid ✦ Discord Music Engine & Master Control Panel</title>
+  <meta name="author" content="Kishore (Noctyra Studio)">
+  <meta name="keywords" content="MusicMaid, Noctyra Premium, Discord Music Bot, Lossless 320kbps">
   <meta name="description" content="Dedicated 24/7 Lossless 320kbps Discord Music Bot Control Panel. Control queues, DSP equalizer, Smart Auto-DJ, and synchronized playback.">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" href="/icon.png">
@@ -1998,8 +2000,8 @@ UI_HTML = r"""<!DOCTYPE html>
         <a class="brand-box" onclick="navigate('/')">
           <div class="brand-avatar">🎵</div>
           <div class="brand-title-wrap">
-            <h1>Noctyra Studio</h1>
-            <p>24/7 Lossless Audio Engine</p>
+            <h1>MusicMaid</h1>
+            <p>Discord Music Player</p>
           </div>
         </a>
         <button class="mobile-sidebar-close" onclick="closeMobileSidebar()" aria-label="Close navigation menu">✕</button>
@@ -2020,11 +2022,16 @@ UI_HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
+      <!-- DIRECT DISCORD BOT INVITE LINK -->
+      <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.45rem; padding:0.55rem 0.8rem; margin:0.45rem 0 0.75rem 0; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.22), rgba(88,101,242,0.08)); border:1px solid rgba(88,101,242,0.45); color:#fff; font-size:0.78rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;">
+        <span>➕ Add Bot to Discord</span>
+      </a>
+
       <!-- PROMINENT SIDEBAR PREMIUM CARD -->
-      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to Noctyra Premium">
-        <div class="promo-sparkle">✨ 150% Boost • 24/7 Voice</div>
+      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to MusicMaid VIP">
+        <div class="promo-sparkle">✨ 150% Volume • 24/7 Stay</div>
         <div class="promo-content">
-          <span class="promo-title">💎 Noctyra Premium</span>
+          <span class="promo-title">💎 MusicMaid VIP</span>
           <span class="promo-sub">Studio DSP, 24/7 staying mode & zero queue limits</span>
         </div>
         <button class="promo-btn">View Plans ⚡</button>
@@ -2033,17 +2040,17 @@ UI_HTML = r"""<!DOCTYPE html>
       <!-- MAIN NAVIGATION -->
       <span class="nav-group-title">Music Engine</span>
       <ul class="nav-list">
-        <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">🏠</span> Dashboard</a></li>
-        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> Noctyra Premium</a></li>
-        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Discover</a></li>
-        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">🎵</span> Queue & Live Player</a></li>
-        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Stage Visualizer</a></li>
+        <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">🏠</span> Now Playing</a></li>
+        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> MusicMaid VIP</a></li>
+        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search Songs</a></li>
+        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
+        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Audio Visualizer</a></li>
         <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
-        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Playlists & Library</a></li>
-        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & DSP</a></li>
-        <li><a class="nav-link" id="nav-stats" onclick="navigate('/stats')"><span class="nav-icon">📊</span> Telemetry & Health</a></li>
+        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> My Library</a></li>
+        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Audio Equalizer</a></li>
+        <li><a class="nav-link" id="nav-stats" onclick="navigate('/stats')"><span class="nav-icon">📊</span> Diagnostics</a></li>
         <li><a class="nav-link" id="nav-guilds" onclick="navigate('/dashboard/guilds')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
-        <li id="nav-owner-li" style="display:none;"><a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(0,229,255,0.4);"><span class="nav-icon">⚡</span> Control Room</a></li>
+        <li id="nav-owner-li" style="display:none;"><a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(0,229,255,0.4);"><span class="nav-icon">⚡</span> Creator Panel</a></li>
       </ul>
 
       <!-- SIDEBAR FOOTER -->
@@ -2065,7 +2072,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="mobile-top-bar">
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
-          <span style="font-weight:800; font-size:1.1rem; color:#fff;">Noctyra Studio</span>
+          <span style="font-weight:800; font-size:1.1rem; color:#fff;">MusicMaid</span>
         </div>
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="btn btn-sm btn-primary" style="padding:0.3rem 0.65rem; font-size:0.75rem; border-radius:20px; font-weight:800;" onclick="navigate('/premium')">💎 Premium</button>
@@ -3080,10 +3087,10 @@ UI_HTML = r"""<!DOCTYPE html>
                   <span class="chip-pill" id="hero-vc-pill">🔊 ${currentSession?.voice_channel_name || 'Standby'}</span>
                 </div>
                 <h2 id="hero-track-title" style="font-size:1.6rem; font-weight:800; color:#fff; word-break:break-word; line-height:1.25;">
-                  ${t ? t.title : 'MusicMaid Master Player'}
+                  ${t ? t.title : 'Welcome to MusicMaid'}
                 </h2>
                 <p id="hero-track-artist" style="font-size:0.95rem; color:var(--cyan); font-weight:600;">
-                  ${t ? (t.artist || 'Unknown Artist') : 'Ready for songs — search any track or select a playlist'}
+                  ${t ? (t.artist || 'Unknown Artist') : 'No song currently playing — search any track below or choose a trending hit!'}
                 </p>
 
                 <!-- HERO SCRUBBER -->
@@ -3151,13 +3158,13 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- RIGHT WORKSPACE (1fr) -->
           <div style="display:flex; flex-direction:column; gap:1.5rem;">
 
-            <!-- MAKE EVERY BEAT COUNT PREMIER PROMO (Muify Layout) -->
+            <!-- VIP UPGRADE PROMO -->
             <div class="muify-promo-banner">
-              <div style="font-size:1.35rem; font-weight:900; color:#fff; line-height:1.2;">Make Every Beat Count</div>
-              <p style="font-size:0.85rem; color:rgba(255,255,255,0.8); line-height:1.5;">
-                With our premium subscription, enjoy your favorite tracks like never before. More control, better sound, pure music.
+              <div style="font-size:1.35rem; font-weight:900; color:#fff; line-height:1.2;">Elevate Your Discord Audio</div>
+              <p style="font-size:0.85rem; color:rgba(255,255,255,0.85); line-height:1.5;">
+                Unlock 150% volume boost, 24/7 non-stop voice channel stay, Maid Voice DJ, and lossless 320kbps streaming for your community.
               </p>
-              <button class="muify-promo-btn" onclick="navigate('/premium')">View Plan ⚡</button>
+              <button class="muify-promo-btn" onclick="navigate('/premium')">Get VIP Access ⚡</button>
             </div>
 
             <!-- REAL-TIME TELEMETRY & STATS -->
@@ -3238,18 +3245,17 @@ UI_HTML = r"""<!DOCTYPE html>
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
           <div class="control-header-bar">
             <div>
-              <span style="color:var(--cyan); font-weight:800; font-size:1.15rem;">// CONTROL ROOM</span>
-              <span style="color:var(--text-muted); font-size:0.82rem; margin-left:0.6rem;">// SYS:ONLINE • SECURE CREATOR SESSION</span>
+              <h2 style="color:#fff; font-weight:800; font-size:1.4rem; margin:0;">⚡ Creator Control Center</h2>
+              <span style="color:var(--text-muted); font-size:0.85rem;">Live cluster metrics, voice streaming telemetry, and VIP entitlement grants.</span>
             </div>
             <div style="display:flex; gap:0.6rem; align-items:center;">
-              <button class="btn btn-secondary btn-sm" onclick="exportTelemetryData()">Export Data</button>
-              <button class="btn btn-primary btn-sm" onclick="triggerManualBackup()">+ Trigger Backup</button>
+              <button class="btn btn-secondary btn-sm" onclick="exportTelemetryData()">📊 Live JSON Metrics</button>
             </div>
           </div>
 
           <div id="control-room-body" style="display:flex; flex-direction:column; gap:1.6rem;">
             <div class="glass-card" style="text-align:center; padding:3rem; color:var(--text-muted);">
-              ⏳ Establishing encrypted connection to Noctyra Cluster Telemetry...
+              ⏳ Connecting to live MusicMaid cluster...
             </div>
           </div>
         </div>
@@ -3663,13 +3669,13 @@ UI_HTML = r"""<!DOCTYPE html>
               <label style="font-size:0.85rem; font-weight:700; color:#fff; display:block; margin-bottom:0.35rem;">Default Playback Volume (${s.default_volume}%)</label>
               <input type="range" class="slider-track" id="g-vol-slider" min="1" max="150" value="${s.default_volume || 80}" oninput="document.getElementById('g-vol-val').innerText = this.value + '%'" style="max-width:320px;">
               <span id="g-vol-val" style="font-family:'JetBrains Mono',monospace; color:var(--cyan); font-size:0.85rem; margin-left:0.5rem;">${s.default_volume || 80}%</span>
-              <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Volumes > 100% require Noctyra Premium</span>
+              <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Volumes > 100% require MusicMaid VIP</span>
             </div>
 
             <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.25); padding:1rem; border-radius:var(--radius-sm);">
               <div>
                 <span style="font-weight:700; color:#fff; font-size:0.95rem;">24/7 Voice Channel Mode</span>
-                <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Keeps Noctyra in your voice room even when idle</span>
+                <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Keeps MusicMaid in your voice room even when idle</span>
               </div>
               <input type="checkbox" id="g-247-check" ${s.twenty_four_seven_enabled ? 'checked' : ''} style="width:20px; height:20px;">
             </div>
@@ -4766,18 +4772,18 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <!-- HERO HEADER -->
             <div class="pricing-hero">
-              <span class="pricing-hero-badge">💎 NOCTYRA STUDIO PREMIUM</span>
+              <span class="pricing-hero-badge">💎 MUSICMAID VIP PREMIUM</span>
               <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
                 Elevate Your Server Audio to <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Studio Lossless</span>
               </h1>
               <p style="max-width:680px; font-size:1.05rem; color:var(--text-muted); line-height:1.5;">
-                Unlock 320kbps lossless audio, 150% volume booster, 24/7 staying mode, AI Anime Voice DJ, and cross-platform playlist importing across all your Discord servers.
+                Unlock 320kbps lossless audio, 150% volume booster, 24/7 staying mode, Maid Voice DJ, and cross-platform playlist importing across all your Discord servers.
               </p>
 
               ${isOwner ? `
                 <div style="display:inline-flex; align-items:center; gap:0.75rem; background:rgba(255, 215, 0, 0.15); border:1px solid rgba(255, 215, 0, 0.55); padding:0.6rem 1.2rem; border-radius:var(--radius-full); margin-top:0.6rem;">
                   <span style="color:#ffd700; font-weight:800; font-size:0.9rem;">👑 BOT CREATOR & DEVELOPER VIP: LIFETIME UNLOCKED</span>
-                  <span style="color:#cbd5e1; font-size:0.82rem;">All Premium features (150% volume, 24/7 voice, DSP filters) active for your account</span>
+                  <span style="color:#cbd5e1; font-size:0.82rem;">All VIP features (150% volume, 24/7 voice, DSP filters) active for your account</span>
                 </div>
               ` : (isUserSubscribed ? `
                 <div style="display:inline-flex; align-items:center; gap:0.75rem; background:rgba(16, 185, 129, 0.15); border:1px solid rgba(16, 185, 129, 0.4); padding:0.6rem 1.2rem; border-radius:var(--radius-full); margin-top:0.6rem;">
@@ -4789,9 +4795,9 @@ UI_HTML = r"""<!DOCTYPE html>
               ${!paymentsEnabled ? `
                 <div style="background:rgba(121, 40, 202, 0.18); border:1px solid rgba(167, 139, 250, 0.4); padding:0.85rem 1.3rem; border-radius:var(--radius-md); max-width:740px; margin-top:0.75rem; font-size:0.88rem; color:#e2e8f0; text-align:left;">
                   <div style="display:flex; align-items:center; gap:0.5rem; font-weight:800; color:#c084fc; margin-bottom:0.25rem;">
-                    <span>🛠️ STUDENT DEVELOPER SHOWCASE PREVIEW</span>
+                    <span>💎 COMMUNITY VIP PREVIEW</span>
                   </div>
-                  <span>Payment processing is currently in demonstration mode (<code>PAYMENTS_ENABLED=false</code>). Explore features, plan architecture, and audio comparisons below. Real checkouts and billing accounts are completely disabled.</span>
+                  <span>Direct checkout is currently in demonstration mode (<code>PAYMENTS_ENABLED=false</code>). Explore features, plan architecture, and audio comparisons below. Contact a bot administrator or use Discord commands to activate VIP.</span>
                 </div>
               ` : (!isConfigured ? `
                 <div style="background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.4); padding:0.75rem 1.2rem; border-radius:var(--radius-md); max-width:720px; margin-top:0.5rem; font-size:0.85rem; color:#fde68a;">
@@ -4805,7 +4811,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- PLAN 1: FREE -->
               <div class="pricing-card">
-                <div class="pricing-title">Noctyra Free</div>
+                <div class="pricing-title">MusicMaid Free</div>
                 <div class="pricing-desc">Everything you need for casual listening with friends in Discord.</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">$0</span>
@@ -4819,7 +4825,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> Interactive Web Player Bar</li>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 150% Studio Volume Booster</li>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 24/7 Voice Channel Stay Mode</li>
-                  <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> AI Anime Maid Voice DJ</li>
+                  <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> Anime Maid Voice DJ</li>
                 </ul>
                 <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}">
                   ${!isUserSubscribed ? '✓ Your Current Plan' : 'Free Tier'}
@@ -4828,7 +4834,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- PLAN 2: MONTHLY -->
               <div class="pricing-card">
-                <div class="pricing-title">Premium Monthly</div>
+                <div class="pricing-title">MusicMaid VIP Monthly</div>
                 <div class="pricing-desc">Full access with flexible monthly billing. Cancel anytime.</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">${monthlyPrice}</span>
@@ -4837,7 +4843,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <ul class="pricing-feature-list">
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>150% Studio Volume Booster</strong></li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>24/7 Voice Stay Mode</strong> (Never leaves voice)</li>
-                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>AI Anime Maid Voice DJ</strong> (All 5 Personalities)</li>
+                  <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Maid Voice DJ</strong> (All Personalities)</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>320kbps Lossless Opus</strong> Audio Pipeline</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Cross-Platform Playlist Importer</strong> (Spotify/YT/Apple)</li>
                   <li class="pricing-feature-item"><span class="pricing-check">✓</span> <strong>Friend Blend</strong> & Synergy Scoring</li>
@@ -4860,7 +4866,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <!-- PLAN 3: YEARLY (FEATURED) -->
               <div class="pricing-card featured">
                 <span class="pricing-badge-corner">★ 2 MONTHS FREE</span>
-                <div class="pricing-title" style="color:#a78bfa;">Premium Yearly</div>
+                <div class="pricing-title" style="color:#a78bfa;">MusicMaid VIP Annual</div>
                 <div class="pricing-desc">Maximum value for serious listeners & servers. Save over 16% annually!</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">${yearlyPrice}</span>
