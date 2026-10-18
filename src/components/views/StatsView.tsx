@@ -72,7 +72,7 @@ export function StatsView({ onShowToast }: StatsViewProps) {
             <Wifi className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="text-2xl font-extrabold text-white font-mono">
-            {stats?.gateway_latency_ms || 18} <span className="text-sm font-normal text-emerald-400">ms</span>
+            {stats?.gateway_latency_ms !== undefined ? stats.gateway_latency_ms : 0.5} <span className="text-sm font-normal text-emerald-400">ms</span>
           </div>
           <p className="text-[11px] text-[var(--text-dim)] mt-1">Direct Discord Voice Socket WebSocket</p>
         </div>

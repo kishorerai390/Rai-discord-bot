@@ -831,11 +831,6 @@ class MusicPlayerService:
                     await session.now_playing_message.edit(embed=embed, view=view)
                 except Exception:
                     session.now_playing_message = None
-            elif session.text_channel:
-                try:
-                    await session.text_channel.send(embed=embed)
-                except Exception:
-                    pass
 
     @classmethod
     def build_now_playing_embed(cls, session: GuildMusicSession) -> discord.Embed:
