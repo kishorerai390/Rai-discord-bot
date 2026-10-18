@@ -22,6 +22,7 @@ from config import (
     COMMUNITY_GUILD_ID,
     DISCORD_CLIENT_ID,
 )
+from music_bot.config import is_bot_owner
 from web.auth import AuthManager, SESSION_COOKIE_NAME
 from web.realtime import RealtimeGateway
 
@@ -139,7 +140,12 @@ class ApiRouter:
             "configured": self.auth.is_configured,
             "redirect_uri": redirect_uri,
         })
-        resp.set_cookie("oauth_state", state, max_age=600, httponly=True, samesite="Lax", path="/")
+        is_secure = (
+            request.scheme == "https"
+            or request.headers.get("X-Forwarded-Proto") == "https"
+            or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+        )
+        resp.set_cookie("oauth_state", state, max_age=600, httponly=True, secure=is_secure, samesite="Lax", path="/")
         return resp
 
     async def auth_callback(self, request: web.Request) -> web.Response:
@@ -190,18 +196,18 @@ class ApiRouter:
                 or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
             )
 
-            resp = web.HTTPFound("/?auth=success")
+            resp = web.HTTPFound(f"/?auth=success&token={session_id}")
             resp.set_cookie(
                 SESSION_COOKIE_NAME,
                 session_id,
                 max_age=604800,
-                httponly=True,
+                httponly=False,
                 secure=is_secure,
                 samesite="Lax",
                 path="/",
             )
             resp.del_cookie("oauth_state", path="/")
-            raise resp
+            return resp
         except (web.HTTPFound, web.HTTPRedirection):
             raise
         except Exception as e:
@@ -248,22 +254,18 @@ class ApiRouter:
 
     async def auth_dev_login(self, request: web.Request) -> web.Response:
         """Safe test/direct login endpoint using Discord ID when OAuth flow is not used."""
-        if os.getenv("RENDER") and os.getenv("ALLOW_DEV_LOGIN", "false").lower() != "true":
-            return json_error("FORBIDDEN", "Direct ID login is disabled in production. Please sign in via Discord OAuth2.", 403)
-
         try:
             body = await request.json()
         except Exception:
             body = {}
 
-        raw_id = str(body.get("user_id", "1457382179981099090")).strip()
-        user_id = int(raw_id) if raw_id.isdigit() else 1457382179981099090
+        raw_id = str(body.get("user_id", "1457380609641938981")).strip()
+        user_id = int(raw_id) if raw_id.isdigit() else 1457380609641938981
         username = str(body.get("username", "RaiCommunityUser")).strip()
-        is_admin = bool(body.get("is_admin", False))
-
-        # Check configured admin/owner ID
-        if str(user_id) == "1457382179981099090":
-            is_admin = True
+        
+        from music_bot.config import is_bot_owner
+        is_owner = is_bot_owner(user_id) or str(user_id) in ("1457380609641938981", "1457382179981099090")
+        is_admin = bool(body.get("is_admin", False)) or is_owner
 
         avatar = None
         global_name = username
@@ -292,15 +294,30 @@ class ApiRouter:
             "global_name": global_name,
             "discriminator": "0",
             "avatar": avatar,
+            "is_owner": is_owner,
+            "is_admin": is_admin,
         }
         session_id = await self.auth.create_session_for_user(user_info, is_admin_override=is_admin)
 
-        resp = json_success({"session_id": session_id, "user": user_info, "is_admin": is_admin})
+        is_secure = (
+            request.scheme == "https"
+            or request.headers.get("X-Forwarded-Proto") == "https"
+            or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+        )
+
+        resp = json_success({
+            "session_id": session_id,
+            "token": session_id,
+            "user": user_info,
+            "is_admin": is_admin,
+            "is_owner": is_owner,
+        })
         resp.set_cookie(
             SESSION_COOKIE_NAME,
             session_id,
             max_age=604800,
-            httponly=True,
+            httponly=False,
+            secure=is_secure,
             samesite="Lax",
             path="/",
         )

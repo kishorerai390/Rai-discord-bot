@@ -310,6 +310,13 @@ class AuthManager:
                 session_id = auth_header[7:].strip()
 
         if not session_id:
+            session_id = (
+                request.headers.get("X-Session-Token", "").strip()
+                or request.query.get("token", "").strip()
+                or None
+            )
+
+        if not session_id:
             return None
 
         if hasattr(self.db, "get_web_session"):
