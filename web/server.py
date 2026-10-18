@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path
 import time
 from typing import Optional, TYPE_CHECKING
 from aiohttp import web
@@ -171,9 +172,30 @@ class RaiCommunityOSServer:
         """Render the official Contact Us support and grievance page."""
         return web.Response(text=CONTACT_US_HTML, content_type="text/html")
 
+    async def handle_manifest(self, request: web.Request) -> web.Response:
+        """Serve official PWA web app manifest."""
+        manifest_path = Path(__file__).resolve().parent.parent / "public" / "manifest.json"
+        if manifest_path.exists():
+            return web.Response(text=manifest_path.read_text(encoding="utf-8"), content_type="application/manifest+json")
+        return web.Response(status=404)
+
+    async def handle_icon(self, request: web.Request) -> web.Response:
+        """Serve official brand icon for PWA and favicon."""
+        icon_path = Path(__file__).resolve().parent.parent / "public" / "icon.png"
+        if not icon_path.exists():
+            icon_path = Path(__file__).resolve().parent.parent / "assets" / "branding" / "musicmaid_icon_1024x1024.png"
+        if icon_path.exists():
+            return web.Response(body=icon_path.read_bytes(), content_type="image/png")
+        return web.Response(status=404)
+
     def setup_routes(self, app: web.Application) -> None:
         """Register all UI and REST API routes."""
         r = self.api_router
+
+        # PWA & Assets
+        app.router.add_get("/manifest.json", self.handle_manifest)
+        app.router.add_get("/icon.png", self.handle_icon)
+        app.router.add_get("/favicon.ico", self.handle_icon)
 
         # Legal Compliance Endpoints for Discord Developer Portal & Razorpay KYC Verification
         app.router.add_get("/terms", self.handle_terms)

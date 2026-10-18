@@ -16,6 +16,9 @@ UI_HTML = r"""<!DOCTYPE html>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>MusicMaid ✦ Discord Music Engine & Master Control Panel</title>
   <meta name="description" content="Dedicated 24/7 Lossless 320kbps Discord Music Bot Control Panel. Control queues, DSP equalizer, Smart Auto-DJ, and synchronized playback.">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -101,6 +104,7 @@ UI_HTML = r"""<!DOCTYPE html>
       z-index: 50;
       padding: 1rem 0.85rem;
       gap: 0.85rem;
+      -webkit-backdrop-filter: blur(20px);
       backdrop-filter: blur(20px);
       overflow-y: auto;
       overflow-x: hidden;
@@ -560,6 +564,7 @@ UI_HTML = r"""<!DOCTYPE html>
       flex-direction: column;
       position: relative;
       transition: all 0.25s ease;
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
     }
     .pricing-card:hover {
@@ -808,6 +813,7 @@ UI_HTML = r"""<!DOCTYPE html>
     .glass-card {
       background: var(--bg-card);
       border: 1px solid var(--card-border);
+      -webkit-backdrop-filter: blur(20px);
       backdrop-filter: blur(20px);
       border-radius: var(--radius-lg);
       padding: 1.6rem;
@@ -1460,6 +1466,7 @@ UI_HTML = r"""<!DOCTYPE html>
       max-width: 580px;
       background: rgba(15, 20, 36, 0.85);
       border: 1px solid rgba(255, 255, 255, 0.15);
+      -webkit-backdrop-filter: blur(16px);
       backdrop-filter: blur(16px);
       border-radius: var(--radius-lg);
       padding: 1rem 1.4rem;
@@ -1508,6 +1515,7 @@ UI_HTML = r"""<!DOCTYPE html>
       right: 0;
       bottom: 0;
       background: rgba(0, 0, 0, 0.75);
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
       display: none;
       align-items: center;
@@ -1641,6 +1649,7 @@ UI_HTML = r"""<!DOCTYPE html>
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
+      -webkit-backdrop-filter: blur(10px);
       backdrop-filter: blur(10px);
     }
     .control-card.accent-cyan { border-color: rgba(0, 229, 255, 0.4); }
