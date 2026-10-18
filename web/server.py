@@ -161,19 +161,22 @@ class RaiCommunityOSServer:
         import functools
         from music_bot.services.resolver_service import get_active_cookie_file
         q = request.query.get("q", "https://www.youtube.com/watch?v=xvT1jH8B9AM")
+        c_filter = request.query.get("client")
         results = {}
         loop = asyncio.get_running_loop()
         c_file = get_active_cookie_file()
-        for client in [["android"], ["tv_embedded"], ["android_music"], ["web_embedded"], ["mweb"], ["web"]]:
+        clients_to_test = [[c_filter]] if c_filter else [["android"], ["android_music"], ["tv_embedded"], ["web"]]
+        for client in clients_to_test:
             name = "+".join(client)
-            for use_c in ([False, True] if c_file else [False]):
+            for use_c in ([False, True] if (c_file and not c_filter) else [False]):
                 key = f"{name}{'+cookie' if use_c else ''}"
                 t0 = time.time()
                 try:
                     opts = {
                         "quiet": True,
                         "format": "bestaudio/best[height<=720]/best",
-                        "socket_timeout": 5,
+                        "socket_timeout": 6,
+                        "retries": 1,
                         "extractor_args": {"youtube": {"player_client": client, "skip": ["translated_subs"]}}
                     }
                     if use_c and c_file:
@@ -181,13 +184,20 @@ class RaiCommunityOSServer:
                     ydl = yt_dlp.YoutubeDL(opts)
                     data = await asyncio.wait_for(
                         loop.run_in_executor(None, functools.partial(ydl.extract_info, q, download=False)),
-                        timeout=8.0
+                        timeout=10.0
                     )
                     dur = round(time.time() - t0, 2)
-                    results[key] = {"ok": True, "dur": dur, "url": bool(data.get("url")), "itag": data.get("format_id"), "title": data.get("title", "")[:35]}
+                    results[key] = {
+                        "ok": True,
+                        "dur": dur,
+                        "has_url": bool(data.get("url")),
+                        "format_id": data.get("format_id"),
+                        "title": (data.get("title") or "")[:40],
+                        "formats_count": len(data.get("formats", []))
+                    }
                 except Exception as e:
                     dur = round(time.time() - t0, 2)
-                    results[key] = {"ok": False, "dur": dur, "err": str(e)[:90]}
+                    results[key] = {"ok": False, "dur": dur, "err": str(e)[:120]}
         return web.json_response(results)
 
     async def handle_terms(self, request: web.Request) -> web.Response:

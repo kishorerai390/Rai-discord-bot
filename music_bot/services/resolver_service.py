@@ -618,8 +618,9 @@ def _build_ytdl_options(
         "logtostderr": False,
         "quiet": True,
         "default_search": "ytsearch",
-        "socket_timeout": 15,
-        "extractor_retries": 2,
+        "socket_timeout": 8,
+        "extractor_retries": 1,
+        "retries": 1,
         "extractor_args": {
             "youtube": {
                 "player_client": clients,
@@ -1325,15 +1326,15 @@ class AudioResolver:
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
 
-            # Tier 2: Fallback Public Profile (android, no cookies) - 15.0s timeout
+            # Tier 2: Fallback Public Profile (android_music / tv_embedded) - 12.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["android"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(["android_music", "tv_embedded"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier2_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=15.0,
+                    timeout=12.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1341,7 +1342,7 @@ class AudioResolver:
                         track = _apply_metadata_enhancements(track)
                         dur = time.time() - start_t
                         logger.info(
-                            f"[Resolver] [Ref: MM-{corr_id}] Public Tier 2 (android) resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                            f"[Resolver] [Ref: MM-{corr_id}] Public Tier 2 resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                         )
                         return track
             except Exception as t2_err:
@@ -1355,7 +1356,7 @@ class AudioResolver:
             top_target = candidate_urls[0]
             try:
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Public tiers exhausted; attempting optional cookie fallback for '{top_target}'")
-                tier3_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=True)
+                tier3_opts = _build_ytdl_options(["android", "tv_embedded"], use_cookies=True)
                 tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(

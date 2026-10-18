@@ -441,6 +441,11 @@ class MusicApiRouter:
         guild_id_val = body.get("guild_id", 1525030316845301781)
         action = body.get("action", "").upper().strip()
         payload = body.get("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+        for k in ("query", "url", "volume", "seconds", "index", "from_index", "to_index", "preset", "channel_id"):
+            if k in body and k not in payload:
+                payload[k] = body[k]
 
         if not action:
             return json_error("MISSING_ACTION", "Action parameter is required")
