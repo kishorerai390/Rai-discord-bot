@@ -356,7 +356,7 @@ class RaiCommunityOSServer:
 
         # Authentication API
         app.router.add_get("/api/auth/login", r.auth_login)
-        app.router.add_get("/login", r.auth_login)
+        app.router.add_get("/login", self.handle_ui)
         app.router.add_get("/api/auth/url", r.auth_url)
         app.router.add_get("/api/auth/callback", r.auth_callback)
         app.router.add_get("/api/auth/me", r.auth_me)
