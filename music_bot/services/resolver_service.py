@@ -607,7 +607,7 @@ def _build_ytdl_options(
     Optimized strictly for authorized YouTube stream resolution.
     Cookies are strictly optional and only attached when use_cookies is True.
     """
-    clients = player_clients or ["android", "web"]
+    clients = player_clients or ["android", "ios"]
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "extractaudio": True,
@@ -621,8 +621,8 @@ def _build_ytdl_options(
         "quiet": True,
         "default_search": "ytsearch",
         "source_address": "0.0.0.0",
-        "socket_timeout": 10,
-        "extractor_retries": 1,
+        "socket_timeout": 15,
+        "extractor_retries": 2,
         "extractor_args": {
             "youtube": {
                 "player_client": clients,
@@ -873,27 +873,27 @@ class AudioResolver:
         search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
 
         data = None
-        # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast <2s response)
+        # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast response)
         try:
-            primary_opts = _build_ytdl_options(["mweb", "web"], extract_flat=True)
+            primary_opts = _build_ytdl_options(["android", "ios"], extract_flat=True)
             ydl_instance = yt_dlp.YoutubeDL(primary_opts)
             data = await asyncio.wait_for(
                 loop.run_in_executor(
                     _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=6.0,
+                timeout=12.0,
             )
         except Exception as e:
             err_msg = _format_error(e)
             logger.warning(f"[Search] YouTube primary search failure for '{query}': {err_msg}")
             try:
-                fb_opts = _build_ytdl_options(["web"], extract_flat=True)
+                fb_opts = _build_ytdl_options(["android"], extract_flat=True)
                 fb_ydl = yt_dlp.YoutubeDL(fb_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(fb_ydl.extract_info, search_query, download=False)
                     ),
-                    timeout=6.0,
+                    timeout=12.0,
                 )
             except Exception as fb_err:
                 logger.warning(f"[Search] YouTube fallback search failure for '{query}': {_format_error(fb_err)}")
@@ -1237,18 +1237,19 @@ class AudioResolver:
             candidate_urls = [cleaned_query]
         else:
             # Stage 1: Ultra-fast flat search for candidate selection without cookies (<1.5s)
+            # Stage 1: Fast flat search for candidate selection without cookies
             failed_stage = "search"
-            search_query = f"ytsearch8:{cleaned_query}"
+            search_query = f"ytsearch5:{cleaned_query}"
             search_entries: List[Dict[str, Any]] = []
             search_error: Optional[str] = None
             try:
-                flat_opts = _build_ytdl_options(["mweb", "web"], extract_flat=True, use_cookies=False)
+                flat_opts = _build_ytdl_options(["android", "ios"], extract_flat=True, use_cookies=False)
                 flat_ydl = yt_dlp.YoutubeDL(flat_opts)
                 search_data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(flat_ydl.extract_info, search_query, download=False)
                     ),
-                    timeout=5.0,
+                    timeout=14.0,
                 )
                 if search_data:
                     entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
@@ -1284,8 +1285,8 @@ class AudioResolver:
                 reverse=True,
             )
 
-            # Build prioritized list of candidate URLs (top 3)
-            for cand in scored[:3]:
+            # Build prioritized list of candidate URLs (top 2 for fast resolution)
+            for cand in scored[:2]:
                 c_id = cand.get("id")
                 c_url = f"https://www.youtube.com/watch?v={c_id}" if c_id else (cand.get("url") or cand.get("webpage_url"))
                 if c_url and c_url not in candidate_urls:
@@ -1294,16 +1295,16 @@ class AudioResolver:
         # Stage 3: Public stream format extraction on selected candidate(s) without cookies
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
-        for cand_idx, target_url in enumerate(candidate_urls, 1):
-            # Tier 1: Primary Public Profile (android/web, no cookies) - 8.0s timeout
+        for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
+            # Tier 1: Primary Public Profile (android/ios, no cookies) - 18.0s timeout
             try:
-                tier1_opts = _build_ytdl_options(["android", "web"], use_cookies=False)
+                tier1_opts = _build_ytdl_options(["android", "ios"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier1_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=8.0,
+                    timeout=18.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1319,15 +1320,15 @@ class AudioResolver:
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
 
-            # Tier 2: Fallback Public Profile (mweb/web, no cookies) - 6.0s timeout
+            # Tier 2: Fallback Public Profile (android, no cookies) - 15.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["mweb", "web"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(["android"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier2_ydl.extract_info, target_url, download=False)
                     ),
-                    timeout=6.0,
+                    timeout=15.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
@@ -1335,7 +1336,7 @@ class AudioResolver:
                         track = _apply_metadata_enhancements(track)
                         dur = time.time() - start_t
                         logger.info(
-                            f"[Resolver] [Ref: MM-{corr_id}] Public Tier 2 (mweb) resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                            f"[Resolver] [Ref: MM-{corr_id}] Public Tier 2 (android) resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                         )
                         return track
             except Exception as t2_err:
@@ -1349,13 +1350,13 @@ class AudioResolver:
             top_target = candidate_urls[0]
             try:
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Public tiers exhausted; attempting optional cookie fallback for '{top_target}'")
-                tier3_opts = _build_ytdl_options(["android", "web"], use_cookies=True)
+                tier3_opts = _build_ytdl_options(["android", "ios"], use_cookies=True)
                 tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
                         _audio_executor, functools.partial(tier3_ydl.extract_info, top_target, download=False)
                     ),
-                    timeout=8.0,
+                    timeout=15.0,
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
