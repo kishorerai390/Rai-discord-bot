@@ -35,7 +35,7 @@ export function StatsView({ onShowToast }: StatsViewProps) {
   return (
     <div className="flex flex-col gap-6">
       {/* HEADER CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
@@ -43,7 +43,7 @@ export function StatsView({ onShowToast }: StatsViewProps) {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">System Diagnostics & Telemetry</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              <p className="text-xs text-(--text-muted) mt-0.5">
                 Real-time audio pipeline health, Discord gateway latency, and resource metrics.
               </p>
             </div>
@@ -66,78 +66,78 @@ export function StatsView({ onShowToast }: StatsViewProps) {
       {/* METRICS CARDS GRID */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Gateway Latency */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-5 backdrop-blur-xl">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5 backdrop-blur-xl">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[var(--text-muted)] uppercase">Gateway Latency</span>
+            <span className="text-xs font-bold text-(--text-muted) uppercase">Gateway Latency</span>
             <Wifi className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="text-2xl font-extrabold text-white font-mono">
             {stats?.gateway_latency_ms !== undefined ? stats.gateway_latency_ms : 0.5} <span className="text-sm font-normal text-emerald-400">ms</span>
           </div>
-          <p className="text-[11px] text-[var(--text-dim)] mt-1">Direct Discord Voice Socket WebSocket</p>
+          <p className="text-[11px] text-(--text-dim) mt-1">Direct Discord Voice Socket WebSocket</p>
         </div>
 
         {/* Active Sessions */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-5 backdrop-blur-xl">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5 backdrop-blur-xl">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[var(--text-muted)] uppercase">Voice Sessions</span>
+            <span className="text-xs font-bold text-(--text-muted) uppercase">Voice Sessions</span>
             <Server className="w-5 h-5 text-cyan-400" />
           </div>
           <div className="text-2xl font-extrabold text-white font-mono">
             {stats?.active_sessions || 1} <span className="text-sm font-normal text-cyan-400">Active</span>
           </div>
-          <p className="text-[11px] text-[var(--text-dim)] mt-1">
+          <p className="text-[11px] text-(--text-dim) mt-1">
             {stats?.playing_sessions || 1} currently streaming 320kbps
           </p>
         </div>
 
         {/* Memory Footprint */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-5 backdrop-blur-xl">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5 backdrop-blur-xl">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[var(--text-muted)] uppercase">Memory Allocated</span>
+            <span className="text-xs font-bold text-(--text-muted) uppercase">Memory Allocated</span>
             <Cpu className="w-5 h-5 text-purple-400" />
           </div>
           <div className="text-2xl font-extrabold text-white font-mono">
             {stats?.memory_usage_mb || 42.5} <span className="text-sm font-normal text-purple-400">MB</span>
           </div>
-          <p className="text-[11px] text-[var(--text-dim)] mt-1">Zero-copy audio buffer pipeline</p>
+          <p className="text-[11px] text-(--text-dim) mt-1">Zero-copy audio buffer pipeline</p>
         </div>
 
         {/* Engine Status */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-5 backdrop-blur-xl">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5 backdrop-blur-xl">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[var(--text-muted)] uppercase">Engine Health</span>
+            <span className="text-xs font-bold text-(--text-muted) uppercase">Engine Health</span>
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="text-2xl font-extrabold text-emerald-400 font-mono">
             {stats?.status || "ONLINE"}
           </div>
-          <p className="text-[11px] text-[var(--text-dim)] mt-1">Next.js 16 + Discord Bot 2026</p>
+          <p className="text-[11px] text-(--text-dim) mt-1">Next.js 16 + Discord Bot 2026</p>
         </div>
       </div>
 
       {/* PIPELINE ARCHITECTURE CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         <h3 className="text-base font-bold text-white mb-4">Lossless Audio Pipeline Architecture</h3>
         <div className="space-y-3 font-mono text-xs">
           <div className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-            <span className="text-[var(--text-muted)]">Audio Output Backend</span>
+            <span className="text-(--text-muted)">Audio Output Backend</span>
             <span className="text-white font-semibold">{stats?.audio_backend || "discord.FFmpegPCMAudio + PyNaCl (320kbps Opus)"}</span>
           </div>
           <div className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-            <span className="text-[var(--text-muted)]">JavaScript Execution Solver</span>
+            <span className="text-(--text-muted)">JavaScript Execution Solver</span>
             <span className="text-cyan-400 font-semibold">{stats?.ejs_solver || "Active (Node.js vm2 v0.8.0)"}</span>
           </div>
           <div className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-            <span className="text-[var(--text-muted)]">Stream Extraction Engine</span>
+            <span className="text-(--text-muted)">Stream Extraction Engine</span>
             <span className="text-white font-semibold">yt-dlp {stats?.yt_dlp_version || "2026.08.19"}</span>
           </div>
           <div className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-            <span className="text-[var(--text-muted)]">Database Storage Subsystem</span>
+            <span className="text-(--text-muted)">Database Storage Subsystem</span>
             <span className="text-emerald-400 font-semibold">SQLite3 WAL Mode (Shared with Python Discord Bot)</span>
           </div>
           <div className="flex flex-col md:flex-row md:items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5">
-            <span className="text-[var(--text-muted)]">Next.js Web Service Layer</span>
+            <span className="text-(--text-muted)">Next.js Web Service Layer</span>
             <span className="text-purple-400 font-semibold">TypeScript App Router + Route Handlers + better-sqlite3</span>
           </div>
         </div>

@@ -874,19 +874,29 @@ class MusicDatabase:
                     for r in rows
                 ]
 
-    async def add_playlist_track(self, playlist_id: int, track: QueuedTrack) -> bool:
+    async def add_playlist_track(self, playlist_id: int, track: Optional[QueuedTrack] = None, **kwargs) -> bool:
         """Append track to a playlist."""
+        title = getattr(track, "title", None) or kwargs.get("title", "Unknown Track")
+        url = getattr(track, "url", None) or kwargs.get("url", "")
+        duration = getattr(track, "duration", 0) or kwargs.get("duration", 0)
+        artist = getattr(track, "artist", None) or kwargs.get("artist", "Unknown")
+        thumbnail = getattr(track, "thumbnail", None) or kwargs.get("thumbnail")
+        custom_idx = kwargs.get("track_index")
+
         async with self._lock:
-            async with self._db.execute(
-                "SELECT COALESCE(MAX(track_index), 0) + 1 FROM music_playlist_tracks WHERE playlist_id = ?",
-                (playlist_id,),
-            ) as cursor:
-                next_idx = (await cursor.fetchone())[0]
+            if custom_idx is not None:
+                next_idx = int(custom_idx)
+            else:
+                async with self._db.execute(
+                    "SELECT COALESCE(MAX(track_index), 0) + 1 FROM music_playlist_tracks WHERE playlist_id = ?",
+                    (playlist_id,),
+                ) as cursor:
+                    next_idx = (await cursor.fetchone())[0]
 
             await self._db.execute("""
                 INSERT INTO music_playlist_tracks (playlist_id, track_index, title, url, duration, artist, thumbnail)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (playlist_id, next_idx, track.title, track.url, track.duration, track.artist, track.thumbnail))
+            """, (playlist_id, next_idx, title, url, duration, artist, thumbnail))
             await self._db.commit()
             return True
 

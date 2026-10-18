@@ -1003,16 +1003,8 @@ class MusicApiRouter:
         if not pl_id:
             return json_error("CREATE_FAILED", f"A playlist named '{name}' already exists in this server")
 
-        for idx, t in enumerate(tracks_to_save[:100]):
-            await self.db.add_playlist_track(
-                playlist_id=pl_id,
-                title=t.title,
-                url=t.url,
-                duration=t.duration or 0,
-                track_index=idx,
-                artist=t.artist or "Unknown",
-                thumbnail=t.thumbnail,
-            )
+        for t in tracks_to_save[:100]:
+            await self.db.add_playlist_track(playlist_id=pl_id, track=t)
 
         return json_success({"playlist_id": pl_id, "name": name, "track_count": len(tracks_to_save)})
 
