@@ -3358,7 +3358,7 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
               <div style="display:flex; flex-direction:column; gap:0.85rem;">
                 <div style="display:flex; gap:0.5rem;">
-                  <input type="text" id="owner-search-user-id" class="search-input" placeholder="Enter Discord User ID..." style="flex:1;">
+                  <input type="text" id="owner-search-user-id" class="search-input" placeholder="Enter Discord User ID or Username..." onkeydown="if(event.key==='Enter') searchUserEntitlement()" style="flex:1;">
                   <button class="btn btn-primary btn-sm" onclick="searchUserEntitlement()">Lookup</button>
                 </div>
                 <div id="owner-user-lookup-result" style="display:none; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm); padding:0.9rem;">
@@ -3478,14 +3478,29 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success) {
           const u = json.data;
+          const nameDisplay = u.display_name || u.username || `User ${u.user_id}`;
+          const handle = u.username ? `@${u.username}` : '';
+          const avatarHtml = u.avatar_url 
+            ? `<img src="${u.avatar_url}" alt="Avatar" style="width:44px; height:44px; border-radius:50%; object-fit:cover; border:2px solid rgba(255,255,255,0.15); box-shadow:0 0 12px rgba(0,240,255,0.25);">`
+            : `<div style="width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg, var(--primary), var(--secondary)); display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:1.1rem; border:2px solid rgba(255,255,255,0.15);">${(nameDisplay[0] || 'U').toUpperCase()}</div>`;
+
           box.innerHTML = `
-            <div style="display:flex; flex-direction:column; gap:0.6rem;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:700; color:#fff;">User ID: ${u.user_id}</span>
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                  ${avatarHtml}
+                  <div style="display:flex; flex-direction:column;">
+                    <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                      <span style="font-weight:700; color:#fff; font-size:1.05rem;">${nameDisplay}</span>
+                      ${handle && handle !== nameDisplay ? `<span style="font-size:0.8rem; color:var(--text-muted); font-weight:400;">(${handle})</span>` : ''}
+                    </div>
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">ID: ${u.user_id}</span>
+                  </div>
+                </div>
                 <span class="user-badge-sub ${u.entitlements.is_premium ? 'premium' : 'free'}">${u.entitlements.tier.toUpperCase()}</span>
               </div>
               <span style="font-size:0.75rem; color:var(--text-muted);">Source: ${u.entitlements.source} • Plan: ${u.entitlements.plan_name || 'Standard'}</span>
-              <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
+              <div style="display:flex; gap:0.5rem; margin-top:0.25rem;">
                 <button class="btn btn-primary btn-sm" onclick="grantPromotionalEntitlement('${u.user_id}', 'premium')">+ Grant 30d Premium</button>
                 <button class="btn btn-secondary btn-sm" onclick="revokeUserEntitlement('${u.user_id}')">Revoke</button>
               </div>

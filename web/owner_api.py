@@ -11,6 +11,7 @@ import datetime
 import json
 import logging
 import os
+import re
 import secrets
 import sys
 import time
@@ -248,16 +249,34 @@ class OwnerApiRouter:
     # D. USER ENTITLEMENT MANAGER
     # =========================================================================
     async def search_user(self, request: web.Request) -> web.Response:
-        """Look up verified user entitlements, active subscription, and audit history."""
+        """Look up verified user entitlements, active subscription, audit history, and Discord user profile."""
         await self.auth.require_owner(request)
-        user_id_raw = request.query.get("user_id", "").strip()
-        if not user_id_raw.isdigit():
+        query = request.query.get("user_id", "").strip()
+        cleaned_id = re.sub(r"[<@!>]", "", query)
+
+        user_id: Optional[int] = None
+        target_user: Optional[Any] = None
+
+        if cleaned_id.isdigit():
+            user_id = int(cleaned_id)
+        elif self.bot and hasattr(self.bot, "guilds"):
+            # Search by username or display name across bot's known members
+            q_lower = query.lower().lstrip("@")
+            for g in self.bot.guilds:
+                for m in g.members:
+                    if m.name.lower() == q_lower or (getattr(m, "global_name", None) and m.global_name.lower() == q_lower):
+                        target_user = m
+                        user_id = m.id
+                        break
+                if target_user:
+                    break
+
+        if not user_id:
             return web.json_response({
                 "success": False,
-                "error": {"code": "INVALID_USER_ID", "message": "User ID must be numeric Discord snowflake"}
+                "error": {"code": "INVALID_USER_ID", "message": "User ID must be numeric Discord snowflake or matching username"}
             }, status=400)
 
-        user_id = int(user_id_raw)
         entitlements = await self.auth.get_user_entitlements(user_id)
 
         # Fetch subscription record
@@ -270,10 +289,62 @@ class OwnerApiRouter:
         if hasattr(self.db, "get_subscription_audit_logs"):
             audit_logs = await self.db.get_subscription_audit_logs(user_id=user_id, limit=10)
 
+        # Resolve Discord user profile (username, display_name, avatar_url)
+        username: Optional[str] = None
+        display_name: Optional[str] = None
+        avatar_url: Optional[str] = None
+
+        if target_user:
+            username = target_user.name
+            display_name = getattr(target_user, "global_name", None) or target_user.display_name
+            if hasattr(target_user, "display_avatar"):
+                avatar_url = str(target_user.display_avatar.url)
+            elif hasattr(target_user, "avatar") and target_user.avatar:
+                avatar_url = str(target_user.avatar.url)
+        elif self.bot:
+            try:
+                d_user = None
+                if hasattr(self.bot, "get_user"):
+                    d_user = self.bot.get_user(user_id)
+                if not d_user and hasattr(self.bot, "fetch_user"):
+                    try:
+                        d_user = await self.bot.fetch_user(user_id)
+                    except Exception:
+                        d_user = None
+
+                if d_user:
+                    username = d_user.name
+                    display_name = getattr(d_user, "global_name", None) or getattr(d_user, "display_name", d_user.name)
+                    if hasattr(d_user, "display_avatar"):
+                        avatar_url = str(d_user.display_avatar.url)
+                    elif hasattr(d_user, "avatar") and d_user.avatar:
+                        avatar_url = str(d_user.avatar.url)
+            except Exception as e:
+                logger.debug(f"Failed to fetch discord user {user_id}: {e}")
+
+        # Fallback to database sessions table if user not in shared guilds or bot offline
+        if not username and hasattr(self.db, "fetchone"):
+            try:
+                row = await self.db.fetchone(
+                    "SELECT username, avatar FROM sessions WHERE discord_user_id = ? ORDER BY created_at DESC LIMIT 1",
+                    (str(user_id),)
+                )
+                if row:
+                    username = row.get("username")
+                    display_name = username
+                    av = row.get("avatar")
+                    if av and not avatar_url:
+                        avatar_url = av if av.startswith("http") else f"https://cdn.discordapp.com/avatars/{user_id}/{av}.png"
+            except Exception as db_err:
+                logger.debug(f"DB fallback user lookup exception: {db_err}")
+
         return web.json_response({
             "success": True,
             "data": {
                 "user_id": str(user_id),
+                "username": username,
+                "display_name": display_name or username,
+                "avatar_url": avatar_url,
                 "entitlements": entitlements,
                 "subscription": sub,
                 "audit_logs": audit_logs,
