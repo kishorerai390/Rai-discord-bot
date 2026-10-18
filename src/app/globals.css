@@ -59,6 +59,7 @@ body {
 /* Glassmorphic Cards */
 .glass-card {
   background: var(--bg-card);
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
