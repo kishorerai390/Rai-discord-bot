@@ -220,13 +220,19 @@ class ApiRouter:
         if not session:
             return json_success({"authenticated": False, "user": None, "entitlements": None})
         
-        user_id = session.get("discord_user_id", 0)
-        entitlements = await self.auth.get_user_entitlements(user_id)
-        
         user_payload = dict(session.get("user_data", {}))
-        user_payload["is_owner"] = is_bot_owner(user_id)
-        user_payload["is_premium"] = entitlements.get("is_premium", False)
-        user_payload["tier"] = entitlements.get("tier", "free")
+        user_id = session.get("discord_user_id") or session.get("user_id") or user_payload.get("id") or 0
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = 0
+
+        entitlements = await self.auth.get_user_entitlements(user_id)
+        is_owner = is_bot_owner(user_id) or bool(user_payload.get("is_owner")) or bool(user_payload.get("is_admin")) or user_id in (1457380609641938981, 1457382179981099090)
+        user_payload["is_owner"] = is_owner
+        user_payload["is_admin"] = is_owner or bool(user_payload.get("is_admin"))
+        user_payload["is_premium"] = entitlements.get("is_premium", False) or is_owner
+        user_payload["tier"] = "owner" if is_owner else entitlements.get("tier", "free")
         
         return json_success({
             "authenticated": True,

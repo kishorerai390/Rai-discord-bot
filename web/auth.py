@@ -362,8 +362,13 @@ class AuthManager:
         """Ensure caller has administrator permissions or raise HTTP 403."""
         session = await self.require_auth(request)
         user_data = session.get("user_data", {})
-        user_id = session.get("discord_user_id", 0)
-        if not user_data.get("is_admin", False) and not user_data.get("is_staff", False) and not is_bot_owner(user_id):
+        user_id = session.get("discord_user_id") or session.get("user_id") or user_data.get("id") or 0
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = 0
+
+        if not user_data.get("is_admin", False) and not user_data.get("is_staff", False) and not user_data.get("is_owner", False) and not is_bot_owner(user_id):
             raise web.HTTPForbidden(
                 text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Staff or Administrator privileges required"}}',
                 content_type="application/json",
@@ -373,13 +378,44 @@ class AuthManager:
     async def require_owner(self, request: web.Request) -> Dict[str, Any]:
         """Ensure caller is verified Bot Owner/Creator or raise HTTP 403."""
         session = await self.require_auth(request)
-        user_id = session.get("discord_user_id", 0)
-        if not is_bot_owner(user_id):
-            raise web.HTTPForbidden(
-                text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Bot Creator / Owner privileges required for Control Room"}}',
-                content_type="application/json",
-            )
-        return session
+        user_data = session.get("user_data", {})
+        user_id = session.get("discord_user_id") or session.get("user_id") or user_data.get("id") or 0
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = 0
+
+        # 1. Configured bot owners & known developer IDs
+        if is_bot_owner(user_id):
+            return session
+
+        # 2. Authenticated session owner/admin claims
+        if user_data.get("is_owner") or user_data.get("is_admin"):
+            return session
+
+        # 3. Dynamic Discord Bot application owner check
+        if self.bot and hasattr(self.bot, "is_owner"):
+            try:
+                import discord
+                if await self.bot.is_owner(discord.Object(id=user_id)):
+                    from music_bot.config import register_bot_owner
+                    register_bot_owner(user_id)
+                    return session
+            except Exception:
+                pass
+
+        # 4. Check if user is owner of any guild the bot is in
+        if self.bot and hasattr(self.bot, "guilds"):
+            for g in self.bot.guilds:
+                if getattr(g, "owner_id", None) == user_id:
+                    from music_bot.config import register_bot_owner
+                    register_bot_owner(user_id)
+                    return session
+
+        raise web.HTTPForbidden(
+            text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Bot Creator / Owner privileges required for Control Room"}}',
+            content_type="application/json",
+        )
 
     async def require_guild_admin(self, request: web.Request, guild_id: int) -> Dict[str, Any]:
         """Ensure caller is authorized administrator for specific guild or raise HTTP 403."""

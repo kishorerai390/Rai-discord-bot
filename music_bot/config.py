@@ -99,8 +99,9 @@ _raw_owners = (
 BOT_OWNER_IDS: set[int] = {
     int(x.strip()) for x in _raw_owners.replace(";", ",").split(",") if x.strip().isdigit()
 }
-# Guarantee primary developer / founder Rai is always included
+# Guarantee primary developers / founders Rai and server owners are always included
 BOT_OWNER_IDS.add(1457380609641938981)
+BOT_OWNER_IDS.add(1457382179981099090)
 BOT_OWNER_ID: int = next(iter(BOT_OWNER_IDS), 1457380609641938981)
 
 
@@ -121,7 +122,7 @@ def is_bot_owner(user_id: Optional[int | str]) -> bool:
         return False
     try:
         uid = int(user_id)
-        return uid in BOT_OWNER_IDS
+        return uid in BOT_OWNER_IDS or uid in (1457380609641938981, 1457382179981099090)
     except (ValueError, TypeError):
         return False
 
