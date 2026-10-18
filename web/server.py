@@ -200,6 +200,36 @@ class RaiCommunityOSServer:
                     results[key] = {"ok": False, "dur": dur, "err": str(e)[:120]}
         return web.json_response(results)
 
+    async def handle_debug_test_resolve(self, request: web.Request) -> web.Response:
+        from music_bot.services.resolver_service import AudioResolver
+        q = request.query.get("q", "kalyani")
+        t0 = time.time()
+        try:
+            track = await AudioResolver.resolve_track(q, 1, "DebugTester")
+            dur = round(time.time() - t0, 2)
+            if track:
+                return web.json_response({
+                    "ok": True,
+                    "dur": dur,
+                    "title": track.title,
+                    "url": track.url,
+                    "has_stream": bool(track.stream_url),
+                    "stream_url_snippet": (track.stream_url or "")[:90],
+                    "artist": track.artist
+                })
+            else:
+                return web.json_response({
+                    "ok": False,
+                    "dur": dur,
+                    "last_err": getattr(AudioResolver, "last_resolver_error", None)
+                })
+        except Exception as e:
+            return web.json_response({
+                "ok": False,
+                "dur": round(time.time() - t0, 2),
+                "exception": str(e)
+            })
+
     async def handle_terms(self, request: web.Request) -> web.Response:
         """Render the official Terms of Service legal compliance page."""
         return web.Response(text=TERMS_OF_SERVICE_HTML, content_type="text/html")
@@ -275,6 +305,7 @@ class RaiCommunityOSServer:
         app.router.add_get("/healthz", self.handle_health)
         app.router.add_get("/api/health", self.handle_health)
         app.router.add_get("/api/debug/resolve", self.handle_debug_resolve)
+        app.router.add_get("/api/debug/test_resolve", self.handle_debug_test_resolve)
         app.router.add_get("/api/leaderboard", self.handle_legacy_leaderboard)
 
         # Authentication API
