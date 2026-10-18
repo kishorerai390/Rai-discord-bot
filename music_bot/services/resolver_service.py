@@ -607,11 +607,9 @@ def _build_ytdl_options(
     Optimized strictly for authorized YouTube stream resolution.
     Cookies are strictly optional and only attached when use_cookies is True.
     """
-    clients = player_clients or ["android", "ios"]
+    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["android"])
     opts: Dict[str, Any] = {
-        "format": "bestaudio/best",
-        "extractaudio": True,
-        "audioformat": "mp3",
+        "format": "bestaudio/best[height<=720]/best",
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
         "restrictfilenames": True,
         "noplaylist": True,
@@ -620,7 +618,6 @@ def _build_ytdl_options(
         "logtostderr": False,
         "quiet": True,
         "default_search": "ytsearch",
-        "source_address": "0.0.0.0",
         "socket_timeout": 15,
         "extractor_retries": 2,
         "extractor_args": {
@@ -1296,9 +1293,9 @@ class AudioResolver:
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (android/ios, no cookies) - 18.0s timeout
+            # Tier 1: Primary Public Profile (android, no cookies) - 18.0s timeout
             try:
-                tier1_opts = _build_ytdl_options(["android", "ios"], use_cookies=False)
+                tier1_opts = _build_ytdl_options(["android"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
@@ -1350,7 +1347,7 @@ class AudioResolver:
             top_target = candidate_urls[0]
             try:
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Public tiers exhausted; attempting optional cookie fallback for '{top_target}'")
-                tier3_opts = _build_ytdl_options(["android", "ios"], use_cookies=True)
+                tier3_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=True)
                 tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(

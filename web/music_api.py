@@ -655,7 +655,8 @@ class MusicApiRouter:
                             msg = f"Playing '{track.title}' now! ⚡" if played_immediately else f"Added '{track.title}' to queue ➕"
                             await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title, "message": msg})
                             return json_success({"action_id": action_id, "action": action, "status": "ENQUEUED", "title": track.title, "message": msg})
-                        return json_error("RESOLVE_FAILED", f"Could not find or resolve track for: '{query}'", status=404)
+                        res_err = getattr(AudioResolver, "last_resolver_error", None) or f"Could not find or resolve track for: '{query}'"
+                        return json_error("RESOLVE_FAILED", res_err, status=404)
 
                 elif action == "PLAY_NEXT":
                     query = payload.get("query", "").strip()
@@ -669,7 +670,8 @@ class MusicApiRouter:
                             msg = f"Queued '{track.title}' to play next ⏭"
                             await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title, "message": msg})
                             return json_success({"action_id": action_id, "action": action, "status": "PLAY_NEXT", "title": track.title, "message": msg})
-                        return json_error("RESOLVE_FAILED", f"Could not find or resolve track for: '{query}'", status=404)
+                        res_err = getattr(AudioResolver, "last_resolver_error", None) or f"Could not find or resolve track for: '{query}'"
+                        return json_error("RESOLVE_FAILED", res_err, status=404)
 
                 elif action == "PLAY_NOW":
                     query = payload.get("query", "").strip()
@@ -690,7 +692,8 @@ class MusicApiRouter:
                             msg = f"Playing '{track.title}' immediately! ⚡"
                             await self.db.mark_web_action_completed(action_id, {"status": "playing_now", "title": track.title, "message": msg})
                             return json_success({"action_id": action_id, "action": action, "status": "PLAYING_NOW", "title": track.title, "message": msg})
-                        return json_error("RESOLVE_FAILED", f"Could not find or resolve track for: '{query}'", status=404)
+                        res_err = getattr(AudioResolver, "last_resolver_error", None) or f"Could not find or resolve track for: '{query}'"
+                        return json_error("RESOLVE_FAILED", res_err, status=404)
 
                 elif action == "AUTODJ_TOGGLE":
                     session.dj_enabled = not getattr(session, "dj_enabled", False)
