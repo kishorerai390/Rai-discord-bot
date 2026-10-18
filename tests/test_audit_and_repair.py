@@ -181,19 +181,35 @@ class TestAuditAndRepairSuite(unittest.IsolatedAsyncioTestCase):
     # =========================================================================
 
     async def test_15_player_control_action_submission(self):
-        """Verify music control actions submit cleanly to database."""
-        resp = await self.client.post("/api/music/control", json={
+        """Verify anonymous music control is rejected with 401, while authorized user succeeds with 200."""
+        payload = {
             "guild_id": 1525030316845301781,
             "action": "VOLUME",
             "payload": {"volume": 90}
-        })
+        }
+        # Anonymous must be rejected
+        unauth_resp = await self.client.post("/api/music/control", json=payload)
+        self.assertEqual(unauth_resp.status, 401)
+
+        # Authenticated authorized user succeeds
+        session_id = await self.server.api_router.auth.create_session_for_user(
+            discord_user={"id": "1457380609641938981", "username": "MusicMaidOwner"},
+            is_admin_override=True,
+        )
+        cookies = {"rai_session": session_id}
+        resp = await self.client.post("/api/music/control", json=payload, cookies=cookies)
         self.assertEqual(resp.status, 200)
         data = await resp.json()
         self.assertTrue(data["success"])
 
     async def test_16_player_missing_action_rejected(self):
-        """Verify missing action parameter is rejected with 400."""
+        """Verify missing action parameter is rejected with 400 for authenticated user."""
+        session_id = await self.server.api_router.auth.create_session_for_user(
+            discord_user={"id": "1457380609641938981", "username": "MusicMaidOwner"},
+            is_admin_override=True,
+        )
+        cookies = {"rai_session": session_id}
         resp = await self.client.post("/api/music/control", json={
             "guild_id": 1525030316845301781,
-        })
+        }, cookies=cookies)
         self.assertEqual(resp.status, 400)

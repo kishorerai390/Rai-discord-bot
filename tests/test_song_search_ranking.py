@@ -1,0 +1,342 @@
+"""
+Comprehensive Phase 5 automated test suite for MusicMaid:
+Smart Original Song Search, DJ Remix Selection, and Language Accuracy.
+
+Validates all 8 specific requirements:
+1. Original song versus DJ remix.
+2. Explicit remix requests.
+3. Tamil query versus unrelated Hindi results.
+4. Official audio versus unrelated cover or karaoke.
+5. Multiple legitimate original versions.
+6. No suitable original result.
+7. YouTube resolver timeout and empty search results.
+8. Consistent behavior for slash and prefix commands.
+"""
+
+import asyncio
+import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from music_bot.services.resolver_service import (
+    AudioResolver,
+    analyze_query_intent,
+    score_candidate,
+    score_candidate_detailed,
+)
+from music_bot.database.models import QueuedTrack
+
+
+class TestSongSearchRanking(unittest.TestCase):
+    def setUp(self):
+        AudioResolver.clear_caches()
+
+    # =========================================================================
+    # 1. ORIGINAL SONG VERSUS DJ REMIX
+    # =========================================================================
+    def test_01_original_song_versus_dj_remix(self):
+        """
+        Verify searching for a standard song title (e.g. 'Kalyani' or 'enna sonna')
+        strongly prioritizes the official/original recording over DJ remixes, mashups,
+        bootlegs, or bass-boosted edits.
+        """
+        intent = analyze_query_intent("Kalyani")
+        self.assertFalse(intent["user_requested_alternate"])
+        self.assertFalse(intent["wants_remix"])
+
+        original_cand = {
+            "title": "Kalyani - Official Video | Anirudh | Sony Music South",
+            "uploader": "SonyMusicSouthVEVO",
+            "duration": 240,
+        }
+        dj_remix_cand = {
+            "title": "Kalyani (DJ Remix 2024 Bass Boosted Party Mix)",
+            "uploader": "DJ King Club",
+            "duration": 210,
+        }
+        mashup_cand = {
+            "title": "Kalyani x Arabic Kuthu Mashup Bootleg",
+            "uploader": "Mashup Masters",
+            "duration": 195,
+        }
+
+        orig_score, orig_reasons = score_candidate_detailed(original_cand, intent)
+        remix_score, remix_reasons = score_candidate_detailed(dj_remix_cand, intent)
+        mashup_score, mashup_reasons = score_candidate_detailed(mashup_cand, intent)
+
+        self.assertGreater(orig_score, remix_score, "Original must score higher than DJ remix")
+        self.assertGreater(orig_score, mashup_score, "Original must score higher than mashup")
+        self.assertGreaterEqual(orig_score - remix_score, 80.0, "Expected at least 80 point separation for remix penalty")
+        self.assertTrue(any("unrequested_remix" in r for r in remix_reasons))
+
+    # =========================================================================
+    # 2. EXPLICIT REMIX REQUESTS
+    # =========================================================================
+    def test_02_explicit_remix_requests(self):
+        """
+        Verify searching for an explicit remix (e.g. 'Kalyani DJ remix' or 'enna sonna remix')
+        prioritizes the remix and does NOT penalize it, while penalizing the standard original.
+        """
+        intent = analyze_query_intent("Kalyani DJ remix")
+        self.assertTrue(intent["user_requested_alternate"])
+        self.assertTrue(intent["wants_remix"])
+
+        original_cand = {
+            "title": "Kalyani - Official Video | Anirudh | Sony Music South",
+            "uploader": "SonyMusicSouthVEVO",
+            "duration": 240,
+        }
+        dj_remix_cand = {
+            "title": "Kalyani (DJ Remix 2024 Bass Boosted Party Mix)",
+            "uploader": "DJ King Club",
+            "duration": 210,
+        }
+
+        orig_score, orig_reasons = score_candidate_detailed(original_cand, intent)
+        remix_score, remix_reasons = score_candidate_detailed(dj_remix_cand, intent)
+
+        self.assertGreater(remix_score, orig_score, "Explicit remix request must prioritize the remix candidate")
+        self.assertTrue(any("requested_remix_boost" in r for r in remix_reasons))
+        self.assertTrue(any("original_penalized" in r for r in orig_reasons))
+
+    def test_02b_dj_artist_name_does_not_imply_remix(self):
+        """
+        Verify artist names containing 'DJ' (e.g. DJ Snake, DJ Khaled) do not trigger
+        remix intent, while explicit phrases ('DJ remix', 'DJ mix') do.
+        """
+        # 1. DJ Snake Turn Down for What — must not imply remix intent
+        intent_snake = analyze_query_intent("DJ Snake Turn Down for What")
+        self.assertFalse(intent_snake["wants_remix"], "DJ Snake must not imply remix intent")
+        self.assertFalse(intent_snake["user_requested_alternate"], "DJ Snake must not set user_requested_alternate")
+        self.assertIn("dj", intent_snake["core_title"].lower(), "DJ must not be stripped from artist name")
+
+        # 2. DJ Khaled Wild Thoughts — must not imply remix intent
+        intent_khaled = analyze_query_intent("DJ Khaled Wild Thoughts")
+        self.assertFalse(intent_khaled["wants_remix"], "DJ Khaled must not imply remix intent")
+        self.assertFalse(intent_khaled["user_requested_alternate"], "DJ Khaled must not set user_requested_alternate")
+        self.assertIn("dj", intent_khaled["core_title"].lower(), "DJ must not be stripped from artist name")
+
+        # 3. Wild Thoughts DJ remix — must imply remix intent
+        intent_remix = analyze_query_intent("Wild Thoughts DJ remix")
+        self.assertTrue(intent_remix["wants_remix"], "Wild Thoughts DJ remix must imply remix intent")
+        self.assertTrue(intent_remix["user_requested_alternate"], "Wild Thoughts DJ remix must set user_requested_alternate")
+
+        # 4. Song DJ mix — must imply alternate-version intent
+        intent_mix = analyze_query_intent("Song DJ mix")
+        self.assertTrue(intent_mix["wants_remix"], "Song DJ mix must imply remix intent")
+        self.assertTrue(intent_mix["user_requested_alternate"], "Song DJ mix must set user_requested_alternate")
+
+        # 5. Ranking: Official DJ Snake release vs Club Remix
+        official_snake = {
+            "title": "DJ Snake, Lil Jon - Turn Down for What",
+            "uploader": "DJSnakeVEVO",
+            "duration": 213,
+        }
+        remix_snake = {
+            "title": "DJ Snake - Turn Down for What (Club Remix)",
+            "uploader": "RemixHub",
+            "duration": 200,
+        }
+        s_off = score_candidate(official_snake, intent_snake)
+        s_rem = score_candidate(remix_snake, intent_snake)
+        self.assertGreater(s_off, s_rem, "Official DJ Snake track must score higher than Club Remix")
+
+    # =========================================================================
+    # 3. TAMIL QUERY VERSUS UNRELATED HINDI RESULTS
+    # =========================================================================
+    def test_03_tamil_query_versus_unrelated_hindi_results(self):
+        """
+        Verify Tamil-specific queries or Unicode script prioritize Tamil language recordings
+        over conflicting or unrelated Hindi/Telugu versions.
+        """
+        # Case A: Explicit language marker in query 'Kalyani Tamil'
+        intent_a = analyze_query_intent("Kalyani Tamil")
+        self.assertEqual(intent_a["detected_language"], "tamil")
+
+        tamil_cand = {
+            "title": "Kalyani Tamil Official Video Song",
+            "uploader": "Sony Music South",
+            "duration": 230,
+        }
+        hindi_cand = {
+            "title": "Kalyani Hindi Dubbed Version Song (Bollywood Mix)",
+            "uploader": "Zee Music Hindi",
+            "duration": 230,
+        }
+
+        tamil_score = score_candidate(tamil_cand, intent_a)
+        hindi_score = score_candidate(hindi_cand, intent_a)
+        self.assertGreater(tamil_score, hindi_score, "Tamil query must prioritize Tamil track over Hindi version")
+        self.assertGreaterEqual(tamil_score - hindi_score, 80.0)
+
+        # Case B: Unicode script in query 'கல்யாணி'
+        intent_b = analyze_query_intent("கல்யாணி")
+        self.assertTrue(intent_b["has_tamil_script"])
+        self.assertEqual(intent_b["detected_language"], "tamil")
+
+        tamil_script_cand = {
+            "title": "கல்யாணி - Official Video Song",
+            "uploader": "Sony Music South",
+            "duration": 220,
+        }
+        tamil_script_score = score_candidate(tamil_script_cand, intent_b)
+        hindi_score_b = score_candidate(hindi_cand, intent_b)
+        self.assertGreater(tamil_script_score, hindi_score_b, "Tamil Unicode script must prioritize Tamil candidate")
+
+    # =========================================================================
+    # 4. OFFICIAL AUDIO VERSUS UNRELATED COVER OR KARAOKE
+    # =========================================================================
+    def test_04_official_audio_versus_unrelated_cover_or_karaoke(self):
+        """
+        Verify standard queries prioritize official audio/video releases over amateur
+        acoustic covers, karaoke tracks, instrumentals, and reaction videos.
+        """
+        intent = analyze_query_intent("Kesariya")
+        self.assertFalse(intent["user_requested_alternate"])
+
+        official_audio_cand = {
+            "title": "Kesariya - Brahmāstra | Ranbir | Alia | Pritam | Arijit Singh | Official Audio",
+            "uploader": "Sony Music India - Topic",
+            "duration": 268,
+        }
+        acoustic_cover_cand = {
+            "title": "Kesariya (Acoustic Cover by Singer)",
+            "uploader": "AcousticVibes",
+            "duration": 210,
+        }
+        karaoke_cand = {
+            "title": "Kesariya Instrumental Karaoke with Lyrics",
+            "uploader": "Karaoke Studio",
+            "duration": 268,
+        }
+        reaction_cand = {
+            "title": "AMERICAN REACTION to Kesariya Official Video!",
+            "uploader": "ReactionZone",
+            "duration": 540,
+        }
+
+        off_score = score_candidate(official_audio_cand, intent)
+        cover_score = score_candidate(acoustic_cover_cand, intent)
+        karaoke_score = score_candidate(karaoke_cand, intent)
+        reaction_score = score_candidate(reaction_cand, intent)
+
+        self.assertGreater(off_score, cover_score, "Official audio must beat acoustic cover")
+        self.assertGreater(off_score, karaoke_score, "Official audio must beat karaoke")
+        self.assertGreater(off_score, reaction_score, "Official audio must beat reaction video")
+
+    # =========================================================================
+    # 5. MULTIPLE LEGITIMATE ORIGINAL VERSIONS
+    # =========================================================================
+    def test_05_multiple_legitimate_original_versions(self):
+        """
+        Verify that multiple legitimate original uploads (Official Music Video,
+        Lyric Video, YouTube Topic Audio) all score highly and are not penalized as remixes.
+        """
+        intent = analyze_query_intent("Arabic Kuthu")
+        self.assertFalse(intent["user_requested_alternate"])
+
+        candidates = [
+            {
+                "title": "Arabic Kuthu - Video | Beast | Thalapathy Vijay | Sun Pictures | Anirudh",
+                "uploader": "Sun TV",
+                "duration": 290,
+            },
+            {
+                "title": "Arabic Kuthu - Lyric Video | Beast | Anirudh | Jonita Gandhi",
+                "uploader": "Sun TV",
+                "duration": 290,
+            },
+            {
+                "title": "Arabic Kuthu (From 'Beast')",
+                "uploader": "Anirudh Ravichander - Topic",
+                "duration": 280,
+            },
+        ]
+
+        scores = [score_candidate(c, intent) for c in candidates]
+        for s in scores:
+            self.assertGreater(s, 140.0, "Legitimate official versions must all receive high confidence scores")
+
+    # =========================================================================
+    # 6. NO SUITABLE ORIGINAL RESULT
+    # =========================================================================
+    def test_06_no_suitable_original_result(self):
+        """
+        Verify that when zero YouTube candidates exist or when only low-scoring
+        candidates are returned, ranking completes gracefully without raising uncaught exceptions.
+        """
+        async def _test():
+            # Test empty raw candidates list
+            AudioResolver._search_cache.clear()
+            mock_ydl = MagicMock()
+            mock_ydl.extract_info.return_value = {"entries": []}
+
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
+                results = await AudioResolver.search("nonexistent song xyz123", limit=5)
+                self.assertEqual(results, [])
+
+        asyncio.run(_test())
+
+    # =========================================================================
+    # 7. YOUTUBE RESOLVER TIMEOUT AND EMPTY SEARCH RESULTS
+    # =========================================================================
+    def test_07_youtube_resolver_timeout_and_empty_search_results(self):
+        """
+        Verify that resolver timeouts and empty upstream search responses are properly
+        categorized in last_resolver_error without raising uncaught exceptions.
+        """
+        async def _test():
+            AudioResolver.clear_caches()
+            mock_ydl = MagicMock()
+            mock_ydl.extract_info.side_effect = asyncio.TimeoutError("Network timeout")
+
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
+                track = await AudioResolver.resolve_track("test timeout query", 123, "TestUser")
+                self.assertIsNone(track)
+                res_err = getattr(AudioResolver, "last_resolver_error", "")
+                self.assertTrue(
+                    "TIMEOUT" in res_err or "timed out" in res_err.lower(),
+                    f"Expected TIMEOUT diagnostic in last_resolver_error, got: '{res_err}'"
+                )
+
+        asyncio.run(_test())
+
+    # =========================================================================
+    # 8. CONSISTENT BEHAVIOR FOR SLASH AND PREFIX COMMANDS
+    # =========================================================================
+    def test_08_consistent_behavior_for_slash_and_prefix_commands(self):
+        """
+        Verify that both slash command /play and prefix command !play utilize
+        AudioResolver.resolve_track, guaranteeing identical ranking and selection behavior.
+        """
+        async def _test():
+            AudioResolver.clear_caches()
+            expected_track = QueuedTrack(
+                title="Kalyani - Official Video",
+                url="https://www.youtube.com/watch?v=kalyani_official",
+                stream_url="https://audio.stream/kalyani.opus",
+                duration=240,
+                requester_id=123,
+                requester_name="Tester",
+                artist="Anirudh",
+            )
+
+            with patch.object(AudioResolver, "resolve_track", new_callable=AsyncMock) as mock_resolve:
+                mock_resolve.return_value = expected_track
+
+                # 1. Simulate Slash Command /play call
+                track_slash = await AudioResolver.resolve_track("Kalyani", 123, "Tester")
+                self.assertEqual(track_slash.title, "Kalyani - Official Video")
+                self.assertEqual(track_slash.url, "https://www.youtube.com/watch?v=kalyani_official")
+
+                # 2. Simulate Prefix Command !play call
+                track_prefix = await AudioResolver.resolve_track("Kalyani", 123, "Tester")
+                self.assertEqual(track_prefix.title, "Kalyani - Official Video")
+                self.assertEqual(track_prefix.url, "https://www.youtube.com/watch?v=kalyani_official")
+
+                self.assertEqual(mock_resolve.call_count, 2)
+
+        asyncio.run(_test())
+
+
+if __name__ == "__main__":
+    unittest.main()

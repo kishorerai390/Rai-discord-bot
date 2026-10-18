@@ -48,6 +48,14 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         self.rai_server = RaiCommunityOSServer(bot=self.mock_bot, db=self.mock_db, port=8199)
         app = web.Application()
         self.rai_server.setup_routes(app)
+
+        # Create authenticated session with authorized guild
+        self.auth_session_id = await self.rai_server.api_router.auth.create_session_for_user(
+            discord_user={"id": "1457380609641938981", "username": "MusicTester"},
+            is_admin_override=True,
+            user_guilds=[{"id": "1525030316845301781", "name": "THOR APEX ⚡"}],
+        )
+        self.auth_cookies = {"rai_session": self.auth_session_id}
         return app
 
     async def test_01_music_guilds_endpoint(self):
@@ -111,13 +119,18 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         assert d["tracks"][1]["title"] == "Track 2"
 
     async def test_04_music_control_dispatch(self):
-        """4. POST /api/music/control submits actions to the WAL queue."""
+        """4. POST /api/music/control rejects anonymous calls (401) and submits actions when authorized."""
         payload = {
             "guild_id": 1525030316845301781,
             "action": "VOLUME",
             "payload": {"volume": 50},
         }
-        resp = await self.client.post("/api/music/control", json=payload)
+        # Anonymous must be rejected with 401
+        unauth_resp = await self.client.post("/api/music/control", json=payload)
+        assert unauth_resp.status == 401
+
+        # Authorized session succeeds with 200
+        resp = await self.client.post("/api/music/control", json=payload, cookies=self.auth_cookies)
         assert resp.status == 200
         json_data = await resp.json()
         assert json_data["success"] is True
@@ -125,12 +138,17 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         assert json_data["data"]["status"] == "QUEUED"
 
     async def test_05_music_enqueue_endpoint(self):
-        """5. POST /api/music/enqueue queues search requests."""
+        """5. POST /api/music/enqueue rejects anonymous calls (401) and queues when authorized."""
         payload = {
             "guild_id": 1525030316845301781,
             "query": "Kaappaan Hey Amigo",
         }
-        resp = await self.client.post("/api/music/enqueue", json=payload)
+        # Anonymous must be rejected with 401
+        unauth_resp = await self.client.post("/api/music/enqueue", json=payload)
+        assert unauth_resp.status == 401
+
+        # Authorized session succeeds with 200
+        resp = await self.client.post("/api/music/enqueue", json=payload, cookies=self.auth_cookies)
         assert resp.status == 200
         json_data = await resp.json()
         assert json_data["success"] is True
@@ -148,14 +166,19 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         assert "yt_dlp_version" in d
 
     async def test_07_music_favorites_toggle(self):
-        """7. POST /api/music/favorites/toggle adds and removes favorites."""
+        """7. POST /api/music/favorites/toggle rejects anonymous calls (401) and toggles when authorized."""
         track_payload = {
             "title": "Favorite Song",
             "url": "https://yt/fav",
             "duration": 200,
             "artist": "Artist",
         }
-        resp = await self.client.post("/api/music/favorites/toggle", json=track_payload)
+        # Anonymous must be rejected with 401
+        unauth_resp = await self.client.post("/api/music/favorites/toggle", json=track_payload)
+        assert unauth_resp.status == 401
+
+        # Authorized session succeeds with 200
+        resp = await self.client.post("/api/music/favorites/toggle", json=track_payload, cookies=self.auth_cookies)
         assert resp.status == 200
         json_data = await resp.json()
         assert json_data["success"] is True
@@ -193,8 +216,9 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
         live_sessions = await self.rai_server.realtime_gateway.collect_live_sessions()
         music_sessions = [s for s in live_sessions if s.get("type") == "music"]
         assert len(music_sessions) > 0
-        assert music_sessions[0]["title"] == "Lossless Live Track"
-        assert music_sessions[0]["destination"] == "/music"
+        matching = [s for s in music_sessions if s.get("title") == "Lossless Live Track"]
+        assert len(matching) > 0
+        assert matching[0]["destination"] == "/music"
 
     async def test_10_authoritative_pause_resume_dispatch(self):
         """10. In-process dispatch executes authoritative MusicPlayerService methods."""
@@ -213,14 +237,14 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
             resp = await self.client.post("/api/music/control", json={
                 "guild_id": 1525030316845301781,
                 "action": "PAUSE"
-            })
+            }, cookies=self.auth_cookies)
             assert resp.status == 200
             mock_pause.assert_called_once()
 
             resp = await self.client.post("/api/music/control", json={
                 "guild_id": 1525030316845301781,
                 "action": "RESUME"
-            })
+            }, cookies=self.auth_cookies)
             assert resp.status == 200
             mock_resume.assert_called_once()
 

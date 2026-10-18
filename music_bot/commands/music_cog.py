@@ -312,11 +312,11 @@ class NekoSetupDashboardView(discord.ui.View):
 
 
 # =============================================================================
-# MASTER CONTROL PANEL VIEW (/c)
+# MASTER CONTROL PANEL VIEW (/panel)
 # =============================================================================
 
 class MusicControlSelect(discord.ui.Select):
-    """Dropdown selector for the /c master control panel."""
+    """Dropdown selector for the /panel master control panel."""
 
     def __init__(self, panel_view: "MusicControlPanelView"):
         self.panel_view = panel_view
@@ -455,7 +455,7 @@ class MusicControlPanelView(discord.ui.View):
             )
             embed.add_field(
                 name="🤖 Smart DJ & Auto-Updater",
-                value="`/music dj` • `/music lyrics` • `/music recommend` • `/autoupdate` • `/reload` • `/c`",
+                value="`/music dj` • `/music lyrics` • `/music recommend` • `/autoupdate` • `/reload` • `/panel`",
                 inline=False,
             )
             embed.set_footer(text=f"{bot_name} v{MUSIC_BOT_VERSION} • Tap buttons below for instant actions")
@@ -555,7 +555,7 @@ class MusicControlPanelView(discord.ui.View):
             embed.add_field(name="📜 `/music lyrics`", value="Real-time synchronized lyrics with instant in-memory LRU caching.", inline=False)
             embed.add_field(name="🔄 `/autoupdate`", value="Checks and upgrades yt-dlp automatically in background to avoid YouTube blocks.", inline=False)
             embed.add_field(name="⚡ `/reload`", value="Zero-downtime hot reload of audio modules without disconnecting voice clients.", inline=False)
-            embed.add_field(name="📊 `/c` or `/control`", value="Opens this interactive Master Control Panel anytime.", inline=False)
+            embed.add_field(name="📊 `/panel` or `/control`", value="Opens this interactive Master Control Panel anytime.", inline=False)
 
         elif self.current_page == "prefix_settings":
             embed = discord.Embed(
@@ -2271,8 +2271,8 @@ class MusicCog(commands.Cog, name="Music"):
         await self.ensure_deferred(interaction, ephemeral=False)
         await self.cmd_247.callback(self, interaction, action=None)
 
-    @app_commands.command(name="c", description="Interactive Master Control Panel showing all music bot features")
-    async def cmd_c(self, interaction: discord.Interaction) -> None:
+    @app_commands.command(name="panel", description="Interactive Master Control Panel showing all music bot features")
+    async def cmd_panel(self, interaction: discord.Interaction) -> None:
         """Interactive control panel & command center displaying all music features."""
         await self.ensure_deferred(interaction, ephemeral=True)
         if not interaction.guild:
@@ -2287,10 +2287,10 @@ class MusicCog(commands.Cog, name="Music"):
         except Exception:
             await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
-    @app_commands.command(name="control", description="Interactive Master Control Panel (Shortcut for /c)")
+    @app_commands.command(name="control", description="Interactive Master Control Panel (Shortcut for /panel)")
     async def cmd_control(self, interaction: discord.Interaction) -> None:
-        """Alias for /c."""
-        await self.cmd_c.callback(self, interaction)
+        """Alias for /panel."""
+        await self.cmd_panel.callback(self, interaction)
 
     @app_commands.command(name="autoupdate", description="Check or update yt-dlp extractor, git commits, and audio health")
     @app_commands.describe(action="Maintenance action to perform")
@@ -3801,7 +3801,7 @@ class MusicCog(commands.Cog, name="Music"):
                 session.voice_client.source.volume = level / 100.0  # type: ignore
         await ctx.reply(f"🔊 Volume set to **{level}%**.", mention_author=False)
 
-    @commands.command(name="c", aliases=["control", "panel"])
+    @commands.command(name="panel", aliases=["control"])
     async def pfx_control_panel(self, ctx: commands.Context) -> None:
         """Opens the interactive Master Control Panel."""
         if not ctx.guild:

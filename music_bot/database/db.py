@@ -1546,6 +1546,17 @@ class MusicDatabase:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
 
+    async def clear_history(self, guild_id: int) -> int:
+        """Clear playback history for a guild."""
+        async with self._lock:
+            async with self._db.execute("""
+                DELETE FROM music_history
+                WHERE guild_id = ?
+            """, (guild_id,)) as cur:
+                deleted = cur.rowcount
+            await self._db.commit()
+            return deleted
+
     async def is_premium(self, guild_id: int = 0, user_id: Optional[int] = None) -> bool:
         """Check if either the guild or the user has an active premium subscription."""
         # 0. Bot owner / Founder has permanent VIP license

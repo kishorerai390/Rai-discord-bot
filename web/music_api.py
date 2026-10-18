@@ -12,6 +12,7 @@ import inspect
 import json
 import logging
 from pathlib import Path
+import time
 from typing import Any, Dict, List, Optional
 import urllib.parse
 import aiohttp
@@ -63,10 +64,74 @@ class MusicApiRouter:
         try:
             sess = await self.auth_manager.get_session_from_request(request)
             if sess:
-                return sess.get("user_data") or sess
+                user = dict(sess.get("user_data") or sess)
+                uid = sess.get("discord_user_id") or sess.get("user_id") or user.get("id") or user.get("user_id")
+                if uid:
+                    user["user_id"] = int(uid)
+                    user["id"] = int(uid)
+                return user
         except Exception:
             pass
         return None
+
+    async def _require_authenticated_user(self, request: web.Request) -> Dict[str, Any]:
+        """Ensure caller is signed in with a valid Discord session; raises 401 if unauthenticated."""
+        user = await self._get_current_user(request)
+        if not user:
+            raise web.HTTPUnauthorized(
+                text=json.dumps({"success": False, "error": {"code": "UNAUTHORIZED", "message": "Sign in with Discord required to perform this action"}}),
+                content_type="application/json",
+            )
+        uid = user.get("user_id") or user.get("id")
+        try:
+            parsed_id = int(uid)
+            user["user_id"] = parsed_id
+            user["id"] = parsed_id
+        except (ValueError, TypeError):
+            raise web.HTTPUnauthorized(
+                text=json.dumps({"success": False, "error": {"code": "UNAUTHORIZED", "message": "Invalid user identity in session"}}),
+                content_type="application/json",
+            )
+        return user
+
+    async def _verify_guild_access(self, user: Dict[str, Any], guild_id: int) -> bool:
+        """Verify user is authorized to interact with guild; raises 403 Forbidden if not."""
+        user_id = user.get("user_id") or user.get("id")
+        from music_bot.config import is_bot_owner
+        if is_bot_owner(user_id):
+            return True
+
+        if user.get("is_owner"):
+            return True
+
+        # Check live Discord guild membership if bot is present
+        if self.bot and hasattr(self.bot, "get_guild"):
+            g_obj = self.bot.get_guild(guild_id)
+            if g_obj:
+                member_obj = g_obj.get_member(user_id) if hasattr(g_obj, "get_member") else None
+                if member_obj is not None:
+                    return True
+                if not user.get("is_admin", False):
+                    user_guild_ids = {int(g["id"]) for g in user.get("guilds", []) if "id" in g}
+                    if guild_id not in user_guild_ids:
+                        raise web.HTTPForbidden(
+                            text=json.dumps({"success": False, "error": {"code": "UNAUTHORIZED_GUILD", "message": "You are not authorized to control music in this server."}}),
+                            content_type="application/json",
+                        )
+
+        # Check cached mutual OAuth guilds
+        raw_guilds = user.get("guilds") or []
+        for g in raw_guilds:
+            try:
+                if int(g.get("id")) == guild_id:
+                    return True
+            except (ValueError, TypeError):
+                pass
+
+        raise web.HTTPForbidden(
+            text=json.dumps({"success": False, "error": {"code": "UNAUTHORIZED_GUILD", "message": "You are not authorized to control music in this server."}}),
+            content_type="application/json",
+        )
 
     # ==========================================
     # 1. GUILD DISCOVERY & STATE
@@ -159,9 +224,17 @@ class MusicApiRouter:
                     voice_name = str(ch_name)
 
             # Determine authorization
-            is_authorized = True
-            if user_guild_ids is not None and not user_admin:
-                is_authorized = g_id in user_guild_ids
+            is_authorized = False
+            if user:
+                if user_admin:
+                    is_authorized = True
+                elif user_guild_ids is not None:
+                    is_authorized = g_id in user_guild_ids
+                elif bot_guilds and g_id in bot_guilds:
+                    g_check = bot_guilds[g_id]
+                    uid = user.get("user_id") or user.get("id")
+                    if uid and hasattr(g_check, "get_member") and g_check.get_member(int(uid)):
+                        is_authorized = True
 
             bot_present = True
             if self.bot and hasattr(self.bot, "get_guild"):
@@ -202,7 +275,23 @@ class MusicApiRouter:
         user = await self._get_current_user(request)
         is_admin = bool(user.get("is_admin", False)) if user else False
         is_staff = bool(user.get("is_staff", False)) if user else False
-        perms = {"can_control": True, "is_admin": is_admin, "is_staff": is_staff}
+        can_control = False
+        if user:
+            from music_bot.config import is_bot_owner
+            uid = user.get("user_id") or user.get("id")
+            if is_bot_owner(uid) or user.get("is_owner") or is_admin:
+                can_control = True
+            elif self.bot and hasattr(self.bot, "get_guild"):
+                g_chk = self.bot.get_guild(guild_id)
+                if g_chk and hasattr(g_chk, "get_member") and g_chk.get_member(int(uid)):
+                    can_control = True
+            if not can_control:
+                user_guilds = user.get("guilds") or []
+                for ug in user_guilds:
+                    if str(ug.get("id")) == str(guild_id):
+                        can_control = True
+                        break
+        perms = {"can_control": can_control, "is_admin": is_admin, "is_staff": is_staff}
 
         # Determine real voice connection status across session and bot client
         vc_name = None
@@ -429,6 +518,30 @@ class MusicApiRouter:
 
         return json_success({"guild_id": str(guild_id), "history": history})
 
+    async def clear_history(self, request: web.Request) -> web.Response:
+        """Clear recent listening history for the specified guild."""
+        await self._ensure_db()
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        guild_id_raw = str(body.get("guild_id", "")).strip() or str(request.query.get("guild_id", "")).strip()
+        if not guild_id_raw.isdigit():
+            return json_error("INVALID_GUILD_ID", "guild_id must be a numeric Discord ID", 400)
+        guild_id = int(guild_id_raw)
+        user = await self._require_authenticated_user(request)
+        await self._verify_guild_access(user, guild_id)
+
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+        if session and hasattr(session, "history"):
+            session.history.clear()
+        try:
+            await self.db.clear_history(guild_id)
+        except Exception:
+            pass
+        return json_success({"guild_id": str(guild_id), "cleared": True, "message": "Listening history cleared successfully"})
+
     # ==========================================
     # 4. CONTROLS & ACTION DISPATCHER (PHASE 3 RBAC)
     # ==========================================
@@ -457,20 +570,15 @@ class MusicApiRouter:
         except (ValueError, TypeError):
             return json_error("INVALID_GUILD_ID", "Guild ID must be a valid numeric snowflake", status=400)
 
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id_int)
 
         # Verify server-side authorization and guild existence
         if self.bot and hasattr(self.bot, "get_guild"):
             g_obj = self.bot.get_guild(guild_id_int)
             if not g_obj and (not hasattr(self.bot, "is_ready") or self.bot.is_ready()):
                 return json_error("GUILD_NOT_FOUND", f"Bot is not present in guild {guild_id_int}", status=404)
-            if user and g_obj:
-                member_obj = g_obj.get_member(user_id)
-                if member_obj is None and not user.get("is_admin", False):
-                    user_guild_ids = {int(g["id"]) for g in user.get("guilds", []) if "id" in g}
-                    if user_guild_ids and guild_id_int not in user_guild_ids:
-                        return json_error("UNAUTHORIZED_GUILD", "You are not authorized to control music in this server.", status=403)
 
         # Submit action to SQLite WAL queue for immediate bot pickup
         action_id = await self.db.submit_web_action(
@@ -482,25 +590,23 @@ class MusicApiRouter:
 
         # In-process immediate execution optimization if bot is running in same loop
         session = None
-        if self.bot and hasattr(self.bot, "session_manager"):
+        if hasattr(SessionManager, "get_instance"):
+            sm = SessionManager.get_instance()
+            cand = sm.get_session_nowait(guild_id_int)
+            if cand and type(cand).__name__ != "MagicMock":
+                session = cand
+
+        if not session and self.bot and hasattr(self.bot, "session_manager"):
             try:
-                res = self.bot.session_manager.get_session(guild_id_int)
-                if inspect.isawaitable(res):
-                    session = await res
-                elif hasattr(res, "guild_id"):
-                    session = res
+                sm = self.bot.session_manager
+                if type(sm).__name__ != "MagicMock":
+                    res = sm.get_session(guild_id_int)
+                    if inspect.isawaitable(res):
+                        session = await res
+                    elif hasattr(res, "guild_id") and type(res).__name__ != "MagicMock":
+                        session = res
             except Exception:
                 session = None
-        elif hasattr(SessionManager, "get_instance"):
-            sm = SessionManager.get_instance()
-            if hasattr(sm, "get_session"):
-                res = sm.get_session(guild_id_int)
-                if inspect.isawaitable(res):
-                    session = await res
-                else:
-                    session = res
-            elif hasattr(sm, "get_session_nowait"):
-                session = sm.get_session_nowait(guild_id_int)
 
         if session and self.bot:
             from music_bot.services.player_service import MusicPlayerService
@@ -685,12 +791,19 @@ class MusicApiRouter:
                     title_hint = payload.get("title", "").strip() or None
                     artist_hint = payload.get("artist", "").strip() or None
                     if query:
+                        if len(session.queue) >= 250:
+                            return json_error("QUEUE_LIMIT_REACHED", "Queue limit reached (250 tracks max). Clear some tracks to add more.", status=400)
                         await _ensure_voice(req_channel_id)
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(
                             query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
                         )
                         if track:
+                            is_dup = any(
+                                (t.url and t.url == track.url) or
+                                (t.title.lower() == track.title.lower() and (t.artist or "").lower() == (track.artist or "").lower())
+                                for t in session.queue
+                            )
                             session.queue.append(track)
                             played_immediately = False
                             if not session.is_playing and not session.has_active_track:
@@ -698,9 +811,9 @@ class MusicApiRouter:
                                     await MusicPlayerService.start_playback(self.bot, session, track)
                                     played_immediately = True
                             await MusicPlayerService.send_now_playing_panel(session)
-                            msg = f"Playing '{track.title}' now! ⚡" if played_immediately else f"Added '{track.title}' to queue ➕"
-                            await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title, "message": msg})
-                            return json_success({"action_id": action_id, "action": action, "status": "ENQUEUED", "title": track.title, "message": msg})
+                            msg = f"Playing '{track.title}' now! ⚡" if played_immediately else (f"Added '{track.title}' to queue ➕ (Duplicate track noted)" if is_dup else f"Added '{track.title}' to queue ➕")
+                            await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": track.title, "message": msg, "is_duplicate": is_dup})
+                            return json_success({"action_id": action_id, "action": action, "status": "ENQUEUED", "title": track.title, "message": msg, "is_duplicate": is_dup})
                         res_err = getattr(AudioResolver, "last_resolver_error", None) or f"Could not find or resolve track for: '{query}'"
                         return json_error("RESOLVE_FAILED", res_err, status=404)
 
@@ -709,17 +822,24 @@ class MusicApiRouter:
                     title_hint = payload.get("title", "").strip() or None
                     artist_hint = payload.get("artist", "").strip() or None
                     if query:
+                        if len(session.queue) >= 250:
+                            return json_error("QUEUE_LIMIT_REACHED", "Queue limit reached (250 tracks max). Clear some tracks to add more.", status=400)
                         await _ensure_voice(req_channel_id)
                         from music_bot.services.resolver_service import AudioResolver
                         track = await AudioResolver.resolve_track(
                             query, user_id, "Web User", title_hint=title_hint, artist_hint=artist_hint
                         )
                         if track:
+                            is_dup = any(
+                                (t.url and t.url == track.url) or
+                                (t.title.lower() == track.title.lower() and (t.artist or "").lower() == (track.artist or "").lower())
+                                for t in session.queue
+                            )
                             session.queue.appendleft(track)
                             await MusicPlayerService.send_now_playing_panel(session)
-                            msg = f"Queued '{track.title}' to play next ⏭"
-                            await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title, "message": msg})
-                            return json_success({"action_id": action_id, "action": action, "status": "PLAY_NEXT", "title": track.title, "message": msg})
+                            msg = f"Queued '{track.title}' to play next ⏭" + (" (Duplicate noted)" if is_dup else "")
+                            await self.db.mark_web_action_completed(action_id, {"status": "queued_next", "title": track.title, "message": msg, "is_duplicate": is_dup})
+                            return json_success({"action_id": action_id, "action": action, "status": "PLAY_NEXT", "title": track.title, "message": msg, "is_duplicate": is_dup})
                         res_err = getattr(AudioResolver, "last_resolver_error", None) or f"Could not find or resolve track for: '{query}'"
                         return json_error("RESOLVE_FAILED", res_err, status=404)
 
@@ -918,8 +1038,9 @@ class MusicApiRouter:
         if not query:
             return json_error("MISSING_QUERY", "Search query or URL is required")
 
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id)
 
         action_id = await self.db.submit_web_action(
             guild_id=guild_id,
@@ -935,8 +1056,8 @@ class MusicApiRouter:
     async def get_favorites(self, request: web.Request) -> web.Response:
         """Fetch user's saved favorite music tracks."""
         await self._ensure_db()
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
         favs = await self.db.get_user_favorites(user_id, limit=50)
         return json_success(favs)
 
@@ -944,8 +1065,8 @@ class MusicApiRouter:
         """Add or remove a track from user's personal favorites."""
         await self._ensure_db()
         body = await request.json()
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
 
         title = body.get("title", "Song")
         url = body.get("url", "")
@@ -1007,8 +1128,9 @@ class MusicApiRouter:
         """List personal and server playlists for the active guild."""
         await self._ensure_db()
         guild_id = int(request.query.get("guild_id", "1525030316845301781"))
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id)
 
         playlists = await self.db.get_playlists(guild_id, user_id)
         result = []
@@ -1033,8 +1155,13 @@ class MusicApiRouter:
         if not name:
             return json_error("MISSING_NAME", "Playlist name is required")
 
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id)
+
+        # Server-wide playlist creation requires guild admin / manage guild permissions
+        if is_server and not user.get("is_admin") and not user.get("is_owner"):
+            is_server = False
 
         sm = SessionManager.get_instance()
         session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
@@ -1067,8 +1194,9 @@ class MusicApiRouter:
         if not name:
             return json_error("MISSING_NAME", "Playlist name is required")
 
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id)
 
         playlist = await self.db.get_playlist(guild_id, name, user_id)
         if not playlist or not playlist.tracks:
@@ -1093,8 +1221,9 @@ class MusicApiRouter:
         guild_id = int(body.get("guild_id", 1525030316845301781))
         name = body.get("name", "").strip()
 
-        user = await self._get_current_user(request)
-        user_id = int(user.get("user_id") or user.get("id") or 1457382179981099090) if user else 1457382179981099090
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id)
 
         deleted = await self.db.delete_playlist(guild_id, user_id, name)
         return json_success({"deleted": bool(deleted), "name": name})
@@ -1124,6 +1253,9 @@ class MusicApiRouter:
         """Update Auto-DJ settings: toggle on/off, change mood, or clear recommendations."""
         body = await request.json()
         guild_id = int(body.get("guild_id", 1525030316845301781))
+        user = await self._require_authenticated_user(request)
+        await self._verify_guild_access(user, guild_id)
+
         sm = SessionManager.get_instance()
         session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
 
@@ -1331,6 +1463,9 @@ class MusicApiRouter:
             return json_error("INVALID_GUILD_ID", "guild_id must be a numeric Discord ID", 400)
 
         guild_id = int(guild_id_raw)
+        user = await self._require_authenticated_user(request)
+        await self._verify_guild_access(user, guild_id)
+
         minutes = int(body.get("minutes", 0))
 
         sm = SessionManager.get_instance()

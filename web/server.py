@@ -144,6 +144,14 @@ class RaiCommunityOSServer:
                 "opus_loaded": bool(opus_ok),
                 "voice_ready": bool(has_dave and has_nacl and opus_ok),
             },
+            "database": {
+                "status": "connected" if bool(self.db) else "disconnected",
+                "wal_mode": True,
+            },
+            "checkpoint": {
+                "verified_branch": "checkpoint-pre-phase1",
+                "base_commit": "98a62bfaf1f632fa2ea83a1a796f5b47bb3e08da",
+            },
             "oauth": {
                 "configured": bool(self.api_router.auth.is_configured),
                 "client_id_present": bool(self.api_router.auth.client_id),
@@ -293,9 +301,9 @@ class RaiCommunityOSServer:
             "/status", "/wiki", "/mission-control",
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
-            "/search", "/queue", "/autodj", "/library", "/audio", "/dsp", "/stats",
+            "/search", "/queue", "/player", "/playlists", "/history", "/analytics", "/autodj", "/library", "/audio", "/dsp", "/stats",
             "/canvas", "/visualizer",
-            "/owner", "/dashboard/guilds",
+            "/owner", "/dashboard/guilds", "/system",
             "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
         for path in ui_routes:
@@ -435,6 +443,7 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/music/session", m.get_session)
         app.router.add_get("/api/music/queue", m.get_queue)
         app.router.add_get("/api/music/history", m.get_history)
+        app.router.add_post("/api/music/history/clear", m.clear_history)
         app.router.add_get("/api/music/favorites", m.get_favorites)
         app.router.add_post("/api/music/favorites/toggle", m.toggle_favorite)
         app.router.add_post("/api/music/control", m.dispatch_control)

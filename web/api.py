@@ -119,12 +119,18 @@ class ApiRouter:
         state = secrets.token_urlsafe(32)
         oauth_url = self.auth.get_oauth_url(state=state, redirect_uri=redirect_uri)
 
+        is_secure = (
+            request.scheme == "https"
+            or request.headers.get("X-Forwarded-Proto") == "https"
+            or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+        )
         resp = web.HTTPFound(oauth_url)
         resp.set_cookie(
             "oauth_state",
             state,
             max_age=600,
             httponly=True,
+            secure=is_secure,
             samesite="Lax",
             path="/",
         )
@@ -161,10 +167,10 @@ class ApiRouter:
             if not code:
                 raise web.HTTPFound("/?error=missing_code")
 
-            # Validate CSRF state parameter against cookie
+            # Validate CSRF state parameter strictly against cookie
             state = request.query.get("state")
             cookie_state = request.cookies.get("oauth_state")
-            if cookie_state and (not state or cookie_state != state):
+            if not cookie_state or not state or cookie_state != state:
                 logger.warning("OAuth2 state parameter mismatch or missing (possible CSRF attack).")
                 raise web.HTTPFound("/?error=csrf_validation_failed")
 
@@ -201,7 +207,7 @@ class ApiRouter:
                 SESSION_COOKIE_NAME,
                 session_id,
                 max_age=604800,
-                httponly=False,
+                httponly=True,
                 secure=is_secure,
                 samesite="Lax",
                 path="/",
@@ -243,13 +249,25 @@ class ApiRouter:
 
     async def auth_logout(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
+        invalidated = True
         if session:
-            try:
-                await self.db.delete_web_session(session["session_id"])
-            except Exception as e:
-                logger.debug(f"Session deletion note: {e}")
+            session_id = session.get("session_id")
+            if session_id:
+                invalidated = await self.auth.invalidate_session(session_id)
 
         accept_header = request.headers.get("Accept", "")
+        if not invalidated:
+            if "text/html" in accept_header:
+                resp = web.HTTPFound("/?logout=failed&error=database_error")
+            else:
+                resp = json_error(
+                    "SESSION_INVALIDATION_FAILED",
+                    "Session could not be completely removed from persistent storage",
+                    status=500,
+                )
+            resp.del_cookie(SESSION_COOKIE_NAME, path="/")
+            return resp
+
         if "text/html" in accept_header:
             resp = web.HTTPFound("/?logout=success")
         else:
@@ -260,6 +278,12 @@ class ApiRouter:
 
     async def auth_dev_login(self, request: web.Request) -> web.Response:
         """Safe test/direct login endpoint using Discord ID when OAuth flow is not used."""
+        # Block direct ID spoofing in production or whenever ALLOW_DEV_LOGIN is not true
+        is_prod = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("NODE_ENV") == "production")
+        allow_dev = os.getenv("ALLOW_DEV_LOGIN", "false").lower() == "true"
+        if is_prod or not allow_dev:
+            return json_error("FORBIDDEN", "Direct ID dev-login is disabled in this environment", status=403)
+
         try:
             body = await request.json()
         except Exception:
@@ -615,11 +639,13 @@ class ApiRouter:
             }, status=201)
 
     async def realtime_stream(self, request: web.Request) -> web.StreamResponse:
-        """Centralized Server-Sent Events (SSE) real-time stream."""
+        """Centralized Server-Sent Events (SSE) real-time stream (requires authentication)."""
+        await self.auth.require_auth(request)
         return await self.realtime.handle_sse(request)
 
     async def realtime_ws(self, request: web.Request) -> web.WebSocketResponse:
-        """Full-duplex WebSocket real-time event bus."""
+        """Full-duplex WebSocket real-time event bus (requires authentication)."""
+        await self.auth.require_auth(request)
         return await self.realtime.handle_ws(request)
 
     async def get_realtime_diagnostics(self, request: web.Request) -> web.Response:
@@ -2262,7 +2288,7 @@ class ApiRouter:
                 user_id = int(session["discord_user_id"])
 
         if user_id == 0:
-            user_id = 1457382179981099090
+            return json_error("UNAUTHORIZED", "Sign in with Discord required to access personal passport", status=401)
 
         try:
             eco = await self.db.get_or_create_user_economy(COMMUNITY_GUILD_ID, user_id)

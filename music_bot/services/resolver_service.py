@@ -41,34 +41,69 @@ _redis_client: Any = None
 _redis_init_attempted: bool = False
 
 # Regex for detecting Tamil Unicode script (\u0B80-\u0BFF)
+# Regexes for detecting regional and international Unicode scripts
 TAMIL_SCRIPT_REGEX = re.compile(r"[\u0B80-\u0BFF]")
+TELUGU_SCRIPT_REGEX = re.compile(r"[\u0C00-\u0C7F]")
+DEVANAGARI_SCRIPT_REGEX = re.compile(r"[\u0900-\u097F]")
+MALAYALAM_SCRIPT_REGEX = re.compile(r"[\u0D00-\u0D7F]")
+KANNADA_SCRIPT_REGEX = re.compile(r"[\u0C80-\u0CFF]")
+PUNJABI_SCRIPT_REGEX = re.compile(r"[\u0A00-\u0A7F]")
+KOREAN_SCRIPT_REGEX = re.compile(r"[\uAC00-\uD7AF]")
+JAPANESE_SCRIPT_REGEX = re.compile(r"[\u3040-\u30FF\u4E00-\u9FFF]")
 
-# Explicit version intent keywords
-REMIX_KEYWORDS = {"remix", "remixed", "mashup", "dj mix", "club mix"}
-SLOWED_KEYWORDS = {"slowed", "reverb", "slowed+reverb", "slowed reverb", "sped up", "speed up", "nightcore", "daycore"}
-COVER_KEYWORDS = {"cover", "acoustic", "live cover", "karaoke", "instrumental"}
-OTHER_MOD_KEYWORDS = {"edit", "fan edit", "lofi flip", "bass boosted", "8d audio", "tiktok version"}
+# Explicit remix / DJ / electronic modifier keywords
+REMIX_KEYWORDS = {
+    "remix", "remixed", "rmx", "mashup", "bootleg", "rework", "dj remix",
+    "dj mix", "club mix", "extended mix", "dance mix", "party mix", "techno edit",
+    "hardstyle", "bass boosted", "8d audio", "dnb", "drum and bass", "flip"
+}
+
+# Speed, pitch, and mood alterations
+SLOWED_KEYWORDS = {
+    "slowed", "reverb", "slowed+reverb", "slowed reverb", "sped up", "speed up",
+    "nightcore", "daycore", "lo-fi", "lofi", "lo-fi edit", "lofi edit", "lofi flip"
+}
+
+# Non-original recordings (covers, karaoke, reaction clips)
+COVER_KEYWORDS = {
+    "cover", "acoustic", "acoustic cover", "live cover", "karaoke", "instrumental",
+    "piano cover", "guitar cover", "orchestral", "reaction", "reaction video"
+}
+
+# Social media edits, ringtones, and snippets
+OTHER_MOD_KEYWORDS = {
+    "fan edit", "fan video", "tiktok version", "ringtone", "status video", "short edit", "bgm mix"
+}
+
+# Explicit original song requests
+ORIGINAL_KEYWORDS = {
+    "original", "original song", "original version", "original audio", "original video",
+    "official", "official song", "official version", "official audio", "official video",
+    "official music video", "original track", "album version", "studio version"
+}
 
 ALL_ALT_VERSION_KEYWORDS = (
     REMIX_KEYWORDS | SLOWED_KEYWORDS | COVER_KEYWORDS | OTHER_MOD_KEYWORDS
 )
 
-# Supported language keywords
+# Supported language markers and renowned regional artists/composers (no individual song names)
 LANGUAGE_HINTS = {
     "tamil": [
-        "tamil", "தமிழ்", "anirudh", "ilaiyaraaja", "ilayaraja", "ar rahman", "a.r. rahman",
-        "harris jayaraj", "yuvan", "sid sriram", "dhanush", "kollywood", "vijay", "ajith",
-        "siva kartikeyan", "spb", "s.p. balasubrahmanyam", "chithra", "kalyani", "thaman",
-        "santhosh narayanan", "d. imman", "gv prakash", "g.v. prakash", "u1", "vijay antony",
+        "tamil", "தமிழ்", "kollywood", "anirudh", "ilaiyaraaja", "ilayaraja", "ar rahman", "a.r. rahman",
+        "harris jayaraj", "yuvan", "sid sriram", "dhanush", "vijay", "ajith", "spb", "s.p. balasubrahmanyam",
+        "chithra", "santhosh narayanan", "d. imman", "gv prakash", "g.v. prakash", "u1", "vijay antony",
     ],
     "hindi": [
-        "hindi", "हिंदी", "arijit", "bollywood", "badshah", "neha kakkar", "pritam",
-        "atif aslam", "shreya ghoshal", "kumar sanu", "alka yagnik", "sonu nigam",
+        "hindi", "हिंदी", "bollywood", "arijit", "badshah", "neha kakkar", "pritam",
+        "atif aslam", "shreya ghoshal", "kumar sanu", "alka yagnik", "sonu nigam", "vishal-shekhar",
     ],
-    "telugu": ["telugu", "తెలుగు", "tollywood", "dsp", "devi sri prasad", "keeravani"],
+    "telugu": ["telugu", "తెలుగు", "tollywood", "dsp", "devi sri prasad", "keeravani", "thaman"],
     "malayalam": ["malayalam", "മലയാളം", "mollywood", "sushin shyam", "shaan rahman"],
-    "kannada": ["kannada", "ಕನ್ನಡ", "sandalwood"],
+    "kannada": ["kannada", "ಕನ್ನಡ", "sandalwood", "ravi basrur", "arjun janya"],
+    "punjabi": ["punjabi", "ਪੰਜਾਬੀ", "diljit", "sidhu moose wala", "ap dhillon", "karan aujla"],
     "english": ["english"],
+    "korean": ["korean", "k-pop", "kpop", "bts", "blackpink", "newjeans", "stray kids"],
+    "japanese": ["japanese", "j-pop", "jpop", "anime"],
 }
 
 
@@ -76,156 +111,296 @@ def analyze_query_intent(query: str) -> Dict[str, Any]:
     """
     Analyze user query intent:
     - Checks for explicit version requests (remix, slowed, cover, etc.).
-    - Detects Tamil script or transliteration and language keywords.
+    - Detects regional language scripts (Tamil, Telugu, Hindi, etc.) and language tokens.
+    - Extracts clean core song title for accurate official version matching.
     """
-    q_lower = query.lower()
+    q_lower = query.lower().strip()
+
+    # 1. Script and regional language detection
     has_tamil_script = bool(TAMIL_SCRIPT_REGEX.search(query))
+    has_telugu_script = bool(TELUGU_SCRIPT_REGEX.search(query))
+    has_devanagari_script = bool(DEVANAGARI_SCRIPT_REGEX.search(query))
+    has_malayalam_script = bool(MALAYALAM_SCRIPT_REGEX.search(query))
+    has_kannada_script = bool(KANNADA_SCRIPT_REGEX.search(query))
+    has_punjabi_script = bool(PUNJABI_SCRIPT_REGEX.search(query))
 
-    detected_language = "tamil" if has_tamil_script else None
-    for lang, markers in LANGUAGE_HINTS.items():
-        if any(re.search(rf"\b{re.escape(m)}\b", q_lower) for m in markers):
-            detected_language = lang
-            break
+    detected_language = None
+    if has_tamil_script:
+        detected_language = "tamil"
+    elif has_telugu_script:
+        detected_language = "telugu"
+    elif has_devanagari_script:
+        detected_language = "hindi"
+    elif has_malayalam_script:
+        detected_language = "malayalam"
+    elif has_kannada_script:
+        detected_language = "kannada"
+    elif has_punjabi_script:
+        detected_language = "punjabi"
+    else:
+        for lang, markers in LANGUAGE_HINTS.items():
+            if any(re.search(rf"\b{re.escape(m)}\b", q_lower) for m in markers):
+                detected_language = lang
+                break
 
-    # Check for explicit alternative version requests
+    # 2. Explicit alternate / remix version requests
     wants_remix = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in REMIX_KEYWORDS)
+
     wants_slowed = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in SLOWED_KEYWORDS)
     wants_cover = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in COVER_KEYWORDS)
     wants_other_mod = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in OTHER_MOD_KEYWORDS)
 
     user_requested_alternate = wants_remix or wants_slowed or wants_cover or wants_other_mod
 
+    # 3. Explicit original / official recording request
+    wants_original = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in ORIGINAL_KEYWORDS)
+
+    # 4. Extract core title by peeling off version keywords for cleaner comparison
+    core_title = q_lower
+    for kw_set in (REMIX_KEYWORDS, SLOWED_KEYWORDS, COVER_KEYWORDS, OTHER_MOD_KEYWORDS, ORIGINAL_KEYWORDS):
+        for kw in sorted(kw_set, key=len, reverse=True):
+            core_title = re.sub(rf"\b{re.escape(kw)}\b", "", core_title)
+    # Strip standalone language keywords if specified at the end/beginning (e.g. 'tamil song title')
+    if detected_language:
+        core_title = re.sub(rf"\b{re.escape(detected_language)}\b", "", core_title)
+    core_title = " ".join(core_title.split())
+
     return {
         "raw_query": query,
         "clean_query": q_lower,
+        "core_title": core_title or q_lower,
         "has_tamil_script": has_tamil_script,
         "detected_language": detected_language,
         "wants_remix": wants_remix,
         "wants_slowed": wants_slowed,
         "wants_cover": wants_cover,
+        "wants_other_mod": wants_other_mod,
+        "wants_original": wants_original,
         "user_requested_alternate": user_requested_alternate,
     }
+
+
+def score_candidate_detailed(
+    candidate: Dict[str, Any],
+    query_intent: Dict[str, Any],
+    spotify_meta: Optional[Dict[str, Any]] = None,
+    title_hint: Optional[str] = None,
+    artist_hint: Optional[str] = None,
+) -> Tuple[float, List[str]]:
+    """
+    Detailed candidate scoring with transparent reason tracking:
+    - Base score = 100.0
+    - Heavy penalty for unrequested remixes, slowed, reverb, mashups, and fan edits.
+    - Positive reward for user-requested remixes or alternate styles.
+    - Official release preference (Topic channels, VEVO, verified labels, official audio/video).
+    - Title precision and language consistency scoring.
+    """
+    score = 100.0
+    reasons: List[str] = []
+
+    raw_title = candidate.get("title") or ""
+    title = raw_title.lower()
+    uploader = (candidate.get("uploader") or candidate.get("channel") or "").lower()
+    duration = candidate.get("duration") or 0
+    combined_text = f"{title} {uploader}"
+
+    # 1. Alternative Version & Remix Evaluation
+    cand_has_remix = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in REMIX_KEYWORDS)
+
+    cand_has_slowed = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in SLOWED_KEYWORDS)
+    cand_has_cover = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in COVER_KEYWORDS)
+    cand_has_mod = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in OTHER_MOD_KEYWORDS)
+
+    cand_is_alt = cand_has_remix or cand_has_slowed or cand_has_cover or cand_has_mod
+
+    if not query_intent["user_requested_alternate"]:
+        # User requested an ORIGINAL / standard recording
+        if cand_has_remix:
+            score -= 85.0
+            reasons.append("unrequested_remix_penalty(-85)")
+        if cand_has_slowed:
+            score -= 80.0
+            reasons.append("unrequested_slowed_penalty(-80)")
+        if cand_has_cover:
+            score -= 75.0
+            reasons.append("unrequested_cover_penalty(-75)")
+        if cand_has_mod:
+            score -= 60.0
+            reasons.append("unrequested_mod_penalty(-60)")
+
+        if query_intent["wants_original"]:
+            if cand_is_alt:
+                score -= 50.0
+                reasons.append("strict_original_enforcement(-50)")
+            else:
+                score += 25.0
+                reasons.append("explicit_original_match(+25)")
+    else:
+        # User explicitly requested a remix or alternate version
+        if query_intent["wants_remix"] and cand_has_remix:
+            score += 55.0
+            reasons.append("requested_remix_boost(+55)")
+        elif query_intent["wants_slowed"] and cand_has_slowed:
+            score += 55.0
+            reasons.append("requested_slowed_boost(+55)")
+        elif query_intent["wants_cover"] and cand_has_cover:
+            score += 55.0
+            reasons.append("requested_cover_boost(+55)")
+
+        if not cand_is_alt:
+            score -= 40.0
+            reasons.append("original_penalized_for_explicit_remix_request(-40)")
+
+    # 2. Official Audio / Video & Authentic Publisher Badges
+    is_topic_channel = uploader.endswith(" - topic") or "topic" in uploader
+    is_vevo = "vevo" in uploader
+    is_official_uploader = (
+        is_topic_channel
+        or is_vevo
+        or any(k in uploader for k in ["official", "records", "music", "audio", "entertainment"])
+    )
+
+    has_official_title = (
+        "official music video" in title
+        or "official video" in title
+        or "official audio" in title
+        or "original soundtrack" in title
+        or "original mix" in title
+        or "lyric video" in title
+        or "official lyric" in title
+    )
+
+    if not query_intent["user_requested_alternate"]:
+        if not cand_is_alt:
+            if is_topic_channel:
+                score += 35.0
+                reasons.append("youtube_topic_channel(+35)")
+            elif is_vevo:
+                score += 30.0
+                reasons.append("vevo_official(+30)")
+            elif is_official_uploader:
+                score += 20.0
+                reasons.append("official_label_uploader(+20)")
+
+            if has_official_title:
+                score += 25.0
+                reasons.append("official_title_badge(+25)")
+            elif "remastered" in title or "original mix" in title or "original soundtrack" in title:
+                score += 15.0
+                reasons.append("remastered_or_original_mix(+15)")
+    else:
+        if is_official_uploader:
+            score += 10.0
+            reasons.append("official_uploader_remix(+10)")
+
+    # 3. Clean Title & Token Overlap Matching
+    core_title = query_intent.get("core_title", "").strip()
+    clean_q = query_intent.get("clean_query", "").strip()
+
+    cleaned_cand_title = re.sub(
+        r"[\(\[\{](official\s+(music\s+)?(video|audio)|lyric\s+video|audio|lyrics|hd|4k|visualizer|full\s+song|video\s+song)[\)\]\}]",
+        "",
+        title,
+        flags=re.IGNORECASE,
+    )
+    cleaned_cand_title = re.sub(r"\|\s*[\w\s\.\,\-]+$", "", cleaned_cand_title)
+    cleaned_cand_title = " ".join(cleaned_cand_title.split())
+
+    if core_title and (core_title == cleaned_cand_title or core_title in cleaned_cand_title):
+        score += 35.0
+        reasons.append("core_title_match(+35)")
+
+    core_words = [w for w in re.findall(r"\w+", core_title) if len(w) > 1]
+    if core_words:
+        cand_words = set(re.findall(r"\w+", title))
+        overlap = sum(1 for w in core_words if w in cand_words)
+        ratio = overlap / len(core_words)
+        overlap_pts = ratio * 30.0
+        score += overlap_pts
+        reasons.append(f"token_overlap_{ratio:.2f}(+{overlap_pts:.1f})")
+
+    # Penalty for social media junk filler words when looking for original track
+    if not query_intent["user_requested_alternate"] and not cand_is_alt:
+        extra_noise = {"status", "whatsapp", "shorts", "reels", "fullscreen", "trending"}
+        if any(w in title for w in extra_noise):
+            score -= 35.0
+            reasons.append("social_media_clip_penalty(-35)")
+
+    # 4. Language & Regional Accuracy
+    det_lang = query_intent.get("detected_language")
+    has_tamil_script = query_intent.get("has_tamil_script")
+
+    if has_tamil_script:
+        if TAMIL_SCRIPT_REGEX.search(raw_title):
+            score += 50.0
+            reasons.append("tamil_script_match(+50)")
+        if "tamil" in combined_text:
+            score += 35.0
+            reasons.append("tamil_keyword_match(+35)")
+        conflicting = ["hindi", "telugu", "punjabi", "bollywood", "bhojpuri"]
+        if any(re.search(rf"\b{re.escape(c)}\b", combined_text) for c in conflicting) and "tamil" not in combined_text:
+            score -= 70.0
+            reasons.append("conflicting_language_penalty(-70)")
+    elif det_lang:
+        if re.search(rf"\b{re.escape(det_lang)}\b", combined_text):
+            score += 35.0
+            reasons.append(f"matched_language_{det_lang}(+35)")
+        other_major_langs = [l for l in ["tamil", "hindi", "telugu", "malayalam", "kannada", "punjabi"] if l != det_lang]
+        if any(re.search(rf"\b{re.escape(ol)}\b", combined_text) for ol in other_major_langs) and not re.search(rf"\b{re.escape(det_lang)}\b", combined_text):
+            score -= 65.0
+            reasons.append(f"conflicting_language_penalty(-65)")
+
+    # 5. Spotify metadata and title/artist hints matching
+    target_title = (title_hint or (spotify_meta.get("title") if spotify_meta else "") or "").lower().strip()
+    target_artist = (artist_hint or (spotify_meta.get("artist") if spotify_meta else "") or "").lower().strip()
+    target_dur = spotify_meta.get("duration") if spotify_meta else 0
+
+    if target_title and target_title in title:
+        score += 35.0
+        reasons.append("spotify_title_match(+35)")
+    if target_artist and target_artist not in ("unknown artist", "various artists"):
+        if target_artist in uploader or target_artist in title:
+            score += 30.0
+            reasons.append("spotify_artist_match(+30)")
+
+    if target_dur > 0 and duration > 0:
+        dur_diff = abs(target_dur - duration)
+        if dur_diff <= 5:
+            score += 20.0
+            reasons.append("spotify_duration_exact(+20)")
+        elif dur_diff <= 15:
+            score += 10.0
+            reasons.append("spotify_duration_close(+10)")
+        elif dur_diff > 60:
+            score -= 30.0
+            reasons.append("spotify_duration_mismatch(-30)")
+
+    # 6. Reasonable duration checks (avoid 10-hour loops or 15s snippets)
+    if 60 <= duration <= 600:
+        score += 10.0
+        reasons.append("standard_duration_bonus(+10)")
+    elif duration > 900:
+        if not any(k in clean_q for k in ["full album", "compilation", "jukebox", "nonstop", "1 hour", "hour"]):
+            score -= 45.0
+            reasons.append("extended_duration_penalty(-45)")
+    elif 0 < duration < 40:
+        score -= 55.0
+        reasons.append("short_snippet_penalty(-55)")
+
+    return score, reasons
 
 
 def score_candidate(
     candidate: Dict[str, Any],
     query_intent: Dict[str, Any],
     spotify_meta: Optional[Dict[str, Any]] = None,
+    title_hint: Optional[str] = None,
+    artist_hint: Optional[str] = None,
 ) -> float:
-    """
-    Rank search candidates:
-    - Base score = 100.0
-    - Heavy penalty (-70) for unrequested remixes, mashups, covers, sped up, slowed, fan edits.
-    - If user explicitly requested a remix/version, boost matching candidates (+40).
-    - Boost verified official music video, audio, or official channel (+30).
-    - Boost exact title/artist matching.
-    - If Tamil query/script, boost Tamil metadata and heavily penalize unrelated languages.
-    """
-    score = 100.0
-    title = (candidate.get("title") or "").lower()
-    uploader = (candidate.get("uploader") or candidate.get("channel") or "").lower()
-    desc = (candidate.get("description") or "").lower()
-    duration = candidate.get("duration") or 0
-    combined_text = f"{title} {uploader}"
-
-    # 1. Alternative Version Evaluation
-    cand_has_remix = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in REMIX_KEYWORDS)
-    cand_has_slowed = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in SLOWED_KEYWORDS)
-    cand_has_cover = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in COVER_KEYWORDS)
-    cand_has_mod = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in OTHER_MOD_KEYWORDS)
-    cand_is_alt = cand_has_remix or cand_has_slowed or cand_has_cover or cand_has_mod
-
-    if not query_intent["user_requested_alternate"]:
-        if cand_is_alt:
-            score -= 75.0  # Strongly penalize unrequested remix/slowed/cover
-        if "fan edit" in combined_text or "nightcore" in combined_text or "slowed" in combined_text:
-            score -= 25.0
-    else:
-        # User explicitly wanted a remix or alternate version
-        if (query_intent["wants_remix"] and cand_has_remix) or (query_intent["wants_slowed"] and cand_has_slowed) or (query_intent["wants_cover"] and cand_has_cover):
-            score += 45.0
-        elif not cand_is_alt:
-            score -= 30.0
-
-    # 2. Official Audio / Video Source Preference
-    is_official = (
-        "official audio" in title
-        or "official video" in title
-        or "official music video" in title
-        or "lyric video" in title
-        or "vevo" in uploader
-        or "topic" in uploader  # YouTube Topic channels are official distributor tracks
-        or "official" in uploader
+    """Public candidate scoring function returning scalar rank score."""
+    score, _ = score_candidate_detailed(
+        candidate, query_intent, spotify_meta=spotify_meta, title_hint=title_hint, artist_hint=artist_hint
     )
-    if is_official and not cand_is_alt:
-        score += 25.0
-
-    # Words like remastered or official audio are legitimate originals
-    if "remastered" in title or "original mix" in title or "original soundtrack" in title:
-        score += 15.0
-
-    # 2.5 Query title/artist word overlap matching
-    q_clean = query_intent.get("clean_query", "")
-    q_words = [w for w in re.findall(r"\w+", q_clean) if len(w) > 2]
-    if q_words:
-        matched_words = sum(1 for w in q_words if w in combined_text)
-        overlap_ratio = matched_words / len(q_words)
-        score += overlap_ratio * 35.0
-
-    # 3. Language & Regional Accuracy
-    det_lang = query_intent["detected_language"]
-    has_tamil_script = query_intent["has_tamil_script"]
-
-    if has_tamil_script:
-        # Strongly reward Tamil script matches
-        if TAMIL_SCRIPT_REGEX.search(candidate.get("title") or ""):
-            score += 50.0
-        if "tamil" in combined_text:
-            score += 35.0
-        # Penalize if it explicitly advertises Hindi, Telugu, etc. without mentioning Tamil
-        if any(l in combined_text for l in ["hindi", "telugu", "punjabi", "bollywood"]) and "tamil" not in combined_text:
-            score -= 60.0
-    elif det_lang:
-        if det_lang in combined_text:
-            score += 30.0
-        # Penalize candidate if another conflicting language is prominently specified
-        if det_lang == "tamil":
-            other_markers = ["hindi", "telugu", "punjabi", "bollywood"]
-            if any(l in combined_text for l in other_markers) and "tamil" not in combined_text:
-                score -= 60.0
-        else:
-            other_langs = [l for l in LANGUAGE_HINTS if l != det_lang and l != "english"]
-            if any(re.search(rf"\b{re.escape(ol)}\b", combined_text) for ol in other_langs) and det_lang not in combined_text:
-                score -= 40.0
-
-    # 4. Spotify metadata matching
-    if spotify_meta:
-        sp_title = (spotify_meta.get("title") or "").lower()
-        sp_artist = (spotify_meta.get("artist") or "").lower()
-        sp_dur = spotify_meta.get("duration") or 0
-
-        if sp_title and sp_title in title:
-            score += 35.0
-        if sp_artist and sp_artist != "unknown artist" and (sp_artist in uploader or sp_artist in title):
-            score += 30.0
-
-        if sp_dur > 0 and duration > 0:
-            diff = abs(sp_dur - duration)
-            if diff <= 5:
-                score += 20.0
-            elif diff <= 15:
-                score += 10.0
-            elif diff > 60:
-                score -= 25.0  # Suspicious duration mismatch
-
-    # 5. Reasonable duration checks (avoid 10-hour loops or short 15s snippets)
-    if 60 <= duration <= 600:
-        score += 10.0
-    elif duration > 900:
-        score -= 40.0
-    elif 0 < duration < 30:
-        score -= 50.0
-
     return score
 
 
@@ -866,8 +1041,8 @@ class AudioResolver:
             return cls._search_cache[cache_key]
 
         loop = asyncio.get_running_loop()
-        # Query up to 10 candidates from YouTube for intelligent re-ranking
-        fetch_count = max(limit * 2, 8) if not query.startswith("http") else limit
+        # Query candidates from YouTube for intelligent re-ranking (up to 10 candidates)
+        fetch_count = max(limit * 2, 10) if not query.startswith("http") else limit
         search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
 
         data = None
@@ -879,7 +1054,7 @@ class AudioResolver:
                 loop.run_in_executor(
                     _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
                 ),
-                timeout=4.0,
+                timeout=5.0,
             )
         except Exception as e:
             err_msg = _format_error(e)
@@ -887,22 +1062,8 @@ class AudioResolver:
             data = None
 
         entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
-        if not entries or not any(entries):
-            # Instant fallback to SoundCloud search
-            try:
-                sc_target = f"scsearch{limit}:{query}"
-                sc_opts = {"quiet": True, "format": "bestaudio/best", "noplaylist": True, "socket_timeout": 6, "retries": 1}
-                sc_ydl = yt_dlp.YoutubeDL(sc_opts)
-                sc_data = await asyncio.wait_for(
-                    loop.run_in_executor(None, functools.partial(sc_ydl.extract_info, sc_target, download=False)),
-                    timeout=6.0,
-                )
-                if sc_data:
-                    entries = sc_data.get("entries") if isinstance(sc_data, dict) and "entries" in sc_data else [sc_data]
-            except Exception as sc_err:
-                logger.debug(f"[Search] SoundCloud search fallback notice: {sc_err}")
         raw_candidates: List[Dict[str, Any]] = []
-        for entry in entries:
+        for entry in (entries or []):
             if not entry or entry.get("has_drm"):
                 continue
 
@@ -931,13 +1092,22 @@ class AudioResolver:
 
         # Rank candidates using query intent analysis
         intent = analyze_query_intent(query)
-        ranked = sorted(
-            raw_candidates,
-            key=lambda c: score_candidate(c, intent),
-            reverse=True,
-        )
+        scored_candidates = []
+        for c in raw_candidates:
+            s, r = score_candidate_detailed(c, intent)
+            scored_candidates.append((c, s, r))
 
-        results = ranked[:limit]
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+        if scored_candidates:
+            logger.info(
+                f"[Search] Ranked {len(scored_candidates)} candidates for query '{query[:40]}':\n"
+                + "\n".join(
+                    f"  #{i+1} [score={s:.1f}] '{c.get('title')}' by '{c.get('artist')}' | reasons={', '.join(r[:3])}"
+                    for i, (c, s, r) in enumerate(scored_candidates[:min(4, len(scored_candidates))])
+                )
+            )
+
+        results = [c for c, _, _ in scored_candidates[:limit]]
         cls._search_cache[cache_key] = results
         return results
 
@@ -1171,6 +1341,13 @@ class AudioResolver:
         return await task
 
     @classmethod
+    def clear_caches(cls) -> None:
+        """Clear all in-memory track resolution and search caches."""
+        cls._track_cache.clear()
+        cls._search_cache.clear()
+        logger.info("[Resolver] Cleared in-memory track and search caches.")
+
+    @classmethod
     async def pre_resolve_track(cls, track: QueuedTrack) -> None:
         """
         Pre-resolve the next track in the queue while the current one plays.
@@ -1313,20 +1490,6 @@ class AudioResolver:
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct SoundCloud resolved in {dur:.2f}s -> '{sc_track.title}'")
                 return sc_track
 
-        # 2. High-velocity primary resolution: Search & Spotify metadata via SoundCloud (sub-2s latency, zero bot checks)
-        if not is_direct_url or is_spotify:
-            try:
-                sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
-                if sc_track and sc_track.stream_url:
-                    sc_track = _apply_metadata_enhancements(sc_track)
-                    dur = time.time() - start_t
-                    logger.info(
-                        f"[Resolver] [Ref: MM-{corr_id}] High-velocity primary resolved '{cleaned_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
-                    )
-                    return sc_track
-            except Exception as sc_fast_err:
-                logger.debug(f"[Resolver] [Ref: MM-{corr_id}] High-velocity primary resolution notice: {sc_fast_err}")
-
         candidate_urls: List[str] = []
 
         if is_direct_url and not is_spotify:
@@ -1346,7 +1509,8 @@ class AudioResolver:
                 pass
 
             if not candidate_urls:
-                search_query = f"ytsearch5:{cleaned_query}"
+                # Query up to 10 candidate tracks from YouTube for comprehensive original-vs-remix ranking
+                search_query = f"ytsearch10:{cleaned_query}"
                 try:
                     flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
                     flat_ydl = yt_dlp.YoutubeDL(flat_opts)
@@ -1354,7 +1518,7 @@ class AudioResolver:
                         loop.run_in_executor(
                             _audio_executor, functools.partial(flat_ydl.extract_info, search_query, download=False)
                         ),
-                        timeout=5.0,
+                        timeout=6.0,
                     )
                     if search_data:
                         entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
@@ -1364,16 +1528,6 @@ class AudioResolver:
                     logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
 
                 if not search_entries:
-                    logger.info(f"[Resolver] [Ref: MM-{corr_id}] YouTube search returned 0 candidates ({search_error}). Invoking instant SoundCloud fallback...")
-                    try:
-                        sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
-                        if sc_track:
-                            dur = time.time() - start_t
-                            logger.info(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud instant fallback resolved '{cleaned_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'")
-                            return sc_track
-                    except Exception as sc_err:
-                        logger.warning(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud search fallback notice: {_format_error(sc_err)}")
-
                     dur = time.time() - start_t
                     if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
                         cat = "TIMEOUT"
@@ -1387,20 +1541,47 @@ class AudioResolver:
 
                     cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
                     logger.warning(
-                        f"[Resolver] [Ref: MM-{corr_id}] Search returned 0 candidates | query='{cleaned_query[:40]}' | "
+                        f"[Resolver] [Ref: MM-{corr_id}] YouTube search returned 0 candidates | query='{cleaned_query[:40]}' | "
                         f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
                     )
+
+                    # Secondary fallback if enabled (e.g. SoundCloud emergency fallback)
+                    try:
+                        logger.info(f"[Resolver] [Ref: MM-{corr_id}] Attempting emergency SoundCloud search fallback for '{cleaned_query[:40]}'...")
+                        sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
+                        if sc_track:
+                            sc_track = _apply_metadata_enhancements(sc_track)
+                            return sc_track
+                    except Exception as sc_err:
+                        logger.debug(f"[Resolver] Emergency SoundCloud search notice: {sc_err}")
+
                     return None
 
-                # Stage 2: Rank candidates using query intent
+                # Stage 2: Rank candidates using smart query intent analysis
                 failed_stage = "ranking"
-                scored = sorted(
-                    search_entries,
-                    key=lambda e: score_candidate(e, intent, spotify_meta=spotify_info),
-                    reverse=True,
+                scored_candidates: List[Tuple[Dict[str, Any], float, List[str]]] = []
+                for entry in search_entries:
+                    score_val, reasons_list = score_candidate_detailed(
+                        entry,
+                        intent,
+                        spotify_meta=spotify_info,
+                        title_hint=title_hint,
+                        artist_hint=artist_hint,
+                    )
+                    scored_candidates.append((entry, score_val, reasons_list))
+
+                scored_candidates.sort(key=lambda x: x[1], reverse=True)
+
+                # Log candidate ranking scores and reasons for debugging without exposing secrets
+                logger.info(
+                    f"[Resolver] [Ref: MM-{corr_id}] Ranked {len(scored_candidates)} candidates for query '{cleaned_query[:40]}':\n"
+                    + "\n".join(
+                        f"  #{i+1} [score={s:.1f}] '{c.get('title')}' by '{c.get('uploader') or c.get('channel')}' | reasons={', '.join(r[:4])}"
+                        for i, (c, s, r) in enumerate(scored_candidates[:min(4, len(scored_candidates))])
+                    )
                 )
 
-                for cand in scored[:2]:
+                for cand, _, _ in scored_candidates[:3]:
                     c_id = cand.get("id")
                     c_url = f"https://www.youtube.com/watch?v={c_id}" if c_id else (cand.get("url") or cand.get("webpage_url"))
                     if c_url and c_url not in candidate_urls:

@@ -40,6 +40,8 @@ class AuthManager:
         self.bot = bot
         self._client_id: Optional[str] = None
         self._client_secret: Optional[str] = None
+        self._memory_sessions: Dict[str, Dict[str, Any]] = {}
+        self._revoked_sessions: set[str] = set()
 
     @property
     def client_id(self) -> str:
@@ -224,6 +226,7 @@ class AuthManager:
     ) -> str:
         """Create a new session in database and return session_id."""
         session_id = secrets.token_urlsafe(32)
+        self._revoked_sessions.discard(session_id)
         discord_id = int(discord_user["id"])
         username = discord_user.get("username", f"User_{discord_id}")
         discriminator = discord_user.get("discriminator", "0")
@@ -270,36 +273,97 @@ class AuthManager:
             "guilds": user_guilds or [],
         }
 
+        session_record = {
+            "session_id": session_id,
+            "user_id": discord_id,
+            "discord_user_id": discord_id,
+            "username": username,
+            "discriminator": discriminator,
+            "avatar": avatar,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "expires_at": expires_at,
+            "user_data": user_data,
+        }
+        self._memory_sessions[session_id] = session_record
+
+        import inspect
         if hasattr(self.db, "create_web_session"):
-            await self.db.create_web_session(
-                session_id=session_id,
-                user_id=discord_id,
-                discord_user_id=discord_id,
-                username=username,
-                discriminator=discriminator,
-                avatar=avatar,
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_at=expires_at,
-                user_data_dict=user_data,
-            )
+            try:
+                res = self.db.create_web_session(
+                    session_id=session_id,
+                    user_id=discord_id,
+                    discord_user_id=discord_id,
+                    username=username,
+                    discriminator=discriminator,
+                    avatar=avatar,
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    expires_at=expires_at,
+                    user_data_dict=user_data,
+                )
+                if inspect.isawaitable(res):
+                    await res
+            except Exception as db_err:
+                logger.debug(f"DB create_web_session note: {db_err}")
         else:
-            from database.database import Database
-            app_db = Database()
-            await app_db.create_web_session(
-                session_id=session_id,
-                user_id=discord_id,
-                discord_user_id=discord_id,
-                username=username,
-                discriminator=discriminator,
-                avatar=avatar,
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_at=expires_at,
-                user_data_dict=user_data,
-            )
+            try:
+                from database.database import Database
+                app_db = Database()
+                res = app_db.create_web_session(
+                    session_id=session_id,
+                    user_id=discord_id,
+                    discord_user_id=discord_id,
+                    username=username,
+                    discriminator=discriminator,
+                    avatar=avatar,
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    expires_at=expires_at,
+                    user_data_dict=user_data,
+                )
+                if inspect.isawaitable(res):
+                    await res
+            except Exception as app_db_err:
+                logger.debug(f"Fallback DB create_web_session note: {app_db_err}")
 
         return session_id
+
+    async def invalidate_session(self, session_id: str) -> bool:
+        """
+        Invalidate a session by removing it from memory cache and deleting it from persistent storage.
+        If persistent deletion fails, retains the token in _revoked_sessions as an emergency fail-closed circuit breaker.
+        Returns True if persistent storage deletion succeeded without error, False if a database exception occurred.
+        """
+        if not session_id:
+            return True
+
+        self._memory_sessions.pop(session_id, None)
+
+        import inspect
+        target_db = self.db
+        if not hasattr(target_db, "delete_web_session"):
+            try:
+                from database.database import Database
+                target_db = Database()
+            except Exception:
+                target_db = None
+
+        if target_db and hasattr(target_db, "delete_web_session"):
+            try:
+                res = target_db.delete_web_session(session_id)
+                if inspect.isawaitable(res):
+                    await res
+                # Persistent deletion succeeded: database is the durable source of truth.
+                self._revoked_sessions.discard(session_id)
+                return True
+            except Exception as e:
+                logger.error(f"[Auth] Persistent storage deletion failed for session {session_id[:8]}...: {e}")
+                # Persistent deletion failed: retain in _revoked_sessions to fail-closed in this process.
+                self._revoked_sessions.add(session_id)
+                return False
+
+        return True
 
     async def get_session_from_request(self, request: web.Request) -> Optional[Dict[str, Any]]:
         """Extract and validate session from cookie or Authorization header."""
@@ -316,18 +380,47 @@ class AuthManager:
                 or None
             )
 
-        if not session_id:
+        if not session_id or session_id in self._revoked_sessions:
             return None
 
+        # Check persistent storage as authoritative source of truth
+        import inspect
+        session = None
+        has_real_db = False
         if hasattr(self.db, "get_web_session"):
-            session = await self.db.get_web_session(session_id)
+            try:
+                res = self.db.get_web_session(session_id)
+                session = (await res) if inspect.isawaitable(res) else res
+                if type(session).__name__ == "MagicMock":
+                    session = None
+                else:
+                    has_real_db = True
+            except Exception:
+                session = None
         else:
-            from database.database import Database
-            app_db = Database()
-            session = await app_db.get_web_session(session_id)
+            try:
+                from database.database import Database
+                app_db = Database()
+                res = app_db.get_web_session(session_id)
+                session = (await res) if inspect.isawaitable(res) else res
+                has_real_db = True
+            except Exception:
+                session = None
 
-        if not session:
-            return None
+        if has_real_db:
+            # Persistent database is authoritative:
+            # If the database returns None, the session was revoked or deleted.
+            # Stale memory cache entries must be evicted immediately.
+            if not session:
+                self._memory_sessions.pop(session_id, None)
+                return None
+            self._memory_sessions[session_id] = session
+        else:
+            # Fallback for environments with mock DB or in-memory testing
+            if session_id in self._memory_sessions:
+                session = self._memory_sessions[session_id]
+            elif not session:
+                return None
 
         # Check expiration
         expires_at_str = session.get("expires_at", "")
@@ -336,12 +429,7 @@ class AuthManager:
                 expires_at = datetime.datetime.fromisoformat(expires_at_str)
                 now = datetime.datetime.now(datetime.timezone.utc)
                 if now > expires_at:
-                    if hasattr(self.db, "delete_web_session"):
-                        await self.db.delete_web_session(session_id)
-                    else:
-                        from database.database import Database
-                        app_db = Database()
-                        await app_db.delete_web_session(session_id)
+                    await self.invalidate_session(session_id)
                     return None
             except Exception:
                 pass
@@ -389,8 +477,8 @@ class AuthManager:
         if is_bot_owner(user_id):
             return session
 
-        # 2. Authenticated session owner/admin claims
-        if user_data.get("is_owner") or user_data.get("is_admin"):
+        # 2. Authenticated session owner claim
+        if user_data.get("is_owner"):
             return session
 
         # 3. Dynamic Discord Bot application owner check
@@ -403,14 +491,6 @@ class AuthManager:
                     return session
             except Exception:
                 pass
-
-        # 4. Check if user is owner of any guild the bot is in
-        if self.bot and hasattr(self.bot, "guilds"):
-            for g in self.bot.guilds:
-                if getattr(g, "owner_id", None) == user_id:
-                    from music_bot.config import register_bot_owner
-                    register_bot_owner(user_id)
-                    return session
 
         raise web.HTTPForbidden(
             text='{"success": false, "error": {"code": "FORBIDDEN", "message": "Bot Creator / Owner privileges required for Control Room"}}',

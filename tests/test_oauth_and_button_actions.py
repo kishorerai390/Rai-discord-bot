@@ -67,6 +67,13 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
         self.rai_server = RaiCommunityOSServer(bot=self.mock_bot, db=self.mock_db, port=8198)
         app = web.Application()
         self.rai_server.setup_routes(app)
+
+        self.auth_session_id = await self.rai_server.api_router.auth.create_session_for_user(
+            discord_user={"id": "1457380609641938981", "username": "MusicTester"},
+            is_admin_override=True,
+            user_guilds=[{"id": "1525030316845301781", "name": "THOR APEX ⚡"}],
+        )
+        self.auth_cookies = {"rai_session": self.auth_session_id}
         return app
 
     async def test_01_auth_login_redirect(self):
@@ -154,11 +161,20 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
 
         with patch("music_bot.services.resolver_service.AudioResolver.resolve_track", AsyncMock(return_value=mock_resolved_track)), \
              patch("music_bot.services.player_service.MusicPlayerService.send_now_playing_panel", AsyncMock()):
-            resp = await self.client.post("/api/music/control", json={
+            # Anonymous must return 401
+            unauth_resp = await self.client.post("/api/music/control", json={
                 "guild_id": 1525030316845301781,
                 "action": "ENQUEUE",
                 "payload": {"query": "Vaathi Coming"}
             })
+            assert unauth_resp.status == 401
+
+            # Authorized user succeeds
+            resp = await self.client.post("/api/music/control", json={
+                "guild_id": 1525030316845301781,
+                "action": "ENQUEUE",
+                "payload": {"query": "Vaathi Coming"}
+            }, cookies=self.auth_cookies)
             assert resp.status == 200
             data = await resp.json()
             assert data["success"] is True
@@ -178,7 +194,7 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
             resp = await self.client.post("/api/music/control", json={
                 "guild_id": 1525030316845301781,
                 "action": "CLEAR"
-            })
+            }, cookies=self.auth_cookies)
             assert resp.status == 200
             assert len(session.queue) == 0
 
@@ -186,7 +202,7 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
             resp2 = await self.client.post("/api/music/control", json={
                 "guild_id": 1525030316845301781,
                 "action": "STOP"
-            })
+            }, cookies=self.auth_cookies)
             assert resp2.status == 200
             data2 = await resp2.json()
             assert data2["success"] is True
