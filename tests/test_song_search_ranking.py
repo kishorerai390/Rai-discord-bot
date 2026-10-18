@@ -337,6 +337,115 @@ class TestSongSearchRanking(unittest.TestCase):
 
         asyncio.run(_test())
 
+    # =========================================================================
+    # 9. ORIGINAL STUDIO VERSION VS LIVE CONCERT PERFORMANCE
+    # =========================================================================
+    def test_09_original_studio_version_vs_live_concert_clip(self):
+        """
+        Verify searching for a song strongly prioritizes the pristine studio recording / official
+        audio over live concert clips or tour performances.
+        """
+        intent = analyze_query_intent("Starboy")
+        self.assertFalse(intent["user_requested_alternate"])
+        self.assertFalse(intent.get("wants_live", False))
+
+        studio_cand = {
+            "title": "The Weeknd - Starboy (Official Audio) ft. Daft Punk",
+            "uploader": "TheWeekndVEVO",
+            "duration": 230,
+        }
+        live_cand = {
+            "title": "The Weeknd - Starboy (Live at Coachella 2018)",
+            "uploader": "Coachella Live Clips",
+            "duration": 310,
+        }
+
+        s_studio, r_studio = score_candidate_detailed(studio_cand, intent)
+        s_live, r_live = score_candidate_detailed(live_cand, intent)
+
+        self.assertGreater(s_studio, s_live, "Studio track must heavily outscore live concert clip")
+        self.assertTrue(any("unrequested_live_penalty" in r for r in r_live))
+        self.assertGreaterEqual(s_studio - s_live, 70.0, "Expected at least 70 point separation")
+
+    # =========================================================================
+    # 10. YOUTUBE TOPIC OFFICIAL AUDIO VS UNOFFICIAL FAN LYRIC VIDEO
+    # =========================================================================
+    def test_10_youtube_topic_official_audio_vs_fan_lyric_video(self):
+        """
+        Verify YouTube Topic channel studio audio strongly outscores unofficial fan lyric uploads.
+        """
+        intent = analyze_query_intent("Espresso Sabrina Carpenter")
+        self.assertFalse(intent["user_requested_alternate"])
+
+        topic_cand = {
+            "title": "Espresso",
+            "uploader": "Sabrina Carpenter - Topic",
+            "duration": 175,
+        }
+        fan_cand = {
+            "title": "Sabrina Carpenter - Espresso (Lyrics)",
+            "uploader": "RandomLyricsChannel77",
+            "duration": 175,
+        }
+
+        s_topic, r_topic = score_candidate_detailed(topic_cand, intent)
+        s_fan, r_fan = score_candidate_detailed(fan_cand, intent)
+
+        self.assertGreater(s_topic, s_fan, "Topic channel audio must beat unverified fan lyric video")
+        self.assertTrue(any("youtube_topic_channel" in r for r in r_topic))
+        self.assertTrue(any("unverified_fan_upload_penalty" in r for r in r_fan))
+
+    # =========================================================================
+    # 11. SONGS WITH THE WORD 'LIVE' IN TITLE NOT FALSELY PENALIZED
+    # =========================================================================
+    def test_11_songs_with_word_live_in_title_not_penalized(self):
+        """
+        Verify songs whose legitimate titles contain the word 'live' (e.g. 'Live Your Life')
+        are NOT misclassified as concert clips and are not penalized.
+        """
+        intent = analyze_query_intent("Live Your Life T.I. Rihanna")
+        self.assertFalse(intent["user_requested_alternate"], "'Live Your Life' must not imply alternate version")
+        self.assertFalse(intent.get("wants_live", False), "'Live Your Life' must not set wants_live")
+
+        official_cand = {
+            "title": "T.I. - Live Your Life ft. Rihanna (Official Video)",
+            "uploader": "T.I. - Topic",
+            "duration": 338,
+        }
+
+        score, reasons = score_candidate_detailed(official_cand, intent)
+        self.assertFalse(any("unrequested_live_penalty" in r for r in reasons), "'Live Your Life' must not trigger live penalty")
+        self.assertGreater(score, 150.0, "Legitimate studio track must score high")
+
+    # =========================================================================
+    # 12. EXPLICIT LIVE REQUEST PRIORITIZES LIVE CONCERT
+    # =========================================================================
+    def test_12_explicit_live_request_prioritizes_live_concert(self):
+        """
+        Verify that when user explicitly requests a live version (e.g. 'Fix You live'),
+        the live concert performance is boosted and the studio original is penalized.
+        """
+        intent = analyze_query_intent("Fix You live")
+        self.assertTrue(intent["user_requested_alternate"])
+        self.assertTrue(intent.get("wants_live", False))
+
+        live_cand = {
+            "title": "Coldplay - Fix You (Live in São Paulo)",
+            "uploader": "Coldplay",
+            "duration": 320,
+        }
+        studio_cand = {
+            "title": "Coldplay - Fix You (Official Video)",
+            "uploader": "Coldplay - Topic",
+            "duration": 295,
+        }
+
+        s_live, r_live = score_candidate_detailed(live_cand, intent)
+        s_studio, r_studio = score_candidate_detailed(studio_cand, intent)
+
+        self.assertGreater(s_live, s_studio, "Explicit live request must prioritize concert version")
+        self.assertTrue(any("requested_live_boost" in r for r in r_live))
+
 
 if __name__ == "__main__":
     unittest.main()

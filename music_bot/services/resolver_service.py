@@ -75,6 +75,30 @@ OTHER_MOD_KEYWORDS = {
     "fan edit", "fan video", "tiktok version", "ringtone", "status video", "short edit", "bgm mix"
 }
 
+# Live concert and non-studio recording patterns
+LIVE_PATTERNS = [
+    re.compile(r"[\(\[\{]\s*live(\s+(at|in|from|session|performance|version|concert|acoustic))?[\)\]\}]", re.IGNORECASE),
+    re.compile(r"\b(live at|live in|live from|live concert|live performance|live session|live acoustic|live version|live audio|live video)\b", re.IGNORECASE),
+    re.compile(r"[-–|:]\s*live(\s+(at|in|from|session|performance|version|concert|acoustic))?\s*($|[-–|:(\[{])", re.IGNORECASE),
+    re.compile(r"\b(concert|unplugged|world tour|stadium tour)\b", re.IGNORECASE),
+]
+
+# Amateur parodies, tributes, and reaction content
+PARODY_TRIBUTE_KEYWORDS = {
+    "parody", "tribute", "fanmade", "fan-made", "fan made", "reaction", "reacting", "review"
+}
+
+# Major verified record labels, publishers, and topic channels
+MAJOR_RECORD_LABELS = {
+    "vevo", "topic", "sony", "sonymusic", "universal", "universal music",
+    "warner", "warner music", "t-series", "tseries", "zee music", "yrf",
+    "saregama", "think music", "aditya music", "tips", "lahari music",
+    "speed records", "geetha arts", "sun tv", "sun pictures", "anirudh",
+    "atlantic", "interscope", "republic records", "def jam", "columbia records",
+    "rca records", "epic records", "capitol records", "virgin music",
+    "spinnin", "monstercat", "big hit", "hybe", "sm entertainment", "jyp", "yg"
+}
+
 # Explicit original song requests
 ORIGINAL_KEYWORDS = {
     "original", "original song", "original version", "original audio", "original video",
@@ -83,7 +107,7 @@ ORIGINAL_KEYWORDS = {
 }
 
 ALL_ALT_VERSION_KEYWORDS = (
-    REMIX_KEYWORDS | SLOWED_KEYWORDS | COVER_KEYWORDS | OTHER_MOD_KEYWORDS
+    REMIX_KEYWORDS | SLOWED_KEYWORDS | COVER_KEYWORDS | OTHER_MOD_KEYWORDS | PARODY_TRIBUTE_KEYWORDS
 )
 
 # Supported language markers and renowned regional artists/composers (no individual song names)
@@ -145,21 +169,27 @@ def analyze_query_intent(query: str) -> Dict[str, Any]:
 
     # 2. Explicit alternate / remix version requests
     wants_remix = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in REMIX_KEYWORDS)
-
     wants_slowed = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in SLOWED_KEYWORDS)
     wants_cover = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in COVER_KEYWORDS)
     wants_other_mod = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in OTHER_MOD_KEYWORDS)
+    wants_parody = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in PARODY_TRIBUTE_KEYWORDS)
+    wants_live = any(p.search(q_lower) for p in LIVE_PATTERNS) or bool(re.search(r"\b(live|concert|performance|unplugged)\b$", q_lower))
 
-    user_requested_alternate = wants_remix or wants_slowed or wants_cover or wants_other_mod
+    user_requested_alternate = (
+        wants_remix or wants_slowed or wants_cover or wants_other_mod or wants_parody or wants_live
+    )
 
     # 3. Explicit original / official recording request
     wants_original = any(re.search(rf"\b{re.escape(k)}\b", q_lower) for k in ORIGINAL_KEYWORDS)
 
     # 4. Extract core title by peeling off version keywords for cleaner comparison
     core_title = q_lower
-    for kw_set in (REMIX_KEYWORDS, SLOWED_KEYWORDS, COVER_KEYWORDS, OTHER_MOD_KEYWORDS, ORIGINAL_KEYWORDS):
+    for kw_set in (REMIX_KEYWORDS, SLOWED_KEYWORDS, COVER_KEYWORDS, OTHER_MOD_KEYWORDS, PARODY_TRIBUTE_KEYWORDS, ORIGINAL_KEYWORDS):
         for kw in sorted(kw_set, key=len, reverse=True):
             core_title = re.sub(rf"\b{re.escape(kw)}\b", "", core_title)
+    for p in LIVE_PATTERNS:
+        core_title = p.sub("", core_title)
+    core_title = re.sub(r"\b(live|concert|performance|unplugged)\b$", "", core_title)
     # Strip standalone language keywords if specified at the end/beginning (e.g. 'tamil song title')
     if detected_language:
         core_title = re.sub(rf"\b{re.escape(detected_language)}\b", "", core_title)
@@ -175,6 +205,8 @@ def analyze_query_intent(query: str) -> Dict[str, Any]:
         "wants_slowed": wants_slowed,
         "wants_cover": wants_cover,
         "wants_other_mod": wants_other_mod,
+        "wants_parody": wants_parody,
+        "wants_live": wants_live,
         "wants_original": wants_original,
         "user_requested_alternate": user_requested_alternate,
     }
@@ -190,9 +222,9 @@ def score_candidate_detailed(
     """
     Detailed candidate scoring with transparent reason tracking:
     - Base score = 100.0
-    - Heavy penalty for unrequested remixes, slowed, reverb, mashups, and fan edits.
+    - Heavy penalty for unrequested remixes, slowed, reverb, mashups, live concerts, and fan edits.
     - Positive reward for user-requested remixes or alternate styles.
-    - Official release preference (Topic channels, VEVO, verified labels, official audio/video).
+    - Official release preference (Topic channels, VEVO, verified labels, studio audio/video).
     - Title precision and language consistency scoring.
     """
     score = 100.0
@@ -200,18 +232,26 @@ def score_candidate_detailed(
 
     raw_title = candidate.get("title") or ""
     title = raw_title.lower()
-    uploader = (candidate.get("uploader") or candidate.get("channel") or "").lower()
+    uploader = (candidate.get("uploader") or candidate.get("channel") or candidate.get("artist") or "").lower()
     duration = candidate.get("duration") or 0
     combined_text = f"{title} {uploader}"
 
-    # 1. Alternative Version & Remix Evaluation
+    # 1. Alternative Version & Live / Remix Evaluation
     cand_has_remix = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in REMIX_KEYWORDS)
-
     cand_has_slowed = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in SLOWED_KEYWORDS)
     cand_has_cover = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in COVER_KEYWORDS)
     cand_has_mod = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in OTHER_MOD_KEYWORDS)
+    cand_has_live = any(p.search(combined_text) for p in LIVE_PATTERNS)
+    cand_has_parody = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in PARODY_TRIBUTE_KEYWORDS)
 
-    cand_is_alt = cand_has_remix or cand_has_slowed or cand_has_cover or cand_has_mod
+    cand_is_alt = (
+        cand_has_remix
+        or cand_has_slowed
+        or cand_has_cover
+        or cand_has_mod
+        or cand_has_live
+        or cand_has_parody
+    )
 
     if not query_intent["user_requested_alternate"]:
         # User requested an ORIGINAL / standard recording
@@ -227,36 +267,47 @@ def score_candidate_detailed(
         if cand_has_mod:
             score -= 60.0
             reasons.append("unrequested_mod_penalty(-60)")
+        if cand_has_live:
+            score -= 70.0
+            reasons.append("unrequested_live_penalty(-70)")
+        if cand_has_parody:
+            score -= 90.0
+            reasons.append("unrequested_parody_penalty(-90)")
 
-        if query_intent["wants_original"]:
+        if query_intent.get("wants_original"):
             if cand_is_alt:
                 score -= 50.0
                 reasons.append("strict_original_enforcement(-50)")
             else:
-                score += 25.0
-                reasons.append("explicit_original_match(+25)")
+                score += 35.0
+                reasons.append("explicit_original_match(+35)")
     else:
         # User explicitly requested a remix or alternate version
-        if query_intent["wants_remix"] and cand_has_remix:
+        if query_intent.get("wants_remix") and cand_has_remix:
             score += 55.0
             reasons.append("requested_remix_boost(+55)")
-        elif query_intent["wants_slowed"] and cand_has_slowed:
+        elif query_intent.get("wants_slowed") and cand_has_slowed:
             score += 55.0
             reasons.append("requested_slowed_boost(+55)")
-        elif query_intent["wants_cover"] and cand_has_cover:
+        elif query_intent.get("wants_cover") and cand_has_cover:
             score += 55.0
             reasons.append("requested_cover_boost(+55)")
+        elif query_intent.get("wants_live") and cand_has_live:
+            score += 55.0
+            reasons.append("requested_live_boost(+55)")
 
         if not cand_is_alt:
             score -= 40.0
             reasons.append("original_penalized_for_explicit_remix_request(-40)")
 
     # 2. Official Audio / Video & Authentic Publisher Badges
-    is_topic_channel = uploader.endswith(" - topic") or "topic" in uploader
+    is_topic_channel = uploader.endswith(" - topic") or " - topic" in uploader or uploader.endswith("- topic")
     is_vevo = "vevo" in uploader
+    is_major_label = any(lbl in uploader for lbl in MAJOR_RECORD_LABELS)
     is_official_uploader = (
         is_topic_channel
         or is_vevo
+        or is_major_label
         or any(k in uploader for k in ["official", "records", "music", "audio", "entertainment"])
     )
 
@@ -273,21 +324,34 @@ def score_candidate_detailed(
     if not query_intent["user_requested_alternate"]:
         if not cand_is_alt:
             if is_topic_channel:
-                score += 35.0
-                reasons.append("youtube_topic_channel(+35)")
+                score += 45.0
+                reasons.append("youtube_topic_channel(+45)")
             elif is_vevo:
-                score += 30.0
-                reasons.append("vevo_official(+30)")
+                score += 40.0
+                reasons.append("vevo_official(+40)")
+            elif is_major_label:
+                score += 35.0
+                reasons.append("major_record_label(+35)")
             elif is_official_uploader:
-                score += 20.0
-                reasons.append("official_label_uploader(+20)")
+                score += 25.0
+                reasons.append("official_label_uploader(+25)")
 
             if has_official_title:
-                score += 25.0
-                reasons.append("official_title_badge(+25)")
+                score += 30.0
+                reasons.append("official_title_badge(+30)")
             elif "remastered" in title or "original mix" in title or "original soundtrack" in title:
                 score += 15.0
                 reasons.append("remastered_or_original_mix(+15)")
+
+            # Studio Audio preference
+            if "official audio" in title or is_topic_channel or "original audio" in title:
+                score += 15.0
+                reasons.append("studio_audio_bonus(+15)")
+
+            # Unverified fan upload penalty when no official badge is present
+            if not is_official_uploader and not has_official_title:
+                score -= 20.0
+                reasons.append("unverified_fan_upload_penalty(-20)")
     else:
         if is_official_uploader:
             score += 10.0
@@ -376,16 +440,19 @@ def score_candidate_detailed(
             reasons.append("spotify_duration_mismatch(-30)")
 
     # 6. Reasonable duration checks (avoid 10-hour loops or 15s snippets)
-    if 60 <= duration <= 600:
+    if 90 <= duration <= 360:
+        score += 20.0
+        reasons.append("ideal_song_duration(+20)")
+    elif 60 <= duration <= 600:
         score += 10.0
         reasons.append("standard_duration_bonus(+10)")
     elif duration > 900:
         if not any(k in clean_q for k in ["full album", "compilation", "jukebox", "nonstop", "1 hour", "hour"]):
-            score -= 45.0
-            reasons.append("extended_duration_penalty(-45)")
-    elif 0 < duration < 40:
-        score -= 55.0
-        reasons.append("short_snippet_penalty(-55)")
+            score -= 55.0
+            reasons.append("extended_duration_penalty(-55)")
+    elif 0 < duration < 50:
+        score -= 60.0
+        reasons.append("short_snippet_penalty(-60)")
 
     return score, reasons
 
@@ -1041,8 +1108,8 @@ class AudioResolver:
             return cls._search_cache[cache_key]
 
         loop = asyncio.get_running_loop()
-        # Query candidates from YouTube for intelligent re-ranking (up to 10 candidates)
-        fetch_count = max(limit * 2, 10) if not query.startswith("http") else limit
+        # Query candidates from YouTube for intelligent re-ranking (up to 15 candidates)
+        fetch_count = max(limit * 3, 15) if not query.startswith("http") else limit
         search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
 
         data = None
@@ -1079,13 +1146,16 @@ class AudioResolver:
 
             track_url = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else entry.get("url", ""))
             track_id = vid_id or f"yt_{abs(hash(entry.get('title', '')))}"
+            uploader_name = entry.get("uploader") or entry.get("channel") or ""
 
             raw_candidates.append({
                 "id": str(track_id),
                 "title": entry.get("title", "Unknown Track"),
                 "url": track_url,
                 "duration": int(entry.get("duration", 0) or 0),
-                "artist": entry.get("uploader") or entry.get("channel", "Unknown Artist"),
+                "artist": uploader_name or "Unknown Artist",
+                "uploader": uploader_name,
+                "channel": entry.get("channel") or uploader_name,
                 "thumbnail": thumb,
                 "provider": "youtube",
             })
@@ -1509,8 +1579,8 @@ class AudioResolver:
                 pass
 
             if not candidate_urls:
-                # Query up to 10 candidate tracks from YouTube for comprehensive original-vs-remix ranking
-                search_query = f"ytsearch10:{cleaned_query}"
+                # Query up to 15 candidate tracks from YouTube for comprehensive original-vs-remix ranking
+                search_query = f"ytsearch15:{cleaned_query}"
                 try:
                     flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
                     flat_ydl = yt_dlp.YoutubeDL(flat_opts)
