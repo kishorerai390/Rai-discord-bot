@@ -46,7 +46,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${outfit.variable} ${jetbrainsMono.variable}`}>
-      <body className="bg-[var(--bg-dark)] text-[var(--text)] min-h-screen antialiased selection:bg-purple-600 selection:text-white">
+      <body className="bg-(--bg-dark) text-(--text) min-h-screen antialiased selection:bg-purple-600 selection:text-white">
         <MusicProvider>
           <AppShell>{children}</AppShell>
         </MusicProvider>
