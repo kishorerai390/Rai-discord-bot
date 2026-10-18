@@ -24,17 +24,17 @@ export async function GET(req: NextRequest) {
 
   try {
     const rows = getQueue(guildId);
-    const queue = rows.map((r) => ({
-      id: String(r.id),
-      title: r.title,
-      url: r.url,
-      author: r.author || "Unknown Artist",
-      artist: r.author || "Unknown Artist",
-      duration: r.duration || 0,
+    const queue = rows.map((r, idx) => ({
+      id: String(r.id || idx),
+      title: r.title || "Unknown Track",
+      url: r.url || "",
+      author: r.artist || r.author || "Unknown Artist",
+      artist: r.artist || r.author || "Unknown Artist",
+      duration: Number(r.duration || 0),
       thumbnail: r.thumbnail || DEFAULT_TRACK_ARTWORK,
-      requested_by: r.requested_by || "User",
-      requester_name: r.requested_by || "User",
-      position: r.position,
+      requested_by: r.requester_name || r.requested_by || "Discord User",
+      requester_name: r.requester_name || r.requested_by || "Discord User",
+      position: r.track_index ?? r.position ?? idx,
     }));
 
     return NextResponse.json({
