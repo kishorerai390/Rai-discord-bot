@@ -181,6 +181,21 @@ export function Sidebar({
             </Link>
           );
         })}
+
+        {isOwner && (
+          <Link
+            href="/owner"
+            onClick={onCloseMobile}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black transition-all ${
+              pathname === "/owner"
+                ? "bg-gradient-to-r from-amber-500/30 to-orange-500/30 text-amber-300 border border-amber-400/60 shadow-lg shadow-amber-500/20"
+                : "text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 hover:text-white"
+            }`}
+          >
+            <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Control Room</span>
+          </Link>
+        )}
       </nav>
 
       {/* SIDEBAR FOOTER (VOICE PILL & USER PROFILE) */}
