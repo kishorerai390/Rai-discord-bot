@@ -1202,7 +1202,7 @@ class MusicApiRouter:
             "diagnostics": [
                 {"step": "YouTube Player Signature Decipherer", "status": "PASS", "latency_ms": 14},
                 {"step": "EJS Challenge Solver Engine (Node.js vm2)", "status": "ONLINE", "latency_ms": 8},
-                {"step": "Zero 403 Forbidden Throttling Shield", "status": "ACTIVE", "latency_ms": 0.5},
+                {"step": "Zero 403 Forbidden Throttling Shield", "status": "ACTIVE", "latency_ms": None},
                 {"step": "PyPI Package Release Registry Sync", "status": "UP_TO_DATE", "latency_ms": 42},
             ],
             "message": "Extractor & Audio Decipherer running in optimal health. Zero playback breakages.",
