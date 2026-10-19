@@ -1302,18 +1302,34 @@ class MusicApiRouter:
         return json_success({"name": playlist.name, "tracks_loaded": len(playlist.tracks)})
 
     async def delete_playlist(self, request: web.Request) -> web.Response:
-        """Delete a saved playlist."""
+        """Delete a saved playlist by name or playlist_id."""
         await self._ensure_db()
         body = await request.json()
         guild_id = int(body.get("guild_id", 1525030316845301781))
         name = body.get("name", "").strip()
+        playlist_id = body.get("playlist_id") or body.get("id")
 
         user = await self._require_authenticated_user(request)
         user_id = user["user_id"]
         await self._verify_guild_access(user, guild_id)
 
-        deleted = await self.db.delete_playlist(guild_id, user_id, name)
-        return json_success({"deleted": bool(deleted), "name": name})
+        deleted = False
+        if name:
+            deleted = await self.db.delete_playlist(guild_id, user_id, name)
+        elif playlist_id:
+            try:
+                pid = int(playlist_id)
+                async with self.db._lock:
+                    cur = await self.db._db.execute(
+                        "DELETE FROM music_playlists WHERE id = ? AND (user_id = ? OR is_server = 1)",
+                        (pid, user_id),
+                    )
+                    await self.db._db.commit()
+                    deleted = cur.rowcount > 0
+            except Exception as del_err:
+                logger.debug(f"Delete playlist by id error: {del_err}")
+
+        return json_success({"deleted": bool(deleted), "name": name, "playlist_id": playlist_id})
 
     # ==========================================
     # 9. AUTO-DJ (STATUS, SETTINGS, RECOMMENDATIONS)

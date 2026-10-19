@@ -1,12 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Search, Plus, Music2, Check, Loader2 } from "lucide-react";
+import { Search, Plus, Music2, Check, Loader2, Play, SkipForward } from "lucide-react";
 import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 
 interface SearchViewProps {
   guildId: string;
   onEnqueue: (query: string) => Promise<boolean>;
+  onControl?: (action: string, payload?: any) => Promise<void>;
   onShowToast: (msg: string, type?: "success" | "danger" | "info") => void;
 }
 
@@ -31,7 +32,7 @@ const POPULAR_SUGGESTIONS = [
   { label: "🕹️ Synthwave", query: "Synthwave Gaming 2026" },
 ];
 
-export function SearchView({ guildId, onEnqueue, onShowToast }: SearchViewProps) {
+export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: SearchViewProps) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResultItem[]>([]);
@@ -67,6 +68,24 @@ export function SearchView({ guildId, onEnqueue, onShowToast }: SearchViewProps)
     } else {
       onShowToast(`Failed to enqueue track`, "danger");
       setEnqueuedMap((prev) => ({ ...prev, [itemKey]: false }));
+    }
+  };
+
+  const handlePlayNow = async (item: SearchResultItem) => {
+    if (onControl) {
+      await onControl("PLAY_NOW", { query: item.url || `${item.title} ${item.artist}`, title: item.title, artist: item.artist });
+      onShowToast(`Streaming now: ${item.title} ⚡`, "success");
+    } else {
+      await handleAddTrack(item);
+    }
+  };
+
+  const handlePlayNext = async (item: SearchResultItem) => {
+    if (onControl) {
+      await onControl("PLAY_NEXT", { query: item.url || `${item.title} ${item.artist}`, title: item.title, artist: item.artist });
+      onShowToast(`Queued next: ${item.title} ⏭`, "info");
+    } else {
+      await handleAddTrack(item);
     }
   };
 
@@ -173,18 +192,34 @@ export function SearchView({ guildId, onEnqueue, onShowToast }: SearchViewProps)
                       {item.duration_fmt || formatDuration(item.duration)}
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleAddTrack(item)}
-                    disabled={isEnqueued}
-                    className={`shrink-0 p-2 rounded-xl transition-all ${
-                      isEnqueued
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                        : "bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white shadow-md shadow-purple-900/40"
-                    }`}
-                    title="Add to queue"
-                  >
-                    {isEnqueued ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => handlePlayNow(item)}
+                      className="p-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 transition-all"
+                      title="Play Immediately"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-cyan-300" />
+                    </button>
+                    <button
+                      onClick={() => handlePlayNext(item)}
+                      className="p-2 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 transition-all"
+                      title="Play Next in Queue"
+                    >
+                      <SkipForward className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleAddTrack(item)}
+                      disabled={isEnqueued}
+                      className={`p-2 rounded-xl transition-all ${
+                        isEnqueued
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : "bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white shadow-md shadow-purple-900/40"
+                      }`}
+                      title="Add to queue"
+                    >
+                      {isEnqueued ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               );
             })}
