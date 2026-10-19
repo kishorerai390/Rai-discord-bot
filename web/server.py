@@ -70,8 +70,14 @@ class RaiCommunityOSServer:
         self._is_running = False
 
     async def handle_ui(self, request: web.Request) -> web.Response:
-        """Render the Rai Community OS luxury single-page application."""
-        return web.Response(text=UI_HTML, content_type="text/html")
+        """Render the Rai Community OS luxury single-page application with hot reload support."""
+        try:
+            import importlib
+            import web.ui
+            importlib.reload(web.ui)
+            return web.Response(text=web.ui.UI_HTML, content_type="text/html")
+        except Exception:
+            return web.Response(text=UI_HTML, content_type="text/html")
 
     async def handle_legacy_leaderboard(self, request: web.Request) -> web.Response:
         """Backward-compatible economy leaderboard API."""
