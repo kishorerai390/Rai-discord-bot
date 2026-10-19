@@ -17,6 +17,7 @@ import {
   LogIn,
   Crown,
   Volume2,
+  Settings,
 } from "lucide-react";
 import { DiscordUser } from "@/types/auth";
 import { GuildOption } from "@/types/music";
@@ -55,9 +56,11 @@ export function Sidebar({
     { href: "/search", label: "Search & Discover", icon: Search },
     { href: "/queue", label: "Queue & Live Player", icon: Music },
     { href: "/canvas", label: "Stage Visualizer", icon: Radio },
+    { href: "/soundboard", label: "Voice Soundboard", icon: Volume2 },
     { href: "/autodj", label: "Smart Auto-DJ", icon: Bot },
     { href: "/library", label: "Playlists & Library", icon: Library },
     { href: "/audio", label: "Equalizer & DSP", icon: Sliders },
+    { href: "/settings", label: "Server Settings", icon: Settings },
     { href: "/stats", label: "Telemetry & Health", icon: BarChart3 },
   ];
 

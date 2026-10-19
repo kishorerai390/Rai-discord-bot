@@ -339,7 +339,7 @@ class RaiCommunityOSServer:
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
             "/search", "/queue", "/player", "/playlists", "/history", "/analytics", "/autodj", "/library", "/audio", "/dsp", "/stats",
-            "/canvas", "/visualizer",
+            "/canvas", "/visualizer", "/soundboard",
             "/servers", "/owner", "/dashboard/guilds", "/system",
             "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
@@ -499,6 +499,10 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
         app.router.add_get("/api/music/guild-settings", m.get_guild_settings)
         app.router.add_post("/api/music/guild-settings", m.update_guild_settings)
+        app.router.add_get("/api/music/settings", m.get_guild_settings)
+        app.router.add_post("/api/music/settings", m.update_guild_settings)
+        app.router.add_get("/api/music/soundboard", m.get_soundboard_sounds)
+        app.router.add_post("/api/music/soundboard", m.trigger_soundboard)
         app.router.add_get("/api/music/voice-channels", m.get_voice_channels)
         app.router.add_post("/api/music/sleep-timer", m.set_sleep_timer)
 
