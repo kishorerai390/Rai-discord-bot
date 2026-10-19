@@ -483,9 +483,9 @@ def is_original_recording_candidate(
     title_hint: Optional[str] = None,
     artist_hint: Optional[str] = None,
 ) -> bool:
-    """Reject labeled alternate versions and require a strong query-to-title match."""
+    """Accept only non-alternate candidates with source evidence and a strong query match."""
     if query_intent.get("user_requested_alternate"):
-        return True
+        return False
 
     _, reasons = score_candidate_detailed(
         candidate,
@@ -495,6 +495,23 @@ def is_original_recording_candidate(
         artist_hint=artist_hint,
     )
     if any(reason.startswith("unrequested_") for reason in reasons):
+        return False
+
+    title = (candidate.get("title") or "").lower()
+    uploader = (candidate.get("uploader") or candidate.get("channel") or candidate.get("artist") or "").lower()
+    title_has_official_marker = bool(
+        re.search(
+            r"\b(?:official\s+(?:music\s+)?(?:video|audio|song)|official\s+lyric(?:al)?(?:\s+video)?|original\s+soundtrack)\b",
+            title,
+        )
+    )
+    uploader_has_official_marker = (
+        " - topic" in uploader
+        or "vevo" in uploader
+        or any(label in uploader for label in MAJOR_RECORD_LABELS)
+        or bool(re.search(r"\b(?:official|record(?:s| label)?|label)\b", uploader))
+    )
+    if not title_has_official_marker and not uploader_has_official_marker:
         return False
 
     query_terms = [word for word in re.findall(r"\w+", query_intent.get("core_title", "")) if len(word) > 1]
@@ -1151,7 +1168,7 @@ class AudioResolver:
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
-        cache_key = f"original-v2:{limit}:{query.strip().lower()}"
+        cache_key = f"original-v3:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
@@ -1227,7 +1244,10 @@ class AudioResolver:
                 )
             )
 
-        results = [c for c, _, _ in scored_candidates[:limit]]
+        results = [
+            {**candidate, "original_source_match": True}
+            for candidate, _, _ in scored_candidates[:limit]
+        ]
         cls._search_cache[cache_key] = results
         return results
 
@@ -1362,7 +1382,7 @@ class AudioResolver:
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
         and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
-        cache_key = f"original-v2:{query_or_url.strip().lower()}"
+        cache_key = f"original-v3:{query_or_url.strip().lower()}"
         now = time.time()
 
         # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)
@@ -1606,9 +1626,33 @@ class AudioResolver:
         if is_direct_url and "soundcloud.com" in cleaned_query:
             sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
             if sc_track and sc_track.stream_url:
-                dur = time.time() - start_t
-                logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct SoundCloud resolved in {dur:.2f}s -> '{sc_track.title}'")
-                return sc_track
+                source_candidate = {"title": sc_track.title, "uploader": sc_track.artist}
+                if is_original_recording_candidate(source_candidate, analyze_query_intent(sc_track.title)):
+                    dur = time.time() - start_t
+                    logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct SoundCloud resolved in {dur:.2f}s -> '{sc_track.title}'")
+                    return sc_track
+            cls.last_resolver_error = (
+                f"[NO_ORIGINAL_MATCH] Original recording could not be verified for the SoundCloud link "
+                f"(Ref: MM-{corr_id})."
+            )
+            return None
+
+        def _entry_matches_original_policy(data: Any) -> bool:
+            if not isinstance(data, dict):
+                return False
+            candidate = {
+                "title": data.get("title") or "",
+                "uploader": data.get("uploader") or data.get("channel") or data.get("artist") or "",
+                "channel": data.get("channel") or data.get("uploader") or "",
+            }
+            candidate_intent = analyze_query_intent(candidate["title"]) if is_direct_url else intent
+            return is_original_recording_candidate(
+                candidate,
+                candidate_intent,
+                spotify_meta=spotify_info,
+                title_hint=title_hint,
+                artist_hint=artist_hint,
+            )
 
         candidate_urls: List[str] = []
 
@@ -1718,6 +1762,7 @@ class AudioResolver:
         # Stage 3: Public stream format extraction on selected candidate(s) without cookies
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
+        verification_failed = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
             # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
             try:
@@ -1731,13 +1776,16 @@ class AudioResolver:
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
-                    if track and track.stream_url:
+                    if track and track.stream_url and _entry_matches_original_policy(data):
                         track = _apply_metadata_enhancements(track)
                         dur = time.time() - start_t
                         logger.info(
                             f"[Resolver] [Ref: MM-{corr_id}] Public Tier 1 resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                         )
                         return track
+                    if track:
+                        verification_failed = True
+                        last_failure_reason = "Original recording could not be verified from title and source metadata"
             except Exception as t1_err:
                 t1_msg = _format_error(t1_err)
                 last_failure_reason = t1_msg
@@ -1761,13 +1809,16 @@ class AudioResolver:
                             )
                             if fb_data:
                                 track = cls._parse_entry(fb_data, requester_id, requester_name)
-                                if track and track.stream_url:
+                                if track and track.stream_url and _entry_matches_original_policy(fb_data):
                                     track = _apply_metadata_enhancements(track)
                                     dur = time.time() - start_t
                                     logger.info(
                                         f"[Resolver] [Ref: MM-{corr_id}] Format fallback resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                                     )
                                     return track
+                                if track:
+                                    verification_failed = True
+                                    last_failure_reason = "Original recording could not be verified from title and source metadata"
                         except Exception as fb_err:
                             last_failure_reason = _format_error(fb_err)
                             logger.info(
@@ -1788,13 +1839,16 @@ class AudioResolver:
                 )
                 if data:
                     track = cls._parse_entry(data, requester_id, requester_name)
-                    if track and track.stream_url:
+                    if track and track.stream_url and _entry_matches_original_policy(data):
                         track = _apply_metadata_enhancements(track)
                         dur = time.time() - start_t
                         logger.info(
                             f"[Resolver] [Ref: MM-{corr_id}] Public Tier 2 resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
                         )
                         return track
+                    if track:
+                        verification_failed = True
+                        last_failure_reason = "Original recording could not be verified from title and source metadata"
             except Exception as t2_err:
                 t2_msg = _format_error(t2_err)
                 last_failure_reason = t2_msg
@@ -1821,7 +1875,7 @@ class AudioResolver:
                     )
                     if data:
                         track = cls._parse_entry(data, requester_id, requester_name)
-                        if track and track.stream_url:
+                        if track and track.stream_url and _entry_matches_original_policy(data):
                             track = _apply_metadata_enhancements(track)
                             dur = time.time() - start_t
                             logger.info(
@@ -1830,6 +1884,9 @@ class AudioResolver:
                                 f"in {dur:.2f}s -> '{track.title}'"
                             )
                             return track
+                        if track:
+                            verification_failed = True
+                            last_failure_reason = "Original recording could not be verified from title and source metadata"
                 except Exception as t3_err:
                     last_failure_reason = _format_error(t3_err)
                     logger.warning(
@@ -1840,7 +1897,13 @@ class AudioResolver:
         dur = time.time() - start_t
         # Accurately categorize and classify the error
         lower_failure_reason = last_failure_reason.lower()
-        if "video is unavailable" in lower_failure_reason or "private video" in lower_failure_reason or "has been removed" in lower_failure_reason:
+        if verification_failed:
+            cat = "NO_ORIGINAL_MATCH"
+            reason = (
+                f"No original recording could be verified for '{cleaned_query[:50]}'. "
+                "Try a result from the artist's or label's official channel."
+            )
+        elif "video is unavailable" in lower_failure_reason or "private video" in lower_failure_reason or "has been removed" in lower_failure_reason:
             cat = "VIDEO_UNAVAILABLE"
             reason = f"YouTube reports that the requested video is unavailable for '{cleaned_query[:50]}'. Try another public link."
         elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:

@@ -92,7 +92,7 @@ class TestSongSearchRanking(unittest.TestCase):
             "Title relevance must outweigh publisher and duration bonuses for a partial match",
         )
 
-    def test_01c_standard_search_requires_query_match_and_rejects_covers(self):
+    def test_01c_standard_search_requires_source_evidence_and_rejects_covers(self):
         intent = analyze_query_intent("Kalyani")
         original_release = {
             "title": "Kalyani - Official Music Video",
@@ -112,7 +112,7 @@ class TestSongSearchRanking(unittest.TestCase):
 
         self.assertTrue(is_original_recording_candidate(original_release, intent))
         self.assertFalse(is_original_recording_candidate(cover, intent))
-        self.assertTrue(is_original_recording_candidate(unidentified_upload, intent))
+        self.assertFalse(is_original_recording_candidate(unidentified_upload, intent))
 
     def test_01c2_accepts_small_transliteration_variations(self):
         intent = analyze_query_intent("enna sonna")
@@ -124,15 +124,15 @@ class TestSongSearchRanking(unittest.TestCase):
 
         self.assertTrue(is_original_recording_candidate(original, intent))
 
-    def test_01d_explicit_alternate_search_still_allows_remixes(self):
+    def test_01d_explicit_alternate_search_is_rejected_by_original_only_policy(self):
         intent = analyze_query_intent("Kalyani remix")
         remix = {
-            "title": "Kalyani DJ Remix",
+            "title": "Kalyani DJ Remix - Official Audio",
             "uploader": "DJ Channel",
             "duration": 210,
         }
 
-        self.assertTrue(is_original_recording_candidate(remix, intent))
+        self.assertFalse(is_original_recording_candidate(remix, intent))
 
     def test_01e_search_only_returns_verified_original_for_normal_request(self):
         async def _test():
@@ -159,6 +159,31 @@ class TestSongSearchRanking(unittest.TestCase):
                 results = await AudioResolver.search("Kalyani", limit=5)
 
             self.assertEqual([result["id"] for result in results], ["original1234"])
+            self.assertTrue(results[0]["original_source_match"])
+
+        asyncio.run(_test())
+
+    def test_01e2_direct_youtube_links_reject_unverified_remixes(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            ydl.extract_info.return_value = {
+                "id": "remix1234567",
+                "title": "Kalyani DJ Remix",
+                "webpage_url": "https://www.youtube.com/watch?v=remix1234567",
+                "url": "https://audio.example/stream",
+                "duration": 210,
+                "uploader": "Unknown DJ Channel",
+            }
+
+            with patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", return_value=ydl):
+                result = await AudioResolver._execute_resolution_pipeline(
+                    "https://www.youtube.com/watch?v=remix1234567", 123, "Tester"
+                )
+
+            self.assertIsNone(result)
+            self.assertIn("NO_ORIGINAL_MATCH", AudioResolver.last_resolver_error or "")
 
         asyncio.run(_test())
 

@@ -35,8 +35,9 @@ export function DashboardView({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
-    onControl("PLAY", { query: searchQuery.trim() });
+    const query = searchQuery.trim();
+    if (!query) return;
+    onNavigate(`/search?q=${encodeURIComponent(query)}`);
     setSearchQuery("");
   };
 
@@ -223,7 +224,7 @@ export function DashboardView({
                 <div className="text-center py-12 text-[var(--text-muted)] text-sm">
                   <div className="text-2xl mb-1">🎵</div>
                   <p className="font-bold text-white">No tracks currently in queue</p>
-                  <p className="text-xs text-[var(--text-dim)] mt-1">Search above or click any recommendation to start playing!</p>
+                  <p className="text-xs text-[var(--text-dim)] mt-1">Search above to choose a result, or click a recommendation to start playing.</p>
                 </div>
               ) : (
                 queue.slice(0, 10).map((track, idx) => (
