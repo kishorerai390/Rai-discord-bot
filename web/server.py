@@ -378,7 +378,8 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/auth/dev-login", r.auth_dev_login)
         app.router.add_post("/api/auth/discord-id-login", r.auth_dev_login)
 
-        # Telemetry, Pulse, and Realtime API
+        # Telemetry, Pulse, Realtime & Firebase API
+        app.router.add_get("/api/firebase/config", r.get_firebase_config)
         app.router.add_get("/api/stats", r.get_stats)
         app.router.add_get("/api/pulse", r.get_pulse)
         app.router.add_get("/api/live", r.get_live_sessions)

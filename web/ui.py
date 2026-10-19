@@ -22,8 +22,11 @@ UI_HTML = r"""<!DOCTYPE html>
   <link rel="icon" type="image/png" href="/icon.png">
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Firebase SDK v10 (Client-Side Firestore & Auth Integration) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <style>
     :root {
       --bg-dark: #07060d;
@@ -2928,7 +2931,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.25), rgba(88,101,242,0.1)); border:1px solid rgba(88,101,242,0.5); color:#fff; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Add MusicMaid to your server">
           <span>➕ Add Bot</span>
         </a>
-        <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
+        <a href="https://discord.gg/KSxEHfmpCe" id="sidebar-community-link" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
           <span>💬 Community</span>
         </a>
       </div>
@@ -3391,6 +3394,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
       try {
         setupRealtimeWebSocket();
+        initFirebaseClient();
         await fetchAuthStatus();
         await fetchGuilds();
         await syncAll();
@@ -3412,6 +3416,122 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       });
     });
+
+    // =========================================================================
+    // FIREBASE CLOUD FIRESTORE & AUTH CLIENT
+    // =========================================================================
+    let firebaseApp = null;
+    let firestoreDb = null;
+    let firebaseConfigData = null;
+    let isFirebaseConnected = false;
+
+    async function initFirebaseClient() {
+      try {
+        const res = await fetch('/api/firebase/config');
+        const json = await res.json();
+        if (json.success && json.data) {
+          firebaseConfigData = json.data;
+
+          // Dynamically set support invite link across the website
+          if (json.data.supportInviteUrl) {
+            const linkEl = document.getElementById('sidebar-community-link');
+            if (linkEl) linkEl.href = json.data.supportInviteUrl;
+          }
+
+          if (json.data.enabled && window.firebase) {
+            if (!firebase.apps || !firebase.apps.length) {
+              firebaseApp = firebase.initializeApp(json.data);
+            } else {
+              firebaseApp = firebase.app();
+            }
+            firestoreDb = firebase.firestore();
+            isFirebaseConnected = true;
+            console.log("🔥 Firebase Client Initialized for project:", json.data.projectId);
+            updateFirebaseUIIndicators(true, json.data.projectId);
+            attachFirestoreFavoritesListener();
+          } else {
+            isFirebaseConnected = false;
+            updateFirebaseUIIndicators(false);
+          }
+        }
+      } catch (err) {
+        console.debug("Firebase client note:", err);
+        isFirebaseConnected = false;
+        updateFirebaseUIIndicators(false);
+      }
+    }
+
+    function updateFirebaseUIIndicators(connected, projectId) {
+      const badge = document.getElementById('firebase-status-badge');
+      if (badge) {
+        if (connected) {
+          badge.className = "chip-pill connected";
+          badge.style.color = "var(--emerald)";
+          badge.style.background = "rgba(16,185,129,0.12)";
+          badge.style.borderColor = "rgba(16,185,129,0.25)";
+          badge.innerHTML = `<span class="pulse-dot connected"></span> 🔥 Firestore Sync: ${projectId || 'Active'}`;
+        } else {
+          badge.className = "chip-pill";
+          badge.style.color = "var(--text-muted)";
+          badge.style.background = "rgba(255,255,255,0.04)";
+          badge.style.borderColor = "rgba(255,255,255,0.1)";
+          badge.innerHTML = `🔥 Firebase: Standby (SQLite WAL)`;
+        }
+      }
+    }
+
+    function attachFirestoreFavoritesListener() {
+      if (!firestoreDb || !currentUser) return;
+      try {
+        const uid = String(currentUser.id || currentUser.user_id || 'guest');
+        firestoreDb.collection('users').doc(uid).collection('favorites')
+          .onSnapshot((snapshot) => {
+            if (!snapshot.empty) {
+              const cloudFavs = [];
+              snapshot.forEach(doc => {
+                cloudFavs.push({ id: doc.id, ...doc.data() });
+              });
+              if (cloudFavs.length > 0) {
+                const existingIds = new Set((userFavorites || []).map(f => f.track_id || f.id || f.title));
+                cloudFavs.forEach(cf => {
+                  if (!existingIds.has(cf.track_id || cf.id || cf.title)) {
+                    userFavorites.push(cf);
+                  }
+                });
+                updatePlaybackBarUI();
+                const favCountEl = document.getElementById('stat-liked-count');
+                if (favCountEl) favCountEl.innerText = userFavorites.length;
+              }
+            }
+          }, (err) => {
+            console.debug("Firestore snapshot note:", err);
+          });
+      } catch (e) {
+        console.debug("Firestore listener note:", e);
+      }
+    }
+
+    async function syncFavoriteToFirestore(track, isLiked) {
+      if (!firestoreDb || !currentUser || !track) return;
+      try {
+        const uid = String(currentUser.id || currentUser.user_id || 'guest');
+        const trackKey = (track.track_id || track.id || track.title || 'track').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const docRef = firestoreDb.collection('users').doc(uid).collection('favorites').doc(trackKey);
+        if (isLiked) {
+          await docRef.set({
+            title: track.title,
+            artist: track.artist || 'Unknown Artist',
+            thumbnail: track.thumbnail || '',
+            duration: track.duration || 0,
+            synced_at: new Date().toISOString()
+          }, { merge: true });
+        } else {
+          await docRef.delete();
+        }
+      } catch (err) {
+        console.debug("Firestore track sync note:", err);
+      }
+    }
 
     function setupRealtimeWebSocket() {
       if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
@@ -4077,6 +4197,7 @@ UI_HTML = r"""<!DOCTYPE html>
         if (json.success) {
           showToast(json.data.message || "Updated Favorites ❤️");
           document.getElementById('bar-fav-btn').classList.toggle('active', json.data.favorited);
+          syncFavoriteToFirestore(t, json.data.favorited);
         }
       } catch(e){}
     }
@@ -4521,6 +4642,7 @@ UI_HTML = r"""<!DOCTYPE html>
           showToast(json.data.message || (json.data.favorited ? "Saved to Liked Songs ❤️" : "Removed from Liked Songs"));
           await syncFavorites();
           updateDashboardDynamicElements();
+          syncFavoriteToFirestore(track, json.data.favorited);
         }
       } catch(e) {}
     }
@@ -7853,17 +7975,17 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
 
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;" id="health-integrations-grid">
-              <!-- CARD 1: DATABASE -->
+              <!-- CARD 1: DATABASE & CLOUD SYNC -->
               <div class="glass-card" style="padding:1.2rem; border-left:3px solid var(--emerald);">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span style="font-size:0.72rem; font-weight:800; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;">Database Storage</span>
-                  <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.1); font-size:0.65rem;">● Healthy</span>
+                  <span style="font-size:0.72rem; font-weight:800; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em;">Database & Cloud</span>
+                  <span class="chip-pill" id="card-db-pill" style="color:var(--emerald); background:rgba(16,185,129,0.1); font-size:0.65rem;">● SQLite + Firebase</span>
                 </div>
-                <div style="font-size:1.05rem; font-weight:800; color:#fff; margin-top:0.4rem;">SQLite WAL</div>
-                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">ACID compliant, zero-lock memory caching.</div>
+                <div style="font-size:1.05rem; font-weight:800; color:#fff; margin-top:0.4rem;">SQLite WAL & Firestore</div>
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">ACID local WAL cache + Realtime Cloud Firestore sync.</div>
                 <div style="display:flex; justify-content:space-between; font-size:0.72rem; margin-top:0.8rem; font-family:'JetBrains Mono',monospace; color:var(--cyan);">
-                  <span>Integrity: verified</span>
                   <span id="card-db-mode">WAL Active</span>
+                  <span id="card-firebase-mode" style="color:#f59e0b;">🔥 Firestore Ready</span>
                 </div>
               </div>
 
