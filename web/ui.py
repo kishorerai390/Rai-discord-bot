@@ -5681,25 +5681,27 @@ UI_HTML = r"""<!DOCTYPE html>
               <span>🔍</span> Search & Discover Music
             </div>
             <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:1.2rem;">
-              High-speed YouTube & Spotify search with Tamil, Hindi, Telugu, and English multi-lingual recognition.
+              Instant lossless audio resolution across YouTube & Spotify with Tamil, Hindi, Telugu, and English multi-lingual recognition.
             </p>
 
             <!-- SEARCH BAR -->
-            <div class="search-hero-box">
-              <span style="font-size:1.2rem; color:var(--cyan);">🔍</span>
-              <input type="text" id="live-search-input" class="search-input" placeholder="Type song name, artist, YouTube URL, or Spotify link..." oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') triggerSearch()" autocomplete="off">
-              <button class="btn btn-primary btn-sm" onclick="triggerSearch()">Search</button>
+            <div class="search-hero-box" style="position:relative; display:flex; align-items:center; background:rgba(255,255,255,0.06); border:1px solid rgba(147,51,234,0.3); border-radius:var(--radius-md); padding:0.4rem 0.8rem; gap:0.6rem;">
+              <span style="font-size:1.15rem; color:var(--primary);">🔍</span>
+              <input type="text" id="live-search-input" class="search-input" placeholder="Search track title, artist, YouTube URL, or Spotify..." oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') triggerSearch()" autocomplete="off" style="border:none; background:transparent; padding:0.6rem 0.2rem; flex:1; outline:none; color:#fff; font-size:0.95rem;">
+              <button id="search-clear-btn" class="p-btn" onclick="clearSearchInput()" style="display:none; font-size:0.85rem;" title="Clear Search">✕</button>
+              <button class="btn btn-primary btn-sm" onclick="triggerSearch()" style="padding:0.6rem 1.2rem; font-weight:700;">Search</button>
             </div>
 
-            <!-- MULTI-LINGUAL QUICK SUGGESTIONS -->
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1rem; align-items:center;">
+            <!-- MULTI-LINGUAL & GENRE QUICK SUGGESTIONS -->
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1.1rem; align-items:center;">
               <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">POPULAR:</span>
-              <span class="chip-pill" onclick="quickFillSearch('Anirudh Ravichander hits')">🎵 Anirudh</span>
+              <span class="chip-pill" onclick="quickFillSearch('Anirudh Ravichander hits')">⚡ Anirudh</span>
               <span class="chip-pill" onclick="quickFillSearch('A.R. Rahman Tamil classics')">✨ A.R. Rahman</span>
-              <span class="chip-pill" onclick="quickFillSearch('Yuvan Shankar Raja vibes')">⚡ Yuvan</span>
+              <span class="chip-pill" onclick="quickFillSearch('Yuvan Shankar Raja vibes')">🎵 Yuvan</span>
               <span class="chip-pill" onclick="quickFillSearch('Arijit Singh Hindi melodies')">🎻 Arijit Singh</span>
               <span class="chip-pill" onclick="quickFillSearch('Lofi Hip Hop Chill Beats')">☕ Lo-Fi Chill</span>
               <span class="chip-pill" onclick="quickFillSearch('Synthwave Gaming 2026')">🕹️ Synthwave</span>
+              <span class="chip-pill" onclick="quickFillSearch('Illuminati Sushin Shyam Aavesham')">🔥 Trending</span>
             </div>
           </div>
 
@@ -5707,32 +5709,32 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="glass-card">
             <div class="section-header">
               <span class="section-title"><span>🎧</span> Search & Recommended Hits</span>
-              <span id="search-status-label" style="font-size:0.82rem; color:var(--emerald);">⚡ Real-Time Resolver Active</span>
+              <span id="search-status-label" style="font-size:0.82rem; color:var(--emerald);">⚡ Real-Time Engine Active</span>
             </div>
             <div id="search-results-grid" class="tracks-grid">
               <div class="track-card" onclick="quickFillSearch('Illuminati Aavesham')">
                 <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Illuminati">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Illuminati</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Sushin Shyam • Aavesham</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Illuminati Aavesham'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Illuminati Aavesham')">⚡ Play Now</button>
               </div>
               <div class="track-card" onclick="quickFillSearch('Hukum Jailer Anirudh')">
                 <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Hukum">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Hukum (Alappara)</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Anirudh Ravichander • Jailer</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Hukum Jailer Anirudh'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Hukum Jailer Anirudh')">⚡ Play Now</button>
               </div>
               <div class="track-card" onclick="quickFillSearch('Tauba Tauba Karan Aujla')">
                 <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Tauba Tauba">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Tauba Tauba</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Karan Aujla • Bad Newz</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Tauba Tauba Karan Aujla'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Tauba Tauba Karan Aujla')">⚡ Play Now</button>
               </div>
               <div class="track-card" onclick="quickFillSearch('Starboy The Weeknd')">
                 <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Starboy">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Starboy</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">The Weeknd ft. Daft Punk</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Starboy The Weeknd'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Starboy The Weeknd')">⚡ Play Now</button>
               </div>
             </div>
           </div>
@@ -5744,11 +5746,27 @@ UI_HTML = r"""<!DOCTYPE html>
       const input = document.getElementById('live-search-input');
       if (input) {
         input.value = query;
+        toggleSearchClearBtn(true);
         triggerSearch();
       }
     }
 
+    function toggleSearchClearBtn(show) {
+      const clearBtn = document.getElementById('search-clear-btn');
+      if (clearBtn) clearBtn.style.display = show ? 'inline-flex' : 'none';
+    }
+
+    function clearSearchInput() {
+      const input = document.getElementById('live-search-input');
+      if (input) {
+        input.value = '';
+        toggleSearchClearBtn(false);
+        input.focus();
+      }
+    }
+
     function onSearchInput(val) {
+      toggleSearchClearBtn(val.trim().length > 0);
       if (searchDebounce) clearTimeout(searchDebounce);
       searchDebounce = setTimeout(() => {
         if (val.trim().length >= 2) triggerSearch();
@@ -5761,7 +5779,12 @@ UI_HTML = r"""<!DOCTYPE html>
 
       const grid = document.getElementById('search-results-grid');
       const label = document.getElementById('search-status-label');
-      grid.innerHTML = `<div style="grid-column:1 / -1; text-align:center; padding:3rem; color:var(--cyan);">Resolving audio tracks from engine... ⏳</div>`;
+      grid.innerHTML = `
+        <div style="grid-column:1 / -1; display:flex; flex-direction:column; align-items:center; padding:3rem 1rem; gap:1rem;">
+          <div style="width:40px; height:40px; border:3px solid rgba(147,51,234,0.3); border-top-color:#a855f7; border-radius:50%; animation:spinVinyl 0.8s linear infinite;"></div>
+          <div style="color:#c4b5fd; font-weight:700; font-size:0.95rem;">Resolving lossless audio tracks...</div>
+        </div>
+      `;
       label.innerText = `Searching for "${q}"...`;
 
       try {
@@ -5875,26 +5898,36 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     // VIEW 3: LIVE PLAYER & QUEUE MANAGER
     // =========================================================================
+    function formatTotalDuration(sec) {
+      if (!sec || isNaN(sec) || sec <= 0) return "0 tracks • 0m";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      if (h > 0) return `${h}h ${m}m total`;
+      return `${m}m ${s}s total`;
+    }
+
     function renderQueue() {
       const container = document.getElementById('view-container');
       const t = currentSession?.current_track;
+      const totalSecs = (currentQueue || []).reduce((acc, q) => acc + (q.duration || 0), 0);
 
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
           <!-- CURRENT TRACK BANNER -->
-          <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+          <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; border-color:rgba(147,51,234,0.3);">
             <div style="display:flex; align-items:center; gap:1.2rem;">
-              <img src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:68px; height:68px; border-radius:12px; object-fit:cover;">
+              <img src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:68px; height:68px; border-radius:12px; object-fit:cover; border:1px solid rgba(147,51,234,0.3); box-shadow:0 4px 14px rgba(0,0,0,0.6);" alt="Now Streaming">
               <div>
-                <span class="chip-pill" style="color:var(--emerald);">NOW STREAMING</span>
+                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.25);">● NOW STREAMING</span>
                 <h3 style="font-size:1.25rem; font-weight:800; color:#fff; margin-top:0.3rem;">${t ? t.title : 'No Song Currently Playing'}</h3>
-                <span style="font-size:0.85rem; color:var(--cyan);">${t ? (t.artist || 'Unknown Artist') : 'Queue tracks to start'}</span>
+                <span style="font-size:0.85rem; color:#c4b5fd;">${t ? (t.artist || 'Unknown Artist') : 'Queue tracks to start'} • 320kbps Lossless</span>
               </div>
             </div>
-            <div style="display:flex; align-items:center; gap:0.6rem;">
-              <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')">🔀 Shuffle</button>
-              <button class="btn btn-danger btn-sm" onclick="confirmClearQueue()">🗑 Clear Queue</button>
-              <button class="btn btn-primary btn-sm" onclick="openPlaylistModal()">💾 Save as Playlist</button>
+            <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Current Queue">🔀 Shuffle</button>
+              <button class="btn btn-secondary btn-sm" onclick="openPlaylistModal()" title="Save Current Queue to Server Library">💾 Save Playlist</button>
+              <button class="btn btn-danger btn-sm" onclick="confirmClearQueue()" title="Clear All Tracks in Queue">🗑 Clear Queue</button>
             </div>
           </div>
 
@@ -5909,8 +5942,10 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- FULL QUEUE LIST -->
           <div class="glass-card">
             <div class="section-header">
-              <span class="section-title"><span>📜</span> Track Queue (<span id="queue-count-badge">${currentQueue.length}</span> tracks)</span>
-              <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-muted);" id="queue-total-dur">Calculating Duration...</span>
+              <span class="section-title"><span>📜</span> Track Queue (<span id="queue-count-badge">${(currentQueue || []).length}</span> tracks)</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-muted);" id="queue-total-dur">
+                ${(currentQueue || []).length} ${(currentQueue || []).length === 1 ? 'track' : 'tracks'} • ${formatTotalDuration(totalSecs)}
+              </span>
             </div>
             <div class="queue-table" id="full-queue-container">
               ${renderFullQueueRows()}
@@ -5958,7 +5993,35 @@ UI_HTML = r"""<!DOCTYPE html>
 
     function renderFullQueueRows() {
       if (!currentQueue || currentQueue.length === 0) {
-        return `<div style="text-align:center; padding:3.5rem; color:var(--text-muted);">🐾 The queue is empty! Add tracks from Search & Discover.</div>`;
+        return `
+          <div style="text-align:center; padding:3rem 1.5rem; display:flex; flex-direction:column; align-items:center; gap:1.2rem;">
+            <div style="width:68px; height:68px; border-radius:20px; background:linear-gradient(135deg, rgba(147,51,234,0.15), rgba(168,85,247,0.05)); border:1px solid rgba(147,51,234,0.3); display:flex; align-items:center; justify-content:center; font-size:2rem; box-shadow:0 0 24px rgba(147,51,234,0.2);">
+              🎵
+            </div>
+            <div>
+              <h3 style="font-size:1.15rem; font-weight:800; color:#fff; margin-bottom:0.35rem;">Your Playback Queue is Clear</h3>
+              <p style="font-size:0.84rem; color:var(--text-muted); max-width:440px; margin:0 auto; line-height:1.4;">
+                The voice channel is waiting for songs. Search music above, or tap any starter vibe pack below to queue instantly:
+              </p>
+            </div>
+
+            <!-- QUICK STARTER PACKS -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.6rem; width:100%; max-width:580px; margin-top:0.4rem;">
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Lofi Hip Hop Chill Beats')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                ☕ Lo-Fi Chill
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Anirudh Ravichander hits')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                ⚡ Anirudh Hits
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Synthwave Gaming 2026')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                🕹️ Synthwave
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Electronic Bass Boosted EDM')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                💥 Bass Drops
+              </button>
+            </div>
+          </div>
+        `;
       }
       return currentQueue.map((q, i) => `
         <div class="queue-row" draggable="true"
@@ -5978,7 +6041,7 @@ UI_HTML = r"""<!DOCTYPE html>
           </div>
           <div class="queue-row-right">
             <span style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted);">${formatTime(q.duration)}</span>
-            <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('PLAY_NOW', {query: '${encodeURIComponent(q.title)}'})" title="Play Now">▶ Play</button>
+            <button class="btn btn-primary btn-sm" onclick="dispatchCmd('PLAY_NOW', {query: '${encodeURIComponent(q.title)}'})" title="Play Now">▶ Play</button>
             ${i > 0 ? `<button class="btn btn-secondary btn-sm" onclick="moveTrack(${i}, ${i - 1})" title="Move Up">▲</button>` : ''}
             ${i < currentQueue.length - 1 ? `<button class="btn btn-secondary btn-sm" onclick="moveTrack(${i}, ${i + 1})" title="Move Down">▼</button>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('REMOVE', {index:${i}})" title="Remove Track">✕</button>
@@ -5990,9 +6053,13 @@ UI_HTML = r"""<!DOCTYPE html>
     function updateQueueList() {
       const container = document.getElementById('full-queue-container');
       const badge = document.getElementById('queue-count-badge');
-      if (container && badge) {
-        badge.innerText = currentQueue.length;
-        container.innerHTML = renderFullQueueRows();
+      const totalDurEl = document.getElementById('queue-total-dur');
+      const qLen = (currentQueue || []).length;
+      if (badge) badge.innerText = qLen;
+      if (container) container.innerHTML = renderFullQueueRows();
+      if (totalDurEl) {
+        const totalSecs = (currentQueue || []).reduce((acc, q) => acc + (q.duration || 0), 0);
+        totalDurEl.innerText = `${qLen} ${qLen === 1 ? 'track' : 'tracks'} • ${formatTotalDuration(totalSecs)}`;
       }
     }
 
@@ -6003,6 +6070,11 @@ UI_HTML = r"""<!DOCTYPE html>
       showToast(`Adding "${val}" to queue...`);
       input.value = '';
       await dispatchCmd('ENQUEUE', { query: val });
+    }
+
+    async function quickAddToQueueWith(query) {
+      showToast(`Adding '${query}' to queue...`);
+      await dispatchCmd('ENQUEUE', { query: query });
     }
 
     async function moveTrack(fromIdx, toIdx) {

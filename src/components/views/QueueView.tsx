@@ -95,22 +95,48 @@ export function QueueView({
       {/* QUEUE TABLE */}
       <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
         {queue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl">
+          <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-800/10 border border-purple-500/30 flex items-center justify-center text-3xl shadow-lg shadow-purple-500/10">
               🎵
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">The queue is currently empty</h3>
-              <p className="text-xs text-[var(--text-muted)] mt-1">
-                Search for songs, paste links, or let Smart Auto-DJ take the stage!
+              <h3 className="text-base font-bold text-white">Your Playback Queue is Clear</h3>
+              <p className="text-xs text-[var(--text-muted)] mt-1 max-w-sm">
+                The voice channel is waiting for songs. Search music or tap a starter vibe pack below:
               </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full max-w-lg mt-2">
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Lofi Hip Hop Chill Beats" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                ☕ Lo-Fi Chill
+              </button>
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Anirudh Ravichander hits" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                ⚡ Anirudh Hits
+              </button>
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Synthwave Gaming 2026" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                🕹️ Synthwave
+              </button>
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Electronic Bass Boosted EDM" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                💥 Bass Drops
+              </button>
             </div>
             <button
               onClick={() => onNavigate("/search")}
-              className="btn btn-primary btn-sm flex items-center gap-2 mt-2"
+              className="btn btn-primary btn-sm flex items-center gap-2 mt-3"
             >
               <Search className="w-4 h-4" />
-              <span>Find Music</span>
+              <span>Search Music</span>
             </button>
           </div>
         ) : (
