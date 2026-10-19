@@ -76,6 +76,12 @@ OTHER_MOD_KEYWORDS = {
     "fan edit", "fan video", "tiktok version", "ringtone", "status video", "short edit", "bgm mix"
 }
 
+NON_SONG_CONTENT_MARKERS = {
+    "behind the scenes", "behind scenes", "first look", "instagram", "making of",
+    "promo", "reels", "shorts", "snippet", "status", "teaser", "trailer",
+    "trending", "whatsapp",
+}
+
 # Live concert and non-studio recording patterns
 LIVE_PATTERNS = [
     re.compile(r"[\(\[\{]\s*live(\s+(at|in|from|session|performance|version|concert|acoustic))?[\)\]\}]", re.IGNORECASE),
@@ -498,6 +504,9 @@ def is_original_recording_candidate(
         return False
 
     title = (candidate.get("title") or "").lower()
+    if any(re.search(rf"\b{re.escape(marker)}\b", title) for marker in NON_SONG_CONTENT_MARKERS):
+        return False
+
     uploader = (candidate.get("uploader") or candidate.get("channel") or candidate.get("artist") or "").lower()
     title_has_official_marker = bool(
         re.search(
@@ -527,9 +536,9 @@ def is_original_recording_candidate(
     return all(
         term in candidate_terms
         or any(
-            len(term) >= 4
-            and len(candidate_term) >= 4
-            and SequenceMatcher(None, term, candidate_term).ratio() >= 0.8
+            len(term) >= 7
+            and len(candidate_term) >= 7
+            and SequenceMatcher(None, term, candidate_term).ratio() >= 0.85
             for candidate_term in candidate_terms
         )
         for term in query_terms

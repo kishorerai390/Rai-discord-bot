@@ -114,15 +114,31 @@ class TestSongSearchRanking(unittest.TestCase):
         self.assertFalse(is_original_recording_candidate(cover, intent))
         self.assertFalse(is_original_recording_candidate(unidentified_upload, intent))
 
-    def test_01c2_accepts_small_transliteration_variations(self):
+    def test_01c2_rejects_similarly_spelled_but_different_song_title(self):
         intent = analyze_query_intent("enna sonna")
-        original = {
+        similar_title = {
             "title": "Enna Sona - OK Jaanu",
             "uploader": "Sony Music India",
             "duration": 213,
         }
 
+        self.assertFalse(is_original_recording_candidate(similar_title, intent))
+
+    def test_01c3_allows_long_title_typo_but_rejects_short_form_clip(self):
+        intent = analyze_query_intent("rasagula anirudh")
+        original = {
+            "title": "Rasagulla - Video Song | Hi | Anirudh Ravichander",
+            "uploader": "Sony Music South",
+            "duration": 242,
+        }
+        short_form_clip = {
+            "title": "Rasagulla - Trending Instagram Dance Reels | Anirudh Ravichander",
+            "uploader": "Sony Music South",
+            "duration": 68,
+        }
+
         self.assertTrue(is_original_recording_candidate(original, intent))
+        self.assertFalse(is_original_recording_candidate(short_form_clip, intent))
 
     def test_01d_explicit_alternate_search_is_rejected_by_original_only_policy(self):
         intent = analyze_query_intent("Kalyani remix")
