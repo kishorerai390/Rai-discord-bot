@@ -209,6 +209,77 @@ class TestSongSearchRanking(unittest.TestCase):
 
         asyncio.run(_test())
 
+    def test_01e0_search_retries_with_another_youtube_player_client(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            failed_ydl = MagicMock()
+            failed_ydl.extract_info.side_effect = RuntimeError("android search timed out")
+            fallback_ydl = MagicMock()
+            fallback_ydl.extract_info.return_value = {
+                "entries": [
+                    {
+                        "id": "fallback12345",
+                        "title": "Kalyani - Official Music Video",
+                        "uploader": "SingerVEVO",
+                        "duration": 240,
+                    },
+                ],
+            }
+
+            with patch("music_bot.services.resolver_service._build_ytdl_options", side_effect=lambda clients, **kwargs: {
+                "extractor_args": {"youtube": {"player_client": clients}},
+            }) as build_options, patch(
+                "music_bot.services.resolver_service.yt_dlp.YoutubeDL",
+                side_effect=[failed_ydl, fallback_ydl],
+            ):
+                results = await AudioResolver.search("Kalyani", limit=5)
+
+            self.assertEqual([item["id"] for item in results], ["fallback12345"])
+            self.assertEqual(build_options.call_count, 2)
+            self.assertEqual(build_options.call_args_list[1].args[0], ["web"])
+
+        asyncio.run(_test())
+
+    def test_01e0b_playback_retries_search_before_resolving_official_track(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            failed_search = MagicMock()
+            failed_search.extract_info.side_effect = RuntimeError("android search timed out")
+            fallback_search = MagicMock()
+            fallback_search.extract_info.return_value = {
+                "entries": [
+                    {
+                        "id": "original1234",
+                        "title": "Kalyani - Official Music Video",
+                        "uploader": "SingerVEVO",
+                        "duration": 240,
+                    },
+                ],
+            }
+            stream_extract = MagicMock()
+            stream_extract.extract_info.return_value = {
+                "id": "original1234",
+                "title": "Kalyani - Official Music Video",
+                "webpage_url": "https://www.youtube.com/watch?v=original1234",
+                "url": "https://audio.example/stream",
+                "duration": 240,
+                "uploader": "SingerVEVO",
+            }
+
+            with patch.object(AudioResolver, "search", new_callable=AsyncMock, return_value=[]), \
+                 patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch(
+                     "music_bot.services.resolver_service.yt_dlp.YoutubeDL",
+                     side_effect=[failed_search, fallback_search, stream_extract],
+                 ):
+                track = await AudioResolver._execute_resolution_pipeline("Kalyani", 123, "Tester")
+
+            self.assertIsNotNone(track)
+            self.assertEqual(track.title, "Kalyani - Official Music Video")
+            self.assertEqual(track.stream_url, "https://audio.example/stream")
+
+        asyncio.run(_test())
+
     def test_01e1_prefers_official_video_song_over_lyric_video(self):
         async def _test():
             AudioResolver.clear_caches()

@@ -965,7 +965,7 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"The music search for `{query[:100]}` exceeded the search deadline.\n\n"
                             f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting upstream providers.'}`\n"
-                            f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata.\n"
+                            "• **Supported Sources:** YouTube, including Spotify links matched to YouTube recordings.\n"
                             f"• **Tip:** Try repeating your search or use a direct song/stream URL."
                         ),
                         color=COLOR_ERROR,
@@ -996,7 +996,7 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
-                            f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata."
+                            "• **Supported Sources:** YouTube, including Spotify links matched to YouTube recordings."
                             f"{cookie_hint}"
                         ),
                         color=COLOR_ERROR,

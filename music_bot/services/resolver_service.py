@@ -1025,6 +1025,44 @@ class AudioResolver:
     PROBE_COOLDOWN_SECONDS: float = 45.0
 
     @classmethod
+    async def _fetch_search_entries(
+        cls, search_query: str, timeout: float = 6.0
+    ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+        """Retry flat YouTube search with alternate player clients when one is restricted."""
+        loop = asyncio.get_running_loop()
+        last_error: Optional[str] = None
+
+        for player_clients in (["android"], ["web"], ["ios"]):
+            try:
+                options = _build_ytdl_options(player_clients, extract_flat=True, use_cookies=False)
+                ydl = yt_dlp.YoutubeDL(options)
+                data = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        _audio_executor,
+                        functools.partial(ydl.extract_info, search_query, download=False),
+                    ),
+                    timeout=timeout,
+                )
+                entries = data.get("entries") if isinstance(data, dict) and "entries" in data else [data]
+                usable_entries = [
+                    entry for entry in (entries or [])
+                    if isinstance(entry, dict) and not entry.get("has_drm")
+                ]
+                if usable_entries:
+                    return usable_entries, None
+                last_error = "YouTube returned no search candidates"
+            except Exception as exc:
+                last_error = _format_error(exc)
+                logger.info(
+                    "[Search] YouTube search retry notice via %s for '%s': %s",
+                    ",".join(player_clients),
+                    search_query[:80],
+                    last_error,
+                )
+
+        return [], last_error
+
+    @classmethod
     def get_current_profile_name(cls) -> str:
         idx = cls._active_profile_index % len(cls.PROFILE_PRESETS)
         return "+".join(cls.PROFILE_PRESETS[idx])
@@ -1191,37 +1229,17 @@ class AudioResolver:
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
-        cache_key = f"original-v6:{limit}:{query.strip().lower()}"
+        cache_key = f"original-v7:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
-        loop = asyncio.get_running_loop()
         # Query candidates from YouTube for intelligent re-ranking (up to 15 candidates)
         fetch_count = max(limit * 3, 15) if not query.startswith("http") else limit
         search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
 
-        data = None
-        # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast response)
-        try:
-            primary_opts = _build_ytdl_options(["android"], extract_flat=True)
-            ydl_instance = yt_dlp.YoutubeDL(primary_opts)
-            data = await asyncio.wait_for(
-                loop.run_in_executor(
-                    _audio_executor, functools.partial(ydl_instance.extract_info, search_query, download=False)
-                ),
-                timeout=5.0,
-            )
-        except Exception as e:
-            err_msg = _format_error(e)
-            logger.info(f"[Search] YouTube primary search notice for '{query}': {err_msg}")
-            data = None
-
-        entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
+        entries, _ = await cls._fetch_search_entries(search_query, timeout=5.0)
         raw_candidates: List[Dict[str, Any]] = []
-        for entry in (entries or []):
-            if not entry or entry.get("has_drm"):
-                continue
-
+        for entry in entries:
             # Extract highest-quality thumbnail from yt-dlp metadata
             thumb = entry.get("thumbnail")
             if not thumb and entry.get("thumbnails"):
@@ -1405,7 +1423,7 @@ class AudioResolver:
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
         and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
-        cache_key = f"original-v6:{query_or_url.strip().lower()}"
+        cache_key = f"original-v7:{query_or_url.strip().lower()}"
         now = time.time()
 
         # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)
@@ -1698,21 +1716,12 @@ class AudioResolver:
             if not candidate_urls:
                 # Query up to 15 candidate tracks from YouTube for comprehensive original-vs-remix ranking
                 search_query = f"ytsearch15:{cleaned_query}"
-                try:
-                    flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
-                    flat_ydl = yt_dlp.YoutubeDL(flat_opts)
-                    search_data = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            _audio_executor, functools.partial(flat_ydl.extract_info, search_query, download=False)
-                        ),
-                        timeout=6.0,
+                search_entries, search_error = await cls._fetch_search_entries(search_query, timeout=6.0)
+                if search_error:
+                    logger.warning(
+                        f"[Resolver] [Ref: MM-{corr_id}] Search stage exhausted client retries "
+                        f"for '{cleaned_query[:50]}': {search_error}"
                     )
-                    if search_data:
-                        entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
-                        search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
-                except Exception as search_exc:
-                    search_error = _format_error(search_exc)
-                    logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
 
                 if not search_entries:
                     dur = time.time() - start_t
