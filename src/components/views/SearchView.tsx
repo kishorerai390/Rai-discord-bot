@@ -72,20 +72,28 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
   };
 
   const handlePlayNow = async (item: SearchResultItem) => {
-    if (onControl) {
-      await onControl("PLAY_NOW", { query: item.url || `${item.title} ${item.artist}`, title: item.title, artist: item.artist });
-      onShowToast(`Streaming now: ${item.title} ⚡`, "success");
-    } else {
-      await handleAddTrack(item);
+    try {
+      if (onControl) {
+        await onControl("PLAY_NOW", { query: item.url || `${item.title} ${item.artist}`, title: item.title, artist: item.artist });
+        onShowToast(`Streaming now: ${item.title} ⚡`, "success");
+      } else {
+        await handleAddTrack(item);
+      }
+    } catch (err: any) {
+      onShowToast(err?.message || "Failed to stream track immediately", "danger");
     }
   };
 
   const handlePlayNext = async (item: SearchResultItem) => {
-    if (onControl) {
-      await onControl("PLAY_NEXT", { query: item.url || `${item.title} ${item.artist}`, title: item.title, artist: item.artist });
-      onShowToast(`Queued next: ${item.title} ⏭`, "info");
-    } else {
-      await handleAddTrack(item);
+    try {
+      if (onControl) {
+        await onControl("PLAY_NEXT", { query: item.url || `${item.title} ${item.artist}`, title: item.title, artist: item.artist });
+        onShowToast(`Queued next: ${item.title} ⏭`, "info");
+      } else {
+        await handleAddTrack(item);
+      }
+    } catch (err: any) {
+      onShowToast(err?.message || "Failed to queue track next", "danger");
     }
   };
 

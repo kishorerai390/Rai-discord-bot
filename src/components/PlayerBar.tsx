@@ -29,10 +29,21 @@ export function PlayerBar({ session, onDispatchControl }: PlayerBarProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [localSeconds, setLocalSeconds] = useState(session?.elapsed_seconds ?? 0);
+  const [isBusy, setIsBusy] = useState(false);
 
   const isPlaying = session?.is_playing && !session?.is_paused;
   const track = session?.current_track;
   const duration = session?.duration_seconds || track?.duration || 0;
+
+  const handleSafeControl = async (action: string, payload?: any) => {
+    if (isBusy) return;
+    setIsBusy(true);
+    try {
+      await onDispatchControl(action, payload);
+    } finally {
+      setTimeout(() => setIsBusy(false), 350);
+    }
+  };
 
   // Local tick timer while playing
   useEffect(() => {
@@ -125,26 +136,29 @@ export function PlayerBar({ session, onDispatchControl }: PlayerBarProps) {
         {/* TIER 2: CENTERED PLAYBACK CONTROLS */}
         <div className="flex items-center justify-center gap-5">
           <button
-            onClick={() => onDispatchControl("SHUFFLE")}
-            className={`p-1.5 rounded-full transition-colors ${
+            onClick={() => handleSafeControl("SHUFFLE")}
+            disabled={isBusy}
+            className={`p-1.5 rounded-full transition-all active:scale-90 ${
               session?.shuffle ? "text-purple-400 bg-purple-500/15" : "text-slate-400 hover:text-white"
-            }`}
+            } disabled:opacity-50`}
             title="Toggle Shuffle"
           >
             <Shuffle className="w-4 h-4" />
           </button>
 
           <button
-            onClick={() => onDispatchControl("PREVIOUS")}
-            className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/5 transition-colors"
+            onClick={() => handleSafeControl("PREVIOUS")}
+            disabled={isBusy}
+            className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/5 active:scale-90 transition-all disabled:opacity-50"
             title="Previous Track"
           >
             <SkipBack className="w-4 h-4" />
           </button>
 
           <button
-            onClick={() => onDispatchControl(isPlaying ? "PAUSE" : "RESUME")}
-            className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-white flex items-center justify-center shadow-lg shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all"
+            onClick={() => handleSafeControl(isPlaying ? "PAUSE" : "RESUME")}
+            disabled={isBusy}
+            className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-white flex items-center justify-center shadow-lg shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-70"
             title={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? (
@@ -155,20 +169,22 @@ export function PlayerBar({ session, onDispatchControl }: PlayerBarProps) {
           </button>
 
           <button
-            onClick={() => onDispatchControl("SKIP")}
-            className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/5 transition-colors"
+            onClick={() => handleSafeControl("SKIP")}
+            disabled={isBusy}
+            className="text-slate-300 hover:text-white p-1 rounded-full hover:bg-white/5 active:scale-90 transition-all disabled:opacity-50"
             title="Skip Track"
           >
             <SkipForward className="w-4 h-4" />
           </button>
 
           <button
-            onClick={() => onDispatchControl("LOOP")}
-            className={`p-1.5 rounded-full transition-colors ${
+            onClick={() => handleSafeControl("LOOP")}
+            disabled={isBusy}
+            className={`p-1.5 rounded-full transition-all active:scale-90 ${
               session?.loop_mode && session.loop_mode !== "off"
                 ? "text-purple-400 bg-purple-500/15"
                 : "text-slate-400 hover:text-white"
-            }`}
+            } disabled:opacity-50`}
             title={`Loop Mode: ${session?.loop_mode || "off"}`}
           >
             <Repeat className="w-4 h-4" />

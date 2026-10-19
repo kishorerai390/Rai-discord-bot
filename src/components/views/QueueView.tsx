@@ -26,20 +26,32 @@ export function QueueView({
 
   const handleClear = async () => {
     if (confirm("Are you sure you want to clear the entire queue?")) {
-      await onControl("CLEAR");
-      onShowToast("Cleared upcoming queue", "info");
+      try {
+        await onControl("CLEAR");
+        onShowToast("Cleared upcoming queue", "info");
+      } catch (err: any) {
+        onShowToast(err?.message || "Failed to clear queue", "danger");
+      }
     }
   };
 
   const handleRemove = async (position: number, title: string) => {
-    await onControl("REMOVE", { index: position, position });
-    onShowToast(`Removed track: ${title}`, "info");
+    try {
+      await onControl("REMOVE", { index: position, position });
+      onShowToast(`Removed track: ${title}`, "info");
+    } catch (err: any) {
+      onShowToast(err?.message || `Failed to remove ${title}`, "danger");
+    }
   };
 
   const handleMove = async (fromIndex: number, toIndex: number, title: string) => {
     if (toIndex < 0 || toIndex >= queue.length) return;
-    await onControl("MOVE", { from_index: fromIndex, to_index: toIndex });
-    onShowToast(`Moved track: ${title}`, "info");
+    try {
+      await onControl("MOVE", { from_index: fromIndex, to_index: toIndex });
+      onShowToast(`Moved track: ${title}`, "info");
+    } catch (err: any) {
+      onShowToast(err?.message || `Failed to move ${title}`, "danger");
+    }
   };
 
   return (

@@ -278,8 +278,15 @@ export function LibraryView({
 
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button
-                    onClick={() => onEnqueue(fav.url || `${fav.title} ${fav.artist}`)}
-                    className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 transition-all"
+                    onClick={async () => {
+                      const ok = await onEnqueue(fav.url || `${fav.title} ${fav.artist}`);
+                      if (ok) {
+                        onShowToast(`Enqueued: ${fav.title} 🎵`, "success");
+                      } else {
+                        onShowToast("Failed to enqueue track", "danger");
+                      }
+                    }}
+                    className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 active:scale-95 transition-all"
                     title="Add to queue"
                   >
                     <Plus className="w-4 h-4" />

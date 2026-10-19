@@ -13,6 +13,7 @@ interface SettingsViewProps {
 
 export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) {
   const [settings, setSettings] = useState<GuildSettings | null>(null);
+  const [initialSettings, setInitialSettings] = useState<GuildSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -23,6 +24,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
       const json = await res.json();
       if (json.success && json.data) {
         setSettings(json.data);
+        setInitialSettings(json.data);
       } else {
         onShowToast(json.error || "Failed to load guild settings", "danger");
       }
@@ -37,6 +39,10 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
     fetchSettings();
   }, [guildId]);
 
+  const isDirty =
+    Boolean(settings && initialSettings) &&
+    JSON.stringify(settings) !== JSON.stringify(initialSettings);
+
   const handleSave = async () => {
     if (!settings) return;
     setSaving(true);
@@ -48,6 +54,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
       });
       const json = await res.json();
       if (json.success) {
+        setInitialSettings(settings);
         onShowToast("Server administrator settings saved successfully! ✦", "success");
       } else {
         onShowToast(json.error?.message || json.error || "Save failed", "danger");
@@ -103,11 +110,13 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="btn btn-primary btn-sm flex items-center gap-1.5"
+            disabled={saving || !isDirty}
+            className={`btn btn-primary btn-sm flex items-center gap-1.5 transition-all ${
+              !isDirty ? "opacity-50 cursor-not-allowed" : "shadow-lg shadow-purple-600/30"
+            }`}
           >
             <Check className="w-4 h-4" />
-            <span>{saving ? "Saving..." : "Save Settings"}</span>
+            <span>{saving ? "Saving..." : isDirty ? "Save Settings *" : "Settings Saved"}</span>
           </button>
         </div>
       </div>
