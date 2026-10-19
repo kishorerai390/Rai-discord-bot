@@ -70,8 +70,20 @@ class RaiCommunityOSServer:
         self._is_running = False
 
     async def handle_ui(self, request: web.Request) -> web.Response:
-        """Render the Rai Community OS luxury single-page application."""
-        return web.Response(text=UI_HTML, content_type="text/html")
+        """Render the Rai Community OS luxury single-page application with hot reload support."""
+        import aiohttp.web
+        try:
+            import importlib
+            import sys
+            ui_mod = sys.modules.get("web.ui")
+            if ui_mod:
+                importlib.reload(ui_mod)
+                html = getattr(ui_mod, "UI_HTML", UI_HTML)
+            else:
+                html = UI_HTML
+            return aiohttp.web.Response(text=html, content_type="text/html")
+        except Exception:
+            return aiohttp.web.Response(text=UI_HTML, content_type="text/html")
 
     async def handle_legacy_leaderboard(self, request: web.Request) -> web.Response:
         """Backward-compatible economy leaderboard API."""
@@ -331,7 +343,7 @@ class RaiCommunityOSServer:
 
         # UI Page Routes (rendered via the responsive SPA shell)
         ui_routes = [
-            "/", "/dashboard", "/discover", "/brain", "/projects", "/projects/{id}",
+            "/", "/login", "/dashboard", "/discover", "/brain", "/projects", "/projects/{id}",
             "/creators", "/creators/{id}", "/gaming", "/music", "/media",
             "/resources", "/events", "/events/{id}", "/ideas", "/ideas/{id}",
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
@@ -339,8 +351,8 @@ class RaiCommunityOSServer:
             "/communities", "/communities/{id}", "/saved", "/rai", "/rai/features",
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
             "/search", "/queue", "/player", "/playlists", "/history", "/analytics", "/autodj", "/library", "/audio", "/dsp", "/stats",
-            "/canvas", "/visualizer",
-            "/owner", "/dashboard/guilds", "/system",
+            "/canvas", "/visualizer", "/soundboard",
+            "/servers", "/owner", "/dashboard/guilds", "/system",
             "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
         for path in ui_routes:
@@ -499,6 +511,10 @@ class RaiCommunityOSServer:
         app.router.add_get("/api/music/autodj/recommendations", m.get_autodj_recommendations)
         app.router.add_get("/api/music/guild-settings", m.get_guild_settings)
         app.router.add_post("/api/music/guild-settings", m.update_guild_settings)
+        app.router.add_get("/api/music/settings", m.get_guild_settings)
+        app.router.add_post("/api/music/settings", m.update_guild_settings)
+        app.router.add_get("/api/music/soundboard", m.get_soundboard_sounds)
+        app.router.add_post("/api/music/soundboard", m.trigger_soundboard)
         app.router.add_get("/api/music/voice-channels", m.get_voice_channels)
         app.router.add_post("/api/music/sleep-timer", m.set_sleep_timer)
 

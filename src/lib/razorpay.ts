@@ -65,25 +65,31 @@ export function verifyPaymentSignature(
   paymentId: string,
   signature: string
 ): boolean {
-  if (!RAZORPAY_KEY_SECRET) return false;
+  if (!RAZORPAY_KEY_SECRET || !signature) return false;
   const payload = `${orderId}|${paymentId}`;
   const expected = crypto
     .createHmac("sha256", RAZORPAY_KEY_SECRET)
     .update(payload)
     .digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  if (expectedBuf.length !== signatureBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, signatureBuf);
 }
 
 export function verifyWebhookSignature(
   rawBody: string,
   signature: string
 ): boolean {
-  if (!RAZORPAY_WEBHOOK_SECRET) return false;
+  if (!RAZORPAY_WEBHOOK_SECRET || !signature) return false;
   const expected = crypto
     .createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
     .update(rawBody)
     .digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  if (expectedBuf.length !== signatureBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, signatureBuf);
 }
 
 export async function createRazorpayOrder(

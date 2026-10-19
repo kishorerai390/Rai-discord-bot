@@ -94,8 +94,9 @@ class TestMasterBuildSuite(unittest.IsolatedAsyncioTestCase):
         data = await resp.json()
         self.assertTrue(data["success"])
         self.assertIn("bot_status", data["data"])
-        self.assertIn("active_voice_sessions", data["data"])
-        self.assertEqual(data["data"]["sla_percentage"], 99.97)
+        self.assertIsNone(data["data"]["sla_percentage"])
+        self.assertEqual(data["data"]["sla_target"], 99.9)
+        self.assertIsNone(data["data"]["gateway_latency_ms"])
 
         # 2. Health
         resp_hl = await self.client.get("/api/owner/health", cookies=cookies)

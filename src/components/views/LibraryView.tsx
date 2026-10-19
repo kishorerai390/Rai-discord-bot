@@ -34,11 +34,23 @@ export function LibraryView({
       const pData = await pRes.json();
       const fData = await fRes.json();
 
-      if (pData.success && Array.isArray(pData.data)) {
-        setPlaylists(pData.data);
+      if (pData.success) {
+        if (Array.isArray(pData.data)) {
+          setPlaylists(pData.data);
+        } else if (pData.data && Array.isArray(pData.data.playlists)) {
+          setPlaylists(pData.data.playlists);
+        } else if (Array.isArray(pData.playlists)) {
+          setPlaylists(pData.playlists);
+        }
       }
-      if (fData.success && Array.isArray(fData.data)) {
-        setFavorites(fData.data);
+      if (fData.success) {
+        if (Array.isArray(fData.data)) {
+          setFavorites(fData.data);
+        } else if (fData.data && Array.isArray(fData.data.favorites)) {
+          setFavorites(fData.data.favorites);
+        } else if (Array.isArray(fData.favorites)) {
+          setFavorites(fData.favorites);
+        }
       }
     } catch (e: any) {
       console.warn("Library data fetch error:", e);
@@ -57,14 +69,14 @@ export function LibraryView({
       const res = await fetch("/api/music/playlists/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playlist_id: id }),
+        body: JSON.stringify({ playlist_id: id, id, name, guild_id: guildId }),
       });
       const data = await res.json();
       if (data.success) {
         onShowToast(`Deleted playlist: ${name}`, "info");
         setPlaylists((prev) => prev.filter((p) => String(p.id) !== String(id)));
       } else {
-        onShowToast(data.error || "Failed to delete playlist", "danger");
+        onShowToast(data.error?.message || data.error || "Failed to delete playlist", "danger");
       }
     } catch (e: any) {
       onShowToast(`Error: ${e.message}`, "danger");
@@ -72,6 +84,27 @@ export function LibraryView({
   };
 
   const handleLoadPlaylist = async (playlist: Playlist) => {
+    // 1. First attempt authoritative backend load endpoint
+    try {
+      const res = await fetch("/api/music/playlists/load", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: playlist.name,
+          guild_id: guildId,
+          playlist_id: playlist.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(`Loaded "${playlist.name}" into queue! 🎶`, "success");
+        return;
+      }
+    } catch {
+      // Fallback to manual queue injection
+    }
+
+    // 2. Fallback to client-side sequential track enqueueing if tracks_json is present
     let tracks: any[] = [];
     try {
       tracks = typeof playlist.tracks_json === "string" ? JSON.parse(playlist.tracks_json) : playlist.tracks_json;
@@ -80,13 +113,13 @@ export function LibraryView({
     }
 
     if (!Array.isArray(tracks) || tracks.length === 0) {
-      onShowToast("Playlist has no valid tracks", "info");
+      onShowToast(`Playlist "${playlist.name}" loaded or has no client-side track snapshot`, "info");
       return;
     }
 
-    onShowToast(`Loading ${tracks.length} tracks from ${playlist.name}...`, "info");
+    onShowToast(`Enqueuing ${tracks.length} tracks from ${playlist.name}...`, "info");
     for (const t of tracks) {
-      await onEnqueue(t.url || `${t.title} ${t.artist}`);
+      await onEnqueue(t.url || `${t.title} ${t.artist || ""}`);
     }
     onShowToast(`Enqueued all tracks from "${playlist.name}"! 🎶`, "success");
   };

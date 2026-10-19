@@ -17,6 +17,7 @@ import {
   LogIn,
   Crown,
   Volume2,
+  Settings,
 } from "lucide-react";
 import { DiscordUser } from "@/types/auth";
 import { GuildOption } from "@/types/music";
@@ -50,14 +51,17 @@ export function Sidebar({
     };
 
   const navLinks = [
-    { href: "/", label: "Dashboard", icon: Home },
+    { href: "/login", label: "Login & Welcome", icon: LogIn },
+    { href: "/dashboard", label: "User Dashboard", icon: Home },
     { href: "/premium", label: "MusicMaid VIP", icon: Sparkles, isPremium: true },
     { href: "/search", label: "Search & Discover", icon: Search },
     { href: "/queue", label: "Queue & Live Player", icon: Music },
     { href: "/canvas", label: "Stage Visualizer", icon: Radio },
+    { href: "/soundboard", label: "Voice Soundboard", icon: Volume2 },
     { href: "/autodj", label: "Smart Auto-DJ", icon: Bot },
     { href: "/library", label: "Playlists & Library", icon: Library },
     { href: "/audio", label: "Equalizer & DSP", icon: Sliders },
+    { href: "/settings", label: "Server Settings", icon: Settings },
     { href: "/stats", label: "Telemetry & Health", icon: BarChart3 },
   ];
 
@@ -157,7 +161,7 @@ export function Sidebar({
       <nav className="flex flex-col gap-1">
         {navLinks.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || (link.href === "/dashboard" && pathname === "/");
           return (
             <Link
               key={link.href}
@@ -178,6 +182,21 @@ export function Sidebar({
             </Link>
           );
         })}
+
+        {isOwner && (
+          <Link
+            href="/owner"
+            onClick={onCloseMobile}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black transition-all ${
+              pathname === "/owner"
+                ? "bg-gradient-to-r from-amber-500/30 to-orange-500/30 text-amber-300 border border-amber-400/60 shadow-lg shadow-amber-500/20"
+                : "text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 hover:text-white"
+            }`}
+          >
+            <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Control Room</span>
+          </Link>
+        )}
       </nav>
 
       {/* SIDEBAR FOOTER (VOICE PILL & USER PROFILE) */}

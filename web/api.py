@@ -110,14 +110,27 @@ class ApiRouter:
     # 1. AUTHENTICATION CONTROLLER
     # ==========================================
 
+    @staticmethod
+    def validate_safe_redirect(target: Optional[str], default: str = "/dashboard") -> str:
+        """Validate internal relative redirect destination to strictly prevent open redirects."""
+        if not target or not isinstance(target, str):
+            return default
+        target = target.strip()
+        if target.startswith("/") and not target.startswith("//") and "\\" not in target:
+            parsed = urllib.parse.urlparse(target)
+            if not parsed.scheme and not parsed.netloc:
+                return target
+        return default
+
     async def auth_login(self, request: web.Request) -> web.Response:
         """Initiate Discord OAuth2 authorization redirect with CSRF state protection."""
         if not self.auth.is_configured:
-            return web.HTTPFound("/?error=oauth_not_configured")
+            return web.HTTPFound("/login?error=oauth_not_configured")
 
         redirect_uri = self.auth.get_redirect_uri(request)
         state = secrets.token_urlsafe(32)
         oauth_url = self.auth.get_oauth_url(state=state, redirect_uri=redirect_uri)
+        next_target = self.validate_safe_redirect(request.query.get("next") or request.query.get("redirect"))
 
         is_secure = (
             request.scheme == "https"
@@ -134,6 +147,16 @@ class ApiRouter:
             samesite="Lax",
             path="/",
         )
+        if next_target:
+            resp.set_cookie(
+                "oauth_next",
+                next_target,
+                max_age=600,
+                httponly=True,
+                secure=is_secure,
+                samesite="Lax",
+                path="/",
+            )
         raise resp
 
     async def auth_url(self, request: web.Request) -> web.Response:
@@ -141,6 +164,7 @@ class ApiRouter:
         redirect_uri = self.auth.get_redirect_uri(request)
         state = secrets.token_urlsafe(32)
         url = self.auth.get_oauth_url(state=state, redirect_uri=redirect_uri)
+        next_target = self.validate_safe_redirect(request.query.get("next") or request.query.get("redirect"))
         resp = json_success({
             "url": url,
             "configured": self.auth.is_configured,
@@ -152,6 +176,8 @@ class ApiRouter:
             or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
         )
         resp.set_cookie("oauth_state", state, max_age=600, httponly=True, secure=is_secure, samesite="Lax", path="/")
+        if next_target:
+            resp.set_cookie("oauth_next", next_target, max_age=600, httponly=True, secure=is_secure, samesite="Lax", path="/")
         return resp
 
     async def auth_callback(self, request: web.Request) -> web.Response:
@@ -161,29 +187,29 @@ class ApiRouter:
             if oauth_err:
                 desc = request.query.get("error_description", "Authorization was denied or cancelled.")
                 logger.info(f"Discord OAuth2 returned error: {oauth_err} - {desc}")
-                raise web.HTTPFound(f"/?error={oauth_err}&message={urllib.parse.quote(desc)}")
+                raise web.HTTPFound(f"/login?error={oauth_err}&message={urllib.parse.quote(desc)}")
 
             code = request.query.get("code")
             if not code:
-                raise web.HTTPFound("/?error=missing_code")
+                raise web.HTTPFound("/login?error=missing_code")
 
             # Validate CSRF state parameter strictly against cookie
             state = request.query.get("state")
             cookie_state = request.cookies.get("oauth_state")
             if not cookie_state or not state or cookie_state != state:
                 logger.warning("OAuth2 state parameter mismatch or missing (possible CSRF attack).")
-                raise web.HTTPFound("/?error=csrf_validation_failed")
+                raise web.HTTPFound("/login?error=csrf_validation_failed")
 
             redirect_uri = self.auth.get_redirect_uri(request)
             token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
             if not token_data or "access_token" not in token_data:
                 logger.warning("OAuth token exchange failed or returned invalid response.")
-                raise web.HTTPFound("/?error=oauth_exchange_failed")
+                raise web.HTTPFound("/login?error=oauth_exchange_failed")
 
             user_info = await self.auth.fetch_discord_user(token_data["access_token"])
             if not user_info or "id" not in user_info:
                 logger.warning("Failed to fetch Discord user information via access token.")
-                raise web.HTTPFound("/?error=failed_to_fetch_user")
+                raise web.HTTPFound("/login?error=failed_to_fetch_user")
 
             # Fetch accessible guilds for permission verification
             user_guilds = await self.auth.fetch_discord_guilds(token_data["access_token"])
@@ -202,7 +228,10 @@ class ApiRouter:
                 or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
             )
 
-            resp = web.HTTPFound("/?auth=success")
+            # Determine safe internal redirect target
+            target_path = self.validate_safe_redirect(request.cookies.get("oauth_next"), default="/dashboard")
+            delim = "&" if "?" in target_path else "?"
+            resp = web.HTTPFound(f"{target_path}{delim}auth=success")
             resp.set_cookie(
                 SESSION_COOKIE_NAME,
                 session_id,
@@ -213,6 +242,7 @@ class ApiRouter:
                 path="/",
             )
             resp.del_cookie("oauth_state", path="/")
+            resp.del_cookie("oauth_next", path="/")
             return resp
         except (web.HTTPFound, web.HTTPRedirection):
             raise

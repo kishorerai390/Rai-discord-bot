@@ -32,8 +32,14 @@ export function QueueView({
   };
 
   const handleRemove = async (position: number, title: string) => {
-    await onControl("REMOVE", { position });
+    await onControl("REMOVE", { index: position, position });
     onShowToast(`Removed track: ${title}`, "info");
+  };
+
+  const handleMove = async (fromIndex: number, toIndex: number, title: string) => {
+    if (toIndex < 0 || toIndex >= queue.length) return;
+    await onControl("MOVE", { from_index: fromIndex, to_index: toIndex });
+    onShowToast(`Moved track: ${title}`, "info");
   };
 
   return (
@@ -89,22 +95,48 @@ export function QueueView({
       {/* QUEUE TABLE */}
       <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
         {queue.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl">
+          <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-800/10 border border-purple-500/30 flex items-center justify-center text-3xl shadow-lg shadow-purple-500/10">
               🎵
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">The queue is currently empty</h3>
-              <p className="text-xs text-[var(--text-muted)] mt-1">
-                Search for songs, paste links, or let Smart Auto-DJ take the stage!
+              <h3 className="text-base font-bold text-white">Your Playback Queue is Clear</h3>
+              <p className="text-xs text-[var(--text-muted)] mt-1 max-w-sm">
+                The voice channel is waiting for songs. Search music or tap a starter vibe pack below:
               </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full max-w-lg mt-2">
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Lofi Hip Hop Chill Beats" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                ☕ Lo-Fi Chill
+              </button>
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Anirudh Ravichander hits" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                ⚡ Anirudh Hits
+              </button>
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Synthwave Gaming 2026" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                🕹️ Synthwave
+              </button>
+              <button
+                onClick={() => onControl("ENQUEUE", { query: "Electronic Bass Boosted EDM" })}
+                className="btn btn-secondary btn-sm justify-center py-2 text-xs font-semibold"
+              >
+                💥 Bass Drops
+              </button>
             </div>
             <button
               onClick={() => onNavigate("/search")}
-              className="btn btn-primary btn-sm flex items-center gap-2 mt-2"
+              className="btn btn-primary btn-sm flex items-center gap-2 mt-3"
             >
               <Search className="w-4 h-4" />
-              <span>Find Music</span>
+              <span>Search Music</span>
             </button>
           </div>
         ) : (
@@ -136,9 +168,16 @@ export function QueueView({
                           className="w-11 h-11 rounded-lg object-cover shrink-0"
                         />
                         <div className="min-w-0 max-w-sm md:max-w-md">
-                          <p className="font-semibold text-white truncate text-sm" title={track.title}>
-                            {track.title}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-white truncate text-sm" title={track.title}>
+                              {track.title}
+                            </p>
+                            {queue.some((t, i) => i !== idx && ((t.url && t.url === track.url) || (t.title.toLowerCase() === track.title.toLowerCase() && (t.artist || "").toLowerCase() === (track.artist || "").toLowerCase()))) && (
+                              <span className="chip-pill text-[10px] py-0 px-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 shrink-0">
+                                Duplicate
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-[var(--text-muted)] truncate" title={track.artist}>
                             {track.artist || "Unknown Artist"}
                           </p>
@@ -152,13 +191,31 @@ export function QueueView({
                       {formatDuration(track.duration)}
                     </td>
                     <td className="py-3 text-right">
-                      <button
-                        onClick={() => handleRemove(idx, track.title)}
-                        className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-all opacity-70 group-hover:opacity-100"
-                        title="Remove from queue"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => handleMove(idx, idx - 1, track.title)}
+                          disabled={idx === 0}
+                          className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:text-slate-400 transition-colors"
+                          title="Move Up"
+                        >
+                          <ArrowUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleMove(idx, idx + 1, track.title)}
+                          disabled={idx === queue.length - 1}
+                          className="p-1 rounded text-slate-400 hover:text-white disabled:opacity-20 disabled:hover:text-slate-400 transition-colors"
+                          title="Move Down"
+                        >
+                          <ArrowDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleRemove(idx, track.title)}
+                          className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/20 transition-all opacity-70 group-hover:opacity-100 ml-1"
+                          title="Remove from queue"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

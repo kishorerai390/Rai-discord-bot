@@ -34,6 +34,8 @@ export async function POST(req: NextRequest) {
       // Fallback to local SQLite web action queue
     }
     const actionId = `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const db = getMusicDb();
+    const nowIso = new Date().toISOString();
     try {
       db.prepare(
         `INSERT INTO music_web_actions (guild_id, action, payload_json, user_id, status, created_at)

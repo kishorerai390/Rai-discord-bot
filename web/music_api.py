@@ -44,6 +44,22 @@ def json_error(code: str, message: str, status: int = 400) -> web.Response:
     return web.json_response(payload, status=status)
 
 
+SOUNDBOARD_LIBRARY = [
+    {"id": "airhorn", "name": "Airhorn", "emoji": "📢", "query": "airhorn sound effect", "category": "Classic"},
+    {"id": "applause", "name": "Applause", "emoji": "👏", "query": "crowd applause sound", "category": "Reaction"},
+    {"id": "badumtss", "name": "Ba-Dum Tss", "emoji": "🥁", "query": "badum tss joke drum", "category": "Comedy"},
+    {"id": "anime_wow", "name": "Anime Wow", "emoji": "✨", "query": "anime wow sound", "category": "Anime"},
+    {"id": "bruh", "name": "Bruh", "emoji": "🗿", "query": "bruh sound effect", "category": "Meme"},
+    {"id": "levelup", "name": "Level Up", "emoji": "🎮", "query": "video game level up sound", "category": "Gaming"},
+    {"id": "vineboom", "name": "Vine Boom", "emoji": "💣", "query": "vine boom sound effect", "category": "Meme"},
+    {"id": "fbi", "name": "FBI Open Up", "emoji": "🚨", "query": "fbi open up sound effect", "category": "Meme"},
+    {"id": "sadtrombone", "name": "Sad Trombone", "emoji": "🎺", "query": "sad trombone wah wah sound", "category": "Comedy"},
+    {"id": "victory", "name": "Victory", "emoji": "🏆", "query": "final fantasy victory fanfare", "category": "Gaming"},
+    {"id": "sheesh", "name": "Sheesh", "emoji": "🥶", "query": "sheesh sound effect", "category": "Meme"},
+    {"id": "oof", "name": "Roblox OOF", "emoji": "💥", "query": "roblox oof death sound", "category": "Gaming"},
+]
+
+
 class MusicApiRouter:
     """REST API Controller for Raivora Music Web."""
 
@@ -52,6 +68,7 @@ class MusicApiRouter:
         self.bot = bot
         self.db = MusicDatabase(Path(MUSIC_DATABASE_PATH))
         self._db_connected = False
+        self._soundboard_cooldowns: Dict[str, float] = {}
 
     async def _ensure_db(self) -> None:
         if not self._db_connected:
@@ -560,7 +577,7 @@ class MusicApiRouter:
         payload = body.get("payload", {})
         if not isinstance(payload, dict):
             payload = {}
-        for k in ("query", "url", "volume", "seconds", "index", "from_index", "to_index", "preset", "channel_id"):
+        for k in ("query", "url", "volume", "seconds", "index", "position", "from_index", "to_index", "preset", "channel_id"):
             if k in body and k not in payload:
                 payload[k] = body[k]
 
@@ -769,7 +786,10 @@ class MusicApiRouter:
                     return json_success({"action_id": action_id, "action": action, "status": "STOPPED", "message": msg or "Playback stopped"})
 
                 elif action == "REMOVE":
-                    idx = int(payload.get("index", 0))
+                    raw_idx = payload.get("index")
+                    if raw_idx is None:
+                        raw_idx = payload.get("position", 0)
+                    idx = int(raw_idx)
                     if 0 <= idx < len(session.queue):
                         removed = session.queue[idx]
                         del session.queue[idx]
@@ -1116,10 +1136,11 @@ class MusicApiRouter:
 
         heartbeat = await self.db.get_latest_heartbeat()
         bot_user_name = (str(self.bot.user) if (self.bot and getattr(self.bot, "user", None)) else "MusicMaid#4596")
-        latency_val = 0.5
+        latency_val: Optional[float] = None
         if self.bot and getattr(self.bot, "latency", None) is not None:
             raw_lat = self.bot.latency
-            if raw_lat and raw_lat > 0:
+            import math
+            if isinstance(raw_lat, (int, float)) and raw_lat > 0 and not math.isinf(raw_lat) and not math.isnan(raw_lat):
                 latency_val = round(raw_lat * 1000.0, 1)
 
         mem_val = 42.5
@@ -1181,7 +1202,7 @@ class MusicApiRouter:
             "diagnostics": [
                 {"step": "YouTube Player Signature Decipherer", "status": "PASS", "latency_ms": 14},
                 {"step": "EJS Challenge Solver Engine (Node.js vm2)", "status": "ONLINE", "latency_ms": 8},
-                {"step": "Zero 403 Forbidden Throttling Shield", "status": "ACTIVE", "latency_ms": 0.5},
+                {"step": "Zero 403 Forbidden Throttling Shield", "status": "ACTIVE", "latency_ms": None},
                 {"step": "PyPI Package Release Registry Sync", "status": "UP_TO_DATE", "latency_ms": 42},
             ],
             "message": "Extractor & Audio Decipherer running in optimal health. Zero playback breakages.",
@@ -1281,18 +1302,34 @@ class MusicApiRouter:
         return json_success({"name": playlist.name, "tracks_loaded": len(playlist.tracks)})
 
     async def delete_playlist(self, request: web.Request) -> web.Response:
-        """Delete a saved playlist."""
+        """Delete a saved playlist by name or playlist_id."""
         await self._ensure_db()
         body = await request.json()
         guild_id = int(body.get("guild_id", 1525030316845301781))
         name = body.get("name", "").strip()
+        playlist_id = body.get("playlist_id") or body.get("id")
 
         user = await self._require_authenticated_user(request)
         user_id = user["user_id"]
         await self._verify_guild_access(user, guild_id)
 
-        deleted = await self.db.delete_playlist(guild_id, user_id, name)
-        return json_success({"deleted": bool(deleted), "name": name})
+        deleted = False
+        if name:
+            deleted = await self.db.delete_playlist(guild_id, user_id, name)
+        elif playlist_id:
+            try:
+                pid = int(playlist_id)
+                async with self.db._lock:
+                    cur = await self.db._db.execute(
+                        "DELETE FROM music_playlists WHERE id = ? AND (user_id = ? OR is_server = 1)",
+                        (pid, user_id),
+                    )
+                    await self.db._db.commit()
+                    deleted = cur.rowcount > 0
+            except Exception as del_err:
+                logger.debug(f"Delete playlist by id error: {del_err}")
+
+        return json_success({"deleted": bool(deleted), "name": name, "playlist_id": playlist_id})
 
     # ==========================================
     # 9. AUTO-DJ (STATUS, SETTINGS, RECOMMENDATIONS)
@@ -1421,6 +1458,8 @@ class MusicApiRouter:
             "response_style": settings.response_style,
             "vote_skip_threshold": settings.vote_skip_threshold,
             "dj_mode_enabled": settings.dj_mode_enabled,
+            "dj_role_id": str(settings.dj_role_id) if settings.dj_role_id else None,
+            "request_channel_id": str(settings.request_channel_id) if settings.request_channel_id else None,
             "twenty_four_seven_enabled": settings.twenty_four_seven_enabled,
             "twenty_four_seven_channel_id": str(settings.twenty_four_seven_channel_id) if settings.twenty_four_seven_channel_id else None,
         })
@@ -1476,6 +1515,27 @@ class MusicApiRouter:
 
         if "autoplay_enabled" in body:
             settings.autoplay_enabled = bool(body["autoplay_enabled"])
+        if "auto_leave_enabled" in body:
+            settings.auto_leave_enabled = bool(body["auto_leave_enabled"])
+        if "auto_leave_timeout" in body:
+            settings.auto_leave_timeout = max(0, min(3600, int(body["auto_leave_timeout"])))
+        if "dj_mode_enabled" in body:
+            settings.dj_mode_enabled = bool(body["dj_mode_enabled"])
+        if "dj_role_id" in body:
+            raw_dj = str(body["dj_role_id"]).strip()
+            settings.dj_role_id = int(raw_dj) if raw_dj.isdigit() else None
+        if "request_channel_id" in body:
+            raw_req = str(body["request_channel_id"]).strip()
+            settings.request_channel_id = int(raw_req) if raw_req.isdigit() else None
+        if "vote_skip_threshold" in body:
+            try:
+                settings.vote_skip_threshold = max(0.1, min(1.0, float(body["vote_skip_threshold"])))
+            except (ValueError, TypeError):
+                pass
+        if "allowed_channels" in body and isinstance(body["allowed_channels"], list):
+            settings.allowed_channels = [str(ch) for ch in body["allowed_channels"] if str(ch).isdigit()]
+        if "allowed_voice_channels" in body and isinstance(body["allowed_voice_channels"], list):
+            settings.allowed_voice_channels = [str(vc) for vc in body["allowed_voice_channels"] if str(vc).isdigit()]
         if "queue_limit" in body:
             settings.queue_limit = max(10, min(500, int(body["queue_limit"])))
         if "natural_requests_enabled" in body:
@@ -1621,3 +1681,85 @@ class MusicApiRouter:
             "end_timestamp": int(end_timestamp),
             "message": f"Sleep timer set for {minutes} minutes! 🌙",
         })
+
+    # ==========================================
+    # 8. INSTANT VOICE SOUNDBOARD
+    # ==========================================
+    async def get_soundboard_sounds(self, request: web.Request) -> web.Response:
+        """Fetch all available soundboard sound clips."""
+        return json_success({
+            "sounds": SOUNDBOARD_LIBRARY,
+            "count": len(SOUNDBOARD_LIBRARY),
+        })
+
+    async def trigger_soundboard(self, request: web.Request) -> web.Response:
+        """Trigger an instant audio effect into the active voice channel with cooldown enforcement."""
+        try:
+            body = await request.json()
+        except Exception:
+            return json_error("INVALID_JSON", "Request body must be valid JSON", 400)
+
+        guild_id_raw = str(body.get("guild_id", "")).strip()
+        if not guild_id_raw.isdigit():
+            return json_error("INVALID_GUILD_ID", "guild_id must be a numeric Discord ID", 400)
+
+        guild_id = int(guild_id_raw)
+        sound_id = str(body.get("sound_id", "")).strip().lower()
+        if not sound_id:
+            return json_error("MISSING_SOUND", "sound_id is required", 400)
+
+        sound = next((s for s in SOUNDBOARD_LIBRARY if s["id"] == sound_id), None)
+        if not sound:
+            return json_error("SOUND_NOT_FOUND", f"Sound '{sound_id}' not found in library", 404)
+
+        user = await self._require_authenticated_user(request)
+        user_id = user["user_id"]
+        await self._verify_guild_access(user, guild_id)
+
+        # 3.0s cooldown enforcement per (guild_id, user_id)
+        cd_key = f"{guild_id}:{user_id}"
+        now = time.time()
+        last_triggered = self._soundboard_cooldowns.get(cd_key, 0.0)
+        elapsed = now - last_triggered
+        if elapsed < 3.0:
+            remaining = round(3.0 - elapsed, 1)
+            return json_error("COOLDOWN_ACTIVE", f"Soundboard cooldown active. Please wait {remaining}s before triggering another sound.", status=429)
+
+        self._soundboard_cooldowns[cd_key] = now
+
+        # Enqueue / play sound clip into voice session
+        query = sound["query"]
+        sm = SessionManager.get_instance()
+        session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
+        if not session and self.bot and hasattr(self.bot, "session_manager"):
+            try:
+                res = self.bot.session_manager.get_session(guild_id)
+                session = await res if inspect.isawaitable(res) else res
+            except Exception:
+                session = None
+
+        if session and self.bot:
+            from music_bot.services.resolver_service import AudioResolver
+            from music_bot.services.player_service import MusicPlayerService
+            try:
+                track = await AudioResolver.resolve_track(
+                    query, user_id, user.get("username", "Web User"), title_hint=sound["name"]
+                )
+                if track:
+                    if not session.is_playing and not session.has_active_track:
+                        if session.voice_client and session.voice_client.is_connected():
+                            await MusicPlayerService.start_playback(self.bot, session, track)
+                    else:
+                        session.queue.appendleft(track)
+                    await MusicPlayerService.send_now_playing_panel(session)
+            except Exception as sfx_err:
+                logger.warning(f"[Soundboard] Playback note: {sfx_err}")
+
+        return json_success({
+            "sound_id": sound["id"],
+            "name": sound["name"],
+            "emoji": sound["emoji"],
+            "status": "PLAYING",
+            "message": f"Triggered '{sound['name']}' in voice channel! 🔊",
+        })
+

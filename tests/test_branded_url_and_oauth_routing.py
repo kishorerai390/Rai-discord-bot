@@ -116,6 +116,7 @@ class TestBrandedUrlAndOAuthRouting(unittest.TestCase):
 
         with patch.dict(os.environ, {
             "PUBLIC_BASE_URL": "",
+            "MUSICMAID_WEBSITE_URL": "",
             "DISCORD_REDIRECT_URI": "http://localhost:8080/api/auth/callback",
             "RENDER_EXTERNAL_URL": "",
         }, clear=False):

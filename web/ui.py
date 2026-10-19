@@ -54,8 +54,8 @@ UI_HTML = r"""<!DOCTYPE html>
       --radius-md: 14px;
       --radius-lg: 20px;
       --radius-full: 9999px;
-      --player-height: 88px;
-      --player-mobile-height: 112px;
+      --player-height: 162px;
+      --player-mobile-height: 140px;
       --sidebar-width: 260px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -394,6 +394,36 @@ UI_HTML = r"""<!DOCTYPE html>
       border: none;
       border-radius: var(--radius-full);
       cursor: pointer;
+    }
+
+    /* SIDEBAR COMPACT VIP CHIP (SECTION 5 SPEC) */
+    .sidebar-vip-compact {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.7rem;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(147, 51, 234, 0.1));
+      border: 1px solid rgba(236, 72, 153, 0.25);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 0.3rem 0;
+    }
+    .sidebar-vip-compact:hover {
+      border-color: rgba(236, 72, 153, 0.5);
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.16), rgba(147, 51, 234, 0.2));
+      transform: translateY(-1px);
+    }
+
+    /* ACCESSIBILITY: REDUCED MOTION PREFERENCES */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .spin { animation: none !important; }
     }
 
     /* SIDEBAR FOOTER (VOICE BADGE & AUTH) */
@@ -849,129 +879,79 @@ UI_HTML = r"""<!DOCTYPE html>
       letter-spacing: -0.3px;
     }
 
-    /* PERSISTENT BOTTOM PLAYBACK BAR */
+    /* PERSISTENT BOTTOM PLAYBACK BAR (Reference Image 4) */
     footer.player-bar {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      height: var(--player-height);
-      background: rgba(10, 13, 22, 0.95);
+      min-height: var(--player-height);
+      background: rgba(11, 9, 20, 0.96);
       backdrop-filter: blur(28px);
       -webkit-backdrop-filter: blur(28px);
       border-top: 1px solid rgba(147, 51, 234, 0.28);
-      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(147, 51, 234, 0.12);
+      box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.85), 0 -2px 18px rgba(147, 51, 234, 0.14);
       z-index: 999;
-      display: grid;
-      grid-template-columns: 320px 1fr 300px;
-      align-items: center;
-      padding: 0 1.8rem;
-      gap: 1.5rem;
       box-sizing: border-box;
+      padding: 0.75rem 1.8rem 0.65rem 1.8rem;
     }
-    @media (max-width: 1024px) {
-      footer.player-bar {
-        grid-template-columns: 240px 1fr 200px;
-        padding: 0 1rem;
-        gap: 1rem;
-      }
+    .player-bar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
     }
-    @media (max-width: 768px) {
-      footer.player-bar {
-        display: flex;
-        flex-direction: column;
-        height: auto;
-        min-height: var(--player-mobile-height);
-        padding: 0.5rem 0.8rem calc(0.5rem + var(--safe-bottom)) 0.8rem;
-        gap: 0.35rem;
-        justify-content: center;
-      }
-      .player-bar-right { display: none !important; }
-      .player-bar-left {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.6rem;
-      }
-      .player-bar-center {
-        width: 100%;
-        max-width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-      }
-      .player-buttons-row {
-        gap: 0.85rem;
-      }
-      .bar-thumb {
-        width: 40px !important;
-        height: 40px !important;
-        border-radius: 8px !important;
-      }
-      .bar-title {
-        font-size: 0.84rem !important;
-      }
-      .bar-artist {
-        font-size: 0.72rem !important;
-      }
-      .p-btn {
-        width: 38px !important;
-        height: 38px !important;
-        min-width: 38px !important;
-        font-size: 1.1rem !important;
-      }
-      .p-btn-play {
-        width: 42px !important;
-        height: 42px !important;
-        min-width: 42px !important;
-        font-size: 1.25rem !important;
-      }
-      .scrub-row {
-        width: 100%;
-        gap: 0.45rem;
-      }
-      .scrub-time {
-        font-size: 0.72rem;
-        min-width: 34px;
-      }
+    .player-tier-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
     }
-
-    /* PLAYER BAR LEFT: TRACK META */
     .player-bar-left {
       display: flex;
       align-items: center;
-      gap: 0.9rem;
+      gap: 0.85rem;
       min-width: 0;
+      flex: 1;
     }
     .bar-thumb {
-      width: 52px;
-      height: 52px;
+      width: 46px;
+      height: 46px;
       border-radius: 10px;
       object-fit: cover;
       background: #181d2e;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(147, 51, 234, 0.35);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
       flex-shrink: 0;
     }
-    .bar-meta {
+    .bar-meta-stack {
       display: flex;
       flex-direction: column;
       min-width: 0;
+      gap: 2px;
     }
     .bar-title {
-      font-size: 0.92rem;
+      font-size: 0.95rem;
       font-weight: 700;
       color: #fff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
+      letter-spacing: -0.2px;
     }
-    .bar-title:hover { color: var(--cyan); }
+    .bar-title:hover { color: #c084fc; }
     .bar-artist {
-      font-size: 0.78rem;
-      color: var(--text-muted);
+      font-size: 0.8rem;
+      color: #c4b5fd;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bar-idle-state {
+      font-size: 0.72rem;
+      color: #94a3b8;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -980,35 +960,36 @@ UI_HTML = r"""<!DOCTYPE html>
       background: transparent;
       border: none;
       color: var(--text-dim);
-      font-size: 1.2rem;
+      font-size: 1.35rem;
       cursor: pointer;
       transition: transform 0.15s, color 0.15s;
       flex-shrink: 0;
+      padding: 4px;
     }
     .btn-fav:hover, .btn-fav.active {
-      color: var(--pink);
-      transform: scale(1.15);
+      color: #ec4899;
+      transform: scale(1.18);
     }
-
-    /* PLAYER BAR CENTER: CONTROLS & SCRUBBER */
-    .player-bar-center {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
+    .player-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
       width: 100%;
-      max-width: 620px;
-      margin: 0 auto;
+    }
+    .player-tier-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .player-buttons-row {
       display: flex;
       align-items: center;
-      gap: 1.1rem;
+      justify-content: center;
+      gap: 1.3rem;
     }
     .p-btn {
       background: transparent;
       border: none;
-      color: var(--text-muted);
+      color: #94a3b8;
       font-size: 1.15rem;
       cursor: pointer;
       display: flex;
@@ -1025,24 +1006,28 @@ UI_HTML = r"""<!DOCTYPE html>
       transform: scale(1.1);
     }
     .p-btn.active {
-      color: var(--cyan);
+      color: #c084fc;
     }
     .p-btn-play {
       width: 44px;
       height: 44px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--cyan) 100%);
+      background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
       color: #fff;
       border-radius: 50%;
-      box-shadow: 0 0 16px var(--primary-glow);
-      font-size: 1.3rem;
+      box-shadow: 0 0 18px rgba(168, 85, 247, 0.55);
+      font-size: 1.25rem;
+      border: none;
+      cursor: pointer;
     }
     .p-btn-play:hover {
       transform: scale(1.08);
-      box-shadow: 0 0 24px var(--cyan-glow);
+      box-shadow: 0 0 26px rgba(168, 85, 247, 0.85);
       color: #fff;
-      background: linear-gradient(135deg, var(--primary-hover) 0%, var(--cyan-hover) 100%);
+      background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
     }
-
+    .player-tier-scrub {
+      width: 100%;
+    }
     .scrub-row {
       display: flex;
       align-items: center;
@@ -1052,62 +1037,129 @@ UI_HTML = r"""<!DOCTYPE html>
     .scrub-time {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.72rem;
-      color: var(--text-muted);
-      min-width: 42px;
+      color: #94a3b8;
+      min-width: 40px;
       text-align: center;
     }
     .slider-track {
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 5px;
+      height: 4px;
       border-radius: 4px;
       background: rgba(255, 255, 255, 0.14);
       outline: none;
       cursor: pointer;
       transition: height 0.15s;
     }
-    .slider-track:hover { height: 7px; }
+    .slider-track:hover { height: 6px; }
     .slider-track::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 13px;
-      height: 13px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      background: var(--cyan);
-      box-shadow: 0 0 10px var(--cyan);
+      background: #a855f7;
+      box-shadow: 0 0 10px #a855f7;
       cursor: pointer;
     }
-
-    /* PLAYER BAR RIGHT: VOLUME & SHORTCUTS */
+    .player-tier-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.78rem;
+    }
+    .player-status-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .player-queue-label {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .player-queue-label:hover {
+      color: #fff;
+    }
     .player-bar-right {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 0.9rem;
+      gap: 0.8rem;
     }
     .vol-wrapper {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      width: 130px;
+      gap: 0.45rem;
+      width: 110px;
     }
     .chip-pill {
-      background: rgba(255, 255, 255, 0.07);
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-full);
-      padding: 0.25rem 0.65rem;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--cyan);
+      padding: 0.2rem 0.6rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #c4b5fd;
       letter-spacing: 0.3px;
       cursor: pointer;
       transition: all 0.15s;
     }
     .chip-pill:hover, .chip-pill.active {
-      background: var(--primary);
-      border-color: var(--primary);
+      background: #7e22ce;
+      border-color: #a855f7;
       color: #fff;
+    }
+    @media (max-width: 768px) {
+      footer.player-bar {
+        min-height: var(--player-mobile-height);
+        padding: 0.5rem 0.8rem calc(0.5rem + var(--safe-bottom)) 0.8rem;
+      }
+      .player-bar-inner {
+        gap: 0.25rem;
+      }
+      .player-tier-top {
+        gap: 0.5rem;
+      }
+      .bar-thumb {
+        width: 38px;
+        height: 38px;
+      }
+      .bar-title {
+        font-size: 0.84rem;
+      }
+      .bar-artist {
+        font-size: 0.72rem;
+      }
+      .bar-idle-state {
+        display: none;
+      }
+      .player-divider {
+        display: none;
+      }
+      .player-buttons-row {
+        gap: 0.85rem;
+      }
+      .p-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 1rem;
+      }
+      .p-btn-play {
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
+      }
+      .player-status-left .chip-pill {
+        display: none;
+      }
+      .vol-wrapper {
+        width: 75px;
+      }
     }
 
     /* TOAST NOTIFICATION */
@@ -1599,6 +1651,216 @@ UI_HTML = r"""<!DOCTYPE html>
       border-radius: var(--radius-sm);
       object-fit: cover;
     }
+
+    /* MODERN SPOTIFY/TIDAL DASHBOARD (REFERENCE IMAGE 2) */
+    .dash-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.2rem;
+      margin-bottom: 1.6rem;
+      flex-wrap: wrap;
+    }
+    .dash-search-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      padding: 0.65rem 1.25rem;
+      flex: 1;
+      max-width: 540px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .dash-search-pill:focus-within {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--primary);
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+    }
+    .dash-search-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 500;
+      width: 100%;
+    }
+    .dash-search-input::placeholder {
+      color: var(--text-dim);
+    }
+    .dash-user-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      padding: 0.35rem 0.85rem 0.35rem 0.4rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .dash-user-chip:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .rec-cards-scroll {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 1.1rem;
+      margin-bottom: 2rem;
+    }
+    .rec-card {
+      background: rgba(18, 14, 30, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 18px;
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .rec-card:hover {
+      background: rgba(28, 22, 48, 0.9);
+      border-color: rgba(168, 85, 247, 0.45);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 25px rgba(147, 51, 234, 0.2);
+    }
+    .rec-art-wrap {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    }
+    .rec-art {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .rec-card:hover .rec-art {
+      transform: scale(1.05);
+    }
+    .rec-play-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #fff;
+      color: #0b0914;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      transform: translateY(6px);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      border: none;
+      cursor: pointer;
+    }
+    .rec-card:hover .rec-play-btn {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .rec-play-btn:hover {
+      background: var(--primary);
+      color: #fff;
+      transform: scale(1.08);
+    }
+    .rec-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rec-artist {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* TRACKS TABLE (TOP 50 / QUEUE) */
+    .tracks-table-wrap {
+      background: rgba(16, 13, 28, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 1.4rem;
+      backdrop-filter: blur(16px);
+    }
+    .tracks-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 0.35rem;
+    }
+    .tracks-table th {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .track-row {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      transition: all 0.18s ease;
+      cursor: pointer;
+    }
+    .track-row:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .track-row td {
+      padding: 0.65rem 0.75rem;
+      vertical-align: middle;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .track-row td:first-child {
+      border-radius: 12px 0 0 12px;
+    }
+    .track-row td:last-child {
+      border-radius: 0 12px 12px 0;
+    }
+    .track-meta-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .track-thumb-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .track-title-bold {
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.88rem;
+      line-height: 1.3;
+    }
+    .track-artist-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
     .muify-promo-banner {
       background: linear-gradient(135deg, #2d134d 0%, #171b30 100%);
       border: 1px solid rgba(236, 72, 153, 0.4);
@@ -2418,6 +2680,178 @@ UI_HTML = r"""<!DOCTYPE html>
       color: #ffd700;
       box-shadow: 0 4px 14px rgba(255, 215, 0, 0.2);
     }
+
+    /* LOGIN & WELCOME VIEW — SPLIT-SCREEN LAYOUT (REFERENCE IMAGE 1) */
+    body.page-login-mode .sidebar,
+    body.page-login-mode .sidebar-backdrop,
+    body.page-login-mode .mobile-topbar,
+    body.page-login-mode .player-bar {
+      display: none !important;
+    }
+    body.page-login-mode .app-layout {
+      display: block !important;
+      min-height: 100vh !important;
+      height: auto !important;
+    }
+    body.page-login-mode .main-content {
+      margin-left: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 100vh !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+      align-items: center !important;
+      background: radial-gradient(circle at 50% 10%, rgba(147, 51, 234, 0.12) 0%, #07060d 70%) !important;
+    }
+    body.page-login-mode #view-container {
+      width: 100% !important;
+      max-width: 1200px !important;
+      padding: 2.5rem 1.5rem !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+
+    .login-split-card {
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr;
+      width: 100%;
+      max-width: 1060px;
+      min-height: 580px;
+      background: rgba(12, 10, 20, 0.92);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px rgba(147, 51, 234, 0.15);
+      backdrop-filter: blur(24px);
+    }
+    .login-left-pane {
+      padding: 3rem 2.8rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+      background: linear-gradient(145deg, rgba(16, 13, 28, 0.95) 0%, rgba(9, 7, 16, 0.98) 100%);
+    }
+    .login-right-pane {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 480px;
+    }
+    .login-hero-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .login-split-card:hover .login-hero-img {
+      transform: scale(1.02);
+    }
+    .login-floating-badge {
+      position: absolute;
+      top: 1.6rem;
+      right: 1.6rem;
+      background: rgba(255, 255, 255, 0.96);
+      border-radius: 18px;
+      padding: 0.6rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      z-index: 5;
+    }
+    .login-title-h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 0.4rem;
+    }
+    .login-subhead {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1.6rem;
+    }
+    .btn-discord-login-prominent {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.95rem 1.6rem;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, #5865F2 0%, #4752C4 100%);
+      box-shadow: 0 8px 24px rgba(88, 101, 242, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      text-decoration: none;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-discord-login-prominent:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(88, 101, 242, 0.55);
+      color: #fff;
+    }
+    .login-quick-links {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .login-legal-footer {
+      margin-top: 2rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.45);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .login-legal-footer a {
+      color: rgba(255, 255, 255, 0.55);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .login-legal-footer a:hover {
+      color: var(--primary-hover);
+      text-decoration: underline;
+    }
+    @media (max-width: 900px) {
+      .login-split-card {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .login-right-pane {
+        height: 280px;
+        min-height: 280px;
+        order: -1;
+      }
+      .login-left-pane {
+        padding: 2.2rem 1.6rem;
+      }
+      .login-title-h1 {
+        font-size: 2.2rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -2478,57 +2912,60 @@ UI_HTML = r"""<!DOCTYPE html>
         </a>
       </div>
 
-      <!-- PROMINENT SIDEBAR PREMIUM CARD -->
-      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to MusicMaid VIP">
-        <div class="promo-sparkle">✨ 150% Volume • 24/7 Stay</div>
-        <div class="promo-content">
-          <span class="promo-title">💎 MusicMaid VIP</span>
-          <span class="promo-sub">Studio DSP, 24/7 staying mode & zero queue limits</span>
-        </div>
-        <button class="promo-btn">View Plans ⚡</button>
-      </div>
-
-      <!-- 1. LOGIN & ACCESS GATEWAY -->
-      <span class="nav-group-title">1. Access & Gateway</span>
+      <!-- MAIN -->
+      <span class="nav-group-title">MAIN</span>
       <ul class="nav-list">
-        <li><a class="nav-link" id="nav-login" onclick="navigate('/login')"><span class="nav-icon">🔑</span> Login / Welcome Page</a></li>
+        <li><a class="nav-link" id="nav-dashboard" onclick="navigate('/dashboard')"><span class="nav-icon">📻</span> Overview</a></li>
+        <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
+        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Add Music</a></li>
+        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
       </ul>
 
-      <!-- 2. USER DASHBOARD & LISTENER HUB -->
-      <span class="nav-group-title" style="margin-top:0.6rem;">2. User Dashboard (Listener Hub)</span>
+      <!-- YOUR MUSIC -->
+      <span class="nav-group-title" style="margin-top:0.6rem;">YOUR MUSIC</span>
       <ul class="nav-list">
-        <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">📻</span> Turntable & Deck</a></li>
-        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Aux</a></li>
-        <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
-        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
-        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Audio Visualizer</a></li>
-        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library & Favs</a></li>
+        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library & Favorites</a></li>
         <li><a class="nav-link" id="nav-playlists" onclick="navigate('/playlists')"><span class="nav-icon">📁</span> Playlists</a></li>
         <li><a class="nav-link" id="nav-history" onclick="navigate('/history')"><span class="nav-icon">🕒</span> Listening History</a></li>
-        <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
-        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Audio Equalizer</a></li>
-        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> MusicMaid VIP</a></li>
       </ul>
 
-      <!-- 3. OWNER DASHBOARD & CREATOR ROOM (SEPARATE) -->
-      <span class="nav-group-title" style="margin-top:0.6rem; color:#ffd700;">3. Owner Dashboard (Creator Room)</span>
+      <!-- PLAYBACK -->
+      <span class="nav-group-title" style="margin-top:0.6rem;">PLAYBACK</span>
       <ul class="nav-list">
-        <li id="nav-owner-li"><a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(255,215,0,0.35); background:linear-gradient(135deg,rgba(255,215,0,0.06),rgba(147,51,234,0.1)); color:#ffd700;"><span class="nav-icon">👑</span> Creator Control Center</a></li>
-        <li id="nav-system-li"><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🛡️</span> Security & Health</a></li>
-        <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Telemetry & Analytics</a></li>
-        <li><a class="nav-link" id="nav-guilds" onclick="navigate('/dashboard/guilds')"><span class="nav-icon">⚙️</span> Server Management</a></li>
-        <li><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">🔧</span> Global Settings</a></li>
+        <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
+        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & Audio</a></li>
       </ul>
 
+      <!-- SERVER (Visible to Admins / Managers) -->
+      <span class="nav-group-title" style="margin-top:0.6rem;" id="nav-group-server-title">SERVER</span>
+      <ul class="nav-list" id="nav-group-server-list">
+        <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
+      </ul>
+
+      <!-- UTILITY QUICK ACCESS -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin:0.5rem 0 0.2rem 0;">
         <button class="btn btn-secondary btn-sm" onclick="openCommandsModal()" style="font-size:0.72rem; padding:0.4rem 0.5rem; justify-content:center;">📖 Commands</button>
         <button class="btn btn-secondary btn-sm" onclick="openSoundboardModal()" style="font-size:0.72rem; padding:0.4rem 0.5rem; justify-content:center;">📢 Soundboard</button>
+      </div>
+
+      <!-- COMPACT OPTIONAL VIP CHIP -->
+      <div class="sidebar-vip-compact" onclick="navigate('/premium')" id="sidebar-premium-card" title="MusicMaid VIP">
+        <div style="display:flex; align-items:center; gap:0.45rem;">
+          <span>💎</span>
+          <span style="font-weight:700; font-size:0.75rem; color:#fff;">MusicMaid VIP</span>
+        </div>
+        <span class="chip-pill" style="color:var(--pink); background:rgba(236,72,153,0.15); font-size:0.65rem; padding:0.15rem 0.45rem; border:1px solid rgba(236,72,153,0.3);">Upgrade ⚡</span>
       </div>
 
       <!-- SIDEBAR FOOTER -->
       <div class="sidebar-footer">
         <div class="voice-badge-card" id="sidebar-voice-pill" onclick="quickConnectVoice()" title="Click to summon / connect MusicMaid to your voice channel" style="cursor:pointer;">
           <span>🔊</span> <span id="sidebar-vc-text">320kbps Online (Ready)</span>
+        </div>
+        <div id="nav-owner-li" style="display:none; margin: 0.2rem 0;">
+          <a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(255,215,0,0.35); background:linear-gradient(135deg,rgba(255,215,0,0.06),rgba(147,51,234,0.1)); color:#ffd700;">
+            <span class="nav-icon">👑</span> Creator Control Center
+          </a>
         </div>
         <div id="auth-box-sidebar">
           <a class="btn-login-discord" id="btn-login-link" href="/api/auth/login" onclick="startDiscordLogin(event)">
@@ -2538,6 +2975,11 @@ UI_HTML = r"""<!DOCTYPE html>
         <div style="font-size:0.68rem; color:var(--text-dim); text-align:center; padding:0.4rem 0 0.1rem 0; line-height:1.4;">
           MusicMaid is an independent open-source music bot. Not affiliated with or endorsed by Discord, Inc.<br>
           Handcrafted by <a href="https://github.com/kishorerai390" target="_blank" rel="noopener" style="color:#a78bfa; text-decoration:none; font-weight:600;">Kishore</a>
+          <div style="display:flex; justify-content:center; gap:0.6rem; font-size:0.72rem; margin-top:0.35rem;">
+            <a href="/terms" onclick="event.preventDefault(); navigate('/terms')" style="color:var(--text-muted); text-decoration:none;">Terms</a>
+            <span style="color:var(--text-dim);">•</span>
+            <a href="/privacy" onclick="event.preventDefault(); navigate('/privacy')" style="color:var(--text-muted); text-decoration:none;">Privacy</a>
+          </div>
         </div>
       </div>
     </aside>
@@ -2565,46 +3007,62 @@ UI_HTML = r"""<!DOCTYPE html>
 
   </div>
 
-  <!-- PERSISTENT BOTTOM PLAYBACK BAR -->
-  <footer class="player-bar">
-    <!-- LEFT: TRACK METADATA -->
-    <div class="player-bar-left">
-      <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
-      <div class="bar-meta">
-        <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
-        <span class="bar-artist" id="bar-artist">Join a voice channel and play a song</span>
+  <!-- PERSISTENT BOTTOM PLAYBACK BAR (Reference Image 4) -->
+  <footer class="player-bar" id="master-bottom-player">
+    <div class="player-bar-inner">
+      <!-- TIER 1: TRACK METADATA & FAVORITE HEART -->
+      <div class="player-tier-top">
+        <div class="player-bar-left">
+          <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
+          <div class="bar-meta-stack">
+            <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
+            <span class="bar-artist" id="bar-artist">Artist name · Current server</span>
+            <span class="bar-idle-state" id="bar-idle-state">Idle state: Search for music to get started</span>
+          </div>
+        </div>
+        <button class="btn-fav" id="bar-fav-btn" onclick="toggleCurrentFavorite()" title="Save to Favorites">♡</button>
       </div>
-      <button class="btn-fav" id="bar-fav-btn" onclick="toggleCurrentFavorite()" title="Save to Favorites">♡</button>
-    </div>
 
-    <!-- CENTER: CONTROLS & SCRUBBER -->
-    <div class="player-bar-center">
-      <div class="player-buttons-row">
-        <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue">🔀</button>
-        <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
-        <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause">▶</button>
-        <button class="p-btn" onclick="dispatchCmd('STOP')" title="Stop Playback">⏹</button>
-        <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
-        <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)">🔁</button>
-      </div>
-      <div class="scrub-row">
-        <span class="scrub-time" id="scrub-current">00:00</span>
-        <input type="range" class="slider-track" id="scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)">
-        <span class="scrub-time" id="scrub-total">00:00</span>
-      </div>
-    </div>
+      <div class="player-divider"></div>
 
-    <!-- RIGHT: VOLUME & QUICK TOGGLES -->
-    <div class="player-bar-right">
-      <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer">🌙 Sleep</button>
-      <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics">🎤 Lyrics</button>
-      <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence">24/7 OFF</button>
-      <div class="vol-wrapper">
-        <span style="font-size:0.9rem; color:var(--text-dim);" id="vol-icon" onclick="quickMute()">🔊</span>
-        <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
+      <!-- TIER 2: PLAYBACK CONTROLS -->
+      <div class="player-tier-controls">
+        <div class="player-buttons-row">
+          <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue">🔀</button>
+          <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
+          <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause">▶</button>
+          <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
+          <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)">🔁</button>
+        </div>
       </div>
-      <button class="p-btn" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ">✨</button>
-      <button class="p-btn" onclick="navigate('/queue')" title="Open Queue">📜</button>
+
+      <!-- TIER 3: FULL-WIDTH SCRUBBER -->
+      <div class="player-tier-scrub">
+        <div class="scrub-row">
+          <span class="scrub-time" id="scrub-current">0:00</span>
+          <input type="range" class="slider-track" id="scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)" title="Seek position">
+          <span class="scrub-time" id="scrub-total">0:00</span>
+        </div>
+      </div>
+
+      <!-- TIER 4: STATUS & UTILITIES -->
+      <div class="player-tier-status">
+        <div class="player-status-left">
+          <span class="player-queue-label" id="player-queue-count" onclick="navigate('/queue')" title="Click to view queue">Queue: 0 tracks</span>
+          <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer">🌙 Sleep</button>
+          <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics">🎤 Lyrics</button>
+          <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence">24/7 OFF</button>
+          <button class="chip-pill" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ">✨ Auto-DJ</button>
+        </div>
+        <div class="player-bar-right">
+          <button class="p-btn" onclick="navigate('/queue')" title="Open Queue Drawer">≡♪</button>
+          <div class="vol-wrapper">
+            <span id="vol-icon" onclick="quickMute()" style="cursor:pointer;" title="Mute / Unmute">🔊</span>
+            <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
+          </div>
+          <button class="p-btn" id="btn-fullscreen-player" onclick="toggleFullscreenPlayer()" title="Toggle Fullscreen">⤢</button>
+        </div>
+      </div>
     </div>
   </footer>
 
@@ -3266,6 +3724,11 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success && json.data) {
           currentQueue = json.data.tracks || [];
+          const qEl = document.getElementById('player-queue-count');
+          if (qEl) {
+            const count = currentQueue.length;
+            qEl.innerText = `Queue: ${count} ${count === 1 ? 'track' : 'tracks'}`;
+          }
         }
       } catch(e) {}
     }
@@ -3284,9 +3747,17 @@ UI_HTML = r"""<!DOCTYPE html>
       const vcText = document.getElementById('sidebar-vc-text');
       const activeVcEl = document.getElementById('active-server-vc');
 
+      const queueCountEl = document.getElementById('player-queue-count');
+      if (queueCountEl) {
+        const count = currentQueue ? currentQueue.length : 0;
+        queueCountEl.innerText = `Queue: ${count} ${count === 1 ? 'track' : 'tracks'}`;
+      }
+
       if (!currentSession) {
         if (vcText) vcText.innerText = "⚪ Not in Voice Channel";
         if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot disconnected"></span> ⚪ Disconnected';
+        const idleStateEl = document.getElementById('bar-idle-state');
+        if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music to get started";
         updateDynamicTurntableAndVU();
         return;
       }
@@ -3294,19 +3765,26 @@ UI_HTML = r"""<!DOCTYPE html>
       const t = currentSession.current_track;
       const titleEl = document.getElementById('bar-title');
       const artistEl = document.getElementById('bar-artist');
+      const idleStateEl = document.getElementById('bar-idle-state');
       const artEl = document.getElementById('bar-art');
       const playBtn = document.getElementById('btn-master-play');
       const loopBtn = document.getElementById('btn-loop');
       const pill247 = document.getElementById('btn-247-pill');
 
+      const vName = currentSession.voice_channel_name;
+      const currentGuildObj = activeGuilds.find(g => g.id === currentGuildId);
+      const serverName = currentGuildObj?.name || "Current server";
+
       if (t) {
         titleEl.innerText = t.title;
-        artistEl.innerText = t.artist || "Unknown Artist";
+        artistEl.innerText = `${t.artist || "Unknown Artist"} · ${vName ? '#' + vName : serverName}`;
+        if (idleStateEl) idleStateEl.innerText = isPaused ? "Paused · Press play to resume" : "Lossless Studio Audio · 320kbps Active";
         artEl.src = t.thumbnail || DEFAULT_ARTWORK;
         artEl.onerror = () => { artEl.src = DEFAULT_ARTWORK; };
       } else {
-        titleEl.innerText = "Queue is Empty";
-        artistEl.innerText = "Ready for songs — search or play a track";
+        titleEl.innerText = "No Track Playing";
+        artistEl.innerText = `MusicMaid · ${vName ? '#' + vName : serverName}`;
+        if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music to get started";
         artEl.src = DEFAULT_ARTWORK;
       }
 
@@ -3579,6 +4057,16 @@ UI_HTML = r"""<!DOCTYPE html>
       } catch(e){}
     }
 
+    function toggleFullscreenPlayer() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+        showToast("Fullscreen Player Mode ⤢");
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+        showToast("Exited Fullscreen Mode");
+      }
+    }
+
     function showToast(msg, type = "success") {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -3630,12 +4118,18 @@ UI_HTML = r"""<!DOCTYPE html>
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
-      if (path === '/login') {
+      const isLoginPage = (path === '/' || path === '/login');
+      document.body.classList.toggle('page-login-mode', isLoginPage);
+
+      if (path === '/' || path === '/login') {
         document.getElementById('nav-login')?.classList.add('active');
         renderLoginView();
-      } else if (path === '/' || path === '/dashboard') {
+      } else if (path === '/dashboard') {
         document.getElementById('nav-dashboard')?.classList.add('active');
         renderDashboard();
+      } else if (path === '/servers') {
+        document.getElementById('nav-servers')?.classList.add('active');
+        renderServersView();
       } else if (path === '/search') {
         document.getElementById('nav-search')?.classList.add('active');
         renderSearch();
@@ -3693,8 +4187,12 @@ UI_HTML = r"""<!DOCTYPE html>
       } else if (path === '/dashboard/guilds' || path === '/guilds') {
         document.getElementById('nav-guilds')?.classList.add('active');
         renderGuildAdminSettings();
+      } else if (path === '/terms' || path === '/terms-of-service') {
+        renderTermsView();
+      } else if (path === '/privacy' || path === '/privacy-policy') {
+        renderPrivacyView();
       } else {
-        renderDashboard();
+        renderNotFound();
       }
     }
 
@@ -3748,17 +4246,36 @@ UI_HTML = r"""<!DOCTYPE html>
           const sessEl = document.getElementById('cr-metric-sessions');
           const guildsEl = document.getElementById('cr-metric-guilds');
           const slaEl = document.getElementById('cr-metric-sla');
-          if (latEl) latEl.innerText = '0.5ms';
+          if (latEl) latEl.innerText = ov.gateway_latency_ms != null ? `${ov.gateway_latency_ms}ms` : 'N/A';
           if (sessEl) sessEl.innerText = ov.active_voice_sessions || 0;
           if (guildsEl) guildsEl.innerText = ov.active_guilds || 0;
-          if (slaEl) slaEl.innerText = `${ov.sla_percentage || 99.97}%`;
+          if (slaEl) slaEl.innerText = ov.sla_percentage != null ? `${ov.sla_percentage}%` : (ov.sla_target ? `${ov.sla_target}% (Target)` : 'N/A');
         }
       } catch(e) {}
     }
 
+    async function updateLoginGatewayBadge() {
+      const badge = document.getElementById('login-gateway-badge');
+      if (!badge) return;
+      try {
+        const res = await fetch('/api/music/stats');
+        const json = await res.json();
+        const ping = json?.data?.gateway_latency_ms;
+        if (ping != null) {
+          badge.innerText = `⚡ ${ping}ms Gateway Ping`;
+        } else {
+          badge.innerText = '⚡ Realtime Gateway Sync';
+        }
+      } catch (e) {
+        badge.innerText = '⚡ Realtime Gateway Sync';
+      }
+    }
+
     function updateActiveView() {
       const path = location.pathname;
-      if (path === '/' || path === '/dashboard') {
+      if (path === '/' || path === '/login') {
+        updateLoginGatewayBadge();
+      } else if (path === '/dashboard') {
         updateDashboardDynamicElements();
       } else if (path === '/queue') {
         const qContainer = document.getElementById('queue-tracks-container');
@@ -3779,10 +4296,10 @@ UI_HTML = r"""<!DOCTYPE html>
       const isOwner = Boolean(currentUser && currentUser.is_owner);
 
       container.innerHTML = `
-        <div class="view-fade-in" style="max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+        <div class="view-fade-in" style="width:100%; max-width:1060px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem; align-items:center;">
 
           <!-- WORKSPACE ORDER SWITCHER -->
-          <div class="workspace-switcher-bar">
+          <div class="workspace-switcher-bar" style="width:100%;">
             <div class="workspace-tab active" onclick="navigate('/login')">
               <span>🔑</span> 1. Login & Welcome
             </div>
@@ -3794,63 +4311,122 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- HERO LOGIN & WELCOME CARD -->
-          <div class="glass-card" style="padding:2.5rem 1.8rem; text-align:center; position:relative; overflow:hidden; border:1px solid rgba(147,51,234,0.35); background:radial-gradient(circle at 50% 0%, rgba(147,51,234,0.22) 0%, rgba(10,10,16,0.9) 75%);">
-            <div style="position:relative; z-index:2; display:flex; flex-direction:column; align-items:center;">
-              <div style="position:relative; width:92px; height:92px; margin-bottom:1.2rem;">
-                <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid Avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:2px solid var(--primary); box-shadow:0 0 32px rgba(147,51,234,0.6);" onerror="this.src=DEFAULT_ARTWORK">
-                <span class="pulse-dot connected" style="position:absolute; bottom:4px; right:4px; width:14px; height:14px; border:2px solid #000;"></span>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem; flex-wrap:wrap; justify-content:center;">
-                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 24/7 Voice Ready</span>
-                <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ 0.5ms Gateway Ping</span>
-                <span class="chip-pill" style="color:#f472b6; background:rgba(236,72,153,0.15);">🛡️ Extractor Auto-Heal ON</span>
-              </div>
-
-              <h1 style="font-size:2.2rem; font-weight:800; color:#fff; line-height:1.2; margin-bottom:0.6rem;">
-                Welcome to MusicMaid Studio
-              </h1>
-              <p style="font-size:1rem; color:var(--text-muted); max-width:620px; line-height:1.55; margin-bottom:1.8rem;">
-                Lossless 320kbps Discord audio streaming with cyber-analog turntable controls, dual stereo VU meters, social aux sharing, and autonomous self-healing.
-              </p>
-
-              ${isAuth ? `
-                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:1rem 1.6rem; margin-bottom:1.6rem; display:flex; align-items:center; gap:1rem;">
-                  <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:42px; height:42px; border-radius:50%;" alt="Avatar">
-                  <div style="text-align:left;">
-                    <div style="font-weight:700; color:#fff; font-size:0.95rem;">Signed in as ${currentUser.display_name || currentUser.username}</div>
-                    <div style="font-size:0.75rem; color:${isOwner ? '#ffd700' : 'var(--cyan)'}; font-weight:700;">${isOwner ? '👑 Bot Creator / Owner' : '🎧 Listener / Server Member'}</div>
+          <!-- SPLIT-SCREEN LOGIN CARD (REFERENCE IMAGE 1) -->
+          <div class="login-split-card">
+            <!-- LEFT PANE: BRAND, GREETING, CTAs, AND FOOTER -->
+            <div class="login-left-pane">
+              <div>
+                <!-- Brand Badge -->
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1.5rem;">
+                  <div style="width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(168,85,247,0.4);">
+                    <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
+                  </div>
+                  <div>
+                    <span style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.02em;">MusicMaid</span>
+                    <span style="font-size:0.7rem; color:var(--primary); font-weight:700; margin-left:0.35rem; text-transform:uppercase;">Lossless</span>
                   </div>
                 </div>
-                <div style="display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center;">
-                  <button class="btn btn-primary btn-lg" onclick="navigate('/dashboard')" style="padding:0.75rem 1.8rem; font-weight:800; font-size:1rem;">
-                    <span>🎧</span> Enter User Dashboard ↗
-                  </button>
-                  ${isOwner ? `
-                    <button class="btn btn-secondary btn-lg" onclick="navigate('/owner')" style="padding:0.75rem 1.5rem; font-weight:800; font-size:1rem; border-color:rgba(255,215,0,0.5); color:#ffd700;">
-                      <span>👑</span> Open Owner Dashboard ↗
+
+                <!-- Status Pills -->
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1.2rem; flex-wrap:wrap;">
+                  <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.25);">● 24/7 Voice Ready</span>
+                  <span class="chip-pill" id="login-gateway-badge" style="color:var(--cyan); background:rgba(0,229,255,0.12); border:1px solid rgba(0,229,255,0.25);">⚡ Realtime Gateway Sync</span>
+                </div>
+
+                <!-- Title & Subtitle -->
+                <h1 class="login-title-h1">Hello there.</h1>
+                <div class="login-subhead">
+                  <span style="font-weight:700; color:#fff;">Welcome to MusicMaid Studio</span><br>
+                  Dedicated 24/7 Lossless 320kbps Discord audio player with cyber-analog controls, real-time sync, and social Aux sharing.
+                </div>
+
+                <!-- Action Controls -->
+                ${isAuth ? `
+                  <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:1rem 1.4rem; margin-bottom:1.4rem; display:flex; align-items:center; gap:1rem;">
+                    <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:44px; height:44px; border-radius:50%; border:2px solid var(--primary);" alt="Avatar">
+                    <div style="text-align:left; min-width:0; flex:1;">
+                      <div style="font-weight:800; color:#fff; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Signed in as ${currentUser.display_name || currentUser.username}</div>
+                      <div style="font-size:0.75rem; color:${isOwner ? '#ffd700' : 'var(--cyan)'}; font-weight:700;">${isOwner ? '👑 Bot Creator / Owner' : '🎧 Listener / Server Member'}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:0.7rem; width:100%;">
+                    <button class="btn btn-primary btn-lg" onclick="navigate('/dashboard')" style="padding:0.9rem 1.6rem; font-weight:800; font-size:1.02rem; justify-content:center; width:100%;">
+                      <span>🎧</span> Enter User Dashboard ↗
                     </button>
-                  ` : ''}
-                  <button class="btn btn-secondary btn-lg" onclick="logoutUser()" style="padding:0.75rem 1.2rem; font-size:0.95rem;">
-                    🚪 Logout
-                  </button>
-                </div>
-              ` : `
-                <div style="display:flex; flex-direction:column; gap:0.9rem; align-items:center; width:100%; max-width:380px;">
-                  <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)" style="width:100%; justify-content:center; padding:0.85rem 1.4rem; font-size:1.05rem; font-weight:800; box-shadow:0 6px 20px rgba(88,101,242,0.4);">
-                    <span>👾 Sign in with Discord</span>
+                    <div style="display:flex; gap:0.6rem; width:100%;">
+                      <button class="btn btn-secondary" onclick="navigate('/servers')" style="flex:1; justify-content:center; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <span>🌐</span> Select Server
+                      </button>
+                      ${isOwner ? `
+                        <button class="btn btn-secondary" onclick="navigate('/owner')" style="flex:1; justify-content:center; padding:0.75rem 1rem; font-size:0.9rem; border-color:rgba(255,215,0,0.4); color:#ffd700;">
+                          <span>👑</span> Owner Room
+                        </button>
+                      ` : ''}
+                      <button class="btn btn-secondary" onclick="logoutUser()" style="padding:0.75rem 1rem; font-size:0.85rem; color:var(--text-muted);">
+                        🚪 Logout
+                      </button>
+                    </div>
+                  </div>
+                ` : `
+                  <div style="display:flex; flex-direction:column; gap:0.75rem; width:100%;">
+                    <a class="btn-discord-login-prominent" href="/api/auth/login" onclick="startDiscordLogin(event)">
+                      <svg width="22" height="17" viewBox="0 0 127.14 96.36" fill="currentColor" style="flex-shrink:0;"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,45.91,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,45.91,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+                      <span>Sign in with Discord</span>
+                    </a>
+                    <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="width:100%; justify-content:center; padding:0.85rem 1.4rem; font-size:0.95rem; font-weight:700; border-radius:14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14); color:#fff;">
+                      <span>🎧 Preview User Dashboard as Listener</span>
+                    </button>
+                  </div>
+                `}
+
+                <!-- Quick Action Pills -->
+                <div class="login-quick-links">
+                  <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:#fff; background:rgba(88,101,242,0.2); border:1px solid rgba(88,101,242,0.4); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                    <span>➕ Add to Discord</span>
                   </a>
-                  <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="width:100%; justify-content:center; padding:0.7rem 1.2rem; font-size:0.9rem;">
-                    <span>🎧</span> Preview User Dashboard as Listener
-                  </button>
+                  <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                    <span>💬 Join Community</span>
+                  </a>
+                  <a href="/terms" onclick="event.preventDefault(); navigate('/terms');" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                    <span>📚 Documentation</span>
+                  </a>
                 </div>
-              `}
+              </div>
+
+              <!-- Legal & Compliance Footer -->
+              <div class="login-legal-footer">
+                <div>© 2026 MusicMaid. All Rights Reserved.</div>
+                <div style="display:flex; gap:0.75rem; align-items:center;">
+                  <a href="/terms" onclick="event.preventDefault(); navigate('/terms');">Terms</a>
+                  <span>•</span>
+                  <a href="/privacy" onclick="event.preventDefault(); navigate('/privacy');">Privacy</a>
+                  <span>•</span>
+                  <a href="/refund" onclick="event.preventDefault(); navigate('/refund');">Refund</a>
+                  <span>•</span>
+                  <a href="/contact" onclick="event.preventDefault(); navigate('/contact');">Contact</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT PANE: ATMOSPHERIC HEADPHONE VISUAL & FLOATING BADGE (REFERENCE IMAGE 1) -->
+            <div class="login-right-pane">
+              <img src="/public/musicmaid_headphone_hero.jpg" alt="MusicMaid Lossless Audio Experience" class="login-hero-img" onerror="this.onerror=null; this.src='/public/musicmaid_banner.jpg';">
+              <div class="login-floating-badge" title="MusicMaid Hi-Fi Lossless Engine">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0b0914" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                </svg>
+              </div>
+              <div style="position:absolute; bottom:0; left:0; right:0; height:120px; background:linear-gradient(to top, rgba(7,6,13,0.92) 0%, transparent 100%); pointer-events:none;"></div>
+              <div style="position:absolute; bottom:1.5rem; left:1.5rem; display:flex; align-items:center; gap:0.5rem; background:rgba(10,10,18,0.8); border:1px solid rgba(255,255,255,0.18); backdrop-filter:blur(14px); padding:0.45rem 0.9rem; border-radius:24px; font-size:0.75rem; color:#fff; font-weight:700;">
+                <span style="width:8px; height:8px; border-radius:50%; background:var(--primary); box-shadow:0 0 10px var(--primary);"></span>
+                <span>320kbps Lossless Opus</span>
+              </div>
             </div>
           </div>
 
           <!-- FEATURES TRIO: WHY MUSICMAID -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem; width:100%;">
             <div class="glass-card" style="padding:1.6rem; cursor:pointer;" onclick="navigate('/dashboard')">
               <div style="font-size:2rem; margin-bottom:0.6rem;">🎛️</div>
               <h3 style="font-size:1.15rem; font-weight:700; color:#fff; margin-bottom:0.4rem;">Cyber-Analog Turntable</h3>
@@ -3876,24 +4452,174 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- BOTTOM COMMUNITY & INVITE BANNER -->
-          <div class="glass-card" style="padding:1.6rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-            <div>
-              <div style="font-size:1.1rem; font-weight:800; color:#fff;">Want MusicMaid in Your Discord Server?</div>
-              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">Zero admin privileges needed — auto-configures dedicated <code>MusicMaid</code> voice role.</div>
-            </div>
-            <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
-              <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
-                ➕ Add to Discord
-              </a>
-              <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">
-                💬 Community Server
-              </a>
-            </div>
-          </div>
-
         </div>
       `;
+      updateLoginGatewayBadge();
+    }
+
+    // =========================================================================
+    // VIEW 1: DASHBOARD OVERVIEW (USER DASHBOARD)
+    // =========================================================================
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function executeDashQuickSearch(query) {
+      if (!query || !query.trim()) return;
+      const q = query.trim();
+      showToast('Searching & queuing: ' + q);
+      dispatchCmd('PLAY', { query: q });
+      const input = document.getElementById('dash-quick-search-input');
+      if (input) input.value = '';
+    }
+
+    function scrollRecs(dir) {
+      const c = document.getElementById('rec-cards-container');
+      if (c) c.scrollBy({ left: dir * 260, behavior: 'smooth' });
+    }
+
+    async function toggleTrackFavorite(track) {
+      if (!track) return;
+      try {
+        const res = await fetch('/api/music/favorites/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(track)
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast(json.data.message || (json.data.favorited ? "Saved to Liked Songs ❤️" : "Removed from Liked Songs"));
+          await syncFavorites();
+          updateDashboardDynamicElements();
+        }
+      } catch(e) {}
+    }
+
+    function renderDashboardTracksTableHtml() {
+      const current = currentSession?.current_track;
+      const queue = (currentQueue && Array.isArray(currentQueue)) ? currentQueue : [];
+
+      if (!current && queue.length === 0) {
+        return `
+          <div style="text-align:center; padding:3rem 1.5rem; color:var(--text-muted);">
+            <div style="font-size:2.2rem; margin-bottom:0.6rem;">🎵</div>
+            <div style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:0.3rem;">No tracks in queue</div>
+            <p style="font-size:0.82rem; max-width:420px; margin:0 auto 1.2rem auto; line-height:1.5; color:var(--text-muted);">
+              Search songs above or click any recommendation to start playing in 320kbps lossless audio!
+            </p>
+            <button class="btn btn-primary btn-sm" onclick="navigate('/search')" style="border-radius:20px; padding:0.55rem 1.3rem; font-weight:700;">
+              <span>🔍</span> Search & Add Music
+            </button>
+          </div>
+        `;
+      }
+
+      let rows = '';
+
+      // 1. Current playing track row
+      if (current) {
+        const isFav = isCurrentFavorite();
+        rows += `
+          <tr class="track-row" style="background:rgba(147,51,234,0.14); border-left:3px solid var(--primary);">
+            <td style="width:40px; text-align:center; color:var(--primary); font-weight:800; font-size:1rem;">
+              ${isPlaying && !isPaused ? '🔊' : '▶'}
+            </td>
+            <td>
+              <div class="track-meta-cell">
+                <img class="track-thumb-img" src="${current.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
+                <div style="min-width:0;">
+                  <div class="track-title-bold" style="color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(current.title || 'Unknown Title')}</div>
+                  <div class="track-artist-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(current.artist || 'Unknown Artist')}</div>
+                </div>
+              </div>
+            </td>
+            <td style="color:var(--cyan); font-weight:600; font-size:0.82rem;">Playing Now</td>
+            <td style="font-family:'JetBrains Mono',monospace; font-size:0.78rem;">${formatTime(current.duration || trackDurationSeconds)}</td>
+            <td style="text-align:center;">
+              <button class="btn-fav ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleCurrentFavorite();" title="Save Favorite" style="background:none; border:none; cursor:pointer; font-size:1.1rem; color:${isFav ? '#ec4899' : 'var(--text-muted)'};">
+                ${isFav ? '♥' : '♡'}
+              </button>
+            </td>
+            <td style="text-align:right;">
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dispatchCmd('SKIP')" style="padding:0.25rem 0.55rem; font-size:0.75rem;" title="Skip track">⏭</button>
+            </td>
+          </tr>
+        `;
+      }
+
+      // 2. Queue rows
+      queue.slice(0, 15).forEach((q, idx) => {
+        const num = (idx + 1).toString().padStart(2, '0');
+        const qEscaped = JSON.stringify(q).replace(/"/g, '&quot;');
+        rows += `
+          <tr class="track-row" onclick="dispatchCmd('PLAY_NOW', {index:${idx}})">
+            <td style="width:40px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);">${num}</td>
+            <td>
+              <div class="track-meta-cell">
+                <img class="track-thumb-img" src="${q.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
+                <div style="min-width:0;">
+                  <div class="track-title-bold" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(q.title || 'Unknown Track')}</div>
+                  <div class="track-artist-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(q.artist || 'Unknown Artist')} • Req by ${escapeHtml(q.requester_name || 'User')}</div>
+                </div>
+              </div>
+            </td>
+            <td style="color:var(--text-muted); font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;">${escapeHtml(q.artist || 'Unknown')}</td>
+            <td style="font-family:'JetBrains Mono',monospace; font-size:0.78rem;">${formatTime(q.duration)}</td>
+            <td style="text-align:center;">
+              <button onclick="event.stopPropagation(); toggleTrackFavorite(${qEscaped})" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:var(--text-muted);" title="Favorite Track">♡</button>
+            </td>
+            <td style="text-align:right;">
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dispatchCmd('REMOVE', {index:${idx}})" style="padding:0.25rem 0.5rem; font-size:0.72rem; color:var(--text-dim);" title="Remove">✕</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      return `
+        <table class="tracks-table">
+          <thead>
+            <tr>
+              <th style="width:40px; text-align:center;">#</th>
+              <th>Song</th>
+              <th>Artist</th>
+              <th>Time</th>
+              <th style="width:50px; text-align:center;">Like</th>
+              <th style="width:60px; text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderLikedSongsPreviewHtml() {
+      if (!userFavorites || !Array.isArray(userFavorites) || userFavorites.length === 0) {
+        return `
+          <div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:1.2rem 0.5rem; line-height:1.45;">
+            No saved songs yet.<br>Click ♡ on any song to save it to your personal library!
+          </div>
+        `;
+      }
+      return userFavorites.slice(0, 4).map(fav => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; padding:0.45rem 0.55rem; border-radius:10px; background:rgba(255,255,255,0.02); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+          <div style="display:flex; align-items:center; gap:0.6rem; min-width:0; flex:1;">
+            <img src="${fav.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:36px; height:36px; border-radius:6px; object-fit:cover; flex-shrink:0;">
+            <div style="min-width:0; flex:1;">
+              <div style="font-size:0.82rem; font-weight:700; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(fav.title || 'Untitled')}</div>
+              <div style="font-size:0.7rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(fav.artist || 'Unknown')}</div>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('${escapeHtml(fav.title || '')} ${escapeHtml(fav.artist || '')}')" style="width:28px; height:28px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; font-size:0.75rem;" title="Play Song">▶</button>
+        </div>
+      `).join('');
     }
 
     // =========================================================================
@@ -3905,54 +4631,150 @@ UI_HTML = r"""<!DOCTYPE html>
       const favCount = (typeof userFavorites !== 'undefined' && Array.isArray(userFavorites)) ? userFavorites.length : 0;
 
       container.innerHTML = `
-        <!-- WORKSPACE ORDER SWITCHER -->
-        <div class="workspace-switcher-bar">
-          <div class="workspace-tab" onclick="navigate('/login')">
-            <span>🔑</span> 1. Login & Welcome
+        <div class="view-fade-in" style="display:flex; flex-direction:column; gap:1.6rem; width:100%;">
+
+          <!-- TOP HEADER ROW: PILL SEARCH & USER PROFILE (REFERENCE IMAGE 2) -->
+          <div class="dash-header-row">
+            <div class="dash-search-pill">
+              <span style="font-size:1.1rem; opacity:0.7;">🔍</span>
+              <input type="text" class="dash-search-input" id="dash-quick-search-input" placeholder="Search songs, artists, playlists, or paste YouTube/Spotify link..." onkeydown="if(event.key==='Enter') executeDashQuickSearch(this.value)">
+              <button class="btn btn-primary btn-sm" onclick="executeDashQuickSearch(document.getElementById('dash-quick-search-input').value)" style="padding:0.35rem 0.85rem; font-size:0.75rem; border-radius:9999px;">Search</button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              ${currentUser ? `
+                <div class="dash-user-chip" onclick="navigate('/profile')">
+                  <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:28px; height:28px; border-radius:50%; object-fit:cover;" alt="Avatar">
+                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">${currentUser.display_name || currentUser.username}</span>
+                  <span style="font-size:0.7rem; color:var(--text-muted);">▼</span>
+                </div>
+              ` : `
+                <a class="btn btn-secondary btn-sm" href="/login" onclick="event.preventDefault(); navigate('/login');" style="border-radius:9999px; padding:0.45rem 1rem; font-size:0.8rem; font-weight:700;">
+                  <span>🔑</span> Sign In
+                </a>
+              `}
+              <button class="btn btn-secondary btn-sm" onclick="navigate('/settings')" style="width:36px; height:36px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;" title="Server Settings">⚙️</button>
+              <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')" style="width:36px; height:36px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;" title="Live Queue">🔔</button>
+            </div>
           </div>
-          <div class="workspace-tab active" onclick="navigate('/dashboard')">
-            <span>🎧</span> 2. User Dashboard (Turntable & Deck)
-          </div>
-          <div class="workspace-tab owner-tab" onclick="navigate('/owner')">
-            <span>👑</span> 3. Owner Dashboard (Creator Room)
-          </div>
-        </div>
 
-        <div class="muify-dashboard-grid">
+          <!-- 2-COLUMN MAIN DASHBOARD (LEFT 2.2fr, RIGHT 1fr) -->
+          <div class="muify-dashboard-grid">
 
-          <!-- LEFT WORKSPACE (2.2fr) -->
-          <div style="display:flex; flex-direction:column; gap:1.6rem;">
+            <!-- LEFT WORKSPACE: RECOMMENDED FOR YOU & TOP 50 TRACKS TABLE -->
+            <div style="display:flex; flex-direction:column; gap:1.8rem;">
 
-            <!-- HERO TRACK CARD WITH CYBER-ANALOG TURNTABLE & DUAL STEREO VU METERS -->
-            <div class="muify-hero-card" id="hero-player-card" style="position:relative; overflow:hidden; border:1px solid rgba(168,85,247,0.35);">
-              <!-- DYNAMIC AMBIENT COLOR BLEED GLOW -->
-              <div class="ambient-canvas-mesh" id="ambient-canvas-mesh"></div>
-
-              <!-- ANALOG TURNTABLE DECK -->
-              <div class="turntable-deck" id="hero-turntable-deck" onclick="togglePlayPause()" title="Click to Play / Pause Turntable">
-                <div class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" id="hero-vinyl-disc">
-                  <div class="vinyl-label">
-                    <img id="hero-vinyl-art" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" alt="Album Label">
+              <!-- RECOMMENDED FOR YOU (REFERENCE IMAGE 2) -->
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                  <h3 style="font-size:1.35rem; font-weight:800; color:#fff; letter-spacing:-0.02em;">Recommended For You</h3>
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <button class="btn btn-secondary btn-sm" style="width:32px; height:32px; border-radius:50%; padding:0; font-size:1rem;" onclick="scrollRecs(-1)">‹</button>
+                    <button class="btn btn-secondary btn-sm" style="width:32px; height:32px; border-radius:50%; padding:0; font-size:1rem;" onclick="scrollRecs(1)">›</button>
                   </div>
-                  <div class="vinyl-spindle"></div>
                 </div>
-                <div class="tonearm ${isPlaying && !isPaused ? 'active' : ''}" id="hero-tonearm">
-                  <div class="tonearm-pivot"></div>
-                  <div class="tonearm-bar"></div>
-                  <div class="tonearm-head"></div>
+
+                <div class="rec-cards-scroll" id="rec-cards-container">
+                  <div class="rec-card" onclick="quickEnqueueMood('Lofi Chill Hip Hop Study Beats')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400" alt="Lofi Beats">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Lofi Chill Beats</div>
+                    <div class="rec-artist">Chilled Cow • Study Session</div>
+                  </div>
+
+                  <div class="rec-card" onclick="quickEnqueueMood('Synthwave Retro 80s Cyberpunk Night Drive')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400" alt="Synthwave Night">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Synthwave Night</div>
+                    <div class="rec-artist">Neon Horizon • Retro 80s</div>
+                  </div>
+
+                  <div class="rec-card" onclick="quickEnqueueMood('Top Anime Openings J-Rock Hits')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400" alt="Anime Hits">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Anime J-Rock Hits</div>
+                    <div class="rec-artist">Tokyo Sound • Shonen Anthem</div>
+                  </div>
+
+                  <div class="rec-card" onclick="quickEnqueueMood('Electronic High Energy Gaming Bass Boost')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400" alt="Gaming Mix">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Electronic Bass</div>
+                    <div class="rec-artist">Noctyra Studio • High Voltage</div>
+                  </div>
                 </div>
-                <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
-                  ${isPlaying && !isPaused ? '⏸' : '▶'}
-                </button>
               </div>
 
-              <div style="display:flex; flex-direction:column; gap:0.5rem; flex:1; min-width:0; position:relative; z-index:1;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap;">
-                  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                    <span class="chip-pill" style="color:var(--emerald); background:rgba(16, 185, 129, 0.15);">● 320kbps Lossless Opus</span>
-                    <span class="chip-pill" id="hero-state-pill">${currentSession?.state || 'IDLE'}</span>
-                    <span class="chip-pill" id="hero-vc-pill">🔊 ${currentSession?.voice_channel_name ? '#' + currentSession.voice_channel_name : 'Standby'}</span>
-                    <span class="chip-pill" style="color:var(--cyan); background:rgba(0, 229, 255, 0.12);">⚡ 0.5ms Gateway</span>
+              <!-- TOP 50 / LIVE QUEUE TRACKS TABLE (REFERENCE IMAGE 2) -->
+              <div class="tracks-table-wrap">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                  <div>
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--cyan); font-weight:700;">Live Audio Session</div>
+                    <h3 style="font-size:1.3rem; font-weight:800; color:#fff; margin-top:0.2rem;">TOP 50 / QUEUE</h3>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">${currentQueue ? currentQueue.length : 0} Tracks</span>
+                    <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">Full View ↗</button>
+                  </div>
+                </div>
+
+                <div id="dash-tracks-table-content">
+                  ${renderDashboardTracksTableHtml()}
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT WORKSPACE: LIKED SONGS & TURNTABLE DECK WITH VU METERS -->
+            <div style="display:flex; flex-direction:column; gap:1.6rem;">
+
+              <!-- LIKED SONGS MINI LIST (MATCHING REFERENCE IMAGE 2 RIGHT PANEL) -->
+              <div class="glass-card" style="padding:1.3rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.9rem;">
+                  <h4 style="font-size:1.05rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.4rem;">
+                    <span style="color:#ec4899;">♡</span> Liked Songs
+                  </h4>
+                  <button class="btn btn-secondary btn-sm" onclick="navigate('/library')" style="font-size:0.72rem; padding:0.25rem 0.6rem;">All (${favCount})</button>
+                </div>
+                <div id="dash-liked-songs-preview" style="display:flex; flex-direction:column; gap:0.55rem;">
+                  ${renderLikedSongsPreviewHtml()}
+                </div>
+              </div>
+
+              <!-- NOW PLAYING HERO TRACK CARD (CYBER-ANALOG TURNTABLE DECK & STEREO VU METERS) -->
+              <div class="muify-hero-card" id="hero-player-card" style="padding:1.4rem; flex-direction:column; align-items:stretch; gap:1.1rem; position:relative; overflow:hidden; border:1px solid rgba(168,85,247,0.35);">
+                <div class="ambient-canvas-mesh" id="ambient-canvas-mesh"></div>
+
+                <div style="display:flex; align-items:center; justify-content:space-between; z-index:2;">
+                  <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 320kbps Opus</span>
+                  <span class="chip-pill" id="hero-state-pill">${currentSession?.state || 'IDLE'}</span>
+                </div>
+
+                <!-- TURNTABLE DECK & STEREO VU METERS -->
+                <div style="display:flex; align-items:center; justify-content:center; gap:1.2rem; z-index:2; padding:0.5rem 0;">
+                  <div class="turntable-deck" id="hero-turntable-deck" onclick="togglePlayPause()" title="Click to Play / Pause Turntable">
+                    <div class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" id="hero-vinyl-disc">
+                      <div class="vinyl-label">
+                        <img id="hero-vinyl-art" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" alt="Album Label">
+                      </div>
+                      <div class="vinyl-spindle"></div>
+                    </div>
+                    <div class="tonearm ${isPlaying && !isPaused ? 'active' : ''}" id="hero-tonearm">
+                      <div class="tonearm-pivot"></div>
+                      <div class="tonearm-bar"></div>
+                      <div class="tonearm-head"></div>
+                    </div>
+                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
+                      ${isPlaying && !isPaused ? '⏸' : '▶'}
+                    </button>
                   </div>
 
                   <!-- DUAL STEREO ANALOG VU METERS -->
@@ -3970,237 +4792,69 @@ UI_HTML = r"""<!DOCTYPE html>
                   </div>
                 </div>
 
-                <h2 id="hero-track-title" style="font-size:1.6rem; font-weight:800; color:#fff; word-break:break-word; line-height:1.25;">
-                  ${t ? t.title : 'The room is quiet. Put something good on.'}
-                </h2>
-                <p id="hero-track-artist" style="font-size:0.95rem; color:var(--cyan); font-weight:600;">
-                  ${t ? (t.artist || 'Unknown Artist') : 'No track queued up. Drop a YouTube or Spotify search below and let the audio flow.'}
-                </p>
+                <div style="z-index:2; text-align:center;">
+                  <h4 id="hero-track-title" style="font-size:1.1rem; font-weight:800; color:#fff; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${t ? t.title : 'No Track Playing'}
+                  </h4>
+                  <p id="hero-track-artist" style="font-size:0.82rem; color:var(--cyan); margin-top:0.2rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${t ? (t.artist || 'Unknown Artist') : 'Join a voice channel and play a song'}
+                  </p>
+                </div>
 
                 <!-- HERO SCRUBBER -->
-                <div style="display:flex; flex-direction:column; gap:0.25rem; width:100%; max-width:480px; margin-top:0.2rem;">
+                <div style="display:flex; flex-direction:column; gap:0.25rem; z-index:2; width:100%;">
                   <input type="range" class="slider-track" id="hero-scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)">
-                  <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--text-muted);">
+                  <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text-muted);">
                     <span id="hero-time-curr">${formatTime(playbackSeconds)}</span>
                     <span id="hero-time-total">${formatTime(trackDurationSeconds)}</span>
                   </div>
                 </div>
 
-                <!-- CONTROLS ROW & LIVE REACTION BAR -->
-                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.6rem; margin-top:0.2rem;">
-                  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                    <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('STOP')">⏹ Stop</button>
-                    <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SKIP')">⏭ Skip</button>
-                    <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')">🔀 Shuffle</button>
-                    <button class="btn btn-secondary btn-sm" onclick="navigate('/search')">🔍 Add Track</button>
-                  </div>
-
-                  <!-- FLOATING LIVE REACTION EMOJIS -->
-                  <div class="reaction-bar" title="React in real-time to this track">
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('🔥')">🔥</button>
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('💃')">💃</button>
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('💜')">💜</button>
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('🎧')">🎧</button>
-                  </div>
+                <!-- PLAYBACK CONTROLS & SOCIAL AUX -->
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; z-index:2;">
+                  <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
+                  <button class="btn btn-primary btn-sm" onclick="togglePlayPause()" style="padding:0.4rem 1.2rem; font-weight:800;">${isPlaying && !isPaused ? '⏸ Pause' : '▶ Play'}</button>
+                  <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
+                  <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')" title="Shuffle">🔀</button>
                 </div>
 
-                <!-- SOCIAL WHO IS IN VOICE & PASS THE AUX -->
-                <div class="social-voice-dock">
-                  <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">In the VC:</span>
-                    <div class="avatar-cluster">
-                      <div class="voice-avatar-pill speaking-ring" title="@Kishore (Speaking)"><img src="/public/musicmaid_avatar.jpg" alt="User"></div>
-                      <div class="voice-avatar-pill" title="@Alex"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=60" alt="Friend"></div>
-                      <div class="voice-avatar-pill" title="@Priya"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60" alt="Friend"></div>
-                    </div>
+                <!-- SOCIAL VOICE DOCK & PASS THE AUX -->
+                <div class="social-voice-dock" style="margin-top:0.4rem; z-index:2;">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">VC:</span>
+                    <span id="hero-vc-pill" style="font-size:0.75rem; color:var(--cyan); font-weight:700;">🔊 ${currentSession?.voice_channel_name ? '#' + currentSession.voice_channel_name : 'Standby'}</span>
                   </div>
                   <button class="pass-aux-btn" onclick="requestPassTheAux()">
-                    <span>🎵</span> Pass the Aux
+                    <span>🎵</span> Pass Aux
                   </button>
                 </div>
-              </div>
-            </div>
 
-            <!-- HANDPICKED HITS & COMMUNITY FAVORITES -->
-            <div>
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title"><span>🔥</span> Handpicked Hits & Community Favorites</span>
-                <button class="btn btn-secondary btn-sm" onclick="navigate('/search')">Search More ↗</button>
-              </div>
-              <div class="muify-albums-grid">
-                <div class="muify-album-item" onclick="quickEnqueueMood('Illuminati Sushin Shyam Aavesham')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=240" alt="Illuminati">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Illuminati</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">Sushin Shyam • Aavesham</span>
-                </div>
-                <div class="muify-album-item" onclick="quickEnqueueMood('Hukum Jailer Anirudh Ravichander')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=240" alt="Hukum">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Hukum (Alappara)</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">Anirudh • Jailer</span>
-                </div>
-                <div class="muify-album-item" onclick="quickEnqueueMood('Tauba Tauba Karan Aujla Bad Newz')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=240" alt="Tauba Tauba">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Tauba Tauba</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">Karan Aujla • Bad Newz</span>
-                </div>
-                <div class="muify-album-item" onclick="quickEnqueueMood('Starboy The Weeknd Daft Punk')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=240" alt="Starboy">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Starboy</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">The Weeknd • Daft Punk</span>
+                <!-- FLOATING LIVE REACTION EMOJIS -->
+                <div class="reaction-bar" style="justify-content:center; gap:0.4rem; z-index:2;">
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('🔥')">🔥</button>
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('💃')">💃</button>
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('💜')">💜</button>
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('🎧')">🎧</button>
                 </div>
               </div>
-            </div>
 
-            <!-- DAILY MIX & QUEUE TABLE -->
-            <div class="glass-card">
-              <div class="section-header">
-                <span class="section-title"><span>📜</span> Current Queue (${currentQueue.length})</span>
-                <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">Full Queue ↗</button>
-              </div>
-              <div id="dash-queue-list" class="queue-table">
-                ${renderQueuePreviewHtml()}
-              </div>
-            </div>
-
-          </div>
-
-          <!-- RIGHT WORKSPACE (1fr) -->
-          <div style="display:flex; flex-direction:column; gap:1.5rem;">
-
-            <!-- COMMUNITY SUPPORT CARD -->
-            <div class="muify-promo-banner" style="background:linear-gradient(135deg, rgba(147, 51, 234, 0.25) 0%, rgba(236, 72, 153, 0.2) 100%); border:1px solid rgba(236, 72, 153, 0.45); border-radius:var(--radius-lg); padding:1.4rem; position:relative; overflow:hidden;">
-              <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
-                <span style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; padding:0.2rem 0.55rem; background:rgba(236, 72, 153, 0.25); border:1px solid rgba(236, 72, 153, 0.5); border-radius:20px; color:#f472b6;">Community Project</span>
-              </div>
-              <div style="font-size:1.25rem; font-weight:800; color:#fff; line-height:1.25;">Keep MusicMaid 24/7 Alive</div>
-              <p style="font-size:0.84rem; color:#cbd5e1; line-height:1.45; margin-top:0.4rem;">
-                We built MusicMaid so Discord servers could listen together without random lag spikes, crashes, or paywalled volume. Supporting with VIP helps cover our high-bandwidth audio streaming servers!
-              </p>
-              <div style="display:flex; gap:0.5rem; margin-top:0.8rem; flex-wrap:wrap;">
-                <button class="muify-promo-btn" onclick="navigate('/premium')" style="padding:0.55rem 1rem; font-size:0.82rem; font-weight:700;">Support with VIP 💎</button>
-                <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="padding:0.55rem 0.9rem; font-size:0.82rem; font-weight:700; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-sm); color:#fff; text-decoration:none; display:inline-flex; align-items:center;">Discord Chat 💬</a>
-              </div>
-            </div>
-
-            <!-- BEHIND THE CODE / DEVELOPER NOTES -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>🛠️</span> Behind the Code</span>
-                <span class="chip-pill" style="color:var(--cyan); font-size:0.7rem;">v2.4.1 Stable</span>
-              </div>
-              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.45; margin-bottom:0.8rem;">
-                Handcrafted in async Python with low-latency FFmpeg Opus streaming. Built transparently with zero fluff:
-              </p>
-              <div style="display:flex; flex-direction:column; gap:0.55rem; font-size:0.78rem;">
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:var(--emerald); flex-shrink:0;">✓</span>
-                  <span><strong>Zero-Admin Role:</strong> Auto-configures a dedicated <code>MusicMaid</code> role with strict least privilege (Connect & Speak) — never asks for Administrator rights.</span>
+              <!-- AUTONOMOUS EXTRACTOR & SELF-HEALING ENGINE -->
+              <div class="glass-card" style="padding:1.2rem; border:1px solid rgba(0,229,255,0.25);">
+                <div class="section-header" style="margin-bottom:0.6rem;">
+                  <span class="section-title" style="font-size:0.95rem;"><span>🛡️</span> Extractor Auto-Updater & Doctor</span>
+                  <span class="updater-pill" style="font-size:0.68rem;"><span class="pulse-dot connected"></span> Active</span>
                 </div>
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:var(--cyan); flex-shrink:0;">✓</span>
-                  <span><strong>Dynamic Discord Status:</strong> Reflects real playback state (<code>Playing &lt;track&gt;</code>, <code>Chilling in 24/7</code>, <code>Auto-healing session</code>).</span>
+                <p style="font-size:0.75rem; color:var(--text-muted); line-height:1.4; margin-bottom:0.7rem;">
+                  Continuous PyPI hotfix watchdog & EJS challenge solver for uninterrupted YouTube playback.
+                </p>
+                <div id="self-healing-console" style="display:none; background:#07070b; border:1px solid rgba(0,229,255,0.3); border-radius:var(--radius-sm); padding:0.6rem; margin-bottom:0.6rem; font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:#a5b4fc;">
+                  <div id="self-healing-logs"></div>
                 </div>
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:#ec4899; flex-shrink:0;">✓</span>
-                  <span><strong>Counter Channel Shield:</strong> Rejects server stat/member counter channels so the bot never gets stuck.</span>
-                </div>
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:var(--amber); flex-shrink:0;">✓</span>
-                  <span><strong>Session Memory:</strong> If Render or Discord restarts, your active queue and voice channel auto-resume.</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- AUDIO ENGINE HEALTH & TELEMETRY -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.8rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>📊</span> Audio Engine Health</span>
-                <span style="font-size:0.75rem; color:var(--emerald); font-weight:700;">● Online</span>
-              </div>
-              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; text-align:center;">
-                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:var(--cyan);">0.5ms</div>
-                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Gateway Ping</div>
-                </div>
-                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:#10b981;">320k</div>
-                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Opus Bitrate</div>
-                </div>
-                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:#ec4899;" id="stat-active-guilds">${activeGuilds.length || 1}</div>
-                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Connected Guilds</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- SMART AUTO-DJ & DSP QUICK CONTROLS -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.6rem;">
-                <span class="section-title" style="font-size:1.05rem;"><span>🤖</span> Smart Auto-DJ</span>
-                <button class="btn btn-sm ${currentSession?.auto_dj ? 'btn-primary' : 'btn-secondary'}" onclick="dispatchCmd('AUTODJ_TOGGLE')">
-                  ${currentSession?.auto_dj ? 'ACTIVE ✅' : 'ENABLE'}
+                <button class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; gap:0.4rem; font-size:0.78rem; font-weight:700;" id="btn-self-heal" onclick="triggerSelfHealingDoctor()">
+                  <span>🩺</span> Run Health Probe
                 </button>
               </div>
-              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">
-                Keeps the music playing with harmonic track picks when your queue finishes.
-              </p>
-              <div class="eq-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:0.8rem;">
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'bassboost', name:'Bass Boost'})">🔥 Bass Boost</div>
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'nightcore', name:'Nightcore'})">⚡ Nightcore</div>
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'8d', name:'8D Audio'})">🎧 8D Spatial</div>
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'flat', name:'Flat Pure'})">🎵 Flat Pure</div>
-              </div>
-            </div>
 
-            <!-- AUTONOMOUS EXTRACTOR & SELF-HEALING ENGINE -->
-            <div class="glass-card" style="padding:1.3rem; border:1px solid rgba(0,229,255,0.25); background:linear-gradient(135deg, rgba(0, 229, 255, 0.05) 0%, rgba(147, 51, 234, 0.08) 100%);">
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>🛡️</span> Extractor Auto-Updater & Doctor</span>
-                <span class="updater-pill"><span class="pulse-dot connected"></span> Auto-Sync ON</span>
-              </div>
-              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.45; margin-bottom:0.8rem;">
-                Autonomous self-healing engine shields audio against YouTube player deciphering changes with continuous PyPI hotfix checks and Node.js EJS challenge solver.
-              </p>
-              <div style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:0.9rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding:0.4rem 0.6rem; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                  <span style="color:#cbd5e1;">yt-dlp Core Release:</span>
-                  <span style="font-family:'JetBrains Mono',monospace; color:var(--cyan); font-weight:700;" id="card-ytdl-ver">v2026.08.19 (Latest)</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding:0.4rem 0.6rem; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                  <span style="color:#cbd5e1;">EJS Challenge Solver:</span>
-                  <span style="font-family:'JetBrains Mono',monospace; color:var(--emerald); font-weight:700;">Node.js vm2 Active</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding:0.4rem 0.6rem; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                  <span style="color:#cbd5e1;">Auto-Update Cron Scan:</span>
-                  <span style="font-family:'JetBrains Mono',monospace; color:#f472b6; font-weight:700;">Every 6h (Autonomous)</span>
-                </div>
-              </div>
-
-              <!-- DIAGNOSTIC CONSOLE READOUT -->
-              <div id="self-healing-console" style="display:none; background:#07070b; border:1px solid rgba(0,229,255,0.3); border-radius:var(--radius-sm); padding:0.75rem; margin-bottom:0.8rem; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:#a5b4fc; line-height:1.5;">
-                <div id="self-healing-logs"></div>
-              </div>
-
-              <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center; gap:0.5rem; font-weight:700;" id="btn-self-heal" onclick="triggerSelfHealingDoctor()">
-                <span>🩺</span> Run Extractor Self-Healing & PyPI Probe
-              </button>
-            </div>
-
-            <!-- NOTES FROM SERVER OWNERS -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>💬</span> Notes from Server Owners</span>
-              </div>
-              <div style="display:flex; flex-direction:column; gap:0.7rem; font-size:0.8rem;">
-                <div style="background:rgba(255,255,255,0.02); border-left:3px solid var(--primary); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
-                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"Finally a bot where skip actually skips instantly without a 5-second lag spike. Huge upgrade for our gaming nights."</p>
-                  <span style="color:var(--cyan); font-weight:700; font-size:0.72rem;">— Alex (Lofi & Gaming Lounge)</span>
-                </div>
-                <div style="background:rgba(255,255,255,0.02); border-left:3px solid var(--pink); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
-                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"The session auto-recovery is great. Discord lagged our bot last week, and it rejoined the VC with our queue intact."</p>
-                  <span style="color:#f472b6; font-weight:700; font-size:0.72rem;">— Priya (Anime Vibes Discord)</span>
-                </div>
-              </div>
             </div>
 
           </div>
@@ -4296,17 +4950,14 @@ UI_HTML = r"""<!DOCTYPE html>
       const container = document.getElementById('view-container');
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
-          <!-- WORKSPACE ORDER SWITCHER -->
-          <div class="workspace-switcher-bar">
-            <div class="workspace-tab" onclick="navigate('/login')">
-              <span>🔑</span> 1. Login & Welcome
-            </div>
-            <div class="workspace-tab" onclick="navigate('/dashboard')">
-              <span>🎧</span> 2. User Dashboard (Turntable & Deck)
-            </div>
-            <div class="workspace-tab active owner-tab" onclick="navigate('/owner')">
-              <span>👑</span> 3. Owner Dashboard (Creator Room)
-            </div>
+          <!-- BREADCRUMB NAVIGATION HEADER (IMAGE 3) -->
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.8rem; margin-bottom:0.2rem;">
+            <a href="/dashboard" onclick="event.preventDefault(); navigate('/dashboard')" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; font-weight:700; font-size:0.82rem;">
+              <span>←</span> Back to Dashboard
+            </a>
+            <span class="chip-pill" style="color:#ffd700; background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.3); font-size:0.75rem; font-weight:700;">
+              👑 Owner / Root Mode
+            </span>
           </div>
 
           <div class="control-header-bar">
@@ -4373,8 +5024,8 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
             <div class="control-card accent-pink">
               <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Gateway Reaction Latency</span>
-              <div id="cr-metric-latency" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">0.5ms</div>
-              <span style="font-size:0.75rem; color:#ec4899;">⚡ Sub-0.5ms Studio Engine</span>
+              <div id="cr-metric-latency" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">${ov.gateway_latency_ms != null ? ov.gateway_latency_ms + 'ms' : 'N/A'}</div>
+              <span style="font-size:0.75rem; color:#ec4899;">${ov.gateway_latency_ms != null ? '⚡ Live Discord Gateway Ping' : '⚪ Unmeasured / Gateway Standby'}</span>
             </div>
             <div class="control-card accent-purple">
               <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Connected Servers</span>
@@ -4382,9 +5033,9 @@ UI_HTML = r"""<!DOCTYPE html>
               <span style="font-size:0.75rem; color:var(--cyan);">Cluster Node #1</span>
             </div>
             <div class="control-card accent-emerald">
-              <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Uptime SLA</span>
-              <div id="cr-metric-sla" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">${ov.sla_percentage}%</div>
-              <span style="font-size:0.75rem; color:var(--emerald);">● SLA Target Met</span>
+              <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Uptime SLA Target</span>
+              <div id="cr-metric-sla" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">${ov.sla_percentage != null ? ov.sla_percentage + '%' : (ov.sla_target ? ov.sla_target + '% Target' : 'N/A')}</div>
+              <span style="font-size:0.75rem; color:var(--emerald);">${ov.sla_percentage != null ? '● SLA Measured' : '🎯 Target Objective (Not Measured)'}</span>
             </div>
           </div>
 
@@ -4979,6 +5630,14 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     function updateDashboardDynamicElements() {
+      const tableContent = document.getElementById('dash-tracks-table-content');
+      if (tableContent && typeof renderDashboardTracksTableHtml === 'function') {
+        tableContent.innerHTML = renderDashboardTracksTableHtml();
+      }
+      const likedPreview = document.getElementById('dash-liked-songs-preview');
+      if (likedPreview && typeof renderLikedSongsPreviewHtml === 'function') {
+        likedPreview.innerHTML = renderLikedSongsPreviewHtml();
+      }
       const heroArt = document.getElementById('hero-vinyl-art');
       if (heroArt) {
         heroArt.className = `vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}`;
@@ -4988,10 +5647,10 @@ UI_HTML = r"""<!DOCTYPE html>
       }
       const heroPlayBtn = document.getElementById('hero-play-btn');
       if (heroPlayBtn) {
-        heroPlayBtn.innerHTML = `<span>${isPlaying && !isPaused ? '⏸ Pause' : '▶ Play'}</span>`;
+        heroPlayBtn.innerText = (isPlaying && !isPaused) ? '⏸' : '▶';
       }
       const queueList = document.getElementById('dash-queue-list');
-      if (queueList) {
+      if (queueList && typeof renderQueuePreviewHtml === 'function') {
         queueList.innerHTML = renderQueuePreviewHtml();
       }
       const heroCurr = document.getElementById('hero-time-curr');
@@ -5003,6 +5662,9 @@ UI_HTML = r"""<!DOCTYPE html>
         if (!isScrubbing && trackDurationSeconds > 0) {
           heroSlider.value = Math.floor((playbackSeconds / trackDurationSeconds) * 100);
         }
+      }
+      if (typeof updateDynamicTurntableAndVU === 'function') {
+        updateDynamicTurntableAndVU();
       }
     }
 
@@ -5019,25 +5681,27 @@ UI_HTML = r"""<!DOCTYPE html>
               <span>🔍</span> Search & Discover Music
             </div>
             <p style="font-size:0.86rem; color:var(--text-muted); margin-bottom:1.2rem;">
-              High-speed YouTube & Spotify search with Tamil, Hindi, Telugu, and English multi-lingual recognition.
+              Instant lossless audio resolution across YouTube & Spotify with Tamil, Hindi, Telugu, and English multi-lingual recognition.
             </p>
 
             <!-- SEARCH BAR -->
-            <div class="search-hero-box">
-              <span style="font-size:1.2rem; color:var(--cyan);">🔍</span>
-              <input type="text" id="live-search-input" class="search-input" placeholder="Type song name, artist, YouTube URL, or Spotify link..." oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') triggerSearch()" autocomplete="off">
-              <button class="btn btn-primary btn-sm" onclick="triggerSearch()">Search</button>
+            <div class="search-hero-box" style="position:relative; display:flex; align-items:center; background:rgba(255,255,255,0.06); border:1px solid rgba(147,51,234,0.3); border-radius:var(--radius-md); padding:0.4rem 0.8rem; gap:0.6rem;">
+              <span style="font-size:1.15rem; color:var(--primary);">🔍</span>
+              <input type="text" id="live-search-input" class="search-input" placeholder="Search track title, artist, YouTube URL, or Spotify..." oninput="onSearchInput(this.value)" onkeydown="if(event.key==='Enter') triggerSearch()" autocomplete="off" style="border:none; background:transparent; padding:0.6rem 0.2rem; flex:1; outline:none; color:#fff; font-size:0.95rem;">
+              <button id="search-clear-btn" class="p-btn" onclick="clearSearchInput()" style="display:none; font-size:0.85rem;" title="Clear Search">✕</button>
+              <button class="btn btn-primary btn-sm" onclick="triggerSearch()" style="padding:0.6rem 1.2rem; font-weight:700;">Search</button>
             </div>
 
-            <!-- MULTI-LINGUAL QUICK SUGGESTIONS -->
-            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1rem; align-items:center;">
+            <!-- MULTI-LINGUAL & GENRE QUICK SUGGESTIONS -->
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:1.1rem; align-items:center;">
               <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">POPULAR:</span>
-              <span class="chip-pill" onclick="quickFillSearch('Anirudh Ravichander hits')">🎵 Anirudh</span>
+              <span class="chip-pill" onclick="quickFillSearch('Anirudh Ravichander hits')">⚡ Anirudh</span>
               <span class="chip-pill" onclick="quickFillSearch('A.R. Rahman Tamil classics')">✨ A.R. Rahman</span>
-              <span class="chip-pill" onclick="quickFillSearch('Yuvan Shankar Raja vibes')">⚡ Yuvan</span>
+              <span class="chip-pill" onclick="quickFillSearch('Yuvan Shankar Raja vibes')">🎵 Yuvan</span>
               <span class="chip-pill" onclick="quickFillSearch('Arijit Singh Hindi melodies')">🎻 Arijit Singh</span>
               <span class="chip-pill" onclick="quickFillSearch('Lofi Hip Hop Chill Beats')">☕ Lo-Fi Chill</span>
               <span class="chip-pill" onclick="quickFillSearch('Synthwave Gaming 2026')">🕹️ Synthwave</span>
+              <span class="chip-pill" onclick="quickFillSearch('Illuminati Sushin Shyam Aavesham')">🔥 Trending</span>
             </div>
           </div>
 
@@ -5045,32 +5709,32 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="glass-card">
             <div class="section-header">
               <span class="section-title"><span>🎧</span> Search & Recommended Hits</span>
-              <span id="search-status-label" style="font-size:0.82rem; color:var(--emerald);">⚡ Real-Time Resolver Active</span>
+              <span id="search-status-label" style="font-size:0.82rem; color:var(--emerald);">⚡ Real-Time Engine Active</span>
             </div>
             <div id="search-results-grid" class="tracks-grid">
               <div class="track-card" onclick="quickFillSearch('Illuminati Aavesham')">
                 <img src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Illuminati">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Illuminati</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Sushin Shyam • Aavesham</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Illuminati Aavesham'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Illuminati Aavesham')">⚡ Play Now</button>
               </div>
               <div class="track-card" onclick="quickFillSearch('Hukum Jailer Anirudh')">
                 <img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Hukum">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Hukum (Alappara)</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Anirudh Ravichander • Jailer</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Hukum Jailer Anirudh'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Hukum Jailer Anirudh')">⚡ Play Now</button>
               </div>
               <div class="track-card" onclick="quickFillSearch('Tauba Tauba Karan Aujla')">
                 <img src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Tauba Tauba">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Tauba Tauba</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Karan Aujla • Bad Newz</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Tauba Tauba Karan Aujla'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Tauba Tauba Karan Aujla')">⚡ Play Now</button>
               </div>
               <div class="track-card" onclick="quickFillSearch('Starboy The Weeknd')">
                 <img src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=300" style="width:100%; height:140px; object-fit:cover; border-radius:8px;" alt="Starboy">
                 <div style="font-weight:700; color:#fff; font-size:0.95rem; margin-top:0.4rem;">Starboy</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">The Weeknd ft. Daft Punk</div>
-                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'Starboy The Weeknd'})">▶ Play Now</button>
+                <button class="btn btn-primary btn-sm" style="margin-top:0.4rem; width:100%;" onclick="event.stopPropagation(); actionPlayNow('Starboy The Weeknd')">⚡ Play Now</button>
               </div>
             </div>
           </div>
@@ -5082,11 +5746,27 @@ UI_HTML = r"""<!DOCTYPE html>
       const input = document.getElementById('live-search-input');
       if (input) {
         input.value = query;
+        toggleSearchClearBtn(true);
         triggerSearch();
       }
     }
 
+    function toggleSearchClearBtn(show) {
+      const clearBtn = document.getElementById('search-clear-btn');
+      if (clearBtn) clearBtn.style.display = show ? 'inline-flex' : 'none';
+    }
+
+    function clearSearchInput() {
+      const input = document.getElementById('live-search-input');
+      if (input) {
+        input.value = '';
+        toggleSearchClearBtn(false);
+        input.focus();
+      }
+    }
+
     function onSearchInput(val) {
+      toggleSearchClearBtn(val.trim().length > 0);
       if (searchDebounce) clearTimeout(searchDebounce);
       searchDebounce = setTimeout(() => {
         if (val.trim().length >= 2) triggerSearch();
@@ -5099,7 +5779,12 @@ UI_HTML = r"""<!DOCTYPE html>
 
       const grid = document.getElementById('search-results-grid');
       const label = document.getElementById('search-status-label');
-      grid.innerHTML = `<div style="grid-column:1 / -1; text-align:center; padding:3rem; color:var(--cyan);">Resolving audio tracks from engine... ⏳</div>`;
+      grid.innerHTML = `
+        <div style="grid-column:1 / -1; display:flex; flex-direction:column; align-items:center; padding:3rem 1rem; gap:1rem;">
+          <div style="width:40px; height:40px; border:3px solid rgba(147,51,234,0.3); border-top-color:#a855f7; border-radius:50%; animation:spinVinyl 0.8s linear infinite;"></div>
+          <div style="color:#c4b5fd; font-weight:700; font-size:0.95rem;">Resolving lossless audio tracks...</div>
+        </div>
+      `;
       label.innerText = `Searching for "${q}"...`;
 
       try {
@@ -5213,26 +5898,36 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     // VIEW 3: LIVE PLAYER & QUEUE MANAGER
     // =========================================================================
+    function formatTotalDuration(sec) {
+      if (!sec || isNaN(sec) || sec <= 0) return "0 tracks • 0m";
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+      if (h > 0) return `${h}h ${m}m total`;
+      return `${m}m ${s}s total`;
+    }
+
     function renderQueue() {
       const container = document.getElementById('view-container');
       const t = currentSession?.current_track;
+      const totalSecs = (currentQueue || []).reduce((acc, q) => acc + (q.duration || 0), 0);
 
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
           <!-- CURRENT TRACK BANNER -->
-          <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+          <div class="glass-card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; border-color:rgba(147,51,234,0.3);">
             <div style="display:flex; align-items:center; gap:1.2rem;">
-              <img src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:68px; height:68px; border-radius:12px; object-fit:cover;">
+              <img src="${t?.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:68px; height:68px; border-radius:12px; object-fit:cover; border:1px solid rgba(147,51,234,0.3); box-shadow:0 4px 14px rgba(0,0,0,0.6);" alt="Now Streaming">
               <div>
-                <span class="chip-pill" style="color:var(--emerald);">NOW STREAMING</span>
+                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.12); border-color:rgba(16,185,129,0.25);">● NOW STREAMING</span>
                 <h3 style="font-size:1.25rem; font-weight:800; color:#fff; margin-top:0.3rem;">${t ? t.title : 'No Song Currently Playing'}</h3>
-                <span style="font-size:0.85rem; color:var(--cyan);">${t ? (t.artist || 'Unknown Artist') : 'Queue tracks to start'}</span>
+                <span style="font-size:0.85rem; color:#c4b5fd;">${t ? (t.artist || 'Unknown Artist') : 'Queue tracks to start'} • 320kbps Lossless</span>
               </div>
             </div>
-            <div style="display:flex; align-items:center; gap:0.6rem;">
-              <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')">🔀 Shuffle</button>
-              <button class="btn btn-danger btn-sm" onclick="confirmClearQueue()">🗑 Clear Queue</button>
-              <button class="btn btn-primary btn-sm" onclick="openPlaylistModal()">💾 Save as Playlist</button>
+            <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Current Queue">🔀 Shuffle</button>
+              <button class="btn btn-secondary btn-sm" onclick="openPlaylistModal()" title="Save Current Queue to Server Library">💾 Save Playlist</button>
+              <button class="btn btn-danger btn-sm" onclick="confirmClearQueue()" title="Clear All Tracks in Queue">🗑 Clear Queue</button>
             </div>
           </div>
 
@@ -5247,8 +5942,10 @@ UI_HTML = r"""<!DOCTYPE html>
           <!-- FULL QUEUE LIST -->
           <div class="glass-card">
             <div class="section-header">
-              <span class="section-title"><span>📜</span> Track Queue (<span id="queue-count-badge">${currentQueue.length}</span> tracks)</span>
-              <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-muted);" id="queue-total-dur">Calculating Duration...</span>
+              <span class="section-title"><span>📜</span> Track Queue (<span id="queue-count-badge">${(currentQueue || []).length}</span> tracks)</span>
+              <span style="font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text-muted);" id="queue-total-dur">
+                ${(currentQueue || []).length} ${(currentQueue || []).length === 1 ? 'track' : 'tracks'} • ${formatTotalDuration(totalSecs)}
+              </span>
             </div>
             <div class="queue-table" id="full-queue-container">
               ${renderFullQueueRows()}
@@ -5296,7 +5993,35 @@ UI_HTML = r"""<!DOCTYPE html>
 
     function renderFullQueueRows() {
       if (!currentQueue || currentQueue.length === 0) {
-        return `<div style="text-align:center; padding:3.5rem; color:var(--text-muted);">🐾 The queue is empty! Add tracks from Search & Discover.</div>`;
+        return `
+          <div style="text-align:center; padding:3rem 1.5rem; display:flex; flex-direction:column; align-items:center; gap:1.2rem;">
+            <div style="width:68px; height:68px; border-radius:20px; background:linear-gradient(135deg, rgba(147,51,234,0.15), rgba(168,85,247,0.05)); border:1px solid rgba(147,51,234,0.3); display:flex; align-items:center; justify-content:center; font-size:2rem; box-shadow:0 0 24px rgba(147,51,234,0.2);">
+              🎵
+            </div>
+            <div>
+              <h3 style="font-size:1.15rem; font-weight:800; color:#fff; margin-bottom:0.35rem;">Your Playback Queue is Clear</h3>
+              <p style="font-size:0.84rem; color:var(--text-muted); max-width:440px; margin:0 auto; line-height:1.4;">
+                The voice channel is waiting for songs. Search music above, or tap any starter vibe pack below to queue instantly:
+              </p>
+            </div>
+
+            <!-- QUICK STARTER PACKS -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.6rem; width:100%; max-width:580px; margin-top:0.4rem;">
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Lofi Hip Hop Chill Beats')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                ☕ Lo-Fi Chill
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Anirudh Ravichander hits')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                ⚡ Anirudh Hits
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Synthwave Gaming 2026')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                🕹️ Synthwave
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="quickAddToQueueWith('Electronic Bass Boosted EDM')" style="justify-content:center; padding:0.65rem 0.8rem; font-size:0.8rem; font-weight:700;">
+                💥 Bass Drops
+              </button>
+            </div>
+          </div>
+        `;
       }
       return currentQueue.map((q, i) => `
         <div class="queue-row" draggable="true"
@@ -5316,7 +6041,7 @@ UI_HTML = r"""<!DOCTYPE html>
           </div>
           <div class="queue-row-right">
             <span style="font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-muted);">${formatTime(q.duration)}</span>
-            <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('PLAY_NOW', {query: '${encodeURIComponent(q.title)}'})" title="Play Now">▶ Play</button>
+            <button class="btn btn-primary btn-sm" onclick="dispatchCmd('PLAY_NOW', {query: '${encodeURIComponent(q.title)}'})" title="Play Now">▶ Play</button>
             ${i > 0 ? `<button class="btn btn-secondary btn-sm" onclick="moveTrack(${i}, ${i - 1})" title="Move Up">▲</button>` : ''}
             ${i < currentQueue.length - 1 ? `<button class="btn btn-secondary btn-sm" onclick="moveTrack(${i}, ${i + 1})" title="Move Down">▼</button>` : ''}
             <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('REMOVE', {index:${i}})" title="Remove Track">✕</button>
@@ -5328,9 +6053,13 @@ UI_HTML = r"""<!DOCTYPE html>
     function updateQueueList() {
       const container = document.getElementById('full-queue-container');
       const badge = document.getElementById('queue-count-badge');
-      if (container && badge) {
-        badge.innerText = currentQueue.length;
-        container.innerHTML = renderFullQueueRows();
+      const totalDurEl = document.getElementById('queue-total-dur');
+      const qLen = (currentQueue || []).length;
+      if (badge) badge.innerText = qLen;
+      if (container) container.innerHTML = renderFullQueueRows();
+      if (totalDurEl) {
+        const totalSecs = (currentQueue || []).reduce((acc, q) => acc + (q.duration || 0), 0);
+        totalDurEl.innerText = `${qLen} ${qLen === 1 ? 'track' : 'tracks'} • ${formatTotalDuration(totalSecs)}`;
       }
     }
 
@@ -5341,6 +6070,11 @@ UI_HTML = r"""<!DOCTYPE html>
       showToast(`Adding "${val}" to queue...`);
       input.value = '';
       await dispatchCmd('ENQUEUE', { query: val });
+    }
+
+    async function quickAddToQueueWith(query) {
+      showToast(`Adding '${query}' to queue...`);
+      await dispatchCmd('ENQUEUE', { query: query });
     }
 
     async function moveTrack(fromIdx, toIdx) {
@@ -5945,8 +6679,8 @@ UI_HTML = r"""<!DOCTYPE html>
                 </div>
                 <div class="glass-card" style="padding:1.2rem; background:rgba(255,255,255,0.03);">
                   <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">GATEWAY REACTION LATENCY</span>
-                  <div style="font-size:1.4rem; font-weight:800; color:#fff; margin-top:0.3rem;">0.5 ms</div>
-                  <span style="font-size:0.75rem; color:var(--emerald);">Sub-0.5ms Response Active ⚡</span>
+                  <div style="font-size:1.4rem; font-weight:800; color:#fff; margin-top:0.3rem;">${s.gateway_latency_ms != null ? s.gateway_latency_ms + ' ms' : 'Live Sync'}</div>
+                  <span style="font-size:0.75rem; color:var(--emerald);">${s.gateway_latency_ms != null ? 'Measured Gateway Ping ⚡' : 'Real-time WebSocket Sync ⚡'}</span>
                 </div>
                 <div class="glass-card" style="padding:1.2rem; background:rgba(255,255,255,0.03);">
                   <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">RESOLVER ENGINE</span>
@@ -6883,7 +7617,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <div class="glass-card" style="padding:1.4rem;">
               <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">GATEWAY PING</span>
-              <div style="font-size:1.8rem; font-weight:800; color:var(--cyan); margin-top:0.4rem;">0.5ms</div>
+              <div style="font-size:1.8rem; font-weight:800; color:var(--cyan); margin-top:0.4rem;">Live Sync</div>
               <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Discord Realtime Gateway</p>
             </div>
 
@@ -7049,6 +7783,215 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // 7. DISCORD SERVER SELECTION VIEW (/servers)
+    // =========================================================================
+    function renderServersView() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>🌐</span> Discord Server Selection
+              </h1>
+              <p style="font-size:0.88rem; color:var(--text-muted); margin-top:0.2rem;">
+                Choose an eligible server to listen to, control live music playback, or invite MusicMaid.
+              </p>
+            </div>
+            <div style="display:flex; gap:0.6rem;">
+              <button class="btn btn-secondary btn-sm" onclick="fetchGuilds(); renderServersView(); showToast('Refreshed server list');">🔄 Refresh</button>
+              <button class="btn btn-primary btn-sm" onclick="navigate('/dashboard')">🎧 Open Turntable ↗</button>
+            </div>
+          </div>
+
+          <!-- SERVER SEARCH FILTER -->
+          <div class="glass-card" style="padding:1rem 1.4rem;">
+            <input type="text" id="server-filter-input" class="search-input" placeholder="Filter servers by name or ID..." oninput="filterServersGrid(this.value)" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-md); padding:0.6rem 1rem; width:100%;">
+          </div>
+
+          <!-- SERVERS GRID -->
+          <div id="servers-grid-container" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.2rem;">
+            ${renderServersCardsHtml()}
+          </div>
+
+          <!-- BOTTOM INVITE BANNER -->
+          <div class="glass-card" style="padding:1.6rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <div style="font-size:1.1rem; font-weight:800; color:#fff;">Missing a Server?</div>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">You must have 'Manage Server' or Administrator permissions in Discord to add the bot.</div>
+            </div>
+            <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
+              ➕ Add MusicMaid to New Server
+            </a>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function renderServersCardsHtml(query = '') {
+      if (!activeGuilds || activeGuilds.length === 0) {
+        return `
+          <div class="glass-card" style="grid-column:1/-1; padding:3rem; text-align:center; color:var(--text-muted);">
+            <div style="font-size:2.4rem; margin-bottom:0.8rem;">⚪</div>
+            <h3 style="color:#fff; font-size:1.2rem; font-weight:700; margin-bottom:0.4rem;">No Servers Loaded</h3>
+            <p style="font-size:0.85rem; max-width:440px; margin:0 auto 1.4rem auto;">Sign in with Discord or click Refresh to discover your joined servers.</p>
+            <button class="btn btn-secondary btn-sm" onclick="fetchGuilds(); renderServersView();">🔄 Load Server List</button>
+          </div>
+        `;
+      }
+
+      const q = (query || '').toLowerCase().trim();
+      const filtered = activeGuilds.filter(g => !q || g.name.toLowerCase().includes(q) || String(g.id).includes(q));
+
+      if (filtered.length === 0) {
+        return `
+          <div class="glass-card" style="grid-column:1/-1; padding:2rem; text-align:center; color:var(--text-muted);">
+            No Discord servers matched "${query}".
+          </div>
+        `;
+      }
+
+      return filtered.map(g => {
+        const isCurrent = (g.id === currentGuildId);
+        const hasBot = (g.bot_in_guild !== false);
+        const isAuth = (g.authorized !== false);
+
+        let statusText = '⚪ Standby';
+        let statusColor = 'var(--text-dim)';
+        if (!hasBot) {
+          statusText = '❌ Not in Server';
+          statusColor = 'var(--danger)';
+        } else if (!isAuth) {
+          statusText = '🔒 Insufficient Permissions';
+          statusColor = '#f59e0b';
+        } else if (g.voice_channel) {
+          statusText = `🔊 #${g.voice_channel} (Active)`;
+          statusColor = 'var(--emerald)';
+        }
+
+        return `
+          <div class="glass-card server-selection-card ${isCurrent ? 'selected-server-glow' : ''}" style="padding:1.4rem; display:flex; flex-direction:column; justify-content:space-between; gap:1rem; border:1px solid ${isCurrent ? 'var(--primary)' : 'rgba(255,255,255,0.08)'}; background:${isCurrent ? 'linear-gradient(135deg, rgba(147,51,234,0.18), rgba(0,229,255,0.08))' : 'var(--bg-glass)'};">
+            <div style="display:flex; align-items:center; gap:0.9rem;">
+              <div class="server-icon" style="width:48px; height:48px; font-size:1.15rem; border-radius:12px; background:linear-gradient(135deg, #1e1b4b, #312e81); border:1px solid rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff;">
+                ${g.icon_url ? `<img src="${g.icon_url}" style="width:100%; height:100%; border-radius:12px; object-fit:cover;" alt="icon">` : g.name.charAt(0)}
+              </div>
+              <div style="min-width:0; flex:1;">
+                <div style="font-weight:800; color:#fff; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</div>
+                <div style="font-size:0.75rem; color:${statusColor}; font-weight:600; margin-top:2px;">${statusText}</div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; padding-top:0.6rem; border-top:1px solid rgba(255,255,255,0.06);">
+              <span style="font-size:0.72rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">ID: ${g.id}</span>
+              ${!hasBot ? `
+                <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands&guild_id=${g.id}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:0.75rem; text-decoration:none;">➕ Invite Bot</a>
+              ` : (isCurrent ? `
+                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15); font-weight:700;">✓ Active Server</span>
+              ` : `
+                <button class="btn btn-primary btn-sm" onclick="selectServer('${g.id}'); renderServersView();" style="font-size:0.75rem;">Switch ⚡</button>
+              `)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterServersGrid(q) {
+      const container = document.getElementById('servers-grid-container');
+      if (container) container.innerHTML = renderServersCardsHtml(q);
+    }
+
+    // =========================================================================
+    // 8. LEGAL & POLICY VIEWS (/terms, /privacy)
+    // =========================================================================
+    function renderTermsView() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>📜</span> Terms of Service
+              </h1>
+              <p style="font-size:0.86rem; color:var(--text-muted); margin-top:0.2rem;">Last updated: October 2026 • MusicMaid Discord Audio Platform</p>
+            </div>
+            <a href="/terms" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">Raw Terms Page ↗</a>
+          </div>
+
+          <div class="glass-card" style="padding:2rem; line-height:1.7; font-size:0.9rem; color:#cbd5e1; display:flex; flex-direction:column; gap:1.2rem;">
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">1. Acceptance of Terms</h3>
+              <p>By inviting MusicMaid to your Discord server or using the web player, you agree to comply with Discord Terms of Service, YouTube Terms of Service, and applicable laws.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">2. Acceptable Audio Use</h3>
+              <p>MusicMaid streams authorized audio content to Discord voice channels. Users agree not to abuse playback loops, send automated denial-of-service requests, or stream unlawful material.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">3. VIP & Subscription Services</h3>
+              <p>Premium features are optional additions that provide extended volume controls, 24/7 channel locking, and priority queue buffers. Refunds are governed by our Refund Policy.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPrivacyView() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>🛡️</span> Privacy Policy
+              </h1>
+              <p style="font-size:0.86rem; color:var(--text-muted); margin-top:0.2rem;">Last updated: October 2026 • Privacy and Data Security</p>
+            </div>
+            <a href="/privacy" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">Raw Privacy Page ↗</a>
+          </div>
+
+          <div class="glass-card" style="padding:2rem; line-height:1.7; font-size:0.9rem; color:#cbd5e1; display:flex; flex-direction:column; gap:1.2rem;">
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">1. Data Collection</h3>
+              <p>MusicMaid collects only necessary identifiers to operate playback: your Discord User ID, active server ID, voice channel ID, and saved playlist preferences. We never record, store, or eavesdrop on your voice audio.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">2. Cookie & Session Security</h3>
+              <p>We use encrypted, HttpOnly, and SameSite session cookies strictly for authenticating your Discord session. We do not sell user data or use third-party behavioral advertising trackers.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">3. Data Deletion Rights</h3>
+              <p>You may request deletion of your saved playlists, favorites, and listening history at any time by contacting us or issuing the <code>/clear-data</code> command.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // 9. NOT FOUND (404) VIEW
+    // =========================================================================
+    function renderNotFound() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:680px; margin:4rem auto; text-align:center; display:flex; flex-direction:column; gap:1.2rem; align-items:center;">
+          <div style="font-size:3.5rem; margin-bottom:0.2rem;">📻</div>
+          <h1 style="font-size:2.4rem; font-weight:900; color:#fff; line-height:1.2;">404 — Station Not Found</h1>
+          <p style="font-size:1rem; color:var(--text-muted); max-width:480px; line-height:1.5;">
+            The frequency or page you tuned into does not exist in MusicMaid Studio.
+          </p>
+          <div style="display:flex; gap:0.8rem; margin-top:0.8rem; flex-wrap:wrap; justify-content:center;">
+            <button class="btn btn-primary" onclick="navigate('/login')">🔑 Welcome & Login</button>
+            <button class="btn btn-secondary" onclick="navigate('/dashboard')">🎧 User Dashboard</button>
+            <button class="btn btn-secondary" onclick="navigate('/servers')">🌐 Server Selection</button>
+          </div>
         </div>
       `;
     }
