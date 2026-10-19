@@ -560,7 +560,7 @@ class MusicApiRouter:
         payload = body.get("payload", {})
         if not isinstance(payload, dict):
             payload = {}
-        for k in ("query", "url", "volume", "seconds", "index", "from_index", "to_index", "preset", "channel_id"):
+        for k in ("query", "url", "volume", "seconds", "index", "position", "from_index", "to_index", "preset", "channel_id"):
             if k in body and k not in payload:
                 payload[k] = body[k]
 
@@ -769,7 +769,10 @@ class MusicApiRouter:
                     return json_success({"action_id": action_id, "action": action, "status": "STOPPED", "message": msg or "Playback stopped"})
 
                 elif action == "REMOVE":
-                    idx = int(payload.get("index", 0))
+                    raw_idx = payload.get("index")
+                    if raw_idx is None:
+                        raw_idx = payload.get("position", 0)
+                    idx = int(raw_idx)
                     if 0 <= idx < len(session.queue):
                         removed = session.queue[idx]
                         del session.queue[idx]
@@ -1116,10 +1119,11 @@ class MusicApiRouter:
 
         heartbeat = await self.db.get_latest_heartbeat()
         bot_user_name = (str(self.bot.user) if (self.bot and getattr(self.bot, "user", None)) else "MusicMaid#4596")
-        latency_val = 0.5
+        latency_val: Optional[float] = None
         if self.bot and getattr(self.bot, "latency", None) is not None:
             raw_lat = self.bot.latency
-            if raw_lat and raw_lat > 0:
+            import math
+            if isinstance(raw_lat, (int, float)) and raw_lat > 0 and not math.isinf(raw_lat) and not math.isnan(raw_lat):
                 latency_val = round(raw_lat * 1000.0, 1)
 
         mem_val = 42.5

@@ -106,11 +106,12 @@ class OwnerApiRouter:
         started_at = getattr(self.bot, "started_at", None) or time.time()
         uptime_seconds = int(time.time() - started_at)
 
-        # Gateway ping: measure live Discord Gateway latency when available
-        latency_ms = 0.5
+        # Gateway ping: measure live Discord Gateway latency when available; never present fake fixed fallback
+        latency_ms: Optional[float] = None
         if self.bot and getattr(self.bot, "latency", None) is not None:
             raw_lat = self.bot.latency
-            if raw_lat and raw_lat > 0:
+            import math
+            if isinstance(raw_lat, (int, float)) and raw_lat > 0 and not math.isinf(raw_lat) and not math.isnan(raw_lat):
                 latency_ms = round(raw_lat * 1000.0, 1)
 
         # Active voice sessions
@@ -140,7 +141,8 @@ class OwnerApiRouter:
                 "version": "2.7.0",
                 "commit": git_commit[:8],
                 "creator_id": session.get("discord_user_id"),
-                "sla_percentage": 99.97,
+                "sla_percentage": None,
+                "sla_target": 99.9,
             }
         })
 
@@ -426,8 +428,8 @@ class OwnerApiRouter:
                                 f"• **24/7 Voice Stay** — Bot stays in your voice channel non-stop\n"
                                 f"• **Maid Voice DJ** — Custom voice track intros & bumpers\n"
                                 f"• **Lossless 320kbps Audio** — True studio master quality Opus DSP\n"
-                                f"• **Cross-Platform Importer** — Spotify, Apple Music & SoundCloud sync\n"
-                                f"• **Priority Audio Routing** — Sub-0.5ms reaction time & instant seeking\n\n"
+                                f"• **Cross-Platform Importer** — Spotify playlists & YouTube sync\n"
+                                f"• **Priority Audio Routing** — Real-time playback reaction & instant seeking\n\n"
                                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                                 f"💡 **Granted Reason:** `{reason}`\n"
                                 f"📅 **Active Until:** <t:{exp_unix}:F> (<t:{exp_unix}:R>)\n"

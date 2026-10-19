@@ -340,7 +340,7 @@ class RaiCommunityOSServer:
             "/discover/constellation", "/studio", "/bounties", "/passport", "/invites",
             "/search", "/queue", "/player", "/playlists", "/history", "/analytics", "/autodj", "/library", "/audio", "/dsp", "/stats",
             "/canvas", "/visualizer",
-            "/owner", "/dashboard/guilds", "/system",
+            "/servers", "/owner", "/dashboard/guilds", "/system",
             "/premium", "/premium/checkout", "/premium/success", "/premium/cancel", "/premium/manage"
         ]
         for path in ui_routes:

@@ -2492,12 +2492,13 @@ UI_HTML = r"""<!DOCTYPE html>
       <span class="nav-group-title">1. Access & Gateway</span>
       <ul class="nav-list">
         <li><a class="nav-link" id="nav-login" onclick="navigate('/login')"><span class="nav-icon">🔑</span> Login / Welcome Page</a></li>
+        <li><a class="nav-link" id="nav-servers" onclick="navigate('/servers')"><span class="nav-icon">🌐</span> Server Selection</a></li>
       </ul>
 
       <!-- 2. USER DASHBOARD & LISTENER HUB -->
       <span class="nav-group-title" style="margin-top:0.6rem;">2. User Dashboard (Listener Hub)</span>
       <ul class="nav-list">
-        <li><a class="nav-link active" id="nav-dashboard" onclick="navigate('/')"><span class="nav-icon">📻</span> Turntable & Deck</a></li>
+        <li><a class="nav-link" id="nav-dashboard" onclick="navigate('/dashboard')"><span class="nav-icon">📻</span> Turntable & Deck</a></li>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Aux</a></li>
         <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
@@ -2538,6 +2539,11 @@ UI_HTML = r"""<!DOCTYPE html>
         <div style="font-size:0.68rem; color:var(--text-dim); text-align:center; padding:0.4rem 0 0.1rem 0; line-height:1.4;">
           MusicMaid is an independent open-source music bot. Not affiliated with or endorsed by Discord, Inc.<br>
           Handcrafted by <a href="https://github.com/kishorerai390" target="_blank" rel="noopener" style="color:#a78bfa; text-decoration:none; font-weight:600;">Kishore</a>
+          <div style="display:flex; justify-content:center; gap:0.6rem; font-size:0.72rem; margin-top:0.35rem;">
+            <a href="/terms" onclick="event.preventDefault(); navigate('/terms')" style="color:var(--text-muted); text-decoration:none;">Terms</a>
+            <span style="color:var(--text-dim);">•</span>
+            <a href="/privacy" onclick="event.preventDefault(); navigate('/privacy')" style="color:var(--text-muted); text-decoration:none;">Privacy</a>
+          </div>
         </div>
       </div>
     </aside>
@@ -3630,12 +3636,15 @@ UI_HTML = r"""<!DOCTYPE html>
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
-      if (path === '/login') {
+      if (path === '/' || path === '/login') {
         document.getElementById('nav-login')?.classList.add('active');
         renderLoginView();
-      } else if (path === '/' || path === '/dashboard') {
+      } else if (path === '/dashboard') {
         document.getElementById('nav-dashboard')?.classList.add('active');
         renderDashboard();
+      } else if (path === '/servers') {
+        document.getElementById('nav-servers')?.classList.add('active');
+        renderServersView();
       } else if (path === '/search') {
         document.getElementById('nav-search')?.classList.add('active');
         renderSearch();
@@ -3693,8 +3702,12 @@ UI_HTML = r"""<!DOCTYPE html>
       } else if (path === '/dashboard/guilds' || path === '/guilds') {
         document.getElementById('nav-guilds')?.classList.add('active');
         renderGuildAdminSettings();
+      } else if (path === '/terms' || path === '/terms-of-service') {
+        renderTermsView();
+      } else if (path === '/privacy' || path === '/privacy-policy') {
+        renderPrivacyView();
       } else {
-        renderDashboard();
+        renderNotFound();
       }
     }
 
@@ -3748,17 +3761,17 @@ UI_HTML = r"""<!DOCTYPE html>
           const sessEl = document.getElementById('cr-metric-sessions');
           const guildsEl = document.getElementById('cr-metric-guilds');
           const slaEl = document.getElementById('cr-metric-sla');
-          if (latEl) latEl.innerText = '0.5ms';
+          if (latEl) latEl.innerText = ov.gateway_latency_ms != null ? `${ov.gateway_latency_ms}ms` : 'N/A';
           if (sessEl) sessEl.innerText = ov.active_voice_sessions || 0;
           if (guildsEl) guildsEl.innerText = ov.active_guilds || 0;
-          if (slaEl) slaEl.innerText = `${ov.sla_percentage || 99.97}%`;
+          if (slaEl) slaEl.innerText = ov.sla_percentage != null ? `${ov.sla_percentage}%` : (ov.sla_target ? `${ov.sla_target}% (Target)` : 'N/A');
         }
       } catch(e) {}
     }
 
     function updateActiveView() {
       const path = location.pathname;
-      if (path === '/' || path === '/dashboard') {
+      if (path === '/dashboard') {
         updateDashboardDynamicElements();
       } else if (path === '/queue') {
         const qContainer = document.getElementById('queue-tracks-container');
@@ -3804,7 +3817,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem; flex-wrap:wrap; justify-content:center;">
                 <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 24/7 Voice Ready</span>
-                <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ 0.5ms Gateway Ping</span>
+                <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ Realtime Gateway Sync</span>
                 <span class="chip-pill" style="color:#f472b6; background:rgba(236,72,153,0.15);">🛡️ Extractor Auto-Heal ON</span>
               </div>
 
@@ -3827,6 +3840,9 @@ UI_HTML = r"""<!DOCTYPE html>
                   <button class="btn btn-primary btn-lg" onclick="navigate('/dashboard')" style="padding:0.75rem 1.8rem; font-weight:800; font-size:1rem;">
                     <span>🎧</span> Enter User Dashboard ↗
                   </button>
+                  <button class="btn btn-secondary btn-lg" onclick="navigate('/servers')" style="padding:0.75rem 1.5rem; font-weight:700; font-size:1rem;">
+                    <span>🌐</span> Select Server
+                  </button>
                   ${isOwner ? `
                     <button class="btn btn-secondary btn-lg" onclick="navigate('/owner')" style="padding:0.75rem 1.5rem; font-weight:800; font-size:1rem; border-color:rgba(255,215,0,0.5); color:#ffd700;">
                       <span>👑</span> Open Owner Dashboard ↗
@@ -3841,9 +3857,14 @@ UI_HTML = r"""<!DOCTYPE html>
                   <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)" style="width:100%; justify-content:center; padding:0.85rem 1.4rem; font-size:1.05rem; font-weight:800; box-shadow:0 6px 20px rgba(88,101,242,0.4);">
                     <span>👾 Sign in with Discord</span>
                   </a>
-                  <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="width:100%; justify-content:center; padding:0.7rem 1.2rem; font-size:0.9rem;">
-                    <span>🎧</span> Preview User Dashboard as Listener
-                  </button>
+                  <div style="display:flex; gap:0.6rem; width:100%;">
+                    <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="flex:1; justify-content:center; padding:0.7rem 1rem; font-size:0.9rem;">
+                      <span>🎧</span> Preview Player
+                    </button>
+                    <button class="btn btn-secondary" onclick="navigate('/servers')" style="flex:1; justify-content:center; padding:0.7rem 1rem; font-size:0.9rem;">
+                      <span>🌐</span> Servers
+                    </button>
+                  </div>
                 </div>
               `}
             </div>
@@ -3952,7 +3973,7 @@ UI_HTML = r"""<!DOCTYPE html>
                     <span class="chip-pill" style="color:var(--emerald); background:rgba(16, 185, 129, 0.15);">● 320kbps Lossless Opus</span>
                     <span class="chip-pill" id="hero-state-pill">${currentSession?.state || 'IDLE'}</span>
                     <span class="chip-pill" id="hero-vc-pill">🔊 ${currentSession?.voice_channel_name ? '#' + currentSession.voice_channel_name : 'Standby'}</span>
-                    <span class="chip-pill" style="color:var(--cyan); background:rgba(0, 229, 255, 0.12);">⚡ 0.5ms Gateway</span>
+                    <span class="chip-pill" style="color:var(--cyan); background:rgba(0, 229, 255, 0.12);">⚡ Realtime Gateway</span>
                   </div>
 
                   <!-- DUAL STEREO ANALOG VU METERS -->
@@ -4119,7 +4140,7 @@ UI_HTML = r"""<!DOCTYPE html>
               </div>
               <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; text-align:center;">
                 <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:var(--cyan);">0.5ms</div>
+                  <div style="font-size:1.1rem; font-weight:800; color:var(--cyan);" id="stat-gateway-ping">Live Sync</div>
                   <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Gateway Ping</div>
                 </div>
                 <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
@@ -4373,8 +4394,8 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
             <div class="control-card accent-pink">
               <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Gateway Reaction Latency</span>
-              <div id="cr-metric-latency" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">0.5ms</div>
-              <span style="font-size:0.75rem; color:#ec4899;">⚡ Sub-0.5ms Studio Engine</span>
+              <div id="cr-metric-latency" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">${ov.gateway_latency_ms != null ? ov.gateway_latency_ms + 'ms' : 'N/A'}</div>
+              <span style="font-size:0.75rem; color:#ec4899;">${ov.gateway_latency_ms != null ? '⚡ Live Discord Gateway Ping' : '⚪ Unmeasured / Gateway Standby'}</span>
             </div>
             <div class="control-card accent-purple">
               <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Connected Servers</span>
@@ -4382,9 +4403,9 @@ UI_HTML = r"""<!DOCTYPE html>
               <span style="font-size:0.75rem; color:var(--cyan);">Cluster Node #1</span>
             </div>
             <div class="control-card accent-emerald">
-              <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Uptime SLA</span>
-              <div id="cr-metric-sla" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">${ov.sla_percentage}%</div>
-              <span style="font-size:0.75rem; color:var(--emerald);">● SLA Target Met</span>
+              <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Uptime SLA Target</span>
+              <div id="cr-metric-sla" style="font-size:2rem; font-weight:900; color:#fff; font-family:'JetBrains Mono',monospace;">${ov.sla_percentage != null ? ov.sla_percentage + '%' : (ov.sla_target ? ov.sla_target + '% Target' : 'N/A')}</div>
+              <span style="font-size:0.75rem; color:var(--emerald);">${ov.sla_percentage != null ? '● SLA Measured' : '🎯 Target Objective (Not Measured)'}</span>
             </div>
           </div>
 
@@ -5945,8 +5966,8 @@ UI_HTML = r"""<!DOCTYPE html>
                 </div>
                 <div class="glass-card" style="padding:1.2rem; background:rgba(255,255,255,0.03);">
                   <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">GATEWAY REACTION LATENCY</span>
-                  <div style="font-size:1.4rem; font-weight:800; color:#fff; margin-top:0.3rem;">0.5 ms</div>
-                  <span style="font-size:0.75rem; color:var(--emerald);">Sub-0.5ms Response Active ⚡</span>
+                  <div style="font-size:1.4rem; font-weight:800; color:#fff; margin-top:0.3rem;">${s.gateway_latency_ms != null ? s.gateway_latency_ms + ' ms' : 'Live Sync'}</div>
+                  <span style="font-size:0.75rem; color:var(--emerald);">${s.gateway_latency_ms != null ? 'Measured Gateway Ping ⚡' : 'Real-time WebSocket Sync ⚡'}</span>
                 </div>
                 <div class="glass-card" style="padding:1.2rem; background:rgba(255,255,255,0.03);">
                   <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">RESOLVER ENGINE</span>
@@ -6883,7 +6904,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <div class="glass-card" style="padding:1.4rem;">
               <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">GATEWAY PING</span>
-              <div style="font-size:1.8rem; font-weight:800; color:var(--cyan); margin-top:0.4rem;">0.5ms</div>
+              <div style="font-size:1.8rem; font-weight:800; color:var(--cyan); margin-top:0.4rem;">Live Sync</div>
               <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">Discord Realtime Gateway</p>
             </div>
 
@@ -7049,6 +7070,215 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // 7. DISCORD SERVER SELECTION VIEW (/servers)
+    // =========================================================================
+    function renderServersView() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>🌐</span> Discord Server Selection
+              </h1>
+              <p style="font-size:0.88rem; color:var(--text-muted); margin-top:0.2rem;">
+                Choose an eligible server to listen to, control live music playback, or invite MusicMaid.
+              </p>
+            </div>
+            <div style="display:flex; gap:0.6rem;">
+              <button class="btn btn-secondary btn-sm" onclick="fetchGuilds(); renderServersView(); showToast('Refreshed server list');">🔄 Refresh</button>
+              <button class="btn btn-primary btn-sm" onclick="navigate('/dashboard')">🎧 Open Turntable ↗</button>
+            </div>
+          </div>
+
+          <!-- SERVER SEARCH FILTER -->
+          <div class="glass-card" style="padding:1rem 1.4rem;">
+            <input type="text" id="server-filter-input" class="search-input" placeholder="Filter servers by name or ID..." oninput="filterServersGrid(this.value)" style="background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-md); padding:0.6rem 1rem; width:100%;">
+          </div>
+
+          <!-- SERVERS GRID -->
+          <div id="servers-grid-container" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.2rem;">
+            ${renderServersCardsHtml()}
+          </div>
+
+          <!-- BOTTOM INVITE BANNER -->
+          <div class="glass-card" style="padding:1.6rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <div style="font-size:1.1rem; font-weight:800; color:#fff;">Missing a Server?</div>
+              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">You must have 'Manage Server' or Administrator permissions in Discord to add the bot.</div>
+            </div>
+            <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
+              ➕ Add MusicMaid to New Server
+            </a>
+          </div>
+
+        </div>
+      `;
+    }
+
+    function renderServersCardsHtml(query = '') {
+      if (!activeGuilds || activeGuilds.length === 0) {
+        return `
+          <div class="glass-card" style="grid-column:1/-1; padding:3rem; text-align:center; color:var(--text-muted);">
+            <div style="font-size:2.4rem; margin-bottom:0.8rem;">⚪</div>
+            <h3 style="color:#fff; font-size:1.2rem; font-weight:700; margin-bottom:0.4rem;">No Servers Loaded</h3>
+            <p style="font-size:0.85rem; max-width:440px; margin:0 auto 1.4rem auto;">Sign in with Discord or click Refresh to discover your joined servers.</p>
+            <button class="btn btn-secondary btn-sm" onclick="fetchGuilds(); renderServersView();">🔄 Load Server List</button>
+          </div>
+        `;
+      }
+
+      const q = (query || '').toLowerCase().trim();
+      const filtered = activeGuilds.filter(g => !q || g.name.toLowerCase().includes(q) || String(g.id).includes(q));
+
+      if (filtered.length === 0) {
+        return `
+          <div class="glass-card" style="grid-column:1/-1; padding:2rem; text-align:center; color:var(--text-muted);">
+            No Discord servers matched "${query}".
+          </div>
+        `;
+      }
+
+      return filtered.map(g => {
+        const isCurrent = (g.id === currentGuildId);
+        const hasBot = (g.bot_in_guild !== false);
+        const isAuth = (g.authorized !== false);
+
+        let statusText = '⚪ Standby';
+        let statusColor = 'var(--text-dim)';
+        if (!hasBot) {
+          statusText = '❌ Not in Server';
+          statusColor = 'var(--danger)';
+        } else if (!isAuth) {
+          statusText = '🔒 Insufficient Permissions';
+          statusColor = '#f59e0b';
+        } else if (g.voice_channel) {
+          statusText = `🔊 #${g.voice_channel} (Active)`;
+          statusColor = 'var(--emerald)';
+        }
+
+        return `
+          <div class="glass-card server-selection-card ${isCurrent ? 'selected-server-glow' : ''}" style="padding:1.4rem; display:flex; flex-direction:column; justify-content:space-between; gap:1rem; border:1px solid ${isCurrent ? 'var(--primary)' : 'rgba(255,255,255,0.08)'}; background:${isCurrent ? 'linear-gradient(135deg, rgba(147,51,234,0.18), rgba(0,229,255,0.08))' : 'var(--bg-glass)'};">
+            <div style="display:flex; align-items:center; gap:0.9rem;">
+              <div class="server-icon" style="width:48px; height:48px; font-size:1.15rem; border-radius:12px; background:linear-gradient(135deg, #1e1b4b, #312e81); border:1px solid rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff;">
+                ${g.icon_url ? `<img src="${g.icon_url}" style="width:100%; height:100%; border-radius:12px; object-fit:cover;" alt="icon">` : g.name.charAt(0)}
+              </div>
+              <div style="min-width:0; flex:1;">
+                <div style="font-weight:800; color:#fff; font-size:1rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</div>
+                <div style="font-size:0.75rem; color:${statusColor}; font-weight:600; margin-top:2px;">${statusText}</div>
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; padding-top:0.6rem; border-top:1px solid rgba(255,255,255,0.06);">
+              <span style="font-size:0.72rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">ID: ${g.id}</span>
+              ${!hasBot ? `
+                <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands&guild_id=${g.id}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:0.75rem; text-decoration:none;">➕ Invite Bot</a>
+              ` : (isCurrent ? `
+                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15); font-weight:700;">✓ Active Server</span>
+              ` : `
+                <button class="btn btn-primary btn-sm" onclick="selectServer('${g.id}'); renderServersView();" style="font-size:0.75rem;">Switch ⚡</button>
+              `)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function filterServersGrid(q) {
+      const container = document.getElementById('servers-grid-container');
+      if (container) container.innerHTML = renderServersCardsHtml(q);
+    }
+
+    // =========================================================================
+    // 8. LEGAL & POLICY VIEWS (/terms, /privacy)
+    // =========================================================================
+    function renderTermsView() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>📜</span> Terms of Service
+              </h1>
+              <p style="font-size:0.86rem; color:var(--text-muted); margin-top:0.2rem;">Last updated: October 2026 • MusicMaid Discord Audio Platform</p>
+            </div>
+            <a href="/terms" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">Raw Terms Page ↗</a>
+          </div>
+
+          <div class="glass-card" style="padding:2rem; line-height:1.7; font-size:0.9rem; color:#cbd5e1; display:flex; flex-direction:column; gap:1.2rem;">
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">1. Acceptance of Terms</h3>
+              <p>By inviting MusicMaid to your Discord server or using the web player, you agree to comply with Discord Terms of Service, YouTube Terms of Service, and applicable laws.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">2. Acceptable Audio Use</h3>
+              <p>MusicMaid streams authorized audio content to Discord voice channels. Users agree not to abuse playback loops, send automated denial-of-service requests, or stream unlawful material.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">3. VIP & Subscription Services</h3>
+              <p>Premium features are optional additions that provide extended volume controls, 24/7 channel locking, and priority queue buffers. Refunds are governed by our Refund Policy.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPrivacyView() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:820px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>🛡️</span> Privacy Policy
+              </h1>
+              <p style="font-size:0.86rem; color:var(--text-muted); margin-top:0.2rem;">Last updated: October 2026 • Privacy and Data Security</p>
+            </div>
+            <a href="/privacy" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">Raw Privacy Page ↗</a>
+          </div>
+
+          <div class="glass-card" style="padding:2rem; line-height:1.7; font-size:0.9rem; color:#cbd5e1; display:flex; flex-direction:column; gap:1.2rem;">
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">1. Data Collection</h3>
+              <p>MusicMaid collects only necessary identifiers to operate playback: your Discord User ID, active server ID, voice channel ID, and saved playlist preferences. We never record, store, or eavesdrop on your voice audio.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">2. Cookie & Session Security</h3>
+              <p>We use encrypted, HttpOnly, and SameSite session cookies strictly for authenticating your Discord session. We do not sell user data or use third-party behavioral advertising trackers.</p>
+            </div>
+            <div>
+              <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">3. Data Deletion Rights</h3>
+              <p>You may request deletion of your saved playlists, favorites, and listening history at any time by contacting us or issuing the <code>/clear-data</code> command.</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // =========================================================================
+    // 9. NOT FOUND (404) VIEW
+    // =========================================================================
+    function renderNotFound() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:680px; margin:4rem auto; text-align:center; display:flex; flex-direction:column; gap:1.2rem; align-items:center;">
+          <div style="font-size:3.5rem; margin-bottom:0.2rem;">📻</div>
+          <h1 style="font-size:2.4rem; font-weight:900; color:#fff; line-height:1.2;">404 — Station Not Found</h1>
+          <p style="font-size:1rem; color:var(--text-muted); max-width:480px; line-height:1.5;">
+            The frequency or page you tuned into does not exist in MusicMaid Studio.
+          </p>
+          <div style="display:flex; gap:0.8rem; margin-top:0.8rem; flex-wrap:wrap; justify-content:center;">
+            <button class="btn btn-primary" onclick="navigate('/login')">🔑 Welcome & Login</button>
+            <button class="btn btn-secondary" onclick="navigate('/dashboard')">🎧 User Dashboard</button>
+            <button class="btn btn-secondary" onclick="navigate('/servers')">🌐 Server Selection</button>
+          </div>
         </div>
       `;
     }
