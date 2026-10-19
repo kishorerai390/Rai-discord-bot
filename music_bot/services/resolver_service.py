@@ -899,7 +899,7 @@ def _build_ytdl_options(
     """
     clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["ios", "android", "mweb"])
     opts: Dict[str, Any] = {
-        "format": "bestaudio/ba/b/best[height<=1080]/best/worst",
+        "format": "bestaudio/best",
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
         "restrictfilenames": True,
         "noplaylist": True,
@@ -1743,27 +1743,35 @@ class AudioResolver:
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
                 if "format is not available" in t1_msg.lower():
-                    try:
-                        fb_opts = _build_ytdl_options(["android", "ios", "web"], use_cookies=False)
-                        fb_opts["format"] = "best/worst"
-                        fb_ydl = yt_dlp.YoutubeDL(fb_opts)
-                        fb_data = await asyncio.wait_for(
-                            loop.run_in_executor(
-                                _audio_executor, functools.partial(fb_ydl.extract_info, target_url, download=False)
-                            ),
-                            timeout=8.0,
-                        )
-                        if fb_data:
-                            track = cls._parse_entry(fb_data, requester_id, requester_name)
-                            if track and track.stream_url:
-                                track = _apply_metadata_enhancements(track)
-                                dur = time.time() - start_t
-                                logger.info(
-                                    f"[Resolver] [Ref: MM-{corr_id}] Format fallback resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
-                                )
-                                return track
-                    except Exception as fb_err:
-                        last_failure_reason = _format_error(fb_err)
+                    for fallback_clients, fallback_format in (
+                        (["android", "ios", "web"], "bestaudio/best"),
+                        (["web"], "best"),
+                    ):
+                        try:
+                            fb_opts = _build_ytdl_options(fallback_clients, use_cookies=False)
+                            fb_opts["format"] = fallback_format
+                            fb_ydl = yt_dlp.YoutubeDL(fb_opts)
+                            fb_data = await asyncio.wait_for(
+                                loop.run_in_executor(
+                                    _audio_executor, functools.partial(fb_ydl.extract_info, target_url, download=False)
+                                ),
+                                timeout=8.0,
+                            )
+                            if fb_data:
+                                track = cls._parse_entry(fb_data, requester_id, requester_name)
+                                if track and track.stream_url:
+                                    track = _apply_metadata_enhancements(track)
+                                    dur = time.time() - start_t
+                                    logger.info(
+                                        f"[Resolver] [Ref: MM-{corr_id}] Format fallback resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                                    )
+                                    return track
+                        except Exception as fb_err:
+                            last_failure_reason = _format_error(fb_err)
+                            logger.info(
+                                f"[Resolver] [Ref: MM-{corr_id}] Format fallback notice for candidate #{cand_idx} "
+                                f"with clients {','.join(fallback_clients)}: {last_failure_reason}"
+                            )
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
