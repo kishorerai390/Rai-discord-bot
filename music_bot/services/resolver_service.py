@@ -897,7 +897,6 @@ def _build_ytdl_options(
     Optimized strictly for authorized YouTube stream resolution.
     Cookies are strictly optional and only attached when use_cookies is True.
     """
-    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["ios", "android", "mweb"])
     opts: Dict[str, Any] = {
         "format": "bestaudio/best",
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
@@ -913,11 +912,12 @@ def _build_ytdl_options(
         "retries": 1,
         "extractor_args": {
             "youtube": {
-                "player_client": clients,
                 "skip": ["translated_subs"],
             }
         },
     }
+    if player_clients:
+        opts["extractor_args"]["youtube"]["player_client"] = player_clients
     if extract_flat:
         opts["extract_flat"] = True
 
@@ -1744,6 +1744,7 @@ class AudioResolver:
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
                 if "format is not available" in t1_msg.lower():
                     for fallback_clients, fallback_format in (
+                        (None, "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
                         (["web"], "best"),
                     ):
@@ -1770,7 +1771,8 @@ class AudioResolver:
                             last_failure_reason = _format_error(fb_err)
                             logger.info(
                                 f"[Resolver] [Ref: MM-{corr_id}] Format fallback notice for candidate #{cand_idx} "
-                                f"with clients {','.join(fallback_clients)}: {last_failure_reason}"
+                                f"with clients {','.join(fallback_clients) if fallback_clients else 'yt-dlp default'}: "
+                                f"{last_failure_reason}"
                             )
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
