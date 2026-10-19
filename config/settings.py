@@ -77,7 +77,7 @@ else:
 _comm_guild_raw = (os.getenv("COMMUNITY_GUILD_ID") or os.getenv("SUPPORT_SERVER_ID") or "1494692962041467005").strip()
 COMMUNITY_GUILD_ID: int = int(_comm_guild_raw) if _comm_guild_raw.isdigit() else 1494692962041467005
 SUPPORT_SERVER_ID: int = COMMUNITY_GUILD_ID
-SUPPORT_INVITE_URL: str = os.getenv("SUPPORT_INVITE_URL", "https://discord.gg/KSxEHfmpCe").strip()
+SUPPORT_INVITE_URL: str = os.getenv("SUPPORT_INVITE_URL", "https://discord.gg/d7T8cJK3XF").strip()
 
 _report_guild_raw = (os.getenv("CENTRAL_REPORT_GUILD_ID") or os.getenv("REPORT_SERVER_ID") or "1494692962041467005").strip()
 CENTRAL_REPORT_GUILD_ID: int = int(_report_guild_raw) if _report_guild_raw.isdigit() else 1494692962041467005

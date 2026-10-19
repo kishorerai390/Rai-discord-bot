@@ -2539,7 +2539,7 @@ class ApiRouter:
             "messagingSenderId": os.getenv("FIREBASE_MESSAGING_SENDER_ID", "").strip(),
             "appId": os.getenv("FIREBASE_APP_ID", "").strip(),
             "measurementId": os.getenv("FIREBASE_MEASUREMENT_ID", "").strip(),
-            "supportInviteUrl": os.getenv("SUPPORT_INVITE_URL", "https://discord.gg/KSxEHfmpCe").strip(),
+            "supportInviteUrl": os.getenv("SUPPORT_INVITE_URL", "https://discord.gg/d7T8cJK3XF").strip(),
             "enabled": bool(os.getenv("FIREBASE_PROJECT_ID") or os.getenv("FIREBASE_API_KEY")),
         }
         return json_success(config)

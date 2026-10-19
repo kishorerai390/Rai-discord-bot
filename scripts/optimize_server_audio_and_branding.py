@@ -2,7 +2,7 @@
 Server Audio & Visual Branding Optimizer for RAI FAM.
 1. Maximizes voice bitrate to 96kbps on Music/Chill lounges for crisp audio.
 2. Optimizes Gaming voice channels to 64kbps for ultra-low latency.
-3. Sets aesthetic channel topics with official invite link (discord.gg/uW4vTv2H).
+3. Sets aesthetic channel topics with official invite link (discord.gg/d7T8cJK3XF).
 4. Posts an elegant luxury welcome card with active role buttons in #welcome.
 5. Harmonizes role colors to the royal purple aesthetic gradient.
 """
@@ -88,11 +88,11 @@ async def main():
         # -------------------------------------------------------------
         print("\n📝 Setting Clean Channel Topics...")
         TOPICS = {
-            "chat": "💬・Main Hub of RAI FAM ―― Chat, squad up, and share ideas. Be respectful • discord.gg/uW4vTv2H",
-            "media": "📸・Visual Showcase ―― Clips, gameplay highlights, artwork, and creative edits • discord.gg/uW4vTv2H",
-            "rules": "📜・Community Guidelines ―― Respect the fam, no toxicity, zero malicious links • discord.gg/uW4vTv2H",
-            "welcome": "🌸・Welcome Hub ―― Claim your roles below and begin your journey • discord.gg/uW4vTv2H",
-            "announcements": "📢・Official News & Updates ―― Stay tuned for events and announcements • discord.gg/uW4vTv2H",
+            "chat": "💬・Main Hub of RAI FAM ―― Chat, squad up, and share ideas. Be respectful • discord.gg/d7T8cJK3XF",
+            "media": "📸・Visual Showcase ―― Clips, gameplay highlights, artwork, and creative edits • discord.gg/d7T8cJK3XF",
+            "rules": "📜・Community Guidelines ―― Respect the fam, no toxicity, zero malicious links • discord.gg/d7T8cJK3XF",
+            "welcome": "🌸・Welcome Hub ―― Claim your roles below and begin your journey • discord.gg/d7T8cJK3XF",
+            "announcements": "📢・Official News & Updates ―― Stay tuned for events and announcements • discord.gg/d7T8cJK3XF",
         }
 
         for c in channels:
@@ -131,7 +131,7 @@ async def main():
                 "• **2.** Click the buttons below to pick your interest roles\n"
                 "• **3.** Say hello and introduce yourself in <#1545502730699808768>\n"
                 "• **4.** Chill to 24/7 lo-fi and high-fidelity music in <#1555255325706424412>\n\n"
-                "🔗 **Official Invite Link:** `https://discord.gg/uW4vTv2H`"
+                "🔗 **Official Invite Link:** `https://discord.gg/d7T8cJK3XF`"
             ),
             "color": 0x7C3AED,  # Royal Purple
             "thumbnail": {

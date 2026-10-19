@@ -507,7 +507,7 @@ REFUND_POLICY_HTML = """<!DOCTYPE html>
         <p>To request a refund or raise a billing inquiry, please provide your <strong>Discord User ID</strong> and <strong>Payment ID / Order ID</strong> to:</p>
         <ul>
             <li><strong>Email:</strong> <a href="mailto:support@rai-discord-bot.onrender.com">support@rai-discord-bot.onrender.com</a></li>
-            <li><strong>Discord Support Server:</strong> <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener">Join Support Server</a></li>
+            <li><strong>Discord Support Server:</strong> <a href="https://discord.gg/d7T8cJK3XF" target="_blank" rel="noopener">Join Support Server</a></li>
             <li><strong>Contact Portal:</strong> <a href="/contact">Contact Us Page</a></li>
         </ul>
 
@@ -660,7 +660,7 @@ CONTACT_US_HTML = """<!DOCTYPE html>
             </div>
             <div class="contact-row">
                 <div class="contact-label">Discord Community:</div>
-                <div class="contact-value"><a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener">discord.gg/KSxEHfmpCe</a></div>
+                <div class="contact-value"><a href="https://discord.gg/d7T8cJK3XF" target="_blank" rel="noopener">discord.gg/d7T8cJK3XF</a></div>
             </div>
             <div class="contact-row">
                 <div class="contact-label">Operating Country:</div>
