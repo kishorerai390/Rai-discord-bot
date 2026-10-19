@@ -3769,9 +3769,28 @@ UI_HTML = r"""<!DOCTYPE html>
       } catch(e) {}
     }
 
+    async function updateLoginGatewayBadge() {
+      const badge = document.getElementById('login-gateway-badge');
+      if (!badge) return;
+      try {
+        const res = await fetch('/api/music/stats');
+        const json = await res.json();
+        const ping = json?.data?.gateway_latency_ms;
+        if (ping != null) {
+          badge.innerText = `⚡ ${ping}ms Gateway Ping`;
+        } else {
+          badge.innerText = '⚡ Realtime Gateway Sync';
+        }
+      } catch (e) {
+        badge.innerText = '⚡ Realtime Gateway Sync';
+      }
+    }
+
     function updateActiveView() {
       const path = location.pathname;
-      if (path === '/dashboard') {
+      if (path === '/' || path === '/login') {
+        updateLoginGatewayBadge();
+      } else if (path === '/dashboard') {
         updateDashboardDynamicElements();
       } else if (path === '/queue') {
         const qContainer = document.getElementById('queue-tracks-container');
@@ -3817,7 +3836,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem; flex-wrap:wrap; justify-content:center;">
                 <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 24/7 Voice Ready</span>
-                <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ Realtime Gateway Sync</span>
+                <span class="chip-pill" id="login-gateway-badge" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ Realtime Gateway Sync</span>
                 <span class="chip-pill" style="color:#f472b6; background:rgba(236,72,153,0.15);">🛡️ Extractor Auto-Heal ON</span>
               </div>
 
@@ -3915,6 +3934,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
         </div>
       `;
+      updateLoginGatewayBadge();
     }
 
     // =========================================================================
