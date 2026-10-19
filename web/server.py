@@ -293,6 +293,13 @@ class RaiCommunityOSServer:
                 response = await handler(request)
             except web.HTTPException as ex:
                 response = ex
+            except Exception as ex:
+                import traceback
+                logging.getLogger("web.server").error(f"Unhandled error in handler: {ex}\n{traceback.format_exc()}")
+                response = web.json_response(
+                    {"success": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "An internal server error occurred"}},
+                    status=500
+                )
         origin = request.headers.get("Origin")
         allowed_origin = None
         if origin:
@@ -313,9 +320,7 @@ class RaiCommunityOSServer:
             response.headers["Access-Control-Allow-Origin"] = "*"
 
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Cookie, Accept"
-        if isinstance(response, web.HTTPException):
-            raise response
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Cookie, Accept, X-Session-Token"
         return response
 
     def setup_routes(self, app: web.Application) -> None:

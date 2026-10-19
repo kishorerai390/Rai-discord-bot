@@ -849,9 +849,9 @@ def _build_ytdl_options(
     Optimized strictly for authorized YouTube stream resolution.
     Cookies are strictly optional and only attached when use_cookies is True.
     """
-    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["android", "mweb"])
+    clients = player_clients or (["web", "mweb", "android"] if use_cookies else ["ios", "android", "mweb"])
     opts: Dict[str, Any] = {
-        "format": "bestaudio/bestaudio*/best[height<=720]/best/worstaudio/worst",
+        "format": "bestaudio/ba/b/best[height<=1080]/best/worst",
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
         "restrictfilenames": True,
         "noplaylist": True,
@@ -1239,7 +1239,7 @@ class AudioResolver:
         try:
             sc_opts = {
                 "quiet": True,
-                "format": "bestaudio/best",
+                "format": "bestaudio/best/worst",
                 "noplaylist": True,
                 "nocheckcertificate": True,
                 "ignoreerrors": True,
@@ -1661,9 +1661,9 @@ class AudioResolver:
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (android) - 14.0s timeout for cold cloud responses
+            # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
             try:
-                tier1_opts = _build_ytdl_options(["android"], use_cookies=False)
+                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(
@@ -1684,10 +1684,32 @@ class AudioResolver:
                 t1_msg = _format_error(t1_err)
                 last_failure_reason = t1_msg
                 logger.info(f"[Resolver] [Ref: MM-{corr_id}] Candidate #{cand_idx} Tier 1 public notice for '{target_url}': {t1_msg}")
+                if "format is not available" in t1_msg.lower():
+                    try:
+                        fb_opts = _build_ytdl_options(["android", "ios", "web"], use_cookies=False)
+                        fb_opts["format"] = "best/worst"
+                        fb_ydl = yt_dlp.YoutubeDL(fb_opts)
+                        fb_data = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                _audio_executor, functools.partial(fb_ydl.extract_info, target_url, download=False)
+                            ),
+                            timeout=8.0,
+                        )
+                        if fb_data:
+                            track = cls._parse_entry(fb_data, requester_id, requester_name)
+                            if track and track.stream_url:
+                                track = _apply_metadata_enhancements(track)
+                                dur = time.time() - start_t
+                                logger.info(
+                                    f"[Resolver] [Ref: MM-{corr_id}] Format fallback resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                                )
+                                return track
+                    except Exception as fb_err:
+                        last_failure_reason = _format_error(fb_err)
 
-            # Tier 2: Fallback Public Profile (mweb) - 10.0s timeout
+            # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["mweb", "android"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await asyncio.wait_for(
                     loop.run_in_executor(

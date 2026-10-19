@@ -17,11 +17,11 @@ CHANNEL_POLISH = {
         'rate_limit_per_user': 0
     },
     '1545502705643167876': { # welcome
-        'topic': '🌸・Welcome Hub ―― Claim your roles below and begin your journey • discord.gg/uW4vTv2H',
+        'topic': '🌸・Welcome Hub ―― Claim your roles below and begin your journey • discord.gg/d7T8cJK3XF',
         'rate_limit_per_user': 0
     },
     '1545502710101704714': { # rules
-        'topic': '📜・Community Guidelines ―― Respect the fam, no toxicity, zero malicious links • discord.gg/uW4vTv2H',
+        'topic': '📜・Community Guidelines ―― Respect the fam, no toxicity, zero malicious links • discord.gg/d7T8cJK3XF',
         'rate_limit_per_user': 0
     },
     '1545502718792175646': { # announcements

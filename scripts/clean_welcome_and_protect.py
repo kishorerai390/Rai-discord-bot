@@ -84,7 +84,7 @@ async def main():
                 "• **2.** Click the buttons below to claim your interest roles\n"
                 "• **3.** Say hello and introduce yourself in <#1545502730699808768>\n"
                 "• **4.** Chill to 24/7 lo-fi and high-fidelity music in <#1555255325706424412>\n\n"
-                "🔗 **Official Invite Link:** `https://discord.gg/uW4vTv2H`"
+                "🔗 **Official Invite Link:** `https://discord.gg/d7T8cJK3XF`"
             ),
             "color": 0x7C3AED,  # Royal Purple
             "thumbnail": {

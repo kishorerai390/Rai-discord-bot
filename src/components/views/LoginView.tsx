@@ -172,7 +172,7 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
                 <span>Add to Discord</span>
               </a>
               <a
-                href="https://discord.gg/KSxEHfmpCe"
+                href="https://discord.gg/d7T8cJK3XF"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="chip-pill text-xs font-bold text-[var(--text-muted)] bg-white/5 border border-white/10 hover:text-white transition-colors inline-flex items-center gap-1.5"

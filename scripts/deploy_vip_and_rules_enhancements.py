@@ -109,7 +109,7 @@ async def main():
                 "• Do not ear-rape or spam soundboards. Respect temporary voice room owners and allow everyone fair turns on the music queue.\n\n"
                 "**4. 📸 Media & Content Guidelines**\n"
                 "• Keep all NSFW content out of public channels. Share your montages and artwork in <#1551184138932068373>.\n\n"
-                "🔗 **Community Invite:** `https://discord.gg/uW4vTv2H`"
+                "🔗 **Community Invite:** `https://discord.gg/d7T8cJK3XF`"
             ),
             "color": 0x7C3AED,  # Royal Purple
             "thumbnail": {

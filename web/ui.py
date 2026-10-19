@@ -2931,7 +2931,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.25), rgba(88,101,242,0.1)); border:1px solid rgba(88,101,242,0.5); color:#fff; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Add MusicMaid to your server">
           <span>➕ Add Bot</span>
         </a>
-        <a href="https://discord.gg/KSxEHfmpCe" id="sidebar-community-link" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
+        <a href="https://discord.gg/d7T8cJK3XF" id="sidebar-community-link" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
           <span>💬 Community</span>
         </a>
       </div>
@@ -3217,7 +3217,7 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     // GLOBAL STATE & DISCORD BOT SYNCHRONIZATION ENGINE
     // =========================================================================
-    let currentGuildId = "1525030316845301781";
+    let currentGuildId = localStorage.getItem('rai_selected_guild') || "1494692962041467005";
     let activeGuilds = [];
     let currentSession = null;
     let currentQueue = [];
@@ -3741,7 +3741,7 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const token = localStorage.getItem('rai_session_token');
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-        const res = await fetch('/api/music/guilds', { headers: headers });
+        const res = await fetch('/api/music/guilds', { headers: headers, credentials: 'include' });
         const json = await res.json();
         if (json.success && json.data && json.data.guilds) {
           activeGuilds = json.data.guilds;
@@ -3838,7 +3838,9 @@ UI_HTML = r"""<!DOCTYPE html>
 
     async function syncFavorites() {
       try {
-        const res = await fetch('/api/music/favorites');
+        const token = localStorage.getItem('rai_session_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch('/api/music/favorites', { headers: headers, credentials: 'include' });
         const json = await res.json();
         if (json.success && json.data) {
           userFavorites = json.data.favorites || [];
@@ -3848,7 +3850,9 @@ UI_HTML = r"""<!DOCTYPE html>
 
     async function syncSession() {
       try {
-        const res = await fetch(`/api/music/session?guild_id=${currentGuildId}`);
+        const token = localStorage.getItem('rai_session_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`/api/music/session?guild_id=${currentGuildId}`, { headers: headers, credentials: 'include' });
         const json = await res.json();
         if (json.success && json.data) {
           currentSession = json.data;
@@ -3865,7 +3869,9 @@ UI_HTML = r"""<!DOCTYPE html>
 
     async function syncQueue() {
       try {
-        const res = await fetch(`/api/music/queue?guild_id=${currentGuildId}`);
+        const token = localStorage.getItem('rai_session_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch(`/api/music/queue?guild_id=${currentGuildId}`, { headers: headers, credentials: 'include' });
         const json = await res.json();
         if (json.success && json.data) {
           currentQueue = json.data.tracks || [];
@@ -4088,17 +4094,24 @@ UI_HTML = r"""<!DOCTYPE html>
       }
       pendingActions.add(action);
 
+      const token = localStorage.getItem('rai_session_token') || (typeof sessionToken !== 'undefined' ? sessionToken : '') || '';
+      if (!currentUser && !token) {
+        showToast("🔒 Please sign in with Discord to execute bot commands", "warning");
+        setTimeout(() => pendingActions.delete(action), 350);
+        return;
+      }
+
       if (selectedVoiceChannelId && !payload.channel_id) {
         payload.channel_id = selectedVoiceChannelId;
       }
 
       try {
-        const token = localStorage.getItem('rai_session_token') || sessionToken || '';
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
         const res = await fetch('/api/music/control', {
           method: 'POST',
+          credentials: 'include',
           headers: headers,
           body: JSON.stringify({
             guild_id: currentGuildId,
@@ -4106,16 +4119,24 @@ UI_HTML = r"""<!DOCTYPE html>
             payload: payload
           })
         });
-        const json = await res.json();
-        if (json.success) {
+
+        if (res.status === 401) {
+          showToast("🔒 Session expired. Please sign in with Discord.", "warning");
+          currentUser = null;
+          if (typeof renderAuthBox === 'function') renderAuthBox(null);
+          return;
+        }
+
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.success) {
           const msg = json.data?.message || json.message || `Executed: ${action}`;
           showToast(msg);
           await syncAll();
         } else {
-          showToast(json.error?.message || json.message || "Command failed", "danger");
+          showToast(json.error?.message || json.message || `Command failed (${res.status})`, "danger");
         }
       } catch(e) {
-        showToast("Network error executing command", "danger");
+        showToast("Unable to reach playback server. Please check your connection.", "danger");
       } finally {
         setTimeout(() => pendingActions.delete(action), 350);
       }
@@ -4529,7 +4550,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:#fff; background:rgba(88,101,242,0.2); border:1px solid rgba(88,101,242,0.4); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
                     <span>➕ Add to Discord</span>
                   </a>
-                  <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                  <a href="https://discord.gg/d7T8cJK3XF" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
                     <span>💬 Join Community</span>
                   </a>
                   <a href="/terms" onclick="event.preventDefault(); navigate('/terms');" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
