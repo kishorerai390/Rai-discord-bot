@@ -97,7 +97,7 @@ PARODY_TRIBUTE_KEYWORDS = {
 
 # Major verified record labels, publishers, and topic channels
 MAJOR_RECORD_LABELS = {
-    "vevo", "topic", "sony", "sonymusic", "universal", "universal music",
+    "vevo", "topic", "sony", "sonymusic", "trend music", "trendmusic", "universal", "universal music",
     "warner", "warner music", "t-series", "tseries", "zee music", "yrf",
     "saregama", "think music", "aditya music", "tips", "lahari music",
     "speed records", "geetha arts", "sun tv", "sun pictures", "anirudh",
@@ -1177,7 +1177,7 @@ class AudioResolver:
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
-        cache_key = f"original-v3:{limit}:{query.strip().lower()}"
+        cache_key = f"original-v4:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
@@ -1391,7 +1391,7 @@ class AudioResolver:
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
         and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
-        cache_key = f"original-v3:{query_or_url.strip().lower()}"
+        cache_key = f"original-v4:{query_or_url.strip().lower()}"
         now = time.time()
 
         # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)

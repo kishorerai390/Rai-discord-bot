@@ -124,6 +124,16 @@ class TestSongSearchRanking(unittest.TestCase):
 
         self.assertFalse(is_original_recording_candidate(similar_title, intent))
 
+    def test_01c2b_accepts_requested_song_from_trend_music_official_channel(self):
+        intent = analyze_query_intent("enna sonna")
+        original_release = {
+            "title": "Pichuva Kaththi - Enna Sonna Video Song | Inigo Prabhakaran",
+            "uploader": "Trend Music | TrendMusic",
+            "duration": 262,
+        }
+
+        self.assertTrue(is_original_recording_candidate(original_release, intent))
+
     def test_01c3_allows_long_title_typo_but_rejects_short_form_clip(self):
         intent = analyze_query_intent("rasagula anirudh")
         original = {
@@ -200,6 +210,30 @@ class TestSongSearchRanking(unittest.TestCase):
 
             self.assertIsNone(result)
             self.assertIn("NO_ORIGINAL_MATCH", AudioResolver.last_resolver_error or "")
+
+        asyncio.run(_test())
+
+    def test_01e3_direct_youtube_original_from_official_label_is_playable(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            ydl.extract_info.return_value = {
+                "id": "gJNTdUdNwMY",
+                "title": "Pichuva Kaththi - Enna Sonna Video Song | Inigo Prabhakaran",
+                "webpage_url": "https://www.youtube.com/watch?v=gJNTdUdNwMY",
+                "url": "https://audio.example/stream",
+                "duration": 262,
+                "uploader": "Trend Music | TrendMusic",
+            }
+
+            with patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", return_value=ydl):
+                result = await AudioResolver._execute_resolution_pipeline(
+                    "https://www.youtube.com/watch?v=gJNTdUdNwMY", 123, "Tester"
+                )
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result.title, "Pichuva Kaththi - Enna Sonna Video Song | Inigo Prabhakaran")
 
         asyncio.run(_test())
 
