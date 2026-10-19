@@ -51,7 +51,8 @@ export function Sidebar({
     };
 
   const navLinks = [
-    { href: "/", label: "Dashboard", icon: Home },
+    { href: "/login", label: "Login & Welcome", icon: LogIn },
+    { href: "/dashboard", label: "User Dashboard", icon: Home },
     { href: "/premium", label: "MusicMaid VIP", icon: Sparkles, isPremium: true },
     { href: "/search", label: "Search & Discover", icon: Search },
     { href: "/queue", label: "Queue & Live Player", icon: Music },
@@ -160,7 +161,7 @@ export function Sidebar({
       <nav className="flex flex-col gap-1">
         {navLinks.map((link) => {
           const Icon = link.icon;
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || (link.href === "/dashboard" && pathname === "/");
           return (
             <Link
               key={link.href}

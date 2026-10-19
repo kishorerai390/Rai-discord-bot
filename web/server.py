@@ -331,7 +331,7 @@ class RaiCommunityOSServer:
 
         # UI Page Routes (rendered via the responsive SPA shell)
         ui_routes = [
-            "/", "/dashboard", "/discover", "/brain", "/projects", "/projects/{id}",
+            "/", "/login", "/dashboard", "/discover", "/brain", "/projects", "/projects/{id}",
             "/creators", "/creators/{id}", "/gaming", "/music", "/media",
             "/resources", "/events", "/events/{id}", "/ideas", "/ideas/{id}",
             "/workspace", "/profile", "/notifications", "/settings", "/labs",
