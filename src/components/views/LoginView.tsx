@@ -30,27 +30,24 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
     <div className="flex flex-col gap-6 max-w-5xl mx-auto w-full py-4 px-2">
       {/* 3-TIER WORKSPACE SWITCHER BAR */}
       <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.04] border border-[var(--border-subtle)] backdrop-blur-xl flex-wrap">
-        <Link
-          href="/login"
-          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600/40 to-cyan-500/20 border border-purple-500/50 shadow-md shadow-purple-600/20 transition-all"
+        <div
+          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600/40 to-cyan-500/20 border border-purple-500/50 shadow-md shadow-purple-600/20 transition-all cursor-default select-none"
         >
           <span>🔑</span>
           <span>1. Login & Welcome</span>
-        </Link>
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-[var(--text-muted)] hover:text-white hover:bg-white/5 border border-transparent transition-all"
+        </div>
+        <div
+          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-[var(--text-muted)] border border-transparent transition-all cursor-default select-none"
         >
           <span>🎧</span>
           <span>2. User Dashboard (Turntable & Deck)</span>
-        </Link>
-        <Link
-          href="/owner"
-          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent transition-all ml-auto"
+        </div>
+        <div
+          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-amber-400/80 border border-transparent transition-all ml-auto cursor-default select-none"
         >
           <span>👑</span>
           <span>3. Owner Dashboard (Creator Room)</span>
-        </Link>
+        </div>
       </div>
 
       {/* MODERN SPLIT-SCREEN LOGIN CARD (REFERENCE IMAGE 1) */}

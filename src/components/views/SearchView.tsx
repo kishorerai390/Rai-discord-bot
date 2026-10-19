@@ -92,25 +92,25 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
   return (
     <div className="flex flex-col gap-6">
       {/* SEARCH HEADER CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         <div className="flex items-center gap-2 mb-2">
-          <Search className="w-6 h-6 text-[var(--cyan)]" />
+          <Search className="w-6 h-6 text-(--cyan)" />
           <h2 className="text-xl font-bold text-white">Search & Discover Music</h2>
         </div>
-        <p className="text-sm text-[var(--text-muted)] mb-5">
+        <p className="text-sm text-(--text-muted) mb-5">
           High-speed YouTube & Spotify search with Tamil, Hindi, Telugu, and English multi-lingual recognition.
         </p>
 
         {/* INPUT BOX */}
-        <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-2 focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary-glow)] transition-all">
-          <Search className="w-5 h-5 text-[var(--cyan)] ml-2 shrink-0" />
+        <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-2 focus-within:border-(--primary) focus-within:ring-2 focus-within:ring-(--primary-glow) transition-all">
+          <Search className="w-5 h-5 text-(--cyan) ml-2 shrink-0" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Type song name, artist, YouTube URL, or Spotify link..."
-            className="w-full bg-transparent text-white placeholder-[var(--text-dim)] text-sm focus:outline-none"
+            className="w-full bg-transparent text-white placeholder-(--text-dim) text-sm focus:outline-none"
           />
           <button
             onClick={() => handleSearch()}
@@ -124,7 +124,7 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
 
         {/* QUICK SUGGESTIONS */}
         <div className="flex items-center gap-2 flex-wrap mt-4">
-          <span className="text-xs font-bold text-[var(--text-dim)] uppercase">Popular:</span>
+          <span className="text-xs font-bold text-(--text-dim) uppercase">Popular:</span>
           {POPULAR_SUGGESTIONS.map((sug) => (
             <button
               key={sug.label}
@@ -132,7 +132,7 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
                 setQuery(sug.query);
                 handleSearch(sug.query);
               }}
-              className="chip-pill text-xs hover:border-[var(--cyan)] hover:text-white cursor-pointer transition-colors"
+              className="chip-pill text-xs hover:border-(--cyan) hover:text-white cursor-pointer transition-colors"
             >
               {sug.label}
             </button>
@@ -141,24 +141,24 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
       </div>
 
       {/* RESULTS GRID */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         <div className="flex items-center justify-between pb-3 mb-5 border-b border-white/5">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Music2 className="w-5 h-5 text-purple-400" />
             <span>Search Results</span>
           </h3>
-          <span className="text-xs text-[var(--text-muted)]">
+          <span className="text-xs text-(--text-muted)">
             {loading ? "Searching engine..." : results.length > 0 ? `Found ${results.length} matches` : "Ready to search"}
           </span>
         </div>
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-[var(--cyan)] gap-3">
+          <div className="flex flex-col items-center justify-center py-16 text-(--cyan) gap-3">
             <Loader2 className="w-8 h-8 animate-spin" />
             <p className="text-sm font-semibold">Resolving audio tracks from engine...</p>
           </div>
         ) : results.length === 0 ? (
-          <div className="text-center py-16 text-[var(--text-muted)] text-sm">
+          <div className="text-center py-16 text-(--text-muted) text-sm">
             Type a song or click any suggestion tag above to resolve tracks.
           </div>
         ) : (
@@ -185,10 +185,10 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
                     <p className="text-sm font-semibold text-white truncate" title={item.title}>
                       {item.title}
                     </p>
-                    <p className="text-xs text-[var(--text-muted)] truncate" title={item.artist}>
+                    <p className="text-xs text-(--text-muted) truncate" title={item.artist}>
                       {item.artist}
                     </p>
-                    <span className="text-[10px] font-mono text-[var(--text-dim)]">
+                    <span className="text-[10px] font-mono text-(--text-dim)">
                       {item.duration_fmt || formatDuration(item.duration)}
                     </span>
                   </div>
@@ -213,7 +213,7 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
                       className={`p-2 rounded-xl transition-all ${
                         isEnqueued
                           ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                          : "bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white shadow-md shadow-purple-900/40"
+                          : "bg-(--primary) hover:bg-(--primary-hover) text-white shadow-md shadow-purple-900/40"
                       }`}
                       title="Add to queue"
                     >

@@ -165,7 +165,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         )
         mock_resolve.return_value = sample_track
 
-        await self.cog.alias_play.callback(self.cog, self.interaction, query="synth groove")
+        await self.cog.alias_play.callback(self.cog, self.interaction, "synth groove")
 
         # Must have deferred immediately
         self.response.defer.assert_awaited()
@@ -183,7 +183,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         mock_join.return_value = mock_vc
         mock_resolve.side_effect = asyncio.TimeoutError()
 
-        await self.cog.alias_play.callback(self.cog, self.interaction, query="extremely slow track")
+        await self.cog.alias_play.callback(self.cog, self.interaction, "extremely slow track")
 
         # Must have deferred immediately
         self.response.defer.assert_awaited()
@@ -198,7 +198,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         """Verify /play immediately responds when user is not connected to voice."""
         self.user.voice = None
 
-        await self.cog.alias_play.callback(self.cog, self.interaction, query="lofi beats")
+        await self.cog.alias_play.callback(self.cog, self.interaction, "lofi beats")
 
         self.response.defer.assert_awaited()
         # After defer is_done=True → send_ephemeral_or_fallback routes to followup.send
@@ -367,7 +367,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
 
         # Execute 5 concurrent /play commands
         tasks = [
-            self.cog.alias_play.callback(self.cog, inter, query=f"song {idx}")
+            self.cog.alias_play.callback(self.cog, inter, f"song {idx}")
             for idx, inter in enumerate(interactions)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)

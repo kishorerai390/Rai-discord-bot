@@ -45,14 +45,14 @@ export function QueueView({
   return (
     <div className="flex flex-col gap-6">
       {/* QUEUE HEADER CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <ListMusic className="w-6 h-6 text-[var(--cyan)]" />
+              <ListMusic className="w-6 h-6 text-(--cyan)" />
               <span>Guild Playback Queue</span>
             </h2>
-            <p className="text-xs text-[var(--text-muted)] mt-1">
+            <p className="text-xs text-(--text-muted) mt-1">
               Synchronized 24/7 lossless playback. Reorder, purge, or save queue to personal playlists.
             </p>
             <div className="flex items-center gap-3 mt-3">
@@ -93,15 +93,15 @@ export function QueueView({
       </div>
 
       {/* QUEUE TABLE */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         {queue.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-800/10 border border-purple-500/30 flex items-center justify-center text-3xl shadow-lg shadow-purple-500/10">
+            <div className="w-16 h-16 rounded-2xl bg-linear-to-br from-purple-500/20 to-purple-800/10 border border-purple-500/30 flex items-center justify-center text-3xl shadow-lg shadow-purple-500/10">
               🎵
             </div>
             <div>
               <h3 className="text-base font-bold text-white">Your Playback Queue is Clear</h3>
-              <p className="text-xs text-[var(--text-muted)] mt-1 max-w-sm">
+              <p className="text-xs text-(--text-muted) mt-1 max-w-sm">
                 The voice channel is waiting for songs. Search music or tap a starter vibe pack below:
               </p>
             </div>
@@ -143,7 +143,7 @@ export function QueueView({
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-white/10 text-xs text-[var(--text-dim)] uppercase">
+                <tr className="border-b border-white/10 text-xs text-(--text-dim) uppercase">
                   <th className="pb-3 w-12 text-center">#</th>
                   <th className="pb-3">Title & Artist</th>
                   <th className="pb-3 hidden md:table-cell">Requester</th>
@@ -154,7 +154,7 @@ export function QueueView({
               <tbody className="divide-y divide-white/5">
                 {queue.map((track, idx) => (
                   <tr key={track.id || idx} className="hover:bg-white/5 group transition-colors">
-                    <td className="py-3 text-center font-mono text-xs text-[var(--text-dim)]">
+                    <td className="py-3 text-center font-mono text-xs text-(--text-dim)">
                       {idx + 1}
                     </td>
                     <td className="py-3">
@@ -178,16 +178,16 @@ export function QueueView({
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-[var(--text-muted)] truncate" title={track.artist}>
+                          <p className="text-xs text-(--text-muted) truncate" title={track.artist}>
                             {track.artist || "Unknown Artist"}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 hidden md:table-cell text-xs text-[var(--text-muted)]">
+                    <td className="py-3 hidden md:table-cell text-xs text-(--text-muted)">
                       {track.requester_name || "Web Client"}
                     </td>
-                    <td className="py-3 text-right font-mono text-xs text-[var(--text-dim)]">
+                    <td className="py-3 text-right font-mono text-xs text-(--text-dim)">
                       {formatDuration(track.duration)}
                     </td>
                     <td className="py-3 text-right">
