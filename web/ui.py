@@ -396,6 +396,36 @@ UI_HTML = r"""<!DOCTYPE html>
       cursor: pointer;
     }
 
+    /* SIDEBAR COMPACT VIP CHIP (SECTION 5 SPEC) */
+    .sidebar-vip-compact {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.7rem;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.08), rgba(147, 51, 234, 0.1));
+      border: 1px solid rgba(236, 72, 153, 0.25);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin: 0.3rem 0;
+    }
+    .sidebar-vip-compact:hover {
+      border-color: rgba(236, 72, 153, 0.5);
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.16), rgba(147, 51, 234, 0.2));
+      transform: translateY(-1px);
+    }
+
+    /* ACCESSIBILITY: REDUCED MOTION PREFERENCES */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .spin { animation: none !important; }
+    }
+
     /* SIDEBAR FOOTER (VOICE BADGE & AUTH) */
     .sidebar-footer {
       margin-top: auto;
@@ -2478,58 +2508,60 @@ UI_HTML = r"""<!DOCTYPE html>
         </a>
       </div>
 
-      <!-- PROMINENT SIDEBAR PREMIUM CARD -->
-      <div class="sidebar-premium-promo" onclick="navigate('/premium')" id="sidebar-premium-card" title="Upgrade to MusicMaid VIP">
-        <div class="promo-sparkle">✨ 150% Volume • 24/7 Stay</div>
-        <div class="promo-content">
-          <span class="promo-title">💎 MusicMaid VIP</span>
-          <span class="promo-sub">Studio DSP, 24/7 staying mode & zero queue limits</span>
-        </div>
-        <button class="promo-btn">View Plans ⚡</button>
-      </div>
-
-      <!-- 1. LOGIN & ACCESS GATEWAY -->
-      <span class="nav-group-title">1. Access & Gateway</span>
+      <!-- MAIN -->
+      <span class="nav-group-title">MAIN</span>
       <ul class="nav-list">
-        <li><a class="nav-link" id="nav-login" onclick="navigate('/login')"><span class="nav-icon">🔑</span> Login / Welcome Page</a></li>
-        <li><a class="nav-link" id="nav-servers" onclick="navigate('/servers')"><span class="nav-icon">🌐</span> Server Selection</a></li>
+        <li><a class="nav-link" id="nav-dashboard" onclick="navigate('/dashboard')"><span class="nav-icon">📻</span> Overview</a></li>
+        <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
+        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Add Music</a></li>
+        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
       </ul>
 
-      <!-- 2. USER DASHBOARD & LISTENER HUB -->
-      <span class="nav-group-title" style="margin-top:0.6rem;">2. User Dashboard (Listener Hub)</span>
+      <!-- YOUR MUSIC -->
+      <span class="nav-group-title" style="margin-top:0.6rem;">YOUR MUSIC</span>
       <ul class="nav-list">
-        <li><a class="nav-link" id="nav-dashboard" onclick="navigate('/dashboard')"><span class="nav-icon">📻</span> Turntable & Deck</a></li>
-        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Aux</a></li>
-        <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
-        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
-        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">✨</span> Audio Visualizer</a></li>
-        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library & Favs</a></li>
+        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library & Favorites</a></li>
         <li><a class="nav-link" id="nav-playlists" onclick="navigate('/playlists')"><span class="nav-icon">📁</span> Playlists</a></li>
         <li><a class="nav-link" id="nav-history" onclick="navigate('/history')"><span class="nav-icon">🕒</span> Listening History</a></li>
-        <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
-        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Audio Equalizer</a></li>
-        <li><a class="nav-link nav-link-premium" id="nav-premium" onclick="navigate('/premium')"><span class="nav-icon">💎</span> MusicMaid VIP</a></li>
       </ul>
 
-      <!-- 3. OWNER DASHBOARD & CREATOR ROOM (SEPARATE) -->
-      <span class="nav-group-title" style="margin-top:0.6rem; color:#ffd700;">3. Owner Dashboard (Creator Room)</span>
+      <!-- PLAYBACK -->
+      <span class="nav-group-title" style="margin-top:0.6rem;">PLAYBACK</span>
       <ul class="nav-list">
-        <li id="nav-owner-li"><a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(255,215,0,0.35); background:linear-gradient(135deg,rgba(255,215,0,0.06),rgba(147,51,234,0.1)); color:#ffd700;"><span class="nav-icon">👑</span> Creator Control Center</a></li>
-        <li id="nav-system-li"><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🛡️</span> Security & Health</a></li>
-        <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Telemetry & Analytics</a></li>
-        <li><a class="nav-link" id="nav-guilds" onclick="navigate('/dashboard/guilds')"><span class="nav-icon">⚙️</span> Server Management</a></li>
-        <li><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">🔧</span> Global Settings</a></li>
+        <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
+        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & Audio</a></li>
       </ul>
 
+      <!-- SERVER (Visible to Admins / Managers) -->
+      <span class="nav-group-title" style="margin-top:0.6rem;" id="nav-group-server-title">SERVER</span>
+      <ul class="nav-list" id="nav-group-server-list">
+        <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
+      </ul>
+
+      <!-- UTILITY QUICK ACCESS -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin:0.5rem 0 0.2rem 0;">
         <button class="btn btn-secondary btn-sm" onclick="openCommandsModal()" style="font-size:0.72rem; padding:0.4rem 0.5rem; justify-content:center;">📖 Commands</button>
         <button class="btn btn-secondary btn-sm" onclick="openSoundboardModal()" style="font-size:0.72rem; padding:0.4rem 0.5rem; justify-content:center;">📢 Soundboard</button>
+      </div>
+
+      <!-- COMPACT OPTIONAL VIP CHIP -->
+      <div class="sidebar-vip-compact" onclick="navigate('/premium')" id="sidebar-premium-card" title="MusicMaid VIP">
+        <div style="display:flex; align-items:center; gap:0.45rem;">
+          <span>💎</span>
+          <span style="font-weight:700; font-size:0.75rem; color:#fff;">MusicMaid VIP</span>
+        </div>
+        <span class="chip-pill" style="color:var(--pink); background:rgba(236,72,153,0.15); font-size:0.65rem; padding:0.15rem 0.45rem; border:1px solid rgba(236,72,153,0.3);">Upgrade ⚡</span>
       </div>
 
       <!-- SIDEBAR FOOTER -->
       <div class="sidebar-footer">
         <div class="voice-badge-card" id="sidebar-voice-pill" onclick="quickConnectVoice()" title="Click to summon / connect MusicMaid to your voice channel" style="cursor:pointer;">
           <span>🔊</span> <span id="sidebar-vc-text">320kbps Online (Ready)</span>
+        </div>
+        <div id="nav-owner-li" style="display:none; margin: 0.2rem 0;">
+          <a class="nav-link" id="nav-owner" onclick="navigate('/owner')" style="border:1px solid rgba(255,215,0,0.35); background:linear-gradient(135deg,rgba(255,215,0,0.06),rgba(147,51,234,0.1)); color:#ffd700;">
+            <span class="nav-icon">👑</span> Creator Control Center
+          </a>
         </div>
         <div id="auth-box-sidebar">
           <a class="btn-login-discord" id="btn-login-link" href="/api/auth/login" onclick="startDiscordLogin(event)">
@@ -3946,19 +3978,6 @@ UI_HTML = r"""<!DOCTYPE html>
       const favCount = (typeof userFavorites !== 'undefined' && Array.isArray(userFavorites)) ? userFavorites.length : 0;
 
       container.innerHTML = `
-        <!-- WORKSPACE ORDER SWITCHER -->
-        <div class="workspace-switcher-bar">
-          <div class="workspace-tab" onclick="navigate('/login')">
-            <span>🔑</span> 1. Login & Welcome
-          </div>
-          <div class="workspace-tab active" onclick="navigate('/dashboard')">
-            <span>🎧</span> 2. User Dashboard (Turntable & Deck)
-          </div>
-          <div class="workspace-tab owner-tab" onclick="navigate('/owner')">
-            <span>👑</span> 3. Owner Dashboard (Creator Room)
-          </div>
-        </div>
-
         <div class="muify-dashboard-grid">
 
           <!-- LEFT WORKSPACE (2.2fr) -->
@@ -4337,17 +4356,14 @@ UI_HTML = r"""<!DOCTYPE html>
       const container = document.getElementById('view-container');
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
-          <!-- WORKSPACE ORDER SWITCHER -->
-          <div class="workspace-switcher-bar">
-            <div class="workspace-tab" onclick="navigate('/login')">
-              <span>🔑</span> 1. Login & Welcome
-            </div>
-            <div class="workspace-tab" onclick="navigate('/dashboard')">
-              <span>🎧</span> 2. User Dashboard (Turntable & Deck)
-            </div>
-            <div class="workspace-tab active owner-tab" onclick="navigate('/owner')">
-              <span>👑</span> 3. Owner Dashboard (Creator Room)
-            </div>
+          <!-- BREADCRUMB NAVIGATION HEADER (IMAGE 3) -->
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.8rem; margin-bottom:0.2rem;">
+            <a href="/dashboard" onclick="event.preventDefault(); navigate('/dashboard')" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; font-weight:700; font-size:0.82rem;">
+              <span>←</span> Back to Dashboard
+            </a>
+            <span class="chip-pill" style="color:#ffd700; background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.3); font-size:0.75rem; font-weight:700;">
+              👑 Owner / Root Mode
+            </span>
           </div>
 
           <div class="control-header-bar">
