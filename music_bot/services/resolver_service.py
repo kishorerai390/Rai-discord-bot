@@ -1839,13 +1839,17 @@ class AudioResolver:
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error
-        if "TimeoutError" in last_failure_reason or "timed out" in last_failure_reason.lower():
+        lower_failure_reason = last_failure_reason.lower()
+        if "video is unavailable" in lower_failure_reason or "private video" in lower_failure_reason or "has been removed" in lower_failure_reason:
+            cat = "VIDEO_UNAVAILABLE"
+            reason = f"YouTube reports that the requested video is unavailable for '{cleaned_query[:50]}'. Try another public link."
+        elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
-        elif any(k in last_failure_reason.lower() for k in ("sign in", "bot", "captcha", "confirm your age")):
+        elif any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age")):
             cat = "ACCESS_RESTRICTION"
             reason = f"YouTube access restriction encountered: {last_failure_reason}"
-        elif "No playable" in last_failure_reason or "format is not available" in last_failure_reason.lower():
+        elif "No playable" in last_failure_reason or "format is not available" in lower_failure_reason:
             cat = "UNAVAILABLE_FORMAT"
             reason = f"No playable audio streams found for '{cleaned_query[:50]}' ({last_failure_reason})."
         else:

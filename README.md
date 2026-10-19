@@ -113,6 +113,8 @@ f:/Bot/
 
 ## ⚡ Quick Start & Deployment
 
+For an always-on VM deployment option, see [Oracle Cloud setup](./deploy/oracle-cloud/README.md). Oracle's Always Free compute is subject to capacity and idle-reclamation limits; it does not guarantee 24/7 production uptime.
+
 ### 1. Prerequisites
 * Python 3.11+
 * Node.js 18+ (for Next.js web application)

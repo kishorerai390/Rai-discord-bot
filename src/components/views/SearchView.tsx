@@ -15,6 +15,8 @@ interface SearchResultItem {
   id?: string;
   title: string;
   artist: string;
+  channel?: string;
+  uploader?: string;
   url: string;
   duration: number;
   duration_fmt?: string;
@@ -57,6 +59,12 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefineSearch = (item: SearchResultItem) => {
+    const refinedQuery = `${item.title} ${item.artist}`.trim();
+    setQuery(refinedQuery);
+    void handleSearch(refinedQuery);
   };
 
   const handleAddTrack = async (item: SearchResultItem) => {
@@ -117,7 +125,7 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="Type song name, artist, YouTube URL, or Spotify link..."
+            placeholder="Search song + singer, film, or paste a YouTube link..."
             className="w-full bg-transparent text-white placeholder-(--text-dim) text-sm focus:outline-none"
           />
           <button
@@ -129,6 +137,12 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
             <span>Search</span>
           </button>
         </div>
+
+        <p role="note" className="mt-3 text-xs leading-relaxed text-(--text-muted)">
+          For the right recording, include the singer or film with the song title. Clearly labeled remixes and covers
+          are filtered from YouTube results, but a title or channel alone cannot prove a recording is official.
+          Check the source before playing.
+        </p>
 
         {/* QUICK SUGGESTIONS */}
         <div className="flex items-center gap-2 flex-wrap mt-4">
@@ -175,6 +189,8 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
               const itemKey = item.url || item.title;
               const stableKey = item.id || `search_res_${idx}_${itemKey}`;
               const isEnqueued = Boolean(enqueuedMap[itemKey]);
+              const resultSource = item.channel || item.uploader || (item.provider === "youtube" ? "YouTube" : item.provider);
+              const refineLabel = item.provider === "youtube" ? "Search title + channel" : "Search title + artist";
 
               return (
                 <div
@@ -196,9 +212,23 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
                     <p className="text-xs text-(--text-muted) truncate" title={item.artist}>
                       {item.artist}
                     </p>
-                    <span className="text-[10px] font-mono text-(--text-dim)">
-                      {item.duration_fmt || formatDuration(item.duration)}
-                    </span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-mono text-(--text-dim)">
+                        {item.duration_fmt || formatDuration(item.duration)}
+                      </span>
+                      <span className="text-[10px] text-(--text-dim) truncate" title={resultSource || "Unknown source"}>
+                        {resultSource ? `Source: ${resultSource}` : "Source: Unknown"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRefineSearch(item)}
+                      disabled={loading}
+                      className="mt-1 flex items-center gap-1 text-[10px] text-(--cyan) hover:text-white disabled:opacity-50"
+                    >
+                      <Search className="h-3 w-3" />
+                      {refineLabel}
+                    </button>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button

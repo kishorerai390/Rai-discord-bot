@@ -508,6 +508,28 @@ class TestSongSearchRanking(unittest.TestCase):
 
         asyncio.run(_test())
 
+    def test_07b_unavailable_youtube_video_gets_distinct_diagnostic(self):
+        """Direct links to removed/private YouTube videos are not reported as generic format failures."""
+        async def _test():
+            AudioResolver.clear_caches()
+            mock_ydl = MagicMock()
+            mock_ydl.extract_info.side_effect = RuntimeError(
+                "ERROR: [youtube] example12345: This video is unavailable"
+            )
+
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl), \
+                 patch("music_bot.services.resolver_service.get_active_cookie_file", return_value=None):
+                track = await AudioResolver.resolve_track(
+                    "https://www.youtube.com/watch?v=example12345", 123, "TestUser"
+                )
+                self.assertIsNone(track)
+                self.assertIn(
+                    "VIDEO_UNAVAILABLE",
+                    AudioResolver.last_resolver_error or "",
+                )
+
+        asyncio.run(_test())
+
     # =========================================================================
     # 8. CONSISTENT BEHAVIOR FOR SLASH AND PREFIX COMMANDS
     # =========================================================================
