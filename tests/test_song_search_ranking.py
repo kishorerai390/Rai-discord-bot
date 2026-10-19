@@ -188,7 +188,7 @@ class TestSongSearchRanking(unittest.TestCase):
 
         asyncio.run(_test())
 
-    def test_01g_retries_an_unavailable_format_with_a_different_player_profile(self):
+    def test_01g_retries_unavailable_format_with_android_vr_profile(self):
         async def _test():
             AudioResolver.clear_caches()
             options_used = []
@@ -197,9 +197,7 @@ class TestSongSearchRanking(unittest.TestCase):
                 options_used.append(options)
                 ydl = MagicMock()
                 clients = options["extractor_args"]["youtube"].get("player_client")
-                if clients == ["ios", "android"]:
-                    ydl.extract_info.side_effect = RuntimeError("Requested format is not available")
-                else:
+                if clients == ["android_vr"]:
                     ydl.extract_info.return_value = {
                         "title": "Kalyani - Official Music Video",
                         "webpage_url": "https://www.youtube.com/watch?v=original1234",
@@ -207,6 +205,8 @@ class TestSongSearchRanking(unittest.TestCase):
                         "duration": 240,
                         "uploader": "SingerVEVO",
                     }
+                else:
+                    ydl.extract_info.side_effect = RuntimeError("Requested format is not available")
                 return ydl
 
             with patch.object(
@@ -220,9 +220,11 @@ class TestSongSearchRanking(unittest.TestCase):
             self.assertIsNotNone(track)
             self.assertEqual(track.title, "Kalyani - Official Music Video")
             self.assertTrue(track.stream_url)
-            self.assertGreaterEqual(len(options_used), 2)
+            self.assertIn(["android_vr"], [
+                opts["extractor_args"]["youtube"].get("player_client")
+                for opts in options_used
+            ])
             self.assertEqual(options_used[0]["format"], "bestaudio/best")
-            self.assertNotIn("player_client", options_used[1]["extractor_args"]["youtube"])
 
         asyncio.run(_test())
 

@@ -1747,6 +1747,7 @@ class AudioResolver:
                         (None, "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
                         (["web"], "best"),
+                        (["android_vr"], "best"),
                     ):
                         try:
                             fb_opts = _build_ytdl_options(fallback_clients, use_cookies=False)
