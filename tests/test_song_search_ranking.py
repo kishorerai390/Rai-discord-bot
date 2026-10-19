@@ -196,7 +196,7 @@ class TestSongSearchRanking(unittest.TestCase):
             def youtube_dl(options):
                 options_used.append(options)
                 ydl = MagicMock()
-                clients = options["extractor_args"]["youtube"]["player_client"]
+                clients = options["extractor_args"]["youtube"].get("player_client")
                 if clients == ["ios", "android"]:
                     ydl.extract_info.side_effect = RuntimeError("Requested format is not available")
                 else:
@@ -222,6 +222,7 @@ class TestSongSearchRanking(unittest.TestCase):
             self.assertTrue(track.stream_url)
             self.assertGreaterEqual(len(options_used), 2)
             self.assertEqual(options_used[0]["format"], "bestaudio/best")
+            self.assertNotIn("player_client", options_used[1]["extractor_args"]["youtube"])
 
         asyncio.run(_test())
 
