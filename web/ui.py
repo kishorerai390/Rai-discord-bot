@@ -1629,6 +1629,216 @@ UI_HTML = r"""<!DOCTYPE html>
       border-radius: var(--radius-sm);
       object-fit: cover;
     }
+
+    /* MODERN SPOTIFY/TIDAL DASHBOARD (REFERENCE IMAGE 2) */
+    .dash-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.2rem;
+      margin-bottom: 1.6rem;
+      flex-wrap: wrap;
+    }
+    .dash-search-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      padding: 0.65rem 1.25rem;
+      flex: 1;
+      max-width: 540px;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .dash-search-pill:focus-within {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--primary);
+      box-shadow: 0 0 20px rgba(168, 85, 247, 0.25);
+    }
+    .dash-search-input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 500;
+      width: 100%;
+    }
+    .dash-search-input::placeholder {
+      color: var(--text-dim);
+    }
+    .dash-user-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      padding: 0.35rem 0.85rem 0.35rem 0.4rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+    .dash-user-chip:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .rec-cards-scroll {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 1.1rem;
+      margin-bottom: 2rem;
+    }
+    .rec-card {
+      background: rgba(18, 14, 30, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 18px;
+      padding: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+    .rec-card:hover {
+      background: rgba(28, 22, 48, 0.9);
+      border-color: rgba(168, 85, 247, 0.45);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 25px rgba(147, 51, 234, 0.2);
+    }
+    .rec-art-wrap {
+      width: 100%;
+      aspect-ratio: 1;
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    }
+    .rec-art {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.4s ease;
+    }
+    .rec-card:hover .rec-art {
+      transform: scale(1.05);
+    }
+    .rec-play-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #fff;
+      color: #0b0914;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      transform: translateY(6px);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      border: none;
+      cursor: pointer;
+    }
+    .rec-card:hover .rec-play-btn {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .rec-play-btn:hover {
+      background: var(--primary);
+      color: #fff;
+      transform: scale(1.08);
+    }
+    .rec-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 0.2rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rec-artist {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* TRACKS TABLE (TOP 50 / QUEUE) */
+    .tracks-table-wrap {
+      background: rgba(16, 13, 28, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 1.4rem;
+      backdrop-filter: blur(16px);
+    }
+    .tracks-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 0.35rem;
+    }
+    .tracks-table th {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      padding: 0.5rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .track-row {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 12px;
+      transition: all 0.18s ease;
+      cursor: pointer;
+    }
+    .track-row:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .track-row td {
+      padding: 0.65rem 0.75rem;
+      vertical-align: middle;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    .track-row td:first-child {
+      border-radius: 12px 0 0 12px;
+    }
+    .track-row td:last-child {
+      border-radius: 0 12px 12px 0;
+    }
+    .track-meta-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+    .track-thumb-img {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .track-title-bold {
+      font-weight: 700;
+      color: #fff;
+      font-size: 0.88rem;
+      line-height: 1.3;
+    }
+    .track-artist-sub {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
     .muify-promo-banner {
       background: linear-gradient(135deg, #2d134d 0%, #171b30 100%);
       border: 1px solid rgba(236, 72, 153, 0.4);
@@ -4182,47 +4392,321 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     // VIEW 1: DASHBOARD OVERVIEW (USER DASHBOARD)
     // =========================================================================
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function executeDashQuickSearch(query) {
+      if (!query || !query.trim()) return;
+      const q = query.trim();
+      showToast('Searching & queuing: ' + q);
+      dispatchCmd('PLAY', { query: q });
+      const input = document.getElementById('dash-quick-search-input');
+      if (input) input.value = '';
+    }
+
+    function scrollRecs(dir) {
+      const c = document.getElementById('rec-cards-container');
+      if (c) c.scrollBy({ left: dir * 260, behavior: 'smooth' });
+    }
+
+    async function toggleTrackFavorite(track) {
+      if (!track) return;
+      try {
+        const res = await fetch('/api/music/favorites/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(track)
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast(json.data.message || (json.data.favorited ? "Saved to Liked Songs ❤️" : "Removed from Liked Songs"));
+          await syncFavorites();
+          updateDashboardDynamicElements();
+        }
+      } catch(e) {}
+    }
+
+    function renderDashboardTracksTableHtml() {
+      const current = currentSession?.current_track;
+      const queue = (currentQueue && Array.isArray(currentQueue)) ? currentQueue : [];
+
+      if (!current && queue.length === 0) {
+        return `
+          <div style="text-align:center; padding:3rem 1.5rem; color:var(--text-muted);">
+            <div style="font-size:2.2rem; margin-bottom:0.6rem;">🎵</div>
+            <div style="font-size:1.05rem; font-weight:700; color:#fff; margin-bottom:0.3rem;">No tracks in queue</div>
+            <p style="font-size:0.82rem; max-width:420px; margin:0 auto 1.2rem auto; line-height:1.5; color:var(--text-muted);">
+              Search songs above or click any recommendation to start playing in 320kbps lossless audio!
+            </p>
+            <button class="btn btn-primary btn-sm" onclick="navigate('/search')" style="border-radius:20px; padding:0.55rem 1.3rem; font-weight:700;">
+              <span>🔍</span> Search & Add Music
+            </button>
+          </div>
+        `;
+      }
+
+      let rows = '';
+
+      // 1. Current playing track row
+      if (current) {
+        const isFav = isCurrentFavorite();
+        rows += `
+          <tr class="track-row" style="background:rgba(147,51,234,0.14); border-left:3px solid var(--primary);">
+            <td style="width:40px; text-align:center; color:var(--primary); font-weight:800; font-size:1rem;">
+              ${isPlaying && !isPaused ? '🔊' : '▶'}
+            </td>
+            <td>
+              <div class="track-meta-cell">
+                <img class="track-thumb-img" src="${current.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
+                <div style="min-width:0;">
+                  <div class="track-title-bold" style="color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(current.title || 'Unknown Title')}</div>
+                  <div class="track-artist-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(current.artist || 'Unknown Artist')}</div>
+                </div>
+              </div>
+            </td>
+            <td style="color:var(--cyan); font-weight:600; font-size:0.82rem;">Playing Now</td>
+            <td style="font-family:'JetBrains Mono',monospace; font-size:0.78rem;">${formatTime(current.duration || trackDurationSeconds)}</td>
+            <td style="text-align:center;">
+              <button class="btn-fav ${isFav ? 'active' : ''}" onclick="event.stopPropagation(); toggleCurrentFavorite();" title="Save Favorite" style="background:none; border:none; cursor:pointer; font-size:1.1rem; color:${isFav ? '#ec4899' : 'var(--text-muted)'};">
+                ${isFav ? '♥' : '♡'}
+              </button>
+            </td>
+            <td style="text-align:right;">
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dispatchCmd('SKIP')" style="padding:0.25rem 0.55rem; font-size:0.75rem;" title="Skip track">⏭</button>
+            </td>
+          </tr>
+        `;
+      }
+
+      // 2. Queue rows
+      queue.slice(0, 15).forEach((q, idx) => {
+        const num = (idx + 1).toString().padStart(2, '0');
+        const qEscaped = JSON.stringify(q).replace(/"/g, '&quot;');
+        rows += `
+          <tr class="track-row" onclick="dispatchCmd('PLAY_NOW', {index:${idx}})">
+            <td style="width:40px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);">${num}</td>
+            <td>
+              <div class="track-meta-cell">
+                <img class="track-thumb-img" src="${q.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
+                <div style="min-width:0;">
+                  <div class="track-title-bold" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(q.title || 'Unknown Track')}</div>
+                  <div class="track-artist-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">${escapeHtml(q.artist || 'Unknown Artist')} • Req by ${escapeHtml(q.requester_name || 'User')}</div>
+                </div>
+              </div>
+            </td>
+            <td style="color:var(--text-muted); font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;">${escapeHtml(q.artist || 'Unknown')}</td>
+            <td style="font-family:'JetBrains Mono',monospace; font-size:0.78rem;">${formatTime(q.duration)}</td>
+            <td style="text-align:center;">
+              <button onclick="event.stopPropagation(); toggleTrackFavorite(${qEscaped})" style="background:none; border:none; cursor:pointer; font-size:1.05rem; color:var(--text-muted);" title="Favorite Track">♡</button>
+            </td>
+            <td style="text-align:right;">
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dispatchCmd('REMOVE', {index:${idx}})" style="padding:0.25rem 0.5rem; font-size:0.72rem; color:var(--text-dim);" title="Remove">✕</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      return `
+        <table class="tracks-table">
+          <thead>
+            <tr>
+              <th style="width:40px; text-align:center;">#</th>
+              <th>Song</th>
+              <th>Artist</th>
+              <th>Time</th>
+              <th style="width:50px; text-align:center;">Like</th>
+              <th style="width:60px; text-align:right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderLikedSongsPreviewHtml() {
+      if (!userFavorites || !Array.isArray(userFavorites) || userFavorites.length === 0) {
+        return `
+          <div style="font-size:0.78rem; color:var(--text-muted); text-align:center; padding:1.2rem 0.5rem; line-height:1.45;">
+            No saved songs yet.<br>Click ♡ on any song to save it to your personal library!
+          </div>
+        `;
+      }
+      return userFavorites.slice(0, 4).map(fav => `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; padding:0.45rem 0.55rem; border-radius:10px; background:rgba(255,255,255,0.02); transition:background 0.15s ease;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+          <div style="display:flex; align-items:center; gap:0.6rem; min-width:0; flex:1;">
+            <img src="${fav.thumbnail || DEFAULT_ARTWORK}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" style="width:36px; height:36px; border-radius:6px; object-fit:cover; flex-shrink:0;">
+            <div style="min-width:0; flex:1;">
+              <div style="font-size:0.82rem; font-weight:700; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(fav.title || 'Untitled')}</div>
+              <div style="font-size:0.7rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(fav.artist || 'Unknown')}</div>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('${escapeHtml(fav.title || '')} ${escapeHtml(fav.artist || '')}')" style="width:28px; height:28px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; font-size:0.75rem;" title="Play Song">▶</button>
+        </div>
+      `).join('');
+    }
+
+    // =========================================================================
+    // VIEW 1: DASHBOARD OVERVIEW (USER DASHBOARD)
+    // =========================================================================
     function renderDashboard() {
       const container = document.getElementById('view-container');
       const t = currentSession?.current_track;
       const favCount = (typeof userFavorites !== 'undefined' && Array.isArray(userFavorites)) ? userFavorites.length : 0;
 
       container.innerHTML = `
-        <div class="muify-dashboard-grid">
+        <div class="view-fade-in" style="display:flex; flex-direction:column; gap:1.6rem; width:100%;">
 
-          <!-- LEFT WORKSPACE (2.2fr) -->
-          <div style="display:flex; flex-direction:column; gap:1.6rem;">
+          <!-- TOP HEADER ROW: PILL SEARCH & USER PROFILE (REFERENCE IMAGE 2) -->
+          <div class="dash-header-row">
+            <div class="dash-search-pill">
+              <span style="font-size:1.1rem; opacity:0.7;">🔍</span>
+              <input type="text" class="dash-search-input" id="dash-quick-search-input" placeholder="Search songs, artists, playlists, or paste YouTube/Spotify link..." onkeydown="if(event.key==='Enter') executeDashQuickSearch(this.value)">
+              <button class="btn btn-primary btn-sm" onclick="executeDashQuickSearch(document.getElementById('dash-quick-search-input').value)" style="padding:0.35rem 0.85rem; font-size:0.75rem; border-radius:9999px;">Search</button>
+            </div>
 
-            <!-- HERO TRACK CARD WITH CYBER-ANALOG TURNTABLE & DUAL STEREO VU METERS -->
-            <div class="muify-hero-card" id="hero-player-card" style="position:relative; overflow:hidden; border:1px solid rgba(168,85,247,0.35);">
-              <!-- DYNAMIC AMBIENT COLOR BLEED GLOW -->
-              <div class="ambient-canvas-mesh" id="ambient-canvas-mesh"></div>
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              ${currentUser ? `
+                <div class="dash-user-chip" onclick="navigate('/profile')">
+                  <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:28px; height:28px; border-radius:50%; object-fit:cover;" alt="Avatar">
+                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">${currentUser.display_name || currentUser.username}</span>
+                  <span style="font-size:0.7rem; color:var(--text-muted);">▼</span>
+                </div>
+              ` : `
+                <a class="btn btn-secondary btn-sm" href="/login" onclick="event.preventDefault(); navigate('/login');" style="border-radius:9999px; padding:0.45rem 1rem; font-size:0.8rem; font-weight:700;">
+                  <span>🔑</span> Sign In
+                </a>
+              `}
+              <button class="btn btn-secondary btn-sm" onclick="navigate('/settings')" style="width:36px; height:36px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;" title="Server Settings">⚙️</button>
+              <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')" style="width:36px; height:36px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;" title="Live Queue">🔔</button>
+            </div>
+          </div>
 
-              <!-- ANALOG TURNTABLE DECK -->
-              <div class="turntable-deck" id="hero-turntable-deck" onclick="togglePlayPause()" title="Click to Play / Pause Turntable">
-                <div class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" id="hero-vinyl-disc">
-                  <div class="vinyl-label">
-                    <img id="hero-vinyl-art" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" alt="Album Label">
+          <!-- 2-COLUMN MAIN DASHBOARD (LEFT 2.2fr, RIGHT 1fr) -->
+          <div class="muify-dashboard-grid">
+
+            <!-- LEFT WORKSPACE: RECOMMENDED FOR YOU & TOP 50 TRACKS TABLE -->
+            <div style="display:flex; flex-direction:column; gap:1.8rem;">
+
+              <!-- RECOMMENDED FOR YOU (REFERENCE IMAGE 2) -->
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                  <h3 style="font-size:1.35rem; font-weight:800; color:#fff; letter-spacing:-0.02em;">Recommended For You</h3>
+                  <div style="display:flex; align-items:center; gap:0.4rem;">
+                    <button class="btn btn-secondary btn-sm" style="width:32px; height:32px; border-radius:50%; padding:0; font-size:1rem;" onclick="scrollRecs(-1)">‹</button>
+                    <button class="btn btn-secondary btn-sm" style="width:32px; height:32px; border-radius:50%; padding:0; font-size:1rem;" onclick="scrollRecs(1)">›</button>
                   </div>
-                  <div class="vinyl-spindle"></div>
                 </div>
-                <div class="tonearm ${isPlaying && !isPaused ? 'active' : ''}" id="hero-tonearm">
-                  <div class="tonearm-pivot"></div>
-                  <div class="tonearm-bar"></div>
-                  <div class="tonearm-head"></div>
+
+                <div class="rec-cards-scroll" id="rec-cards-container">
+                  <div class="rec-card" onclick="quickEnqueueMood('Lofi Chill Hip Hop Study Beats')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400" alt="Lofi Beats">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Lofi Chill Beats</div>
+                    <div class="rec-artist">Chilled Cow • Study Session</div>
+                  </div>
+
+                  <div class="rec-card" onclick="quickEnqueueMood('Synthwave Retro 80s Cyberpunk Night Drive')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400" alt="Synthwave Night">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Synthwave Night</div>
+                    <div class="rec-artist">Neon Horizon • Retro 80s</div>
+                  </div>
+
+                  <div class="rec-card" onclick="quickEnqueueMood('Top Anime Openings J-Rock Hits')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400" alt="Anime Hits">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Anime J-Rock Hits</div>
+                    <div class="rec-artist">Tokyo Sound • Shonen Anthem</div>
+                  </div>
+
+                  <div class="rec-card" onclick="quickEnqueueMood('Electronic High Energy Gaming Bass Boost')">
+                    <div class="rec-art-wrap">
+                      <img class="rec-art" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400" alt="Gaming Mix">
+                      <button class="rec-play-btn" title="Play Now">▶</button>
+                    </div>
+                    <div class="rec-title">Electronic Bass</div>
+                    <div class="rec-artist">Noctyra Studio • High Voltage</div>
+                  </div>
                 </div>
-                <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
-                  ${isPlaying && !isPaused ? '⏸' : '▶'}
-                </button>
               </div>
 
-              <div style="display:flex; flex-direction:column; gap:0.5rem; flex:1; min-width:0; position:relative; z-index:1;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap;">
-                  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                    <span class="chip-pill" style="color:var(--emerald); background:rgba(16, 185, 129, 0.15);">● 320kbps Lossless Opus</span>
-                    <span class="chip-pill" id="hero-state-pill">${currentSession?.state || 'IDLE'}</span>
-                    <span class="chip-pill" id="hero-vc-pill">🔊 ${currentSession?.voice_channel_name ? '#' + currentSession.voice_channel_name : 'Standby'}</span>
-                    <span class="chip-pill" style="color:var(--cyan); background:rgba(0, 229, 255, 0.12);">⚡ Realtime Gateway</span>
+              <!-- TOP 50 / LIVE QUEUE TRACKS TABLE (REFERENCE IMAGE 2) -->
+              <div class="tracks-table-wrap">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+                  <div>
+                    <div style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--cyan); font-weight:700;">Live Audio Session</div>
+                    <h3 style="font-size:1.3rem; font-weight:800; color:#fff; margin-top:0.2rem;">TOP 50 / QUEUE</h3>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <span style="font-size:0.8rem; color:var(--text-muted);">${currentQueue ? currentQueue.length : 0} Tracks</span>
+                    <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">Full View ↗</button>
+                  </div>
+                </div>
+
+                <div id="dash-tracks-table-content">
+                  ${renderDashboardTracksTableHtml()}
+                </div>
+              </div>
+
+            </div>
+
+            <!-- RIGHT WORKSPACE: LIKED SONGS & TURNTABLE DECK WITH VU METERS -->
+            <div style="display:flex; flex-direction:column; gap:1.6rem;">
+
+              <!-- LIKED SONGS MINI LIST (MATCHING REFERENCE IMAGE 2 RIGHT PANEL) -->
+              <div class="glass-card" style="padding:1.3rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.9rem;">
+                  <h4 style="font-size:1.05rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.4rem;">
+                    <span style="color:#ec4899;">♡</span> Liked Songs
+                  </h4>
+                  <button class="btn btn-secondary btn-sm" onclick="navigate('/library')" style="font-size:0.72rem; padding:0.25rem 0.6rem;">All (${favCount})</button>
+                </div>
+                <div id="dash-liked-songs-preview" style="display:flex; flex-direction:column; gap:0.55rem;">
+                  ${renderLikedSongsPreviewHtml()}
+                </div>
+              </div>
+
+              <!-- NOW PLAYING HERO TRACK CARD (CYBER-ANALOG TURNTABLE DECK & STEREO VU METERS) -->
+              <div class="muify-hero-card" id="hero-player-card" style="padding:1.4rem; flex-direction:column; align-items:stretch; gap:1.1rem; position:relative; overflow:hidden; border:1px solid rgba(168,85,247,0.35);">
+                <div class="ambient-canvas-mesh" id="ambient-canvas-mesh"></div>
+
+                <div style="display:flex; align-items:center; justify-content:space-between; z-index:2;">
+                  <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 320kbps Opus</span>
+                  <span class="chip-pill" id="hero-state-pill">${currentSession?.state || 'IDLE'}</span>
+                </div>
+
+                <!-- TURNTABLE DECK & STEREO VU METERS -->
+                <div style="display:flex; align-items:center; justify-content:center; gap:1.2rem; z-index:2; padding:0.5rem 0;">
+                  <div class="turntable-deck" id="hero-turntable-deck" onclick="togglePlayPause()" title="Click to Play / Pause Turntable">
+                    <div class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" id="hero-vinyl-disc">
+                      <div class="vinyl-label">
+                        <img id="hero-vinyl-art" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" alt="Album Label">
+                      </div>
+                      <div class="vinyl-spindle"></div>
+                    </div>
+                    <div class="tonearm ${isPlaying && !isPaused ? 'active' : ''}" id="hero-tonearm">
+                      <div class="tonearm-pivot"></div>
+                      <div class="tonearm-bar"></div>
+                      <div class="tonearm-head"></div>
+                    </div>
+                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
+                      ${isPlaying && !isPaused ? '⏸' : '▶'}
+                    </button>
                   </div>
 
                   <!-- DUAL STEREO ANALOG VU METERS -->
@@ -4240,237 +4724,69 @@ UI_HTML = r"""<!DOCTYPE html>
                   </div>
                 </div>
 
-                <h2 id="hero-track-title" style="font-size:1.6rem; font-weight:800; color:#fff; word-break:break-word; line-height:1.25;">
-                  ${t ? t.title : 'The room is quiet. Put something good on.'}
-                </h2>
-                <p id="hero-track-artist" style="font-size:0.95rem; color:var(--cyan); font-weight:600;">
-                  ${t ? (t.artist || 'Unknown Artist') : 'No track queued up. Drop a YouTube or Spotify search below and let the audio flow.'}
-                </p>
+                <div style="z-index:2; text-align:center;">
+                  <h4 id="hero-track-title" style="font-size:1.1rem; font-weight:800; color:#fff; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${t ? t.title : 'No Track Playing'}
+                  </h4>
+                  <p id="hero-track-artist" style="font-size:0.82rem; color:var(--cyan); margin-top:0.2rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    ${t ? (t.artist || 'Unknown Artist') : 'Join a voice channel and play a song'}
+                  </p>
+                </div>
 
                 <!-- HERO SCRUBBER -->
-                <div style="display:flex; flex-direction:column; gap:0.25rem; width:100%; max-width:480px; margin-top:0.2rem;">
+                <div style="display:flex; flex-direction:column; gap:0.25rem; z-index:2; width:100%;">
                   <input type="range" class="slider-track" id="hero-scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)">
-                  <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--text-muted);">
+                  <div style="display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text-muted);">
                     <span id="hero-time-curr">${formatTime(playbackSeconds)}</span>
                     <span id="hero-time-total">${formatTime(trackDurationSeconds)}</span>
                   </div>
                 </div>
 
-                <!-- CONTROLS ROW & LIVE REACTION BAR -->
-                <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.6rem; margin-top:0.2rem;">
-                  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                    <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('STOP')">⏹ Stop</button>
-                    <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SKIP')">⏭ Skip</button>
-                    <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')">🔀 Shuffle</button>
-                    <button class="btn btn-secondary btn-sm" onclick="navigate('/search')">🔍 Add Track</button>
-                  </div>
-
-                  <!-- FLOATING LIVE REACTION EMOJIS -->
-                  <div class="reaction-bar" title="React in real-time to this track">
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('🔥')">🔥</button>
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('💃')">💃</button>
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('💜')">💜</button>
-                    <button class="reaction-btn" onclick="spawnFloatingEmoji('🎧')">🎧</button>
-                  </div>
+                <!-- PLAYBACK CONTROLS & SOCIAL AUX -->
+                <div style="display:flex; align-items:center; justify-content:center; gap:0.6rem; z-index:2;">
+                  <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
+                  <button class="btn btn-primary btn-sm" onclick="togglePlayPause()" style="padding:0.4rem 1.2rem; font-weight:800;">${isPlaying && !isPaused ? '⏸ Pause' : '▶ Play'}</button>
+                  <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
+                  <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')" title="Shuffle">🔀</button>
                 </div>
 
-                <!-- SOCIAL WHO IS IN VOICE & PASS THE AUX -->
-                <div class="social-voice-dock">
-                  <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">In the VC:</span>
-                    <div class="avatar-cluster">
-                      <div class="voice-avatar-pill speaking-ring" title="@Kishore (Speaking)"><img src="/public/musicmaid_avatar.jpg" alt="User"></div>
-                      <div class="voice-avatar-pill" title="@Alex"><img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=60" alt="Friend"></div>
-                      <div class="voice-avatar-pill" title="@Priya"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60" alt="Friend"></div>
-                    </div>
+                <!-- SOCIAL VOICE DOCK & PASS THE AUX -->
+                <div class="social-voice-dock" style="margin-top:0.4rem; z-index:2;">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <span style="font-size:0.7rem; color:var(--text-muted); font-weight:700;">VC:</span>
+                    <span id="hero-vc-pill" style="font-size:0.75rem; color:var(--cyan); font-weight:700;">🔊 ${currentSession?.voice_channel_name ? '#' + currentSession.voice_channel_name : 'Standby'}</span>
                   </div>
                   <button class="pass-aux-btn" onclick="requestPassTheAux()">
-                    <span>🎵</span> Pass the Aux
+                    <span>🎵</span> Pass Aux
                   </button>
                 </div>
-              </div>
-            </div>
 
-            <!-- HANDPICKED HITS & COMMUNITY FAVORITES -->
-            <div>
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title"><span>🔥</span> Handpicked Hits & Community Favorites</span>
-                <button class="btn btn-secondary btn-sm" onclick="navigate('/search')">Search More ↗</button>
-              </div>
-              <div class="muify-albums-grid">
-                <div class="muify-album-item" onclick="quickEnqueueMood('Illuminati Sushin Shyam Aavesham')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=240" alt="Illuminati">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Illuminati</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">Sushin Shyam • Aavesham</span>
-                </div>
-                <div class="muify-album-item" onclick="quickEnqueueMood('Hukum Jailer Anirudh Ravichander')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=240" alt="Hukum">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Hukum (Alappara)</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">Anirudh • Jailer</span>
-                </div>
-                <div class="muify-album-item" onclick="quickEnqueueMood('Tauba Tauba Karan Aujla Bad Newz')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=240" alt="Tauba Tauba">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Tauba Tauba</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">Karan Aujla • Bad Newz</span>
-                </div>
-                <div class="muify-album-item" onclick="quickEnqueueMood('Starboy The Weeknd Daft Punk')">
-                  <img class="muify-album-thumb" src="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=240" alt="Starboy">
-                  <span style="font-size:0.85rem; font-weight:700; color:#fff;">Starboy</span>
-                  <span style="font-size:0.72rem; color:var(--text-muted);">The Weeknd • Daft Punk</span>
+                <!-- FLOATING LIVE REACTION EMOJIS -->
+                <div class="reaction-bar" style="justify-content:center; gap:0.4rem; z-index:2;">
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('🔥')">🔥</button>
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('💃')">💃</button>
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('💜')">💜</button>
+                  <button class="reaction-btn" onclick="spawnFloatingEmoji('🎧')">🎧</button>
                 </div>
               </div>
-            </div>
 
-            <!-- DAILY MIX & QUEUE TABLE -->
-            <div class="glass-card">
-              <div class="section-header">
-                <span class="section-title"><span>📜</span> Current Queue (${currentQueue.length})</span>
-                <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">Full Queue ↗</button>
-              </div>
-              <div id="dash-queue-list" class="queue-table">
-                ${renderQueuePreviewHtml()}
-              </div>
-            </div>
-
-          </div>
-
-          <!-- RIGHT WORKSPACE (1fr) -->
-          <div style="display:flex; flex-direction:column; gap:1.5rem;">
-
-            <!-- COMMUNITY SUPPORT CARD -->
-            <div class="muify-promo-banner" style="background:linear-gradient(135deg, rgba(147, 51, 234, 0.25) 0%, rgba(236, 72, 153, 0.2) 100%); border:1px solid rgba(236, 72, 153, 0.45); border-radius:var(--radius-lg); padding:1.4rem; position:relative; overflow:hidden;">
-              <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
-                <span style="font-size:0.72rem; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; padding:0.2rem 0.55rem; background:rgba(236, 72, 153, 0.25); border:1px solid rgba(236, 72, 153, 0.5); border-radius:20px; color:#f472b6;">Community Project</span>
-              </div>
-              <div style="font-size:1.25rem; font-weight:800; color:#fff; line-height:1.25;">Keep MusicMaid 24/7 Alive</div>
-              <p style="font-size:0.84rem; color:#cbd5e1; line-height:1.45; margin-top:0.4rem;">
-                We built MusicMaid so Discord servers could listen together without random lag spikes, crashes, or paywalled volume. Supporting with VIP helps cover our high-bandwidth audio streaming servers!
-              </p>
-              <div style="display:flex; gap:0.5rem; margin-top:0.8rem; flex-wrap:wrap;">
-                <button class="muify-promo-btn" onclick="navigate('/premium')" style="padding:0.55rem 1rem; font-size:0.82rem; font-weight:700;">Support with VIP 💎</button>
-                <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="padding:0.55rem 0.9rem; font-size:0.82rem; font-weight:700; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-sm); color:#fff; text-decoration:none; display:inline-flex; align-items:center;">Discord Chat 💬</a>
-              </div>
-            </div>
-
-            <!-- BEHIND THE CODE / DEVELOPER NOTES -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>🛠️</span> Behind the Code</span>
-                <span class="chip-pill" style="color:var(--cyan); font-size:0.7rem;">v2.4.1 Stable</span>
-              </div>
-              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.45; margin-bottom:0.8rem;">
-                Handcrafted in async Python with low-latency FFmpeg Opus streaming. Built transparently with zero fluff:
-              </p>
-              <div style="display:flex; flex-direction:column; gap:0.55rem; font-size:0.78rem;">
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:var(--emerald); flex-shrink:0;">✓</span>
-                  <span><strong>Zero-Admin Role:</strong> Auto-configures a dedicated <code>MusicMaid</code> role with strict least privilege (Connect & Speak) — never asks for Administrator rights.</span>
+              <!-- AUTONOMOUS EXTRACTOR & SELF-HEALING ENGINE -->
+              <div class="glass-card" style="padding:1.2rem; border:1px solid rgba(0,229,255,0.25);">
+                <div class="section-header" style="margin-bottom:0.6rem;">
+                  <span class="section-title" style="font-size:0.95rem;"><span>🛡️</span> Extractor Auto-Updater & Doctor</span>
+                  <span class="updater-pill" style="font-size:0.68rem;"><span class="pulse-dot connected"></span> Active</span>
                 </div>
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:var(--cyan); flex-shrink:0;">✓</span>
-                  <span><strong>Dynamic Discord Status:</strong> Reflects real playback state (<code>Playing &lt;track&gt;</code>, <code>Chilling in 24/7</code>, <code>Auto-healing session</code>).</span>
+                <p style="font-size:0.75rem; color:var(--text-muted); line-height:1.4; margin-bottom:0.7rem;">
+                  Continuous PyPI hotfix watchdog & EJS challenge solver for uninterrupted YouTube playback.
+                </p>
+                <div id="self-healing-console" style="display:none; background:#07070b; border:1px solid rgba(0,229,255,0.3); border-radius:var(--radius-sm); padding:0.6rem; margin-bottom:0.6rem; font-family:'JetBrains Mono',monospace; font-size:0.7rem; color:#a5b4fc;">
+                  <div id="self-healing-logs"></div>
                 </div>
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:#ec4899; flex-shrink:0;">✓</span>
-                  <span><strong>Counter Channel Shield:</strong> Rejects server stat/member counter channels so the bot never gets stuck.</span>
-                </div>
-                <div style="display:flex; align-items:flex-start; gap:0.5rem; color:#cbd5e1;">
-                  <span style="color:var(--amber); flex-shrink:0;">✓</span>
-                  <span><strong>Session Memory:</strong> If Render or Discord restarts, your active queue and voice channel auto-resume.</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- AUDIO ENGINE HEALTH & TELEMETRY -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.8rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>📊</span> Audio Engine Health</span>
-                <span style="font-size:0.75rem; color:var(--emerald); font-weight:700;">● Online</span>
-              </div>
-              <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; text-align:center;">
-                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:var(--cyan);" id="stat-gateway-ping">Live Sync</div>
-                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Gateway Ping</div>
-                </div>
-                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:#10b981;">320k</div>
-                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Opus Bitrate</div>
-                </div>
-                <div style="background:rgba(0,0,0,0.3); padding:0.75rem 0.4rem; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06);">
-                  <div style="font-size:1.1rem; font-weight:800; color:#ec4899;" id="stat-active-guilds">${activeGuilds.length || 1}</div>
-                  <div style="font-size:0.68rem; color:var(--text-muted); margin-top:2px;">Connected Guilds</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- SMART AUTO-DJ & DSP QUICK CONTROLS -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.6rem;">
-                <span class="section-title" style="font-size:1.05rem;"><span>🤖</span> Smart Auto-DJ</span>
-                <button class="btn btn-sm ${currentSession?.auto_dj ? 'btn-primary' : 'btn-secondary'}" onclick="dispatchCmd('AUTODJ_TOGGLE')">
-                  ${currentSession?.auto_dj ? 'ACTIVE ✅' : 'ENABLE'}
+                <button class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; gap:0.4rem; font-size:0.78rem; font-weight:700;" id="btn-self-heal" onclick="triggerSelfHealingDoctor()">
+                  <span>🩺</span> Run Health Probe
                 </button>
               </div>
-              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.4;">
-                Keeps the music playing with harmonic track picks when your queue finishes.
-              </p>
-              <div class="eq-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:0.8rem;">
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'bassboost', name:'Bass Boost'})">🔥 Bass Boost</div>
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'nightcore', name:'Nightcore'})">⚡ Nightcore</div>
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'8d', name:'8D Audio'})">🎧 8D Spatial</div>
-                <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'flat', name:'Flat Pure'})">🎵 Flat Pure</div>
-              </div>
-            </div>
 
-            <!-- AUTONOMOUS EXTRACTOR & SELF-HEALING ENGINE -->
-            <div class="glass-card" style="padding:1.3rem; border:1px solid rgba(0,229,255,0.25); background:linear-gradient(135deg, rgba(0, 229, 255, 0.05) 0%, rgba(147, 51, 234, 0.08) 100%);">
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>🛡️</span> Extractor Auto-Updater & Doctor</span>
-                <span class="updater-pill"><span class="pulse-dot connected"></span> Auto-Sync ON</span>
-              </div>
-              <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.45; margin-bottom:0.8rem;">
-                Autonomous self-healing engine shields audio against YouTube player deciphering changes with continuous PyPI hotfix checks and Node.js EJS challenge solver.
-              </p>
-              <div style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:0.9rem;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding:0.4rem 0.6rem; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                  <span style="color:#cbd5e1;">yt-dlp Core Release:</span>
-                  <span style="font-family:'JetBrains Mono',monospace; color:var(--cyan); font-weight:700;" id="card-ytdl-ver">v2026.08.19 (Latest)</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding:0.4rem 0.6rem; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                  <span style="color:#cbd5e1;">EJS Challenge Solver:</span>
-                  <span style="font-family:'JetBrains Mono',monospace; color:var(--emerald); font-weight:700;">Node.js vm2 Active</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding:0.4rem 0.6rem; background:rgba(0,0,0,0.3); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                  <span style="color:#cbd5e1;">Auto-Update Cron Scan:</span>
-                  <span style="font-family:'JetBrains Mono',monospace; color:#f472b6; font-weight:700;">Every 6h (Autonomous)</span>
-                </div>
-              </div>
-
-              <!-- DIAGNOSTIC CONSOLE READOUT -->
-              <div id="self-healing-console" style="display:none; background:#07070b; border:1px solid rgba(0,229,255,0.3); border-radius:var(--radius-sm); padding:0.75rem; margin-bottom:0.8rem; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:#a5b4fc; line-height:1.5;">
-                <div id="self-healing-logs"></div>
-              </div>
-
-              <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center; gap:0.5rem; font-weight:700;" id="btn-self-heal" onclick="triggerSelfHealingDoctor()">
-                <span>🩺</span> Run Extractor Self-Healing & PyPI Probe
-              </button>
-            </div>
-
-            <!-- NOTES FROM SERVER OWNERS -->
-            <div class="glass-card" style="padding:1.3rem;">
-              <div class="section-header" style="margin-bottom:0.75rem;">
-                <span class="section-title" style="font-size:1.02rem;"><span>💬</span> Notes from Server Owners</span>
-              </div>
-              <div style="display:flex; flex-direction:column; gap:0.7rem; font-size:0.8rem;">
-                <div style="background:rgba(255,255,255,0.02); border-left:3px solid var(--primary); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
-                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"Finally a bot where skip actually skips instantly without a 5-second lag spike. Huge upgrade for our gaming nights."</p>
-                  <span style="color:var(--cyan); font-weight:700; font-size:0.72rem;">— Alex (Lofi & Gaming Lounge)</span>
-                </div>
-                <div style="background:rgba(255,255,255,0.02); border-left:3px solid var(--pink); padding:0.6rem 0.8rem; border-radius:0 var(--radius-sm) var(--radius-sm) 0;">
-                  <p style="color:#e2e8f0; font-style:italic; margin-bottom:0.25rem;">"The session auto-recovery is great. Discord lagged our bot last week, and it rejoined the VC with our queue intact."</p>
-                  <span style="color:#f472b6; font-weight:700; font-size:0.72rem;">— Priya (Anime Vibes Discord)</span>
-                </div>
-              </div>
             </div>
 
           </div>
@@ -5246,6 +5562,14 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     function updateDashboardDynamicElements() {
+      const tableContent = document.getElementById('dash-tracks-table-content');
+      if (tableContent && typeof renderDashboardTracksTableHtml === 'function') {
+        tableContent.innerHTML = renderDashboardTracksTableHtml();
+      }
+      const likedPreview = document.getElementById('dash-liked-songs-preview');
+      if (likedPreview && typeof renderLikedSongsPreviewHtml === 'function') {
+        likedPreview.innerHTML = renderLikedSongsPreviewHtml();
+      }
       const heroArt = document.getElementById('hero-vinyl-art');
       if (heroArt) {
         heroArt.className = `vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}`;
@@ -5255,10 +5579,10 @@ UI_HTML = r"""<!DOCTYPE html>
       }
       const heroPlayBtn = document.getElementById('hero-play-btn');
       if (heroPlayBtn) {
-        heroPlayBtn.innerHTML = `<span>${isPlaying && !isPaused ? '⏸ Pause' : '▶ Play'}</span>`;
+        heroPlayBtn.innerText = (isPlaying && !isPaused) ? '⏸' : '▶';
       }
       const queueList = document.getElementById('dash-queue-list');
-      if (queueList) {
+      if (queueList && typeof renderQueuePreviewHtml === 'function') {
         queueList.innerHTML = renderQueuePreviewHtml();
       }
       const heroCurr = document.getElementById('hero-time-curr');
@@ -5270,6 +5594,9 @@ UI_HTML = r"""<!DOCTYPE html>
         if (!isScrubbing && trackDurationSeconds > 0) {
           heroSlider.value = Math.floor((playbackSeconds / trackDurationSeconds) * 100);
         }
+      }
+      if (typeof updateDynamicTurntableAndVU === 'function') {
+        updateDynamicTurntableAndVU();
       }
     }
 
