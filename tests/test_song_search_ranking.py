@@ -92,7 +92,7 @@ class TestSongSearchRanking(unittest.TestCase):
             "Title relevance must outweigh publisher and duration bonuses for a partial match",
         )
 
-    def test_01c_standard_search_requires_original_release_evidence(self):
+    def test_01c_standard_search_requires_query_match_and_rejects_covers(self):
         intent = analyze_query_intent("Kalyani")
         original_release = {
             "title": "Kalyani - Official Music Video",
@@ -112,7 +112,17 @@ class TestSongSearchRanking(unittest.TestCase):
 
         self.assertTrue(is_original_recording_candidate(original_release, intent))
         self.assertFalse(is_original_recording_candidate(cover, intent))
-        self.assertFalse(is_original_recording_candidate(unidentified_upload, intent))
+        self.assertTrue(is_original_recording_candidate(unidentified_upload, intent))
+
+    def test_01c2_accepts_small_transliteration_variations(self):
+        intent = analyze_query_intent("enna sonna")
+        original = {
+            "title": "Enna Sona - OK Jaanu",
+            "uploader": "Sony Music India",
+            "duration": 213,
+        }
+
+        self.assertTrue(is_original_recording_candidate(original, intent))
 
     def test_01d_explicit_alternate_search_still_allows_remixes(self):
         intent = analyze_query_intent("Kalyani remix")

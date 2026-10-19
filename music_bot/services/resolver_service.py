@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+from difflib import SequenceMatcher
 import functools
 import json
 import logging
@@ -482,7 +483,7 @@ def is_original_recording_candidate(
     title_hint: Optional[str] = None,
     artist_hint: Optional[str] = None,
 ) -> bool:
-    """Require source evidence for standard searches and reject labeled alternate versions."""
+    """Reject labeled alternate versions and require a strong query-to-title match."""
     if query_intent.get("user_requested_alternate"):
         return True
 
@@ -496,16 +497,26 @@ def is_original_recording_candidate(
     if any(reason.startswith("unrequested_") for reason in reasons):
         return False
 
-    original_release_signals = (
-        "youtube_topic_channel(",
-        "vevo_official(",
-        "major_record_label(",
-        "official_title_badge(",
-        "remastered_or_original_mix(",
-        "studio_audio_bonus(",
+    query_terms = [word for word in re.findall(r"\w+", query_intent.get("core_title", "")) if len(word) > 1]
+    candidate_terms = set(
+        re.findall(
+            r"\w+",
+            f"{candidate.get('title') or ''} {candidate.get('uploader') or candidate.get('channel') or ''}".lower(),
+        )
     )
-    channel_verified = candidate.get("channel_is_verified") is True or candidate.get("uploader_is_verified") is True
-    return channel_verified or any(reason.startswith(original_release_signals) for reason in reasons)
+    if not query_terms or not candidate_terms:
+        return False
+
+    return all(
+        term in candidate_terms
+        or any(
+            len(term) >= 4
+            and len(candidate_term) >= 4
+            and SequenceMatcher(None, term, candidate_term).ratio() >= 0.8
+            for candidate_term in candidate_terms
+        )
+        for term in query_terms
+    )
 
 
 async def get_redis_client() -> Any:
@@ -1140,7 +1151,7 @@ class AudioResolver:
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
-        cache_key = f"original-v1:{limit}:{query.strip().lower()}"
+        cache_key = f"original-v2:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
@@ -1351,7 +1362,7 @@ class AudioResolver:
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
         and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
-        cache_key = f"original-v1:{query_or_url.strip().lower()}"
+        cache_key = f"original-v2:{query_or_url.strip().lower()}"
         now = time.time()
 
         # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)
