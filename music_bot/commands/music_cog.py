@@ -948,11 +948,11 @@ class MusicCog(commands.Cog, name="Music"):
             search_start = time.time()
             is_timed_out = False
             try:
-                track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=60.0)
+                track = await asyncio.wait_for(AudioResolver.resolve_track(query, member.id, str(member)), timeout=90.0)
             except asyncio.TimeoutError:
                 track = None
                 is_timed_out = True
-                logger.warning(f"[Playback] Audio resolution timed out after 60s for query '{query}'")
+                logger.warning(f"[Playback] Audio resolution timed out after 90s for query '{query}'")
             except Exception as e:
                 track = None
                 logger.error(f"[Playback] Track resolution exception for '{query}': {e}", exc_info=True)
@@ -967,6 +967,17 @@ class MusicCog(commands.Cog, name="Music"):
                             f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting upstream providers.'}`\n"
                             f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata.\n"
                             f"• **Tip:** Try repeating your search or use a direct song/stream URL."
+                        ),
+                        color=COLOR_ERROR,
+                    )
+                elif res_err and "[VIDEO_UNAVAILABLE]" in res_err:
+                    embed_fail = discord.Embed(
+                        title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ VIDEO UNAVAILABLE",
+                        description=(
+                            f"YouTube reports that this video is unavailable, removed, or private.\n"
+                            f"Query: `{query[:100]}`\n\n"
+                            f"• **Diagnostic:** `{res_err}`\n"
+                            f"• **Try:** Use a different public YouTube link, or search by song title and singer."
                         ),
                         color=COLOR_ERROR,
                     )
@@ -3650,9 +3661,33 @@ class MusicCog(commands.Cog, name="Music"):
                 return
 
         status_msg = await ctx.reply(f"🔍 Searching for `{query[:60]}`... 🐾", mention_author=False)
-        track = await AudioResolver.resolve_track(query, ctx.author.id, str(ctx.author))
+        try:
+            track = await asyncio.wait_for(
+                AudioResolver.resolve_track(query, ctx.author.id, str(ctx.author)),
+                timeout=90.0,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"[Playback] Prefix audio resolution timed out after 90s for query '{query}'")
+            track = None
+            timed_out = True
+        except Exception as e:
+            logger.error(f"[Playback] Prefix track resolution exception for '{query}': {e}", exc_info=True)
+            track = None
+            timed_out = False
+        else:
+            timed_out = False
         if not track:
             res_err = getattr(AudioResolver, "last_resolver_error", None) or ""
+            if timed_out:
+                await status_msg.edit(
+                    content=f"⏱️ Audio search timed out for `{query[:60]}`. Try again, or provide another public YouTube link."
+                )
+                return
+            if "[VIDEO_UNAVAILABLE]" in res_err:
+                await status_msg.edit(
+                    content=f"📹 YouTube says that video is unavailable or private. Use a different public link, or search by song title and singer."
+                )
+                return
             original_match_notice = (
                 "I couldn't verify an original singer/release, so I didn't play a possible cover or remix.\n"
                 if "[NO_ORIGINAL_MATCH]" in res_err

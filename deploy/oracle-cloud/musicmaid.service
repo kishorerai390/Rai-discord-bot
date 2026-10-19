@@ -1,0 +1,24 @@
+[Unit]
+Description=MusicMaid Discord Music Bot and Web Server
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=musicmaid
+Group=musicmaid
+WorkingDirectory=/opt/musicmaid
+EnvironmentFile=/etc/musicmaid/musicmaid.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/musicmaid/.venv/bin/python /opt/musicmaid/main.py
+Restart=always
+RestartSec=10
+TimeoutStopSec=90
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

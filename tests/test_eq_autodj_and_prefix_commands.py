@@ -352,6 +352,32 @@ class TestPrefixMusicCommands:
         ctx.reply.assert_called_once()
         assert "Join a voice channel first" in ctx.reply.call_args[0][0]
 
+    async def test_pfx_play_reports_resolution_timeout(self, mock_bot, mock_session):
+        from music_bot.commands.music_cog import MusicCog
+
+        cog = MusicCog(mock_bot)
+        ctx = MagicMock()
+        ctx.guild = MagicMock(id=99901)
+        ctx.author = MagicMock()
+        ctx.author.id = 777
+        ctx.author.voice = MagicMock()
+        ctx.author.voice.channel = MagicMock(id=111, name="Voice 1")
+        ctx.reply = AsyncMock()
+        status_msg = MagicMock()
+        status_msg.edit = AsyncMock()
+        ctx.reply.return_value = status_msg
+
+        with patch.object(cog.session_manager, "get_session", new_callable=AsyncMock) as mock_get_s, \
+             patch("music_bot.services.voice_service.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join, \
+             patch("music_bot.services.resolver_service.AudioResolver.resolve_track", new_callable=AsyncMock) as mock_resolve:
+            mock_get_s.return_value = mock_session
+            mock_join.return_value = mock_session.voice_client
+            mock_resolve.side_effect = asyncio.TimeoutError
+
+            await cog.pfx_play.callback(cog, ctx, query="rasagula anirudh")
+
+        assert "timed out" in status_msg.edit.call_args.kwargs["content"].lower()
+
     async def test_pfx_seek_and_previous(self, mock_bot, mock_session):
         from music_bot.commands.music_cog import MusicCog
 
