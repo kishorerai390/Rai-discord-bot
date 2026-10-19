@@ -54,8 +54,8 @@ UI_HTML = r"""<!DOCTYPE html>
       --radius-md: 14px;
       --radius-lg: 20px;
       --radius-full: 9999px;
-      --player-height: 88px;
-      --player-mobile-height: 112px;
+      --player-height: 162px;
+      --player-mobile-height: 140px;
       --sidebar-width: 260px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -879,129 +879,79 @@ UI_HTML = r"""<!DOCTYPE html>
       letter-spacing: -0.3px;
     }
 
-    /* PERSISTENT BOTTOM PLAYBACK BAR */
+    /* PERSISTENT BOTTOM PLAYBACK BAR (Reference Image 4) */
     footer.player-bar {
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      height: var(--player-height);
-      background: rgba(10, 13, 22, 0.95);
+      min-height: var(--player-height);
+      background: rgba(11, 9, 20, 0.96);
       backdrop-filter: blur(28px);
       -webkit-backdrop-filter: blur(28px);
       border-top: 1px solid rgba(147, 51, 234, 0.28);
-      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8), 0 0 25px rgba(147, 51, 234, 0.12);
+      box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.85), 0 -2px 18px rgba(147, 51, 234, 0.14);
       z-index: 999;
-      display: grid;
-      grid-template-columns: 320px 1fr 300px;
-      align-items: center;
-      padding: 0 1.8rem;
-      gap: 1.5rem;
       box-sizing: border-box;
+      padding: 0.75rem 1.8rem 0.65rem 1.8rem;
     }
-    @media (max-width: 1024px) {
-      footer.player-bar {
-        grid-template-columns: 240px 1fr 200px;
-        padding: 0 1rem;
-        gap: 1rem;
-      }
+    .player-bar-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
     }
-    @media (max-width: 768px) {
-      footer.player-bar {
-        display: flex;
-        flex-direction: column;
-        height: auto;
-        min-height: var(--player-mobile-height);
-        padding: 0.5rem 0.8rem calc(0.5rem + var(--safe-bottom)) 0.8rem;
-        gap: 0.35rem;
-        justify-content: center;
-      }
-      .player-bar-right { display: none !important; }
-      .player-bar-left {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.6rem;
-      }
-      .player-bar-center {
-        width: 100%;
-        max-width: 100%;
-        display: flex;
-        flex-direction: column;
-        gap: 0.25rem;
-      }
-      .player-buttons-row {
-        gap: 0.85rem;
-      }
-      .bar-thumb {
-        width: 40px !important;
-        height: 40px !important;
-        border-radius: 8px !important;
-      }
-      .bar-title {
-        font-size: 0.84rem !important;
-      }
-      .bar-artist {
-        font-size: 0.72rem !important;
-      }
-      .p-btn {
-        width: 38px !important;
-        height: 38px !important;
-        min-width: 38px !important;
-        font-size: 1.1rem !important;
-      }
-      .p-btn-play {
-        width: 42px !important;
-        height: 42px !important;
-        min-width: 42px !important;
-        font-size: 1.25rem !important;
-      }
-      .scrub-row {
-        width: 100%;
-        gap: 0.45rem;
-      }
-      .scrub-time {
-        font-size: 0.72rem;
-        min-width: 34px;
-      }
+    .player-tier-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
     }
-
-    /* PLAYER BAR LEFT: TRACK META */
     .player-bar-left {
       display: flex;
       align-items: center;
-      gap: 0.9rem;
+      gap: 0.85rem;
       min-width: 0;
+      flex: 1;
     }
     .bar-thumb {
-      width: 52px;
-      height: 52px;
+      width: 46px;
+      height: 46px;
       border-radius: 10px;
       object-fit: cover;
       background: #181d2e;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(147, 51, 234, 0.35);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
       flex-shrink: 0;
     }
-    .bar-meta {
+    .bar-meta-stack {
       display: flex;
       flex-direction: column;
       min-width: 0;
+      gap: 2px;
     }
     .bar-title {
-      font-size: 0.92rem;
+      font-size: 0.95rem;
       font-weight: 700;
       color: #fff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
+      letter-spacing: -0.2px;
     }
-    .bar-title:hover { color: var(--cyan); }
+    .bar-title:hover { color: #c084fc; }
     .bar-artist {
-      font-size: 0.78rem;
-      color: var(--text-muted);
+      font-size: 0.8rem;
+      color: #c4b5fd;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bar-idle-state {
+      font-size: 0.72rem;
+      color: #94a3b8;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -1010,35 +960,36 @@ UI_HTML = r"""<!DOCTYPE html>
       background: transparent;
       border: none;
       color: var(--text-dim);
-      font-size: 1.2rem;
+      font-size: 1.35rem;
       cursor: pointer;
       transition: transform 0.15s, color 0.15s;
       flex-shrink: 0;
+      padding: 4px;
     }
     .btn-fav:hover, .btn-fav.active {
-      color: var(--pink);
-      transform: scale(1.15);
+      color: #ec4899;
+      transform: scale(1.18);
     }
-
-    /* PLAYER BAR CENTER: CONTROLS & SCRUBBER */
-    .player-bar-center {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.35rem;
+    .player-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
       width: 100%;
-      max-width: 620px;
-      margin: 0 auto;
+    }
+    .player-tier-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .player-buttons-row {
       display: flex;
       align-items: center;
-      gap: 1.1rem;
+      justify-content: center;
+      gap: 1.3rem;
     }
     .p-btn {
       background: transparent;
       border: none;
-      color: var(--text-muted);
+      color: #94a3b8;
       font-size: 1.15rem;
       cursor: pointer;
       display: flex;
@@ -1055,24 +1006,28 @@ UI_HTML = r"""<!DOCTYPE html>
       transform: scale(1.1);
     }
     .p-btn.active {
-      color: var(--cyan);
+      color: #c084fc;
     }
     .p-btn-play {
       width: 44px;
       height: 44px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--cyan) 100%);
+      background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
       color: #fff;
       border-radius: 50%;
-      box-shadow: 0 0 16px var(--primary-glow);
-      font-size: 1.3rem;
+      box-shadow: 0 0 18px rgba(168, 85, 247, 0.55);
+      font-size: 1.25rem;
+      border: none;
+      cursor: pointer;
     }
     .p-btn-play:hover {
       transform: scale(1.08);
-      box-shadow: 0 0 24px var(--cyan-glow);
+      box-shadow: 0 0 26px rgba(168, 85, 247, 0.85);
       color: #fff;
-      background: linear-gradient(135deg, var(--primary-hover) 0%, var(--cyan-hover) 100%);
+      background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
     }
-
+    .player-tier-scrub {
+      width: 100%;
+    }
     .scrub-row {
       display: flex;
       align-items: center;
@@ -1082,62 +1037,129 @@ UI_HTML = r"""<!DOCTYPE html>
     .scrub-time {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.72rem;
-      color: var(--text-muted);
-      min-width: 42px;
+      color: #94a3b8;
+      min-width: 40px;
       text-align: center;
     }
     .slider-track {
       -webkit-appearance: none;
       appearance: none;
       width: 100%;
-      height: 5px;
+      height: 4px;
       border-radius: 4px;
       background: rgba(255, 255, 255, 0.14);
       outline: none;
       cursor: pointer;
       transition: height 0.15s;
     }
-    .slider-track:hover { height: 7px; }
+    .slider-track:hover { height: 6px; }
     .slider-track::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
-      width: 13px;
-      height: 13px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      background: var(--cyan);
-      box-shadow: 0 0 10px var(--cyan);
+      background: #a855f7;
+      box-shadow: 0 0 10px #a855f7;
       cursor: pointer;
     }
-
-    /* PLAYER BAR RIGHT: VOLUME & SHORTCUTS */
+    .player-tier-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: 0.78rem;
+    }
+    .player-status-left {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .player-queue-label {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+    .player-queue-label:hover {
+      color: #fff;
+    }
     .player-bar-right {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 0.9rem;
+      gap: 0.8rem;
     }
     .vol-wrapper {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      width: 130px;
+      gap: 0.45rem;
+      width: 110px;
     }
     .chip-pill {
-      background: rgba(255, 255, 255, 0.07);
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-full);
-      padding: 0.25rem 0.65rem;
-      font-size: 0.72rem;
-      font-weight: 700;
-      color: var(--cyan);
+      padding: 0.2rem 0.6rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #c4b5fd;
       letter-spacing: 0.3px;
       cursor: pointer;
       transition: all 0.15s;
     }
     .chip-pill:hover, .chip-pill.active {
-      background: var(--primary);
-      border-color: var(--primary);
+      background: #7e22ce;
+      border-color: #a855f7;
       color: #fff;
+    }
+    @media (max-width: 768px) {
+      footer.player-bar {
+        min-height: var(--player-mobile-height);
+        padding: 0.5rem 0.8rem calc(0.5rem + var(--safe-bottom)) 0.8rem;
+      }
+      .player-bar-inner {
+        gap: 0.25rem;
+      }
+      .player-tier-top {
+        gap: 0.5rem;
+      }
+      .bar-thumb {
+        width: 38px;
+        height: 38px;
+      }
+      .bar-title {
+        font-size: 0.84rem;
+      }
+      .bar-artist {
+        font-size: 0.72rem;
+      }
+      .bar-idle-state {
+        display: none;
+      }
+      .player-divider {
+        display: none;
+      }
+      .player-buttons-row {
+        gap: 0.85rem;
+      }
+      .p-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 1rem;
+      }
+      .p-btn-play {
+        width: 36px;
+        height: 36px;
+        font-size: 1.1rem;
+      }
+      .player-status-left .chip-pill {
+        display: none;
+      }
+      .vol-wrapper {
+        width: 75px;
+      }
     }
 
     /* TOAST NOTIFICATION */
@@ -2985,46 +3007,62 @@ UI_HTML = r"""<!DOCTYPE html>
 
   </div>
 
-  <!-- PERSISTENT BOTTOM PLAYBACK BAR -->
-  <footer class="player-bar">
-    <!-- LEFT: TRACK METADATA -->
-    <div class="player-bar-left">
-      <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
-      <div class="bar-meta">
-        <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
-        <span class="bar-artist" id="bar-artist">Join a voice channel and play a song</span>
+  <!-- PERSISTENT BOTTOM PLAYBACK BAR (Reference Image 4) -->
+  <footer class="player-bar" id="master-bottom-player">
+    <div class="player-bar-inner">
+      <!-- TIER 1: TRACK METADATA & FAVORITE HEART -->
+      <div class="player-tier-top">
+        <div class="player-bar-left">
+          <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
+          <div class="bar-meta-stack">
+            <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
+            <span class="bar-artist" id="bar-artist">Artist name · Current server</span>
+            <span class="bar-idle-state" id="bar-idle-state">Idle state: Search for music to get started</span>
+          </div>
+        </div>
+        <button class="btn-fav" id="bar-fav-btn" onclick="toggleCurrentFavorite()" title="Save to Favorites">♡</button>
       </div>
-      <button class="btn-fav" id="bar-fav-btn" onclick="toggleCurrentFavorite()" title="Save to Favorites">♡</button>
-    </div>
 
-    <!-- CENTER: CONTROLS & SCRUBBER -->
-    <div class="player-bar-center">
-      <div class="player-buttons-row">
-        <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue">🔀</button>
-        <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
-        <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause">▶</button>
-        <button class="p-btn" onclick="dispatchCmd('STOP')" title="Stop Playback">⏹</button>
-        <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
-        <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)">🔁</button>
-      </div>
-      <div class="scrub-row">
-        <span class="scrub-time" id="scrub-current">00:00</span>
-        <input type="range" class="slider-track" id="scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)">
-        <span class="scrub-time" id="scrub-total">00:00</span>
-      </div>
-    </div>
+      <div class="player-divider"></div>
 
-    <!-- RIGHT: VOLUME & QUICK TOGGLES -->
-    <div class="player-bar-right">
-      <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer">🌙 Sleep</button>
-      <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics">🎤 Lyrics</button>
-      <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence">24/7 OFF</button>
-      <div class="vol-wrapper">
-        <span style="font-size:0.9rem; color:var(--text-dim);" id="vol-icon" onclick="quickMute()">🔊</span>
-        <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
+      <!-- TIER 2: PLAYBACK CONTROLS -->
+      <div class="player-tier-controls">
+        <div class="player-buttons-row">
+          <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue">🔀</button>
+          <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
+          <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause">▶</button>
+          <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
+          <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)">🔁</button>
+        </div>
       </div>
-      <button class="p-btn" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ">✨</button>
-      <button class="p-btn" onclick="navigate('/queue')" title="Open Queue">📜</button>
+
+      <!-- TIER 3: FULL-WIDTH SCRUBBER -->
+      <div class="player-tier-scrub">
+        <div class="scrub-row">
+          <span class="scrub-time" id="scrub-current">0:00</span>
+          <input type="range" class="slider-track" id="scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)" title="Seek position">
+          <span class="scrub-time" id="scrub-total">0:00</span>
+        </div>
+      </div>
+
+      <!-- TIER 4: STATUS & UTILITIES -->
+      <div class="player-tier-status">
+        <div class="player-status-left">
+          <span class="player-queue-label" id="player-queue-count" onclick="navigate('/queue')" title="Click to view queue">Queue: 0 tracks</span>
+          <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer">🌙 Sleep</button>
+          <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics">🎤 Lyrics</button>
+          <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence">24/7 OFF</button>
+          <button class="chip-pill" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ">✨ Auto-DJ</button>
+        </div>
+        <div class="player-bar-right">
+          <button class="p-btn" onclick="navigate('/queue')" title="Open Queue Drawer">≡♪</button>
+          <div class="vol-wrapper">
+            <span id="vol-icon" onclick="quickMute()" style="cursor:pointer;" title="Mute / Unmute">🔊</span>
+            <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
+          </div>
+          <button class="p-btn" id="btn-fullscreen-player" onclick="toggleFullscreenPlayer()" title="Toggle Fullscreen">⤢</button>
+        </div>
+      </div>
     </div>
   </footer>
 
@@ -3686,6 +3724,11 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success && json.data) {
           currentQueue = json.data.tracks || [];
+          const qEl = document.getElementById('player-queue-count');
+          if (qEl) {
+            const count = currentQueue.length;
+            qEl.innerText = `Queue: ${count} ${count === 1 ? 'track' : 'tracks'}`;
+          }
         }
       } catch(e) {}
     }
@@ -3704,9 +3747,17 @@ UI_HTML = r"""<!DOCTYPE html>
       const vcText = document.getElementById('sidebar-vc-text');
       const activeVcEl = document.getElementById('active-server-vc');
 
+      const queueCountEl = document.getElementById('player-queue-count');
+      if (queueCountEl) {
+        const count = currentQueue ? currentQueue.length : 0;
+        queueCountEl.innerText = `Queue: ${count} ${count === 1 ? 'track' : 'tracks'}`;
+      }
+
       if (!currentSession) {
         if (vcText) vcText.innerText = "⚪ Not in Voice Channel";
         if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot disconnected"></span> ⚪ Disconnected';
+        const idleStateEl = document.getElementById('bar-idle-state');
+        if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music to get started";
         updateDynamicTurntableAndVU();
         return;
       }
@@ -3714,19 +3765,26 @@ UI_HTML = r"""<!DOCTYPE html>
       const t = currentSession.current_track;
       const titleEl = document.getElementById('bar-title');
       const artistEl = document.getElementById('bar-artist');
+      const idleStateEl = document.getElementById('bar-idle-state');
       const artEl = document.getElementById('bar-art');
       const playBtn = document.getElementById('btn-master-play');
       const loopBtn = document.getElementById('btn-loop');
       const pill247 = document.getElementById('btn-247-pill');
 
+      const vName = currentSession.voice_channel_name;
+      const currentGuildObj = activeGuilds.find(g => g.id === currentGuildId);
+      const serverName = currentGuildObj?.name || "Current server";
+
       if (t) {
         titleEl.innerText = t.title;
-        artistEl.innerText = t.artist || "Unknown Artist";
+        artistEl.innerText = `${t.artist || "Unknown Artist"} · ${vName ? '#' + vName : serverName}`;
+        if (idleStateEl) idleStateEl.innerText = isPaused ? "Paused · Press play to resume" : "Lossless Studio Audio · 320kbps Active";
         artEl.src = t.thumbnail || DEFAULT_ARTWORK;
         artEl.onerror = () => { artEl.src = DEFAULT_ARTWORK; };
       } else {
-        titleEl.innerText = "Queue is Empty";
-        artistEl.innerText = "Ready for songs — search or play a track";
+        titleEl.innerText = "No Track Playing";
+        artistEl.innerText = `MusicMaid · ${vName ? '#' + vName : serverName}`;
+        if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music to get started";
         artEl.src = DEFAULT_ARTWORK;
       }
 
@@ -3997,6 +4055,16 @@ UI_HTML = r"""<!DOCTYPE html>
           document.getElementById('bar-fav-btn').classList.toggle('active', json.data.favorited);
         }
       } catch(e){}
+    }
+
+    function toggleFullscreenPlayer() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+        showToast("Fullscreen Player Mode ⤢");
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+        showToast("Exited Fullscreen Mode");
+      }
     }
 
     function showToast(msg, type = "success") {
