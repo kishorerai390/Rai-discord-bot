@@ -2448,6 +2448,178 @@ UI_HTML = r"""<!DOCTYPE html>
       color: #ffd700;
       box-shadow: 0 4px 14px rgba(255, 215, 0, 0.2);
     }
+
+    /* LOGIN & WELCOME VIEW — SPLIT-SCREEN LAYOUT (REFERENCE IMAGE 1) */
+    body.page-login-mode .sidebar,
+    body.page-login-mode .sidebar-backdrop,
+    body.page-login-mode .mobile-topbar,
+    body.page-login-mode .player-bar {
+      display: none !important;
+    }
+    body.page-login-mode .app-layout {
+      display: block !important;
+      min-height: 100vh !important;
+      height: auto !important;
+    }
+    body.page-login-mode .main-content {
+      margin-left: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 100vh !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: flex-start !important;
+      align-items: center !important;
+      background: radial-gradient(circle at 50% 10%, rgba(147, 51, 234, 0.12) 0%, #07060d 70%) !important;
+    }
+    body.page-login-mode #view-container {
+      width: 100% !important;
+      max-width: 1200px !important;
+      padding: 2.5rem 1.5rem !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+    }
+
+    .login-split-card {
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr;
+      width: 100%;
+      max-width: 1060px;
+      min-height: 580px;
+      background: rgba(12, 10, 20, 0.92);
+      border: 1px solid rgba(168, 85, 247, 0.25);
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px rgba(147, 51, 234, 0.15);
+      backdrop-filter: blur(24px);
+    }
+    .login-left-pane {
+      padding: 3rem 2.8rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      z-index: 2;
+      background: linear-gradient(145deg, rgba(16, 13, 28, 0.95) 0%, rgba(9, 7, 16, 0.98) 100%);
+    }
+    .login-right-pane {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 480px;
+    }
+    .login-hero-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .login-split-card:hover .login-hero-img {
+      transform: scale(1.02);
+    }
+    .login-floating-badge {
+      position: absolute;
+      top: 1.6rem;
+      right: 1.6rem;
+      background: rgba(255, 255, 255, 0.96);
+      border-radius: 18px;
+      padding: 0.6rem;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 52px;
+      z-index: 5;
+    }
+    .login-title-h1 {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 0.4rem;
+    }
+    .login-subhead {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1.6rem;
+    }
+    .btn-discord-login-prominent {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      width: 100%;
+      padding: 0.95rem 1.6rem;
+      border-radius: 14px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(135deg, #5865F2 0%, #4752C4 100%);
+      box-shadow: 0 8px 24px rgba(88, 101, 242, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      text-decoration: none;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-discord-login-prominent:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(88, 101, 242, 0.55);
+      color: #fff;
+    }
+    .login-quick-links {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+    .login-legal-footer {
+      margin-top: 2rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.45);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .login-legal-footer a {
+      color: rgba(255, 255, 255, 0.55);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    .login-legal-footer a:hover {
+      color: var(--primary-hover);
+      text-decoration: underline;
+    }
+    @media (max-width: 900px) {
+      .login-split-card {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .login-right-pane {
+        height: 280px;
+        min-height: 280px;
+        order: -1;
+      }
+      .login-left-pane {
+        padding: 2.2rem 1.6rem;
+      }
+      .login-title-h1 {
+        font-size: 2.2rem;
+      }
+    }
   </style>
 </head>
 <body>
@@ -3668,6 +3840,9 @@ UI_HTML = r"""<!DOCTYPE html>
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
+      const isLoginPage = (path === '/' || path === '/login');
+      document.body.classList.toggle('page-login-mode', isLoginPage);
+
       if (path === '/' || path === '/login') {
         document.getElementById('nav-login')?.classList.add('active');
         renderLoginView();
@@ -3843,10 +4018,10 @@ UI_HTML = r"""<!DOCTYPE html>
       const isOwner = Boolean(currentUser && currentUser.is_owner);
 
       container.innerHTML = `
-        <div class="view-fade-in" style="max-width:960px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+        <div class="view-fade-in" style="width:100%; max-width:1060px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem; align-items:center;">
 
           <!-- WORKSPACE ORDER SWITCHER -->
-          <div class="workspace-switcher-bar">
+          <div class="workspace-switcher-bar" style="width:100%;">
             <div class="workspace-tab active" onclick="navigate('/login')">
               <span>🔑</span> 1. Login & Welcome
             </div>
@@ -3858,71 +4033,122 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- HERO LOGIN & WELCOME CARD -->
-          <div class="glass-card" style="padding:2.5rem 1.8rem; text-align:center; position:relative; overflow:hidden; border:1px solid rgba(147,51,234,0.35); background:radial-gradient(circle at 50% 0%, rgba(147,51,234,0.22) 0%, rgba(10,10,16,0.9) 75%);">
-            <div style="position:relative; z-index:2; display:flex; flex-direction:column; align-items:center;">
-              <div style="position:relative; width:92px; height:92px; margin-bottom:1.2rem;">
-                <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid Avatar" style="width:100%; height:100%; border-radius:50%; object-fit:cover; border:2px solid var(--primary); box-shadow:0 0 32px rgba(147,51,234,0.6);" onerror="this.src=DEFAULT_ARTWORK">
-                <span class="pulse-dot connected" style="position:absolute; bottom:4px; right:4px; width:14px; height:14px; border:2px solid #000;"></span>
-              </div>
-
-              <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.6rem; flex-wrap:wrap; justify-content:center;">
-                <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15);">● 24/7 Voice Ready</span>
-                <span class="chip-pill" id="login-gateway-badge" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ Realtime Gateway Sync</span>
-                <span class="chip-pill" style="color:#f472b6; background:rgba(236,72,153,0.15);">🛡️ Extractor Auto-Heal ON</span>
-              </div>
-
-              <h1 style="font-size:2.2rem; font-weight:800; color:#fff; line-height:1.2; margin-bottom:0.6rem;">
-                Welcome to MusicMaid Studio
-              </h1>
-              <p style="font-size:1rem; color:var(--text-muted); max-width:620px; line-height:1.55; margin-bottom:1.8rem;">
-                Lossless 320kbps Discord audio streaming with cyber-analog turntable controls, dual stereo VU meters, social aux sharing, and autonomous self-healing.
-              </p>
-
-              ${isAuth ? `
-                <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:1rem 1.6rem; margin-bottom:1.6rem; display:flex; align-items:center; gap:1rem;">
-                  <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:42px; height:42px; border-radius:50%;" alt="Avatar">
-                  <div style="text-align:left;">
-                    <div style="font-weight:700; color:#fff; font-size:0.95rem;">Signed in as ${currentUser.display_name || currentUser.username}</div>
-                    <div style="font-size:0.75rem; color:${isOwner ? '#ffd700' : 'var(--cyan)'}; font-weight:700;">${isOwner ? '👑 Bot Creator / Owner' : '🎧 Listener / Server Member'}</div>
+          <!-- SPLIT-SCREEN LOGIN CARD (REFERENCE IMAGE 1) -->
+          <div class="login-split-card">
+            <!-- LEFT PANE: BRAND, GREETING, CTAs, AND FOOTER -->
+            <div class="login-left-pane">
+              <div>
+                <!-- Brand Badge -->
+                <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1.5rem;">
+                  <div style="width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(168,85,247,0.4);">
+                    <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
+                  </div>
+                  <div>
+                    <span style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.02em;">MusicMaid</span>
+                    <span style="font-size:0.7rem; color:var(--primary); font-weight:700; margin-left:0.35rem; text-transform:uppercase;">Lossless</span>
                   </div>
                 </div>
-                <div style="display:flex; gap:0.8rem; flex-wrap:wrap; justify-content:center;">
-                  <button class="btn btn-primary btn-lg" onclick="navigate('/dashboard')" style="padding:0.75rem 1.8rem; font-weight:800; font-size:1rem;">
-                    <span>🎧</span> Enter User Dashboard ↗
-                  </button>
-                  <button class="btn btn-secondary btn-lg" onclick="navigate('/servers')" style="padding:0.75rem 1.5rem; font-weight:700; font-size:1rem;">
-                    <span>🌐</span> Select Server
-                  </button>
-                  ${isOwner ? `
-                    <button class="btn btn-secondary btn-lg" onclick="navigate('/owner')" style="padding:0.75rem 1.5rem; font-weight:800; font-size:1rem; border-color:rgba(255,215,0,0.5); color:#ffd700;">
-                      <span>👑</span> Open Owner Dashboard ↗
-                    </button>
-                  ` : ''}
-                  <button class="btn btn-secondary btn-lg" onclick="logoutUser()" style="padding:0.75rem 1.2rem; font-size:0.95rem;">
-                    🚪 Logout
-                  </button>
+
+                <!-- Status Pills -->
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:1.2rem; flex-wrap:wrap;">
+                  <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.25);">● 24/7 Voice Ready</span>
+                  <span class="chip-pill" id="login-gateway-badge" style="color:var(--cyan); background:rgba(0,229,255,0.12); border:1px solid rgba(0,229,255,0.25);">⚡ Realtime Gateway Sync</span>
                 </div>
-              ` : `
-                <div style="display:flex; flex-direction:column; gap:0.9rem; align-items:center; width:100%; max-width:380px;">
-                  <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)" style="width:100%; justify-content:center; padding:0.85rem 1.4rem; font-size:1.05rem; font-weight:800; box-shadow:0 6px 20px rgba(88,101,242,0.4);">
-                    <span>👾 Sign in with Discord</span>
+
+                <!-- Title & Subtitle -->
+                <h1 class="login-title-h1">Hello there.</h1>
+                <div class="login-subhead">
+                  <span style="font-weight:700; color:#fff;">Welcome to MusicMaid Studio</span><br>
+                  Dedicated 24/7 Lossless 320kbps Discord audio player with cyber-analog controls, real-time sync, and social Aux sharing.
+                </div>
+
+                <!-- Action Controls -->
+                ${isAuth ? `
+                  <div style="background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1); border-radius:var(--radius-md); padding:1rem 1.4rem; margin-bottom:1.4rem; display:flex; align-items:center; gap:1rem;">
+                    <img src="${currentUser.avatar_url || 'https://cdn.discordapp.com/embed/avatars/0.png'}" style="width:44px; height:44px; border-radius:50%; border:2px solid var(--primary);" alt="Avatar">
+                    <div style="text-align:left; min-width:0; flex:1;">
+                      <div style="font-weight:800; color:#fff; font-size:0.95rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Signed in as ${currentUser.display_name || currentUser.username}</div>
+                      <div style="font-size:0.75rem; color:${isOwner ? '#ffd700' : 'var(--cyan)'}; font-weight:700;">${isOwner ? '👑 Bot Creator / Owner' : '🎧 Listener / Server Member'}</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:0.7rem; width:100%;">
+                    <button class="btn btn-primary btn-lg" onclick="navigate('/dashboard')" style="padding:0.9rem 1.6rem; font-weight:800; font-size:1.02rem; justify-content:center; width:100%;">
+                      <span>🎧</span> Enter User Dashboard ↗
+                    </button>
+                    <div style="display:flex; gap:0.6rem; width:100%;">
+                      <button class="btn btn-secondary" onclick="navigate('/servers')" style="flex:1; justify-content:center; padding:0.75rem 1rem; font-size:0.9rem;">
+                        <span>🌐</span> Select Server
+                      </button>
+                      ${isOwner ? `
+                        <button class="btn btn-secondary" onclick="navigate('/owner')" style="flex:1; justify-content:center; padding:0.75rem 1rem; font-size:0.9rem; border-color:rgba(255,215,0,0.4); color:#ffd700;">
+                          <span>👑</span> Owner Room
+                        </button>
+                      ` : ''}
+                      <button class="btn btn-secondary" onclick="logoutUser()" style="padding:0.75rem 1rem; font-size:0.85rem; color:var(--text-muted);">
+                        🚪 Logout
+                      </button>
+                    </div>
+                  </div>
+                ` : `
+                  <div style="display:flex; flex-direction:column; gap:0.75rem; width:100%;">
+                    <a class="btn-discord-login-prominent" href="/api/auth/login" onclick="startDiscordLogin(event)">
+                      <svg width="22" height="17" viewBox="0 0 127.14 96.36" fill="currentColor" style="flex-shrink:0;"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,45.91,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,45.91,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+                      <span>Sign in with Discord</span>
+                    </a>
+                    <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="width:100%; justify-content:center; padding:0.85rem 1.4rem; font-size:0.95rem; font-weight:700; border-radius:14px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.14); color:#fff;">
+                      <span>🎧 Preview User Dashboard as Listener</span>
+                    </button>
+                  </div>
+                `}
+
+                <!-- Quick Action Pills -->
+                <div class="login-quick-links">
+                  <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:#fff; background:rgba(88,101,242,0.2); border:1px solid rgba(88,101,242,0.4); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                    <span>➕ Add to Discord</span>
                   </a>
-                  <div style="display:flex; gap:0.6rem; width:100%;">
-                    <button class="btn btn-secondary" onclick="navigate('/dashboard')" style="flex:1; justify-content:center; padding:0.7rem 1rem; font-size:0.9rem;">
-                      <span>🎧</span> Preview Player
-                    </button>
-                    <button class="btn btn-secondary" onclick="navigate('/servers')" style="flex:1; justify-content:center; padding:0.7rem 1rem; font-size:0.9rem;">
-                      <span>🌐</span> Servers
-                    </button>
-                  </div>
+                  <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                    <span>💬 Join Community</span>
+                  </a>
+                  <a href="/terms" onclick="event.preventDefault(); navigate('/terms');" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                    <span>📚 Documentation</span>
+                  </a>
                 </div>
-              `}
+              </div>
+
+              <!-- Legal & Compliance Footer -->
+              <div class="login-legal-footer">
+                <div>© 2026 MusicMaid. All Rights Reserved.</div>
+                <div style="display:flex; gap:0.75rem; align-items:center;">
+                  <a href="/terms" onclick="event.preventDefault(); navigate('/terms');">Terms</a>
+                  <span>•</span>
+                  <a href="/privacy" onclick="event.preventDefault(); navigate('/privacy');">Privacy</a>
+                  <span>•</span>
+                  <a href="/refund" onclick="event.preventDefault(); navigate('/refund');">Refund</a>
+                  <span>•</span>
+                  <a href="/contact" onclick="event.preventDefault(); navigate('/contact');">Contact</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT PANE: ATMOSPHERIC HEADPHONE VISUAL & FLOATING BADGE (REFERENCE IMAGE 1) -->
+            <div class="login-right-pane">
+              <img src="/public/musicmaid_headphone_hero.jpg" alt="MusicMaid Lossless Audio Experience" class="login-hero-img" onerror="this.onerror=null; this.src='/public/musicmaid_banner.jpg';">
+              <div class="login-floating-badge" title="MusicMaid Hi-Fi Lossless Engine">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0b0914" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                </svg>
+              </div>
+              <div style="position:absolute; bottom:0; left:0; right:0; height:120px; background:linear-gradient(to top, rgba(7,6,13,0.92) 0%, transparent 100%); pointer-events:none;"></div>
+              <div style="position:absolute; bottom:1.5rem; left:1.5rem; display:flex; align-items:center; gap:0.5rem; background:rgba(10,10,18,0.8); border:1px solid rgba(255,255,255,0.18); backdrop-filter:blur(14px); padding:0.45rem 0.9rem; border-radius:24px; font-size:0.75rem; color:#fff; font-weight:700;">
+                <span style="width:8px; height:8px; border-radius:50%; background:var(--primary); box-shadow:0 0 10px var(--primary);"></span>
+                <span>320kbps Lossless Opus</span>
+              </div>
             </div>
           </div>
 
           <!-- FEATURES TRIO: WHY MUSICMAID -->
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem; width:100%;">
             <div class="glass-card" style="padding:1.6rem; cursor:pointer;" onclick="navigate('/dashboard')">
               <div style="font-size:2rem; margin-bottom:0.6rem;">🎛️</div>
               <h3 style="font-size:1.15rem; font-weight:700; color:#fff; margin-bottom:0.4rem;">Cyber-Analog Turntable</h3>
@@ -3945,22 +4171,6 @@ UI_HTML = r"""<!DOCTYPE html>
               <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.5;">
                 Continuous PyPI hotfix watchdog for yt-dlp, Node.js EJS solver, and 24/7 session recovery that re-joins your VC if Discord drops.
               </p>
-            </div>
-          </div>
-
-          <!-- BOTTOM COMMUNITY & INVITE BANNER -->
-          <div class="glass-card" style="padding:1.6rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-            <div>
-              <div style="font-size:1.1rem; font-weight:800; color:#fff;">Want MusicMaid in Your Discord Server?</div>
-              <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">Zero admin privileges needed — auto-configures dedicated <code>MusicMaid</code> voice role.</div>
-            </div>
-            <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
-              <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
-                ➕ Add to Discord
-              </a>
-              <a href="https://discord.gg/KSxEHfmpCe" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="text-decoration:none;">
-                💬 Community Server
-              </a>
             </div>
           </div>
 

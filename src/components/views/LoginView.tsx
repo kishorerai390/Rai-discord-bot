@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { LogIn, Headphones, Crown, Sparkles, Shield, Disc3, Radio, Plus, MessageCircle, ExternalLink, Activity } from "lucide-react";
+import { LogIn, Headphones, Crown, Sparkles, Shield, Disc3, Radio, Plus, MessageCircle, ExternalLink, Activity, BookOpen } from "lucide-react";
 import type { DiscordUser } from "@/types/auth";
 
 interface LoginViewProps {
@@ -53,109 +53,182 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
         </Link>
       </div>
 
-      {/* HERO WELCOME CARD */}
-      <div className="glass-card relative overflow-hidden rounded-3xl border border-purple-500/30 bg-gradient-to-b from-purple-900/25 via-[#0b0d14] to-[#07090e] p-8 md:p-12 text-center backdrop-blur-2xl shadow-2xl shadow-purple-950/40">
-        <div className="relative z-10 flex flex-col items-center">
-          {/* AVATAR GLOW */}
-          <div className="relative w-24 h-24 mb-6">
-            <div className="w-full h-full rounded-full border-2 border-purple-500 p-1 bg-gradient-to-tr from-purple-600 to-cyan-400 shadow-[0_0_35px_rgba(147,51,234,0.5)] flex items-center justify-center text-4xl">
-              🎵
+      {/* MODERN SPLIT-SCREEN LOGIN CARD (REFERENCE IMAGE 1) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 rounded-3xl border border-purple-500/25 bg-[#0c0a14]/90 backdrop-blur-2xl overflow-hidden shadow-2xl shadow-purple-950/40 min-h-[580px]">
+        {/* LEFT PANE: BRAND, GREETING, CTAs, AND FOOTER */}
+        <div className="lg:col-span-7 p-6 sm:p-10 flex flex-col justify-between z-10 bg-gradient-to-br from-[#100d1c]/95 to-[#090710]/98">
+          <div>
+            {/* BRAND HEADER CHIP */}
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-600/30 text-white font-black text-sm">
+                🎧
+              </div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-sm font-black text-white tracking-wide">MusicMaid</span>
+                <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Lossless</span>
+              </div>
             </div>
-            <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-black animate-pulse" />
-          </div>
 
-          {/* CHIP PILLS */}
-          <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
-            <span className="chip-pill text-emerald-400 bg-emerald-500/15 border border-emerald-500/30">
-              ● 24/7 Voice Ready
-            </span>
-            <span className="chip-pill text-cyan-300 bg-cyan-500/15 border border-cyan-500/30">
-              {gatewayPing !== null ? `⚡ ${gatewayPing}ms Gateway Ping` : "⚡ Realtime Gateway Sync"}
-            </span>
-            <span className="chip-pill text-pink-400 bg-pink-500/15 border border-pink-500/30">
-              🛡️ Extractor Auto-Heal ON
-            </span>
-          </div>
+            {/* STATUS BADGES */}
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className="chip-pill text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 text-xs">
+                ● 24/7 Voice Ready
+              </span>
+              <span className="chip-pill text-cyan-300 bg-cyan-500/15 border border-cyan-500/30 text-xs">
+                {gatewayPing !== null ? `⚡ ${gatewayPing}ms Gateway Ping` : "⚡ Realtime Gateway Sync"}
+              </span>
+            </div>
 
-          <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight mb-4 max-w-2xl">
-            Welcome to MusicMaid Studio
-          </h1>
-          <p className="text-sm md:text-base text-[var(--text-muted)] max-w-2xl leading-relaxed mb-8">
-            Lossless 320kbps Discord audio streaming with cyber-analog turntable controls, dual stereo VU meters, social aux sharing, and autonomous self-healing.
-          </p>
+            {/* HEADING & SUBTITLE */}
+            <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight mb-2">
+              Hello there.
+            </h1>
+            <div className="text-xs sm:text-sm text-[var(--text-muted)] leading-relaxed mb-6">
+              <span className="font-bold text-white">Welcome to MusicMaid Studio</span>
+              <br />
+              Dedicated 24/7 Lossless 320kbps Discord audio streaming with cyber-analog controls and social Aux sharing.
+            </div>
 
-          {isAuth ? (
-            <div className="flex flex-col items-center gap-4 w-full max-w-md">
-              <div className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-left">
-                <img
-                  src={currentUser?.avatar_url || "https://cdn.discordapp.com/embed/avatars/0.png"}
-                  alt="Avatar"
-                  className="w-11 h-11 rounded-full object-cover border border-purple-500/40"
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-bold text-white truncate">
-                    Signed in as {currentUser?.display_name || currentUser?.username}
+            {/* ACTION CONTROLS */}
+            {isAuth ? (
+              <div className="flex flex-col gap-3 w-full max-w-md">
+                <div className="w-full flex items-center gap-3 p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-left">
+                  <img
+                    src={currentUser?.avatar_url || "https://cdn.discordapp.com/embed/avatars/0.png"}
+                    alt="Avatar"
+                    className="w-11 h-11 rounded-full object-cover border border-purple-500/40"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-white truncate">
+                      Signed in as {currentUser?.display_name || currentUser?.username}
+                    </div>
+                    <div className="text-xs font-semibold text-cyan-400">
+                      {isOwner ? "👑 Bot Creator / Owner" : "🎧 Listener / Server Member"}
+                    </div>
                   </div>
-                  <div className="text-xs font-semibold text-cyan-400">
-                    {isOwner ? "👑 Bot Creator / Owner" : "🎧 Listener / Server Member"}
+                </div>
+
+                <div className="flex flex-col gap-2.5 w-full">
+                  <Link
+                    href="/dashboard"
+                    className="btn btn-primary py-3.5 px-6 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
+                  >
+                    <Headphones className="w-4 h-4" />
+                    <span>Enter User Dashboard ↗</span>
+                  </Link>
+                  <div className="flex items-center gap-2 w-full">
+                    <Link
+                      href="/servers"
+                      className="btn btn-secondary flex-1 py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-1.5"
+                    >
+                      <span>🌐 Select Server</span>
+                    </Link>
+                    {isOwner && (
+                      <Link
+                        href="/owner"
+                        className="btn btn-secondary flex-1 py-2.5 px-4 text-xs font-bold text-amber-400 border-amber-500/40 hover:bg-amber-500/10 flex items-center justify-center gap-1.5"
+                      >
+                        <Crown className="w-3.5 h-3.5" />
+                        <span>Owner Room</span>
+                      </Link>
+                    )}
+                    <a
+                      href="/api/auth/logout"
+                      className="btn btn-secondary py-2.5 px-3 text-xs text-[var(--text-muted)] hover:text-white"
+                    >
+                      Logout
+                    </a>
                   </div>
                 </div>
               </div>
-
-              <div className="flex items-center justify-center gap-3 w-full flex-wrap">
-                <Link
-                  href="/dashboard"
-                  className="btn btn-primary flex-1 py-3 px-6 font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-purple-600/30"
-                >
-                  <Headphones className="w-4 h-4" />
-                  <span>Enter User Dashboard ↗</span>
-                </Link>
-                {isOwner && (
-                  <Link
-                    href="/owner"
-                    className="btn btn-secondary py-3 px-5 font-bold text-sm text-amber-400 border-amber-500/40 hover:bg-amber-500/10 flex items-center justify-center gap-2"
-                  >
-                    <Crown className="w-4 h-4" />
-                    <span>Owner Room</span>
-                  </Link>
-                )}
+            ) : (
+              <div className="flex flex-col gap-3 w-full max-w-sm">
                 <a
-                  href="/api/auth/logout"
-                  className="btn btn-secondary py-3 px-4 text-xs text-[var(--text-muted)] hover:text-white"
+                  href="/api/auth/login"
+                  className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl font-black text-base text-white bg-gradient-to-r from-[#5865F2] to-[#4752C4] hover:opacity-95 shadow-xl shadow-[#5865F2]/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  Logout
+                  <LogIn className="w-5 h-5" />
+                  <span>Sign in with Discord</span>
                 </a>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3.5 w-full max-w-sm">
-              <a
-                href="/api/auth/login"
-                className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl font-black text-base text-white bg-gradient-to-r from-[#5865F2] to-[#4752C4] hover:opacity-95 shadow-xl shadow-[#5865F2]/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <LogIn className="w-5 h-5" />
-                <span>Sign in with Discord</span>
-              </a>
-              <div className="flex items-center gap-2.5 w-full">
                 <Link
                   href="/dashboard"
-                  className="btn btn-secondary flex-1 py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2"
+                  className="btn btn-secondary w-full py-3 px-4 text-xs font-bold flex items-center justify-center gap-2 rounded-2xl bg-white/[0.05] border border-white/10 hover:border-purple-500/30 text-white"
                 >
                   <Headphones className="w-4 h-4 text-cyan-400" />
-                  <span>Preview as Listener</span>
+                  <span>Preview User Dashboard as Listener</span>
                 </Link>
-                <a
-                  href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-secondary py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4 text-emerald-400" />
-                  <span>Add Bot</span>
-                </a>
               </div>
+            )}
+
+            {/* QUICK PILLS */}
+            <div className="flex items-center gap-2 mt-5 flex-wrap">
+              <a
+                href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="chip-pill text-xs font-bold text-white bg-[#5865F2]/20 border border-[#5865F2]/40 hover:bg-[#5865F2]/30 transition-colors inline-flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Add to Discord</span>
+              </a>
+              <a
+                href="https://discord.gg/KSxEHfmpCe"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="chip-pill text-xs font-bold text-[var(--text-muted)] bg-white/5 border border-white/10 hover:text-white transition-colors inline-flex items-center gap-1.5"
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Join Community</span>
+              </a>
+              <Link
+                href="/terms"
+                className="chip-pill text-xs font-bold text-[var(--text-muted)] bg-white/5 border border-white/10 hover:text-white transition-colors inline-flex items-center gap-1.5"
+              >
+                <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                <span>Documentation</span>
+              </Link>
             </div>
-          )}
+          </div>
+
+          {/* LEGAL & COMPLIANCE FOOTER */}
+          <div className="mt-8 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
+            <div>© 2026 MusicMaid. All Rights Reserved.</div>
+            <div className="flex items-center gap-2">
+              <Link href="/terms" className="hover:text-purple-300 transition-colors">Terms</Link>
+              <span>•</span>
+              <Link href="/privacy" className="hover:text-purple-300 transition-colors">Privacy</Link>
+              <span>•</span>
+              <Link href="/refund" className="hover:text-purple-300 transition-colors">Refund</Link>
+              <span>•</span>
+              <Link href="/contact" className="hover:text-purple-300 transition-colors">Contact</Link>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT PANE: ATMOSPHERIC HEADPHONE VISUAL & FLOATING BADGE (REFERENCE IMAGE 1) */}
+        <div className="lg:col-span-5 relative bg-black min-h-[300px] lg:min-h-full overflow-hidden flex items-center justify-center">
+          <img
+            src="/musicmaid_headphone_hero.jpg"
+            alt="MusicMaid Lossless Audio Experience"
+            className="w-full h-full object-cover object-center scale-[1.01] hover:scale-105 transition-transform duration-700 ease-out"
+          />
+
+          {/* FLOATING TOP-RIGHT BADGE */}
+          <div
+            className="absolute top-5 right-5 w-12 h-12 rounded-2xl bg-white/95 shadow-2xl shadow-black flex items-center justify-center z-10 text-[#0b0914]"
+            title="MusicMaid Lossless Audio Engine"
+          >
+            <Headphones className="w-6 h-6 stroke-[2.2]" />
+          </div>
+
+          {/* BOTTOM GRADIENT OVERLAY */}
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#07060d]/90 to-transparent pointer-events-none" />
+
+          {/* BOTTOM-LEFT LOSSLESS CHIP */}
+          <div className="absolute bottom-5 left-5 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 border border-white/15 backdrop-blur-md text-[11px] font-bold text-white">
+            <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]" />
+            <span>320kbps Lossless Opus</span>
+          </div>
         </div>
       </div>
 
@@ -204,55 +277,6 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
           <p className="text-xs text-[var(--text-muted)] leading-relaxed">
             Self-healing extractor watchdog, VIP entitlement manager, hot SQLite WAL database backups, and emergency safe mode killswitch.
           </p>
-        </Link>
-      </div>
-
-      {/* INVITE BANNER */}
-      <div className="glass-card p-6 rounded-2xl border border-white/5 bg-gradient-to-r from-purple-950/30 to-black/60 flex flex-col md:flex-row items-center justify-between gap-4">
-        <div>
-          <h4 className="text-base font-bold text-white">Want MusicMaid in Your Discord Server?</h4>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Zero complex setup — invites with one click and auto-configures your voice room.
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5 shrink-0">
-          <a
-            href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary btn-sm flex items-center gap-1.5 py-2 px-4 text-xs font-bold"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add to Discord</span>
-          </a>
-          <a
-            href="https://discord.gg/KSxEHfmpCe"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-secondary btn-sm flex items-center gap-1.5 py-2 px-4 text-xs font-bold"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>Community</span>
-          </a>
-        </div>
-      </div>
-
-      {/* FOOTER LEGAL LINKS */}
-      <div className="flex items-center justify-center gap-4 text-xs text-[var(--text-muted)] py-4">
-        <Link href="/terms" className="hover:text-white transition-colors">
-          Terms of Service
-        </Link>
-        <span>•</span>
-        <Link href="/privacy" className="hover:text-white transition-colors">
-          Privacy Policy
-        </Link>
-        <span>•</span>
-        <Link href="/refund" className="hover:text-white transition-colors">
-          Refund Policy
-        </Link>
-        <span>•</span>
-        <Link href="/contact" className="hover:text-white transition-colors">
-          Contact Support
         </Link>
       </div>
     </div>
