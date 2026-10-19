@@ -376,12 +376,16 @@ def score_candidate_detailed(
 
     core_words = [w for w in re.findall(r"\w+", core_title) if len(w) > 1]
     if core_words:
-        cand_words = set(re.findall(r"\w+", title))
+        cand_words = set(re.findall(r"\w+", combined_text))
         overlap = sum(1 for w in core_words if w in cand_words)
         ratio = overlap / len(core_words)
         overlap_pts = ratio * 30.0
         score += overlap_pts
         reasons.append(f"token_overlap_{ratio:.2f}(+{overlap_pts:.1f})")
+        mismatch_penalty = (1.0 - ratio) * 90.0
+        if mismatch_penalty:
+            score -= mismatch_penalty
+            reasons.append(f"query_term_mismatch(-{mismatch_penalty:.1f})")
 
     # Penalty for social media junk filler words when looking for original track
     if not query_intent["user_requested_alternate"] and not cand_is_alt:
@@ -469,6 +473,39 @@ def score_candidate(
         candidate, query_intent, spotify_meta=spotify_meta, title_hint=title_hint, artist_hint=artist_hint
     )
     return score
+
+
+def is_original_recording_candidate(
+    candidate: Dict[str, Any],
+    query_intent: Dict[str, Any],
+    spotify_meta: Optional[Dict[str, Any]] = None,
+    title_hint: Optional[str] = None,
+    artist_hint: Optional[str] = None,
+) -> bool:
+    """Require source evidence for standard searches and reject labeled alternate versions."""
+    if query_intent.get("user_requested_alternate"):
+        return True
+
+    _, reasons = score_candidate_detailed(
+        candidate,
+        query_intent,
+        spotify_meta=spotify_meta,
+        title_hint=title_hint,
+        artist_hint=artist_hint,
+    )
+    if any(reason.startswith("unrequested_") for reason in reasons):
+        return False
+
+    original_release_signals = (
+        "youtube_topic_channel(",
+        "vevo_official(",
+        "major_record_label(",
+        "official_title_badge(",
+        "remastered_or_original_mix(",
+        "studio_audio_bonus(",
+    )
+    channel_verified = candidate.get("channel_is_verified") is True or candidate.get("uploader_is_verified") is True
+    return channel_verified or any(reason.startswith(original_release_signals) for reason in reasons)
 
 
 async def get_redis_client() -> Any:
@@ -1103,7 +1140,7 @@ class AudioResolver:
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
-        cache_key = f"{limit}:{query.strip().lower()}"
+        cache_key = f"original-v1:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
@@ -1164,6 +1201,8 @@ class AudioResolver:
         intent = analyze_query_intent(query)
         scored_candidates = []
         for c in raw_candidates:
+            if not is_original_recording_candidate(c, intent):
+                continue
             s, r = score_candidate_detailed(c, intent)
             scored_candidates.append((c, s, r))
 
@@ -1312,7 +1351,7 @@ class AudioResolver:
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
         and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
-        cache_key = query_or_url.strip().lower()
+        cache_key = f"original-v1:{query_or_url.strip().lower()}"
         now = time.time()
 
         # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)
@@ -1606,31 +1645,31 @@ class AudioResolver:
                         cat = "SEARCH_FAILURE"
                         reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
                     else:
-                        cat = "NO_RESULTS"
-                        reason = f"No search results returned for '{cleaned_query[:60]}'."
+                        cat = "NO_ORIGINAL_MATCH"
+                        reason = (
+                            f"No original recording could be verified for '{cleaned_query[:60]}'. "
+                            "Try including the singer's name or provide a direct link."
+                        )
 
                     cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
                     logger.warning(
                         f"[Resolver] [Ref: MM-{corr_id}] YouTube search returned 0 candidates | query='{cleaned_query[:40]}' | "
                         f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
                     )
-
-                    # Secondary fallback if enabled (e.g. SoundCloud emergency fallback)
-                    try:
-                        logger.info(f"[Resolver] [Ref: MM-{corr_id}] Attempting emergency SoundCloud search fallback for '{cleaned_query[:40]}'...")
-                        sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
-                        if sc_track:
-                            sc_track = _apply_metadata_enhancements(sc_track)
-                            return sc_track
-                    except Exception as sc_err:
-                        logger.debug(f"[Resolver] Emergency SoundCloud search notice: {sc_err}")
-
                     return None
 
                 # Stage 2: Rank candidates using smart query intent analysis
                 failed_stage = "ranking"
                 scored_candidates: List[Tuple[Dict[str, Any], float, List[str]]] = []
                 for entry in search_entries:
+                    if not is_original_recording_candidate(
+                        entry,
+                        intent,
+                        spotify_meta=spotify_info,
+                        title_hint=title_hint,
+                        artist_hint=artist_hint,
+                    ):
+                        continue
                     score_val, reasons_list = score_candidate_detailed(
                         entry,
                         intent,
@@ -1639,6 +1678,14 @@ class AudioResolver:
                         artist_hint=artist_hint,
                     )
                     scored_candidates.append((entry, score_val, reasons_list))
+
+                if not scored_candidates:
+                    cls.last_resolver_error = (
+                        f"[NO_ORIGINAL_MATCH] No verified original recording was found for "
+                        f"'{cleaned_query[:60]}'. Try including the singer's name or provide a direct link."
+                    )
+                    logger.warning(f"[Resolver] [Ref: MM-{corr_id}] {cls.last_resolver_error}")
+                    return None
 
                 scored_candidates.sort(key=lambda x: x[1], reverse=True)
 
@@ -1756,36 +1803,6 @@ class AudioResolver:
                         return track
             except Exception as t3_err:
                 last_failure_reason = _format_error(t3_err)
-
-        # Stage 5: Secondary Provider Fallback (SoundCloud) for zero-interruption playback
-        try:
-            logger.info(f"[Resolver] [Ref: MM-{corr_id}] Attempting SoundCloud resolution fallback for '{cleaned_query[:50]}'")
-            sc_query = f"{title_hint} {artist_hint or ''}".strip() if title_hint else cleaned_query
-            if is_direct_url and ("youtube" in cleaned_query or "youtu.be" in cleaned_query) and not title_hint:
-                sc_query = ""
-                try:
-                    import urllib.request
-                    oembed_url = f"https://www.youtube.com/oembed?url={cleaned_query}&format=json"
-                    req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-                    with urllib.request.urlopen(req, timeout=5.0) as o_resp:
-                        o_data = json.loads(o_resp.read().decode())
-                        if o_data and o_data.get("title"):
-                            author = (o_data.get("author_name") or "").replace(" - Topic", "").strip()
-                            sc_query = f"{o_data.get('title')} {author}".strip()
-                except Exception as o_err:
-                    logger.debug(f"[Resolver] oEmbed lookup notice: {o_err}")
-
-            if sc_query and not sc_query.startswith("http"):
-                sc_track = await cls.resolve_soundcloud_track(sc_query, requester_id, requester_name)
-                if sc_track:
-                    sc_track = _apply_metadata_enhancements(sc_track)
-                    dur = time.time() - start_t
-                    logger.info(
-                        f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback successfully resolved '{sc_query[:40]}' in {dur:.2f}s -> '{sc_track.title}'"
-                    )
-                    return sc_track
-        except Exception as sc_err:
-            logger.warning(f"[Resolver] [Ref: MM-{corr_id}] SoundCloud fallback failed: {_format_error(sc_err)}")
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error

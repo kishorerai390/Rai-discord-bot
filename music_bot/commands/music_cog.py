@@ -974,11 +974,16 @@ class MusicCog(commands.Cog, name="Music"):
                     cookie_hint = ""
                     if res_err and any(k in res_err.lower() for k in ("sign in", "bot", "captcha", "confirm your age", "access restriction")):
                         cookie_hint = "\n• **Optional Fallback:** If YouTube is restricting datacenter IPs, optional YouTube cookies can be placed in Render Secret Files (`/etc/secrets/cookies.txt`) or configured via `YOUTUBE_COOKIES`."
+                    original_match_notice = (
+                        "I couldn't verify an original singer/release, so I didn't play a possible cover or remix.\n\n"
+                        if res_err and "[NO_ORIGINAL_MATCH]" in res_err
+                        else ""
+                    )
 
                     embed_fail = discord.Embed(
                         title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ No Audio Track Found",
                         description=(
-                            f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
+                            f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
                             f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata."
                             f"{cookie_hint}"
@@ -3106,7 +3111,13 @@ class MusicCog(commands.Cog, name="Music"):
             status_msg = await message.channel.send(f"🔍 Searching for `{query[:60]}`... 🐾")
             track = await AudioResolver.resolve_track(query, message.author.id, str(message.author))
             if not track:
-                await status_msg.edit(content=f"{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query}`")
+                res_err = getattr(AudioResolver, "last_resolver_error", None) or ""
+                original_match_notice = (
+                    "I couldn't verify an original singer/release, so I didn't play a possible cover or remix.\n"
+                    if "[NO_ORIGINAL_MATCH]" in res_err
+                    else ""
+                )
+                await status_msg.edit(content=f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{query}`")
                 return
 
             async with session.lock:
@@ -3641,7 +3652,13 @@ class MusicCog(commands.Cog, name="Music"):
         status_msg = await ctx.reply(f"🔍 Searching for `{query[:60]}`... 🐾", mention_author=False)
         track = await AudioResolver.resolve_track(query, ctx.author.id, str(ctx.author))
         if not track:
-            await status_msg.edit(content=f"😿 Could not find playable audio for: `{query[:60]}`")
+            res_err = getattr(AudioResolver, "last_resolver_error", None) or ""
+            original_match_notice = (
+                "I couldn't verify an original singer/release, so I didn't play a possible cover or remix.\n"
+                if "[NO_ORIGINAL_MATCH]" in res_err
+                else ""
+            )
+            await status_msg.edit(content=f"{original_match_notice}😿 Could not find playable audio for: `{query[:60]}`")
             return
 
         async with session.lock:
@@ -5393,4 +5410,3 @@ class MusicCog(commands.Cog, name="Music"):
 
 async def setup(bot: RaiMusicBot) -> None:
     await bot.add_cog(MusicCog(bot))
-

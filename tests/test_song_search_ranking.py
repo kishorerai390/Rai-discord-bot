@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from music_bot.services.resolver_service import (
     AudioResolver,
     analyze_query_intent,
+    is_original_recording_candidate,
     score_candidate,
     score_candidate_detailed,
 )
@@ -67,6 +68,115 @@ class TestSongSearchRanking(unittest.TestCase):
         self.assertGreater(orig_score, mashup_score, "Original must score higher than mashup")
         self.assertGreaterEqual(orig_score - remix_score, 80.0, "Expected at least 80 point separation for remix penalty")
         self.assertTrue(any("unrequested_remix" in r for r in remix_reasons))
+
+    def test_01b_title_match_outweighs_unrelated_official_upload(self):
+        """A weakly related official upload must not outrank the exact requested title."""
+        intent = analyze_query_intent("blue moon midnight rain")
+        exact_title = {
+            "title": "Blue Moon Midnight Rain",
+            "uploader": "Independent Artist",
+            "duration": 210,
+        }
+        partial_official_match = {
+            "title": "Blue Moon (Official Audio)",
+            "uploader": "OfficialMusicCo",
+            "duration": 210,
+        }
+
+        exact_score = score_candidate(exact_title, intent)
+        partial_score = score_candidate(partial_official_match, intent)
+
+        self.assertGreater(
+            exact_score,
+            partial_score,
+            "Title relevance must outweigh publisher and duration bonuses for a partial match",
+        )
+
+    def test_01c_standard_search_requires_original_release_evidence(self):
+        intent = analyze_query_intent("Kalyani")
+        original_release = {
+            "title": "Kalyani - Official Music Video",
+            "uploader": "SingerVEVO",
+            "duration": 240,
+        }
+        cover = {
+            "title": "Kalyani cover by Local Singer",
+            "uploader": "SingerVEVO",
+            "duration": 240,
+        }
+        unidentified_upload = {
+            "title": "Kalyani",
+            "uploader": "Unknown Channel",
+            "duration": 240,
+        }
+
+        self.assertTrue(is_original_recording_candidate(original_release, intent))
+        self.assertFalse(is_original_recording_candidate(cover, intent))
+        self.assertFalse(is_original_recording_candidate(unidentified_upload, intent))
+
+    def test_01d_explicit_alternate_search_still_allows_remixes(self):
+        intent = analyze_query_intent("Kalyani remix")
+        remix = {
+            "title": "Kalyani DJ Remix",
+            "uploader": "DJ Channel",
+            "duration": 210,
+        }
+
+        self.assertTrue(is_original_recording_candidate(remix, intent))
+
+    def test_01e_search_only_returns_verified_original_for_normal_request(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            ydl.extract_info.return_value = {
+                "entries": [
+                    {
+                        "id": "cover1234567",
+                        "title": "Kalyani cover by Local Singer",
+                        "uploader": "Random Channel",
+                        "duration": 240,
+                    },
+                    {
+                        "id": "original1234",
+                        "title": "Kalyani - Official Music Video",
+                        "uploader": "SingerVEVO",
+                        "duration": 240,
+                    },
+                ]
+            }
+            with patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", return_value=ydl):
+                results = await AudioResolver.search("Kalyani", limit=5)
+
+            self.assertEqual([result["id"] for result in results], ["original1234"])
+
+        asyncio.run(_test())
+
+    def test_01f_enna_sonna_dj_remix_is_rejected_without_original_match(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            ydl.extract_info.return_value = {
+                "entries": [
+                    {
+                        "id": "cover1234567",
+                        "title": "Caps x Frenzo Enna Sona Remix",
+                        "uploader": "zohaib javed",
+                        "duration": 126,
+                    }
+                ]
+            }
+            with patch.object(AudioResolver, "search", new_callable=AsyncMock, return_value=[]), \
+                 patch.object(AudioResolver, "resolve_soundcloud_track", new_callable=AsyncMock) as soundcloud, \
+                 patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", return_value=ydl):
+                result = await AudioResolver._execute_resolution_pipeline("enna sonna", 123, "Tester")
+
+            self.assertIsNone(result)
+            self.assertFalse(soundcloud.called)
+            self.assertIn("NO_ORIGINAL_MATCH", AudioResolver.last_resolver_error or "")
+
+        asyncio.run(_test())
 
     # =========================================================================
     # 2. EXPLICIT REMIX REQUESTS
