@@ -134,6 +134,26 @@ class TestSongSearchRanking(unittest.TestCase):
 
         self.assertTrue(is_original_recording_candidate(original_release, intent))
 
+    def test_01c2c_context_resolves_typo_without_accepting_ambiguous_lookalike(self):
+        original_release = {
+            "title": "Pichuva Kaththi - Enna Sonna Video Song",
+            "uploader": "Trend Music | TrendMusic",
+            "duration": 262,
+        }
+
+        self.assertTrue(
+            is_original_recording_candidate(
+                original_release,
+                analyze_query_intent("Pichuva Kaththi Enna Sona"),
+            )
+        )
+        self.assertFalse(
+            is_original_recording_candidate(
+                {"title": "Enna Sona - Official Music Video", "uploader": "Sony Music India"},
+                analyze_query_intent("Enna Sonna"),
+            )
+        )
+
     def test_01c3_allows_long_title_typo_but_rejects_short_form_clip(self):
         intent = analyze_query_intent("rasagula anirudh")
         original = {
@@ -186,6 +206,35 @@ class TestSongSearchRanking(unittest.TestCase):
 
             self.assertEqual([result["id"] for result in results], ["original1234"])
             self.assertTrue(results[0]["original_source_match"])
+
+        asyncio.run(_test())
+
+    def test_01e1_prefers_official_video_song_over_lyric_video(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            ydl.extract_info.return_value = {
+                "entries": [
+                    {
+                        "id": "lyricvideo01",
+                        "title": "Pichuva Kaththi - Enna Sonna Lyric Video Song",
+                        "uploader": "Trend Music | TrendMusic",
+                        "duration": 263,
+                    },
+                    {
+                        "id": "officialvideo1",
+                        "title": "Pichuva Kaththi - Enna Sonna Video Song",
+                        "uploader": "Trend Music | TrendMusic",
+                        "duration": 262,
+                    },
+                ]
+            }
+
+            with patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", return_value=ydl):
+                results = await AudioResolver.search("Pichuva Kaththi Enna Sona", limit=5)
+
+            self.assertEqual(results[0]["id"], "officialvideo1")
 
         asyncio.run(_test())
 

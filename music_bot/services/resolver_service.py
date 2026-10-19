@@ -350,6 +350,13 @@ def score_candidate_detailed(
                 score += 15.0
                 reasons.append("remastered_or_original_mix(+15)")
 
+            if "lyric video" in title or "lyric video song" in title:
+                score -= 15.0
+                reasons.append("lyric_video_preference(-15)")
+            elif "official music video" in title or re.search(r"\bvideo song\b", title):
+                score += 30.0
+                reasons.append("official_music_video_preference(+30)")
+
             # Studio Audio preference
             if "official audio" in title or is_topic_channel or "original audio" in title:
                 score += 15.0
@@ -533,16 +540,23 @@ def is_original_recording_candidate(
     if not query_terms or not candidate_terms:
         return False
 
-    return all(
-        term in candidate_terms
-        or any(
-            len(term) >= 7
-            and len(candidate_term) >= 7
+    unmatched_terms = [term for term in query_terms if term not in candidate_terms]
+    if not unmatched_terms:
+        return True
+
+    if len(unmatched_terms) != 1:
+        return False
+
+    term = unmatched_terms[0]
+    fuzzy_match = any(
+            len(candidate_term) >= 4
             and SequenceMatcher(None, term, candidate_term).ratio() >= 0.85
             for candidate_term in candidate_terms
-        )
-        for term in query_terms
     )
+    if len(query_terms) >= 3 and len(term) >= 4 and fuzzy_match:
+        return True
+
+    return len(term) >= 7 and fuzzy_match
 
 
 async def get_redis_client() -> Any:
@@ -1177,7 +1191,7 @@ class AudioResolver:
     @classmethod
     async def search(cls, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
-        cache_key = f"original-v4:{limit}:{query.strip().lower()}"
+        cache_key = f"original-v6:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
@@ -1391,7 +1405,7 @@ class AudioResolver:
         Public resolver method. Deduplicates concurrent resolutions, checks in-memory
         and optional Redis cache (TTL ~1 hour), and guarantees non-blocking async execution.
         """
-        cache_key = f"original-v4:{query_or_url.strip().lower()}"
+        cache_key = f"original-v6:{query_or_url.strip().lower()}"
         now = time.time()
 
         # 1. Check in-memory track cache (TTL: CACHE_TTL ~ 1 hour)
