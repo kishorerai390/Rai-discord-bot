@@ -1804,27 +1804,38 @@ class AudioResolver:
         if candidate_urls and get_active_cookie_file():
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
-            try:
-                logger.info(f"[Resolver] [Ref: MM-{corr_id}] Public tiers exhausted; attempting optional cookie fallback for '{top_target}'")
-                tier3_opts = _build_ytdl_options(["android", "tv_embedded"], use_cookies=True)
-                tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
-                data = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        _audio_executor, functools.partial(tier3_ydl.extract_info, top_target, download=False)
-                    ),
-                    timeout=8.0,
-                )
-                if data:
-                    track = cls._parse_entry(data, requester_id, requester_name)
-                    if track and track.stream_url:
-                        track = _apply_metadata_enhancements(track)
-                        dur = time.time() - start_t
-                        logger.info(
-                            f"[Resolver] [Ref: MM-{corr_id}] Cookie fallback resolved '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
-                        )
-                        return track
-            except Exception as t3_err:
-                last_failure_reason = _format_error(t3_err)
+            logger.info(f"[Resolver] [Ref: MM-{corr_id}] Public tiers exhausted; attempting optional cookie fallback for '{top_target}'")
+            for cookie_clients, cookie_format in (
+                (["android_vr"], "best"),
+                (None, "bestaudio/best"),
+            ):
+                try:
+                    tier3_opts = _build_ytdl_options(cookie_clients, use_cookies=True)
+                    tier3_opts["format"] = cookie_format
+                    tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
+                    data = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            _audio_executor, functools.partial(tier3_ydl.extract_info, top_target, download=False)
+                        ),
+                        timeout=8.0,
+                    )
+                    if data:
+                        track = cls._parse_entry(data, requester_id, requester_name)
+                        if track and track.stream_url:
+                            track = _apply_metadata_enhancements(track)
+                            dur = time.time() - start_t
+                            logger.info(
+                                f"[Resolver] [Ref: MM-{corr_id}] Cookie fallback resolved '{cleaned_query[:40]}' "
+                                f"with {','.join(cookie_clients) if cookie_clients else 'yt-dlp default'} "
+                                f"in {dur:.2f}s -> '{track.title}'"
+                            )
+                            return track
+                except Exception as t3_err:
+                    last_failure_reason = _format_error(t3_err)
+                    logger.warning(
+                        f"[Resolver] [Ref: MM-{corr_id}] Cookie fallback notice for "
+                        f"{','.join(cookie_clients) if cookie_clients else 'yt-dlp default'}: {last_failure_reason}"
+                    )
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error
