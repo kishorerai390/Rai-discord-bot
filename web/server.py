@@ -71,13 +71,19 @@ class RaiCommunityOSServer:
 
     async def handle_ui(self, request: web.Request) -> web.Response:
         """Render the Rai Community OS luxury single-page application with hot reload support."""
+        import aiohttp.web
         try:
             import importlib
-            import web.ui
-            importlib.reload(web.ui)
-            return web.Response(text=web.ui.UI_HTML, content_type="text/html")
+            import sys
+            ui_mod = sys.modules.get("web.ui")
+            if ui_mod:
+                importlib.reload(ui_mod)
+                html = getattr(ui_mod, "UI_HTML", UI_HTML)
+            else:
+                html = UI_HTML
+            return aiohttp.web.Response(text=html, content_type="text/html")
         except Exception:
-            return web.Response(text=UI_HTML, content_type="text/html")
+            return aiohttp.web.Response(text=UI_HTML, content_type="text/html")
 
     async def handle_legacy_leaderboard(self, request: web.Request) -> web.Response:
         """Backward-compatible economy leaderboard API."""
