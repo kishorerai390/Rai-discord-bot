@@ -228,6 +228,54 @@ class TestSongSearchRanking(unittest.TestCase):
 
         asyncio.run(_test())
 
+    def test_01h_cookie_fallback_retries_android_vr_profile(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            options_used = []
+
+            def youtube_dl(options):
+                options_used.append(options)
+                ydl = MagicMock()
+                is_cookie_android_vr = (
+                    bool(options.get("cookiefile"))
+                    and options["extractor_args"]["youtube"].get("player_client") == ["android_vr"]
+                )
+                if is_cookie_android_vr:
+                    ydl.extract_info.return_value = {
+                        "title": "Kalyani - Official Music Video",
+                        "webpage_url": "https://www.youtube.com/watch?v=original1234",
+                        "url": "https://audio.example/stream",
+                        "duration": 240,
+                        "uploader": "SingerVEVO",
+                    }
+                else:
+                    ydl.extract_info.side_effect = RuntimeError("Requested format is not available")
+                return ydl
+
+            with patch.object(
+                AudioResolver,
+                "search",
+                new_callable=AsyncMock,
+                return_value=[{"url": "https://www.youtube.com/watch?v=original1234"}],
+            ), patch(
+                "music_bot.services.resolver_service.get_active_cookie_file",
+                return_value="test-cookies.txt",
+            ), patch(
+                "music_bot.services.resolver_service.yt_dlp.YoutubeDL",
+                side_effect=youtube_dl,
+            ):
+                track = await AudioResolver._execute_resolution_pipeline("Kalyani", 123, "Tester")
+
+            self.assertIsNotNone(track)
+            self.assertTrue(track.stream_url)
+            self.assertTrue(any(
+                options.get("cookiefile")
+                and options["extractor_args"]["youtube"].get("player_client") == ["android_vr"]
+                for options in options_used
+            ))
+
+        asyncio.run(_test())
+
     # =========================================================================
     # 2. EXPLICIT REMIX REQUESTS
     # =========================================================================
