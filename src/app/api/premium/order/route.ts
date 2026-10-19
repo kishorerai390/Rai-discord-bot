@@ -17,7 +17,9 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const planId = (body.plan_id || body.plan || "monthly").toLowerCase();
+    let planId = (body.plan_id || body.plan || "monthly").toLowerCase();
+    if (planId === "pro_monthly") planId = "monthly";
+    if (planId === "vip_yearly") planId = "yearly";
 
     if (!(planId in PRICING_PLANS)) {
       return NextResponse.json(

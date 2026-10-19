@@ -35,14 +35,22 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
       const plansData = await plansRes.json();
       const statusData = await statusRes.json();
 
-      if (plansData.success && Array.isArray(plansData.plans)) {
-        setPlans(plansData.plans);
+      if (plansData.success) {
+        const rawPlans = plansData.data?.plans || plansData.plans;
+        if (Array.isArray(rawPlans)) {
+          setPlans(rawPlans);
+        } else if (rawPlans && typeof rawPlans === "object") {
+          setPlans(Object.values(rawPlans));
+        }
       }
-      if (statusData.success && statusData.entitlement) {
-        setEntitlement(statusData.entitlement);
+      if (statusData.success) {
+        const ent = statusData.data?.entitlement || statusData.entitlement;
+        if (ent) {
+          setEntitlement(ent);
+        }
       }
-      if (plansData.message) {
-        setPaymentNotice(plansData.message);
+      if (plansData.message || plansData.data?.student_notice) {
+        setPaymentNotice(plansData.message || plansData.data?.student_notice);
       }
     } catch (e: any) {
       console.warn("Premium fetch error:", e);
@@ -54,6 +62,23 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
   useEffect(() => {
     fetchPremiumStatus();
   }, []);
+
+  const handleCancelSubscription = async () => {
+    if (!confirm("Are you sure you want to cancel your VIP subscription renewal?")) return;
+    try {
+      const res = await fetch("/api/premium/cancel", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(data.data?.message || "Subscription cancelled", "info");
+        await fetchPremiumStatus();
+        await onRefreshUser();
+      } else {
+        onShowToast(data.error || "Failed to cancel subscription", "danger");
+      }
+    } catch (err: any) {
+      onShowToast(`Error: ${err.message}`, "danger");
+    }
+  };
 
   const handleSubscribe = async (planId: string) => {
     if (!user) {
@@ -85,7 +110,10 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
       }
 
       // If Razorpay order created and key_id available
-      if (data.order && data.key_id) {
+      const order = data.data || data.order;
+      const keyId = order?.key_id || data.key_id;
+
+      if (order && keyId) {
         // Load Razorpay checkout script if needed
         if (!window.Razorpay) {
           const script = document.createElement("script");
@@ -96,12 +124,12 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
         }
 
         const options = {
-          key: data.key_id,
-          amount: data.order.amount,
-          currency: data.order.currency,
-          name: "MusicMaid Pro",
+          key: keyId,
+          amount: order.amount,
+          currency: order.currency || "INR",
+          name: "MusicMaid Pro VIP",
           description: `${planId.toUpperCase()} Subscription Grant`,
-          order_id: data.order.id,
+          order_id: order.id || order.order_id,
           prefill: {
             name: user.username,
             email: user.email || `${user.username}@discord.user`,
@@ -112,7 +140,10 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
             const verifyRes = await fetch("/api/premium/verify", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(response),
+              body: JSON.stringify({
+                ...response,
+                plan_id: planId,
+              }),
             });
             const verifyData = await verifyRes.json();
             if (verifyData.success) {
@@ -177,7 +208,15 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
               </p>
             </div>
           </div>
-          <span className="chip-pill active text-xs font-bold px-4 py-1.5">PRO ACTIVE ✅</span>
+          <div className="flex items-center gap-3">
+            <span className="chip-pill active text-xs font-bold px-4 py-1.5">PRO ACTIVE ✅</span>
+            <button
+              onClick={handleCancelSubscription}
+              className="btn btn-secondary btn-sm text-xs text-rose-400 border-rose-500/30 hover:bg-rose-500/10"
+            >
+              Cancel Renewal
+            </button>
+          </div>
         </div>
       ) : null}
 
