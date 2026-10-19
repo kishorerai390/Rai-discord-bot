@@ -188,6 +188,43 @@ class TestSongSearchRanking(unittest.TestCase):
 
         asyncio.run(_test())
 
+    def test_01g_retries_an_unavailable_format_with_a_different_player_profile(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            options_used = []
+
+            def youtube_dl(options):
+                options_used.append(options)
+                ydl = MagicMock()
+                clients = options["extractor_args"]["youtube"]["player_client"]
+                if clients == ["ios", "android"]:
+                    ydl.extract_info.side_effect = RuntimeError("Requested format is not available")
+                else:
+                    ydl.extract_info.return_value = {
+                        "title": "Kalyani - Official Music Video",
+                        "webpage_url": "https://www.youtube.com/watch?v=original1234",
+                        "url": "https://audio.example/stream",
+                        "duration": 240,
+                        "uploader": "SingerVEVO",
+                    }
+                return ydl
+
+            with patch.object(
+                AudioResolver,
+                "search",
+                new_callable=AsyncMock,
+                return_value=[{"url": "https://www.youtube.com/watch?v=original1234"}],
+            ), patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", side_effect=youtube_dl):
+                track = await AudioResolver._execute_resolution_pipeline("Kalyani", 123, "Tester")
+
+            self.assertIsNotNone(track)
+            self.assertEqual(track.title, "Kalyani - Official Music Video")
+            self.assertTrue(track.stream_url)
+            self.assertGreaterEqual(len(options_used), 2)
+            self.assertEqual(options_used[0]["format"], "bestaudio/best")
+
+        asyncio.run(_test())
+
     # =========================================================================
     # 2. EXPLICIT REMIX REQUESTS
     # =========================================================================
