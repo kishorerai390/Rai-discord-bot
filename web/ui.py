@@ -296,6 +296,33 @@ UI_HTML = r"""<!DOCTYPE html>
       color: var(--cyan);
     }
 
+    /* GLOBAL SELECT & DROPDOWN STYLING */
+    select {
+      background: #0d0b18 !important;
+      color: #f8fafc !important;
+      border: 1px solid rgba(168, 85, 247, 0.3) !important;
+      border-radius: var(--radius-md) !important;
+      outline: none !important;
+      color-scheme: dark;
+    }
+    select:focus {
+      border-color: var(--cyan) !important;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+    }
+    select option {
+      background-color: #0e0b1c !important;
+      color: #f1f5f9 !important;
+      padding: 0.6rem 0.85rem !important;
+      font-size: 0.82rem !important;
+      font-weight: 500 !important;
+    }
+    select option:hover,
+    select option:focus,
+    select option:checked {
+      background: #7c3aed !important;
+      color: #ffffff !important;
+    }
+
     /* NAV LINKS LIST */
     .nav-group-title {
       font-size: 0.68rem;
@@ -2949,8 +2976,8 @@ UI_HTML = r"""<!DOCTYPE html>
           <span style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim);">Voice Channel</span>
           <span id="vc-refresh-btn" onclick="fetchVoiceChannels()" style="font-size:0.68rem; color:var(--cyan); cursor:pointer;" title="Refresh voice channels">🔄 Refresh</span>
         </div>
-        <select id="voice-channel-selector" onchange="onVoiceChannelSelect(this.value)" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-md); color:#fff; padding:0.45rem 0.65rem; font-size:0.78rem; font-weight:600; outline:none; cursor:pointer;">
-          <option value="">🔊 Auto-Detect Channel</option>
+        <select id="voice-channel-selector" onchange="onVoiceChannelSelect(this.value)" style="width:100%; background:#0e0b1c; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); color:#f8fafc; padding:0.5rem 0.75rem; font-size:0.8rem; font-weight:600; outline:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+          <option value="" style="background:#0e0b1c; color:#f8fafc;">🔊 Auto-Detect Channel</option>
         </select>
       </div>
 
@@ -3425,10 +3452,12 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success && json.data) {
           const channels = json.data.channels || [];
-          sel.innerHTML = '<option value="">🔊 Auto-Detect Channel</option>';
+          sel.innerHTML = '<option value="" style="background:#0e0b1c; color:#f8fafc;">🔊 Auto-Detect Channel</option>';
           channels.forEach(ch => {
             const opt = document.createElement('option');
             opt.value = ch.id;
+            opt.style.backgroundColor = '#0e0b1c';
+            opt.style.color = '#f8fafc';
             const listenerTag = ch.listeners > 0 ? ` (${ch.listeners} listening)` : '';
             const curTag = ch.is_current ? ' ★ Connected' : '';
             opt.textContent = `🔊 #${ch.name}${listenerTag}${curTag}`;
@@ -5502,18 +5531,18 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Control Mode</label>
-                    <select id="owner-pres-mode" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" onchange="togglePresenceModeUI()">
-                      <option value="dynamic" ${presence.mode === 'dynamic' ? 'selected' : ''}>⚡ Dynamic (Auto-Sync)</option>
-                      <option value="manual" ${presence.mode === 'manual' ? 'selected' : ''}>🔒 Manual (Override)</option>
+                    <select id="owner-pres-mode" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;" onchange="togglePresenceModeUI()">
+                      <option value="dynamic" style="background:#0e0b1c; color:#f8fafc;" ${presence.mode === 'dynamic' ? 'selected' : ''}>⚡ Dynamic (Auto-Sync)</option>
+                      <option value="manual" style="background:#0e0b1c; color:#f8fafc;" ${presence.mode === 'manual' ? 'selected' : ''}>🔒 Manual (Override)</option>
                     </select>
                   </div>
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Bot Status</label>
-                    <select id="owner-pres-status" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;">
-                      <option value="online" ${presence.status === 'online' ? 'selected' : ''}>🟢 Online</option>
-                      <option value="idle" ${presence.status === 'idle' ? 'selected' : ''}>🟡 Idle</option>
-                      <option value="dnd" ${presence.status === 'dnd' ? 'selected' : ''}>🔴 Do Not Disturb</option>
-                      <option value="invisible" ${presence.status === 'invisible' ? 'selected' : ''}>⚪ Invisible / Offline</option>
+                    <select id="owner-pres-status" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;">
+                      <option value="online" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'online' ? 'selected' : ''}>🟢 Online</option>
+                      <option value="idle" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'idle' ? 'selected' : ''}>🟡 Idle</option>
+                      <option value="dnd" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'dnd' ? 'selected' : ''}>🔴 Do Not Disturb</option>
+                      <option value="invisible" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'invisible' ? 'selected' : ''}>⚪ Invisible / Offline</option>
                     </select>
                   </div>
                 </div>
@@ -5521,12 +5550,12 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.8rem;">
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Activity Type</label>
-                    <select id="owner-pres-act-type" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;">
-                      <option value="listening" ${presence.activity_type === 'listening' ? 'selected' : ''}>🎧 Listening to</option>
-                      <option value="playing" ${presence.activity_type === 'playing' ? 'selected' : ''}>🎮 Playing</option>
-                      <option value="watching" ${presence.activity_type === 'watching' ? 'selected' : ''}>📺 Watching</option>
-                      <option value="competing" ${presence.activity_type === 'competing' ? 'selected' : ''}>🏆 Competing in</option>
-                      <option value="custom" ${presence.activity_type === 'custom' ? 'selected' : ''}>💬 Custom Status</option>
+                    <select id="owner-pres-act-type" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;">
+                      <option value="listening" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'listening' ? 'selected' : ''}>🎧 Listening to</option>
+                      <option value="playing" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'playing' ? 'selected' : ''}>🎮 Playing</option>
+                      <option value="watching" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'watching' ? 'selected' : ''}>📺 Watching</option>
+                      <option value="competing" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'competing' ? 'selected' : ''}>🏆 Competing in</option>
+                      <option value="custom" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'custom' ? 'selected' : ''}>💬 Custom Status</option>
                     </select>
                   </div>
                   <div>
