@@ -3156,7 +3156,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Listening Analytics</a></li>
         <li><a class="nav-link" id="nav-guilds" onclick="navigate('/guilds')"><span class="nav-icon">🏠</span> Servers</a></li>
         <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
-        <li><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🩺</span> System Health</a></li>
+        <li id="nav-system-li" style="display:none;"><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🩺</span> System Health</a></li>
       </ul>
 
       <!-- UTILITY QUICK ACCESS -->
@@ -4132,8 +4132,13 @@ UI_HTML = r"""<!DOCTYPE html>
     function renderAuthBox(user) {
       const el = document.getElementById('auth-box-sidebar');
       const ownerNavLi = document.getElementById('nav-owner-li');
+      const systemNavLi = document.getElementById('nav-system')?.parentElement;
+      const isOwnerUser = Boolean(user && (user.is_owner || user.is_admin));
       if (ownerNavLi) {
-        ownerNavLi.style.display = (user && (user.is_owner || user.is_admin)) ? 'block' : 'none';
+        ownerNavLi.style.display = isOwnerUser ? 'block' : 'none';
+      }
+      if (systemNavLi) {
+        systemNavLi.style.display = isOwnerUser ? 'block' : 'none';
       }
 
       if (user) {
@@ -5583,7 +5588,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <div id="self-healing-logs"></div>
                 </div>
                 <button class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; gap:0.4rem; font-size:0.78rem; font-weight:700;" id="btn-self-heal" onclick="triggerSelfHealingDoctor()">
-                  <span>🩺</span> Run Health Probe
+                  <span>${Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin)) ? '🩺' : '🔒'}</span> Run Health Probe ${Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin)) ? '' : '<span style="font-size:0.65rem; color:var(--text-dim);">(Owner Only)</span>'}
                 </button>
               </div>
 
@@ -5618,6 +5623,12 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function triggerSelfHealingDoctor() {
+      const isOwner = Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin));
+      if (!isOwner) {
+        showToast("🔒 Only the verified Bot Creator/Owner can run Extractor Health Probes.", "danger");
+        return;
+      }
+
       const btn = document.getElementById('btn-self-heal');
       const consoleEl = document.getElementById('self-healing-console');
       const logsEl = document.getElementById('self-healing-logs');
@@ -5627,8 +5638,21 @@ UI_HTML = r"""<!DOCTYPE html>
       if (logsEl) logsEl.innerHTML = `> Initiating Autonomous Extractor Self-Healing & PyPI Probe...<br>> [1/4] Probing YouTube n-sig & Node.js EJS challenge solver...`;
 
       try {
-        const res = await fetch('/api/music/extractor-health');
+        const res = await fetch('/api/music/extractor-health', {
+          headers: getAuthHeaders(),
+          credentials: 'include'
+        });
         const json = await res.json();
+        if (!res.ok || !json.success) {
+          const errMsg = json.error?.message || "Forbidden: Bot Owner privileges required";
+          if (logsEl) {
+            logsEl.innerHTML += `<br><span style="color:#ef4444; font-weight:700;">✕ Permission Denied: ${errMsg}</span>`;
+          }
+          if (btn) btn.disabled = false;
+          showToast(errMsg, "danger");
+          return;
+        }
+
         const d = json.data || {};
 
         setTimeout(() => {
@@ -5871,7 +5895,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-sm); padding:1rem; display:flex; flex-direction:column; gap:0.75rem;">
                 <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Live Discord Gateway State & Signature Symbol</span>
                 <div style="display:flex; align-items:center; gap:0.8rem;">
-                  <span style="font-size:1.8rem;" title="Discord Gateway Status Indicator">
+                  <span id="owner-pres-status-dot" style="font-size:1.8rem;" title="Discord Gateway Status Indicator">
                     ${presence.status === 'online' ? '🟢' : (presence.status === 'idle' ? '🟡' : (presence.status === 'dnd' ? '🔴' : '⚪'))}
                   </span>
                   <div style="display:flex; align-items:center; gap:0.6rem;">
@@ -5882,7 +5906,7 @@ UI_HTML = r"""<!DOCTYPE html>
                       <div id="owner-pres-live-act" style="font-weight:700; color:#fff; font-size:1.05rem;">
                         ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'MusicMaid Lossless Audio')}
                       </div>
-                      <div style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
+                      <div id="owner-pres-live-sub" style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
                         Status: ${presence.live_status || presence.status || 'online'} • Mode: ${presence.mode}
                       </div>
                     </div>
@@ -6266,6 +6290,19 @@ UI_HTML = r"""<!DOCTYPE html>
       if (hiddenInputId === 'owner-pres-mode') {
         const actInput = document.getElementById('owner-pres-act-text');
         if (val === 'manual' && actInput) actInput.focus();
+        const sub = document.getElementById('owner-pres-live-sub');
+        const st = document.getElementById('owner-pres-status')?.value || 'online';
+        if (sub) sub.innerText = `Status: ${st} • Mode: ${val}`;
+      } else if (hiddenInputId === 'owner-pres-status') {
+        const dot = document.getElementById('owner-pres-status-dot');
+        if (dot) dot.innerText = val === 'online' ? '🟢' : (val === 'idle' ? '🟡' : (val === 'dnd' ? '🔴' : '⚪'));
+        const sub = document.getElementById('owner-pres-live-sub');
+        const md = document.getElementById('owner-pres-mode')?.value || 'dynamic';
+        if (sub) sub.innerText = `Status: ${val} • Mode: ${md}`;
+      } else if (hiddenInputId === 'owner-pres-act-type') {
+        const actEl = document.getElementById('owner-pres-live-act');
+        const txt = document.getElementById('owner-pres-act-text')?.value || 'MusicMaid';
+        if (actEl) actEl.innerText = `${label}: ${txt}`;
       }
     }
 
@@ -8624,7 +8661,26 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     async function renderSystemHealth() {
       const container = document.getElementById('view-container');
-      const isOwner = Boolean(currentUser && currentUser.is_owner);
+      const isOwner = Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin));
+
+      if (!isOwner) {
+        container.innerHTML = `
+          <div class="view-fade-in" style="max-width:650px; margin:3rem auto; text-align:center;">
+            <div class="glass-card" style="padding:2.5rem; border:1px solid rgba(239,68,68,0.4); border-radius:var(--radius-lg); box-shadow:0 0 30px rgba(239,68,68,0.15);">
+              <div style="font-size:3rem; margin-bottom:0.8rem;">🔒</div>
+              <h2 style="color:#fff; font-weight:800; font-size:1.45rem;">Creator Privileges Required</h2>
+              <p style="color:var(--text-muted); font-size:0.88rem; margin:0.8rem 0 1.6rem 0; line-height:1.5;">
+                System Health, low-level server telemetry, and diagnostic hotfix runners are strictly restricted to the verified Bot Owner.
+              </p>
+              <div style="display:flex; justify-content:center; gap:0.8rem;">
+                <button class="btn btn-secondary btn-sm" onclick="navigate('/dashboard')">← Return to Dashboard</button>
+                <a class="btn btn-primary btn-sm" href="/api/auth/login" onclick="startDiscordLogin(event)">🔑 Creator Sign-In</a>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
 
       container.innerHTML = `
         <div class="view-fade-in" style="max-width:1120px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem; width:100%;">
@@ -8636,7 +8692,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <span>←</span> Back to App
               </a>
               <span class="chip-pill" style="color:#a855f7; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); font-weight:800; font-size:0.75rem;">
-                🛡️ Admin & Core Observability
+                🛡️ Creator Observability
               </span>
             </div>
 

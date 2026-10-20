@@ -1180,7 +1180,25 @@ class MusicApiRouter:
         return json_success(data)
 
     async def get_extractor_health(self, request: web.Request) -> web.Response:
-        """Detailed self-healing diagnostic on yt-dlp, JS solver, and PyPI release."""
+        """Detailed self-healing diagnostic on yt-dlp, JS solver, and PyPI release (Restricted to Bot Owner)."""
+        user = await self._get_current_user(request)
+        is_owner = False
+        if user:
+            from music_bot.config import is_bot_owner
+            uid = user.get("user_id") or user.get("id") or 0
+            if is_bot_owner(uid) or user.get("is_owner"):
+                is_owner = True
+            elif self.bot and hasattr(self.bot, "is_owner"):
+                try:
+                    import discord
+                    if await self.bot.is_owner(discord.Object(id=int(uid))):
+                        is_owner = True
+                except Exception:
+                    pass
+
+        if not is_owner:
+            return json_error("FORBIDDEN", "Only the verified bot owner can run extractor auto-updates and health probes.", 403)
+
         try:
             from music_bot.services.updater_service import MusicAutoUpdater
             info = await MusicAutoUpdater.check_ytdl_version()
