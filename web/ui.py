@@ -3078,7 +3078,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div style="margin: 0.1rem 0 0.55rem 0;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
           <span style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim);">Voice Channel</span>
-          <span id="vc-refresh-btn" onclick="fetchVoiceChannels()" style="font-size:0.68rem; color:var(--cyan); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;" title="Refresh voice channels">
+          <span id="vc-refresh-btn" onclick="fetchVoiceChannels(true)" style="font-size:0.68rem; color:var(--cyan); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;" title="Refresh voice channels">
             <span id="vc-refresh-icon">🔄</span> Refresh
           </span>
         </div>
@@ -3575,9 +3575,9 @@ UI_HTML = r"""<!DOCTYPE html>
       document.getElementById('vc-dropdown-menu')?.classList.remove('open');
     });
 
-    async function fetchVoiceChannels() {
+    async function fetchVoiceChannels(isManual = false) {
       const icon = document.getElementById('vc-refresh-icon');
-      if (icon) {
+      if (icon && isManual) {
         icon.style.display = 'inline-block';
         icon.style.transition = 'transform 0.5s ease';
         icon.style.transform = 'rotate(360deg)';
@@ -3624,12 +3624,16 @@ UI_HTML = r"""<!DOCTYPE html>
           }
 
           if (menu) menu.innerHTML = menuHtml;
-          showToast(`Refreshed ${cachedVoiceChannels.length} voice channels 🔊`, "info");
+          if (isManual) {
+            showToast(`Refreshed ${cachedVoiceChannels.length} voice channels 🔊`, "info");
+          }
         }
       } catch(e) {
-        showToast("Error refreshing voice channels", "warning");
+        if (isManual) {
+          showToast("Error refreshing voice channels", "warning");
+        }
       } finally {
-        if (icon) {
+        if (icon && isManual) {
           setTimeout(() => { icon.style.transform = 'none'; }, 550);
         }
       }
