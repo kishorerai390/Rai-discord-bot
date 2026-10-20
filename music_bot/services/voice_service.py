@@ -293,6 +293,7 @@ class VoiceManager:
         text_channel: Optional[discord.TextChannel] = None,
         session: Optional[GuildMusicSession] = None,
         target_channel: Optional[Union[discord.VoiceChannel, discord.StageChannel]] = None,
+        reuse_connected_only: bool = False,
     ) -> Optional[discord.VoiceClient]:
         """
         Ensure the bot connects to the target voice channel or invoking member's voice channel.
@@ -327,6 +328,19 @@ class VoiceManager:
                 except Exception as wait_err:
                     logger.debug(f"[Voice] Coalesced wait error for guild {guild_id}: {wait_err}")
             else:
+                if reuse_connected_only:
+                    connected_vc = guild.voice_client
+                    if connected_vc and connected_vc.is_connected():
+                        session.voice_client = connected_vc
+                        logger.info(
+                            f"[Voice] [Concurrency] Recovery for guild {guild_id} will not supersede "
+                            "a healthy connection task."
+                        )
+                        return (
+                            connected_vc
+                            if connected_vc.channel and connected_vc.channel.id == target_channel.id
+                            else None
+                        )
                 logger.info(
                     f"[Voice] [Concurrency] Superseding in-flight connection for guild {guild_id}: "
                     f"target channel changed to #{target_channel.name}"
@@ -340,6 +354,16 @@ class VoiceManager:
         # Acquire per-guild lock to ensure serialized connection lifecycles
         lock = cls._get_guild_lock(guild_id)
         async with lock:
+            if reuse_connected_only:
+                connected_vc = guild.voice_client
+                if connected_vc and connected_vc.is_connected():
+                    session.voice_client = connected_vc
+                    return (
+                        connected_vc
+                        if connected_vc.channel and connected_vc.channel.id == target_channel.id
+                        else None
+                    )
+
             # Re-check existing in-flight task after acquiring lock
             existing_task = cls._in_flight_tasks.get(guild_id)
             if existing_task and not existing_task.done():
@@ -351,7 +375,13 @@ class VoiceManager:
             # Create and register the in-flight worker task
             loop = asyncio.get_running_loop()
             task: asyncio.Task[Optional[discord.VoiceClient]] = loop.create_task(
-                cls._execute_join_pipeline(member, text_channel, session, target_channel=target_channel),
+                cls._execute_join_pipeline(
+                    member,
+                    text_channel,
+                    session,
+                    target_channel=target_channel,
+                    reuse_connected_only=reuse_connected_only,
+                ),
                 name=f"VoiceConnect-{guild_id}-{target_channel.id}",
             )
             cls._in_flight_tasks[guild_id] = task
@@ -370,6 +400,7 @@ class VoiceManager:
         text_channel: Optional[discord.TextChannel],
         session: GuildMusicSession,
         target_channel: Optional[Union[discord.VoiceChannel, discord.StageChannel]] = None,
+        reuse_connected_only: bool = False,
     ) -> Optional[discord.VoiceClient]:
         """Internal worker executing the voice connection sequence with granular diagnostic telemetry."""
         t_start = time.monotonic()
@@ -519,6 +550,14 @@ class VoiceManager:
                 telemetry.last_connected_at = time.time()
                 return existing_vc
 
+            if reuse_connected_only:
+                session.state = PlaybackState.PLAYING if existing_vc.is_playing() else PlaybackState.CONNECTED
+                logger.info(
+                    f"[Voice] [Recovery] Guild {guild_id} already has a healthy connection in another channel; "
+                    "leaving it untouched."
+                )
+                return None
+
             logger.info(
                 f"[Voice] [Stage 2: Channel Move] Moving VoiceClient from "
                 f"#{existing_vc.channel.name if existing_vc.channel else 'unknown'} to #{target_channel.name}..."
@@ -554,6 +593,29 @@ class VoiceManager:
         last_exception: Optional[Exception] = None
         current_stage = "Gateway Signaling"
 
+        async def preserve_recovery_connection_or_purge() -> Tuple[
+            bool, Optional[discord.VoiceClient]
+        ]:
+            current_vc = guild.voice_client
+            if reuse_connected_only and current_vc and current_vc.is_connected():
+                session.voice_client = current_vc
+                session.state = (
+                    PlaybackState.PLAYING if current_vc.is_playing() else PlaybackState.CONNECTED
+                )
+                telemetry.stage = "Connected (Recovery Preserved)"
+                telemetry.success = True
+                telemetry.elapsed_ms = (time.monotonic() - t_start) * 1000
+                telemetry.last_connected_at = time.time()
+                return (
+                    True,
+                    current_vc
+                    if current_vc.channel and current_vc.channel.id == target_channel.id
+                    else None,
+                )
+
+            await cls._purge_voice_client_state(guild)
+            return False, None
+
         for attempt in range(1, max_attempts + 1):
             t_attempt = time.monotonic()
             session.state = PlaybackState.CONNECTING
@@ -566,6 +628,22 @@ class VoiceManager:
                 f"[Voice] [Stage 3: Gateway Signaling] Guild {guild_id} | Connecting to #{target_channel.name} "
                 f"(Attempt {attempt}/{max_attempts}, timeout={connect_timeout}s)..."
             )
+
+            if reuse_connected_only:
+                connected_vc = guild.voice_client
+                if connected_vc and connected_vc.is_connected():
+                    session.voice_client = connected_vc
+                    session.state = (
+                        PlaybackState.PLAYING if connected_vc.is_playing() else PlaybackState.CONNECTED
+                    )
+                    if connected_vc.channel and connected_vc.channel.id == target_channel.id:
+                        return connected_vc
+                    logger.info(
+                        "[Voice] [Recovery] Guild %s acquired a healthy connection before reconnect; "
+                        "leaving it untouched.",
+                        guild_id,
+                    )
+                    return None
 
             # Ensure discord.py's internal state dict has no stale voice client key before connect()
             state = getattr(guild, "_state", None)
@@ -617,7 +695,7 @@ class VoiceManager:
 
             except asyncio.CancelledError:
                 logger.info(f"[Voice] Connection task cancelled for guild {guild_id}.")
-                await cls._purge_voice_client_state(guild)
+                await preserve_recovery_connection_or_purge()
                 telemetry.stage = "Cancelled"
                 raise
 
@@ -641,7 +719,9 @@ class VoiceManager:
                 # Desynchronization detected: purge stale state before retry
                 current_stage = "Gateway Voice State Desynchronization"
                 telemetry.stage = current_stage
-                await cls._purge_voice_client_state(guild)
+                preserved, recovery_client = await preserve_recovery_connection_or_purge()
+                if preserved:
+                    return recovery_client
 
                 if attempt < max_attempts:
                     backoff = (attempt * 1.0) + random.uniform(0.1, 0.4)
@@ -660,7 +740,9 @@ class VoiceManager:
                     f"[Voice] [Attempt {attempt} TIMEOUT] Guild {guild_id} | Failed at '{current_stage}' "
                     f"(flow_state={flow_name}) after {att_ms:.1f}ms (Timeout={connect_timeout}s)"
                 )
-                await cls._purge_voice_client_state(guild)
+                preserved, recovery_client = await preserve_recovery_connection_or_purge()
+                if preserved:
+                    return recovery_client
 
                 if attempt < max_attempts:
                     backoff = (attempt * 1.5) + random.uniform(0.2, 0.5)
@@ -674,7 +756,9 @@ class VoiceManager:
                 telemetry.stage = current_stage
                 telemetry.flow_state = flow_name
                 logger.error(f"[Voice] [Attempt {attempt} Error] Unexpected error at '{current_stage}': {e}", exc_info=True)
-                await cls._purge_voice_client_state(guild)
+                preserved, recovery_client = await preserve_recovery_connection_or_purge()
+                if preserved:
+                    return recovery_client
 
                 # Fast-fail without retries on unrecoverable/permanent errors
                 e_str = str(e).lower()

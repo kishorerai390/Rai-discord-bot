@@ -254,6 +254,10 @@ UI_HTML = r"""<!DOCTYPE html>
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.4; transform: scale(0.8); }
     }
+    @keyframes pulse-danger {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.82; }
+    }
     .server-dropdown-menu {
       position: absolute;
       top: 105%;
@@ -290,6 +294,33 @@ UI_HTML = r"""<!DOCTYPE html>
     .server-opt.selected {
       background: rgba(0, 229, 255, 0.18);
       color: var(--cyan);
+    }
+
+    /* GLOBAL SELECT & DROPDOWN STYLING */
+    select {
+      background: #0d0b18 !important;
+      color: #f8fafc !important;
+      border: 1px solid rgba(168, 85, 247, 0.3) !important;
+      border-radius: var(--radius-md) !important;
+      outline: none !important;
+      color-scheme: dark;
+    }
+    select:focus {
+      border-color: var(--cyan) !important;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+    }
+    select option {
+      background-color: #0e0b1c !important;
+      color: #f1f5f9 !important;
+      padding: 0.6rem 0.85rem !important;
+      font-size: 0.82rem !important;
+      font-weight: 500 !important;
+    }
+    select option:hover,
+    select option:focus,
+    select option:checked {
+      background: #7c3aed !important;
+      color: #ffffff !important;
     }
 
     /* NAV LINKS LIST */
@@ -1153,8 +1184,8 @@ UI_HTML = r"""<!DOCTYPE html>
         font-size: 1rem;
       }
       .p-btn-play {
-        width: 36px;
-        height: 36px;
+        width: 40px;
+        height: 40px;
         font-size: 1.1rem;
       }
       .player-status-left .chip-pill {
@@ -2292,8 +2323,32 @@ UI_HTML = r"""<!DOCTYPE html>
       transform: scale(0.96);
     }
     :focus-visible {
-      outline: 2px solid var(--primary);
-      outline-offset: 2px;
+      outline: 2px solid var(--cyan) !important;
+      outline-offset: 3px !important;
+      box-shadow: 0 0 10px rgba(0, 229, 255, 0.4) !important;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border-width: 0;
+    }
+    kbd {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 6px;
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
     }
 
     /* ALBUM ART CROSSFADE */
@@ -2921,8 +2976,8 @@ UI_HTML = r"""<!DOCTYPE html>
           <span style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim);">Voice Channel</span>
           <span id="vc-refresh-btn" onclick="fetchVoiceChannels()" style="font-size:0.68rem; color:var(--cyan); cursor:pointer;" title="Refresh voice channels">🔄 Refresh</span>
         </div>
-        <select id="voice-channel-selector" onchange="onVoiceChannelSelect(this.value)" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.15); border-radius:var(--radius-md); color:#fff; padding:0.45rem 0.65rem; font-size:0.78rem; font-weight:600; outline:none; cursor:pointer;">
-          <option value="">🔊 Auto-Detect Channel</option>
+        <select id="voice-channel-selector" onchange="onVoiceChannelSelect(this.value)" style="width:100%; background:#0e0b1c; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); color:#f8fafc; padding:0.5rem 0.75rem; font-size:0.8rem; font-weight:600; outline:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+          <option value="" style="background:#0e0b1c; color:#f8fafc;">🔊 Auto-Detect Channel</option>
         </select>
       </div>
 
@@ -2943,6 +2998,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Add Music</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
+        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">🎨</span> Stage Canvas</a></li>
       </ul>
 
       <!-- YOUR MUSIC -->
@@ -2963,7 +3019,10 @@ UI_HTML = r"""<!DOCTYPE html>
       <!-- SERVER (Visible to Admins / Managers) -->
       <span class="nav-group-title" style="margin-top:0.6rem;" id="nav-group-server-title">SERVER</span>
       <ul class="nav-list" id="nav-group-server-list">
+        <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Listening Analytics</a></li>
+        <li><a class="nav-link" id="nav-guilds" onclick="navigate('/guilds')"><span class="nav-icon">🏠</span> Servers</a></li>
         <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
+        <li><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🩺</span> System Health</a></li>
       </ul>
 
       <!-- UTILITY QUICK ACCESS -->
@@ -3050,48 +3109,60 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="player-divider"></div>
 
       <!-- TIER 2: PLAYBACK CONTROLS -->
-      <div class="player-tier-controls">
+      <div class="player-tier-controls" role="toolbar" aria-label="Audio Playback Controls">
         <div class="player-buttons-row">
-          <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue">🔀</button>
-          <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track">⏮</button>
-          <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause">▶</button>
-          <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track">⏭</button>
-          <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)">🔁</button>
+          <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue" aria-label="Shuffle Queue">🔀</button>
+          <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track" aria-label="Previous Track">⏮</button>
+          <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause" aria-label="Play or Pause Track">▶</button>
+          <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track" aria-label="Skip to Next Track">⏭</button>
+          <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)" aria-label="Toggle Loop Mode">🔁</button>
         </div>
       </div>
 
       <!-- TIER 3: FULL-WIDTH SCRUBBER -->
-      <div class="player-tier-scrub">
+      <div class="player-tier-scrub" role="region" aria-label="Track Progress">
         <div class="scrub-row">
-          <span class="scrub-time" id="scrub-current">0:00</span>
-          <input type="range" class="slider-track" id="scrub-slider" min="0" max="100" value="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)" title="Seek position">
-          <span class="scrub-time" id="scrub-total">0:00</span>
+          <span class="scrub-time" id="scrub-current" aria-hidden="true">0:00</span>
+          <input type="range" class="slider-track" id="scrub-slider" min="0" max="100" value="0" role="slider" aria-label="Seek position in track" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" oninput="onScrubInput(this.value)" onchange="onScrubChange(this.value)" title="Seek position">
+          <span class="scrub-time" id="scrub-total" aria-hidden="true">0:00</span>
         </div>
       </div>
 
       <!-- TIER 4: STATUS & UTILITIES -->
       <div class="player-tier-status">
         <div class="player-status-left">
-          <span class="player-queue-label" id="player-queue-count" onclick="navigate('/queue')" title="Click to view queue">Queue: 0 tracks</span>
-          <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer">🌙 Sleep</button>
-          <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics">🎤 Lyrics</button>
-          <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence">24/7 OFF</button>
-          <button class="chip-pill" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ">✨ Auto-DJ</button>
+          <span class="player-queue-label" id="player-queue-count" onclick="navigate('/queue')" title="Click to view queue" role="button" tabindex="0" aria-label="View current queue">Queue: 0 tracks</span>
+          <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer" aria-label="Set Sleep Timer">🌙 Sleep</button>
+          <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics" aria-label="Open Lyrics Dialog">🎤 Lyrics</button>
+          <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence" aria-label="Toggle 24/7 Voice Channel Persistence">24/7 OFF</button>
+          <button class="chip-pill" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ" aria-label="Toggle Endless Smart Auto-DJ">✨ Auto-DJ</button>
+          <button class="chip-pill" id="btn-shortcuts-pill" onclick="openShortcutsModal()" title="Keyboard Shortcuts (Press ?)" aria-label="Keyboard Shortcuts (Press ?)">⌨️ Hotkeys</button>
         </div>
         <div class="player-bar-right">
-          <button class="p-btn" onclick="navigate('/queue')" title="Open Queue Drawer">≡♪</button>
+          <button class="p-btn" onclick="navigate('/queue')" title="Open Queue Drawer" aria-label="Open Queue Drawer">≡♪</button>
           <div class="vol-wrapper">
-            <span id="vol-icon" onclick="quickMute()" style="cursor:pointer;" title="Mute / Unmute">🔊</span>
-            <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
+            <span id="vol-icon" onclick="quickMute()" style="cursor:pointer;" title="Mute / Unmute" aria-label="Toggle Audio Mute" role="button" tabindex="0">🔊</span>
+            <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" role="slider" aria-label="Audio playback volume" aria-valuemin="0" aria-valuemax="150" aria-valuenow="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
           </div>
-          <button class="p-btn" id="btn-fullscreen-player" onclick="toggleFullscreenPlayer()" title="Toggle Fullscreen">⤢</button>
+          <button class="p-btn" id="btn-fullscreen-player" onclick="toggleFullscreenPlayer()" title="Toggle Fullscreen" aria-label="Toggle Fullscreen Mode">⤢</button>
         </div>
       </div>
     </div>
   </footer>
 
+  <!-- PHASE 9: NETWORK STATUS BAR -->
+  <div id="network-status-bar" role="alert" aria-live="assertive" aria-hidden="true" style="
+    display:none; position:fixed; top:0; left:0; right:0; z-index:9999;
+    background:linear-gradient(90deg,#ef4444,#dc2626);
+    color:#fff; font-size:0.82rem; font-weight:600; letter-spacing:0.03em;
+    align-items:center; justify-content:center; gap:0.5rem;
+    padding:0.55rem 1rem; text-align:center;
+    box-shadow:0 2px 16px rgba(239,68,68,0.5); animation:pulse-danger 2s infinite;">
+    ⚡ No internet connection — playback controls unavailable until reconnected
+  </div>
+
   <!-- TOAST CONTAINER -->
-  <div id="toast-container"></div>
+  <div id="toast-container" role="status" aria-live="polite"></div>
 
   <!-- PLAYLIST SAVE MODAL -->
   <div class="modal-backdrop" id="playlist-modal">
@@ -3208,6 +3279,56 @@ UI_HTML = r"""<!DOCTYPE html>
       </div>
       <div style="display:flex; justify-content:flex-end; margin-top:0.8rem;">
         <button class="btn btn-secondary btn-sm" onclick="closeLyricsModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYBOARD SHORTCUTS MODAL -->
+  <div class="modal-backdrop" id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
+    <div class="modal-content" style="max-width:540px; padding:1.8rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div class="section-title" id="shortcuts-modal-title" style="font-size:1.25rem;"><span>⌨️</span> Accessibility & Hotkeys</div>
+        <button class="btn btn-secondary btn-sm" onclick="closeShortcutsModal()" aria-label="Close shortcuts dialog">✕</button>
+      </div>
+      <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1.2rem;">
+        Control MusicMaid directly from your keyboard for ultra-fast, hands-free operation:
+      </p>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.4rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Play / Pause</span>
+          <kbd>Space</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Next Track</span>
+          <kbd>→</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Previous Track</span>
+          <kbd>←</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Mute / Unmute</span>
+          <kbd>M</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Live Lyrics</span>
+          <kbd>L</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Queue View</span>
+          <kbd>Q</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Quick Search</span>
+          <kbd>/</kbd>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
+          <span style="font-size:0.82rem; color:#cbd5e1;">Close Dialogs</span>
+          <kbd>Esc</kbd>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn btn-secondary btn-sm" onclick="closeShortcutsModal()">Got It</button>
       </div>
     </div>
   </div>
@@ -3331,10 +3452,12 @@ UI_HTML = r"""<!DOCTYPE html>
         const json = await res.json();
         if (json.success && json.data) {
           const channels = json.data.channels || [];
-          sel.innerHTML = '<option value="">🔊 Auto-Detect Channel</option>';
+          sel.innerHTML = '<option value="" style="background:#0e0b1c; color:#f8fafc;">🔊 Auto-Detect Channel</option>';
           channels.forEach(ch => {
             const opt = document.createElement('option');
             opt.value = ch.id;
+            opt.style.backgroundColor = '#0e0b1c';
+            opt.style.color = '#f8fafc';
             const listenerTag = ch.listeners > 0 ? ` (${ch.listeners} listening)` : '';
             const curTag = ch.is_current ? ' ★ Connected' : '';
             opt.textContent = `🔊 #${ch.name}${listenerTag}${curTag}`;
@@ -3407,14 +3530,23 @@ UI_HTML = r"""<!DOCTYPE html>
       // Fast polling fallback (every 3 seconds)
       pollTimer = setInterval(syncAll, 3000);
 
-      // Spacebar Play/Pause Shortcut
-      window.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        if (e.code === 'Space') {
-          e.preventDefault();
-          togglePlayPause();
-        }
-      });
+      // ── Phase 9: Network Status Detection ──────────────────────────────────
+      function onNetworkOffline() {
+        const bar = document.getElementById('network-status-bar');
+        if (bar) { bar.style.display = 'flex'; bar.setAttribute('aria-hidden', 'false'); }
+        showToast("⚠️ You're offline — player controls require an internet connection.", "warning");
+      }
+      function onNetworkOnline() {
+        const bar = document.getElementById('network-status-bar');
+        if (bar) { bar.style.display = 'none'; bar.setAttribute('aria-hidden', 'true'); }
+        showToast("✅ Back online! Reconnecting...");
+        syncAll();
+        setupRealtimeWebSocket();
+      }
+      window.addEventListener('offline', onNetworkOffline);
+      window.addEventListener('online', onNetworkOnline);
+      // Check initial state
+      if (!navigator.onLine) onNetworkOffline();
     });
 
     // =========================================================================
@@ -4173,6 +4305,8 @@ UI_HTML = r"""<!DOCTYPE html>
 
     function onScrubInput(val) {
       isScrubbing = true;
+      const el = document.getElementById('scrub-slider');
+      if (el) el.setAttribute('aria-valuenow', val);
       if (trackDurationSeconds > 0) {
         playbackSeconds = Math.floor((val / 100) * trackDurationSeconds);
         document.getElementById('scrub-current').innerText = formatTime(playbackSeconds);
@@ -4181,6 +4315,8 @@ UI_HTML = r"""<!DOCTYPE html>
 
     async function onScrubChange(val) {
       isScrubbing = false;
+      const el = document.getElementById('scrub-slider');
+      if (el) el.setAttribute('aria-valuenow', val);
       if (trackDurationSeconds > 0) {
         const targetSec = Math.floor((val / 100) * trackDurationSeconds);
         await dispatchCmd('SEEK', { seconds: targetSec });
@@ -4188,17 +4324,28 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function onVolumeChange(val) {
+      const el = document.getElementById('vol-slider');
+      if (el) el.setAttribute('aria-valuenow', val);
+      const icon = document.getElementById('vol-icon');
+      if (icon) icon.innerText = parseInt(val) === 0 ? '🔇' : (parseInt(val) < 50 ? '🔉' : '🔊');
       await dispatchCmd('VOLUME', { volume: parseInt(val) });
     }
 
+    let previousVolumeBeforeMute = 80;
     function quickMute() {
       const slider = document.getElementById('vol-slider');
-      if (parseInt(slider.value) > 0) {
+      if (!slider) return;
+      const curr = parseInt(slider.value) || 0;
+      if (curr > 0) {
+        previousVolumeBeforeMute = curr;
         slider.value = 0;
         onVolumeChange(0);
+        showToast("Muted audio 🔇", "info");
       } else {
-        slider.value = 80;
-        onVolumeChange(80);
+        const restored = previousVolumeBeforeMute > 0 ? previousVolumeBeforeMute : 80;
+        slider.value = restored;
+        onVolumeChange(restored);
+        showToast(`Volume unmuted (${restored}%) 🔊`, "info");
       }
     }
 
@@ -4266,8 +4413,67 @@ UI_HTML = r"""<!DOCTYPE html>
       toggleMobileSidebar(false);
     }
 
+    // =========================================================================
+    // GLOBAL KEYBOARD SHORTCUT ENGINE (Phase 8 Accessibility)
+    // =========================================================================
+    function openShortcutsModal() {
+      document.getElementById('shortcuts-modal')?.classList.add('open');
+    }
+    function closeShortcutsModal() {
+      document.getElementById('shortcuts-modal')?.classList.remove('open');
+    }
+
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeMobileSidebar();
+      // Skip if user is actively typing in an input field
+      const tag = e.target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
+
+      switch (e.key) {
+        case 'Escape':
+          closeMobileSidebar();
+          closeShortcutsModal();
+          document.getElementById('lyrics-modal')?.classList.remove('open');
+          document.getElementById('sleep-modal')?.classList.remove('open');
+          document.getElementById('soundboard-modal')?.classList.remove('open');
+          document.getElementById('playlist-modal')?.classList.remove('open');
+          document.getElementById('commands-modal')?.classList.remove('open');
+          break;
+        case ' ':
+        case 'k':
+          if (e.key === ' ') e.preventDefault();
+          togglePlayPause();
+          break;
+        case 'ArrowRight':
+          if (!e.shiftKey) { e.preventDefault(); dispatchCmd('SKIP'); }
+          break;
+        case 'ArrowLeft':
+          if (!e.shiftKey) { e.preventDefault(); dispatchCmd('PREVIOUS'); }
+          break;
+        case 'm':
+        case 'M':
+          quickMute();
+          break;
+        case 'l':
+        case 'L':
+          openLyricsModal();
+          break;
+        case 'q':
+        case 'Q':
+          navigate('/queue');
+          break;
+        case '/':
+          e.preventDefault();
+          navigate('/search');
+          setTimeout(() => document.getElementById('live-search-input')?.focus(), 150);
+          break;
+        case '?':
+          openShortcutsModal();
+          break;
+        case 'f':
+        case 'F':
+          toggleFullscreenPlayer();
+          break;
+      }
     });
 
     // =========================================================================
@@ -5325,18 +5531,18 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Control Mode</label>
-                    <select id="owner-pres-mode" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" onchange="togglePresenceModeUI()">
-                      <option value="dynamic" ${presence.mode === 'dynamic' ? 'selected' : ''}>⚡ Dynamic (Auto-Sync)</option>
-                      <option value="manual" ${presence.mode === 'manual' ? 'selected' : ''}>🔒 Manual (Override)</option>
+                    <select id="owner-pres-mode" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;" onchange="togglePresenceModeUI()">
+                      <option value="dynamic" style="background:#0e0b1c; color:#f8fafc;" ${presence.mode === 'dynamic' ? 'selected' : ''}>⚡ Dynamic (Auto-Sync)</option>
+                      <option value="manual" style="background:#0e0b1c; color:#f8fafc;" ${presence.mode === 'manual' ? 'selected' : ''}>🔒 Manual (Override)</option>
                     </select>
                   </div>
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Bot Status</label>
-                    <select id="owner-pres-status" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;">
-                      <option value="online" ${presence.status === 'online' ? 'selected' : ''}>🟢 Online</option>
-                      <option value="idle" ${presence.status === 'idle' ? 'selected' : ''}>🟡 Idle</option>
-                      <option value="dnd" ${presence.status === 'dnd' ? 'selected' : ''}>🔴 Do Not Disturb</option>
-                      <option value="invisible" ${presence.status === 'invisible' ? 'selected' : ''}>⚪ Invisible / Offline</option>
+                    <select id="owner-pres-status" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;">
+                      <option value="online" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'online' ? 'selected' : ''}>🟢 Online</option>
+                      <option value="idle" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'idle' ? 'selected' : ''}>🟡 Idle</option>
+                      <option value="dnd" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'dnd' ? 'selected' : ''}>🔴 Do Not Disturb</option>
+                      <option value="invisible" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'invisible' ? 'selected' : ''}>⚪ Invisible / Offline</option>
                     </select>
                   </div>
                 </div>
@@ -5344,12 +5550,12 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.8rem;">
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Activity Type</label>
-                    <select id="owner-pres-act-type" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;">
-                      <option value="listening" ${presence.activity_type === 'listening' ? 'selected' : ''}>🎧 Listening to</option>
-                      <option value="playing" ${presence.activity_type === 'playing' ? 'selected' : ''}>🎮 Playing</option>
-                      <option value="watching" ${presence.activity_type === 'watching' ? 'selected' : ''}>📺 Watching</option>
-                      <option value="competing" ${presence.activity_type === 'competing' ? 'selected' : ''}>🏆 Competing in</option>
-                      <option value="custom" ${presence.activity_type === 'custom' ? 'selected' : ''}>💬 Custom Status</option>
+                    <select id="owner-pres-act-type" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;">
+                      <option value="listening" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'listening' ? 'selected' : ''}>🎧 Listening to</option>
+                      <option value="playing" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'playing' ? 'selected' : ''}>🎮 Playing</option>
+                      <option value="watching" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'watching' ? 'selected' : ''}>📺 Watching</option>
+                      <option value="competing" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'competing' ? 'selected' : ''}>🏆 Competing in</option>
+                      <option value="custom" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'custom' ? 'selected' : ''}>💬 Custom Status</option>
                     </select>
                   </div>
                   <div>

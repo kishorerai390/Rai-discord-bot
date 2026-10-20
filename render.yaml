@@ -1,54 +1,78 @@
 services:
   - type: web
-    name: musicmaid-bot
+    name: rai-discord-bot
     env: python
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
     startCommand: python main.py
+    healthCheckPath: /api/health
     envVars:
+      # ── Python Runtime ──────────────────────────────────────────────────────
       - key: PYTHON_VERSION
         value: 3.11.9
+
+      # ── Discord Bot Tokens (set in Render Dashboard > Environment) ──────────
       - key: MUSIC_BOT_TOKEN
         sync: false
       - key: NEKO_SONGS_BOT_TOKEN
         sync: false
+
+      # ── Discord Application ─────────────────────────────────────────────────
       - key: APPLICATION_ID
         value: 1556676516274905218
-      - key: BOT_NAME
-        value: MusicMaid
-      - key: EMBED_COLOR
-        value: 0x00E5FF
-      - key: LOG_LEVEL
-        value: INFO
-      - key: MUSIC_DATABASE_PATH
-        value: data/music.db
-      - key: COMMAND_SYNC_MODE
-        value: global
-      - key: BOT_OWNER_ID
-        value: "1457380609641938981"
-      - key: YOUTUBE_COOKIES
-        sync: false
       - key: DISCORD_CLIENT_ID
         value: 1556676516274905218
       - key: DISCORD_CLIENT_SECRET
         sync: false
+
+      # ── Web OAuth2 Redirect & Public URL ────────────────────────────────────
+      # Set DISCORD_REDIRECT_URI to: https://<your-render-subdomain>.onrender.com/api/auth/callback
       - key: DISCORD_REDIRECT_URI
         sync: false
       - key: PUBLIC_BASE_URL
         sync: false
-      - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_PUBLISHABLE_KEY
-        sync: false
-      - key: STRIPE_WEBHOOK_SECRET
-        sync: false
+
+      # ── Session Security (generate a strong random secret) ──────────────────
       - key: SESSION_SECRET
         sync: false
+
+      # ── Bot Identity & Configuration ────────────────────────────────────────
+      - key: BOT_NAME
+        value: MusicMaid
+      - key: BOT_OWNER_ID
+        value: "1457380609641938981"
+      - key: BOT_OWNER_IDS
+        value: "1457380609641938981"
+      - key: EMBED_COLOR
+        value: "0x00E5FF"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: COMMAND_SYNC_MODE
+        value: global
+
+      # ── Database Paths ───────────────────────────────────────────────────────
+      - key: MUSIC_DATABASE_PATH
+        value: data/music.db
+      - key: DATABASE_PATH
+        value: data/bot.db
+
+      # ── YouTube / Audio ──────────────────────────────────────────────────────
+      # Paste Netscape-format cookies here to bypass YouTube datacenter blocks
+      - key: YOUTUBE_COOKIES
+        sync: false
+
+      # ── Community & Support ──────────────────────────────────────────────────
+      - key: SUPPORT_INVITE_URL
+        value: "https://discord.gg/d7T8cJK3XF"
+      - key: COMMUNITY_GUILD_ID
+        value: "1494692962041467005"
+
+      # ── Payments (disabled by default for showcase mode) ─────────────────────
       - key: PAYMENTS_ENABLED
         value: "false"
       - key: PAYMENT_PROVIDER
-        value: "razorpay"
+        value: razorpay
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
@@ -56,3 +80,10 @@ services:
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
 
+      # ── Stripe (optional alternative) ────────────────────────────────────────
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

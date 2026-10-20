@@ -1546,6 +1546,22 @@ class MusicDatabase:
                 rows = await cur.fetchall()
                 return [dict(r) for r in rows]
 
+    async def search_history(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Search tracks in playback history by title or artist."""
+        if not self._db:
+            return []
+        q = f"%{query.strip()}%"
+        async with self._lock:
+            async with self._db.execute("""
+                SELECT DISTINCT title, artist, url
+                FROM music_history
+                WHERE title LIKE ? OR artist LIKE ?
+                ORDER BY id DESC
+                LIMIT ?
+            """, (q, q, limit)) as cur:
+                rows = await cur.fetchall()
+                return [dict(r) for r in rows]
+
     async def clear_history(self, guild_id: int) -> int:
         """Clear playback history for a guild."""
         async with self._lock:

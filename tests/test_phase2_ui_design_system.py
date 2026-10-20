@@ -26,7 +26,7 @@ def test_phase2_reduced_motion_and_accessibility():
     assert "@media (prefers-reduced-motion: reduce)" in UI_HTML
     assert "animation-duration: 0.01ms !important;" in UI_HTML
     assert ":focus-visible" in UI_HTML
-    assert "outline: 2px solid var(--primary);" in UI_HTML
+    assert "outline: 2px solid var(--cyan) !important;" in UI_HTML
 
 
 def test_phase2_skeleton_and_animations():

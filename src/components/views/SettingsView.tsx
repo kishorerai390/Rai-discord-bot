@@ -13,6 +13,7 @@ interface SettingsViewProps {
 
 export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) {
   const [settings, setSettings] = useState<GuildSettings | null>(null);
+  const [initialSettings, setInitialSettings] = useState<GuildSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -23,6 +24,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
       const json = await res.json();
       if (json.success && json.data) {
         setSettings(json.data);
+        setInitialSettings(json.data);
       } else {
         onShowToast(json.error || "Failed to load guild settings", "danger");
       }
@@ -37,6 +39,10 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
     fetchSettings();
   }, [guildId]);
 
+  const isDirty =
+    Boolean(settings && initialSettings) &&
+    JSON.stringify(settings) !== JSON.stringify(initialSettings);
+
   const handleSave = async () => {
     if (!settings) return;
     setSaving(true);
@@ -48,6 +54,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
       });
       const json = await res.json();
       if (json.success) {
+        setInitialSettings(settings);
         onShowToast("Server administrator settings saved successfully! ✦", "success");
       } else {
         onShowToast(json.error?.message || json.error || "Save failed", "danger");
@@ -62,15 +69,15 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-        <div className="w-8 h-8 rounded-full border-2 border-[var(--primary)] border-t-transparent animate-spin" />
-        <p className="text-sm text-[var(--text-muted)]">Loading Server Administration Settings...</p>
+        <div className="w-8 h-8 rounded-full border-2 border-(--primary) border-t-transparent animate-spin" />
+        <p className="text-sm text-(--text-muted)">Loading Server Administration Settings...</p>
       </div>
     );
   }
 
   if (!settings) {
     return (
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-8 text-center backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-8 text-center backdrop-blur-xl">
         <p className="text-rose-400 font-semibold">Failed to load server settings.</p>
         <button onClick={fetchSettings} className="btn btn-secondary btn-sm mt-3">
           <RefreshCw className="w-4 h-4" /> Try Again
@@ -82,13 +89,13 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">
       {/* HEADER CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white flex items-center gap-2">
             <Sliders className="w-6 h-6 text-purple-400" />
             <span>Server Administrator Dashboard</span>
           </h2>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
+          <p className="text-xs text-(--text-muted) mt-1">
             Configure authoritative playback parameters, 24/7 staying lock, and DJ role permissions for guild ID: {guildId}.
           </p>
         </div>
@@ -103,11 +110,13 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="btn btn-primary btn-sm flex items-center gap-1.5"
+            disabled={saving || !isDirty}
+            className={`btn btn-primary btn-sm flex items-center gap-1.5 transition-all ${
+              !isDirty ? "opacity-50 cursor-not-allowed" : "shadow-lg shadow-purple-600/30"
+            }`}
           >
             <Check className="w-4 h-4" />
-            <span>{saving ? "Saving..." : "Save Settings"}</span>
+            <span>{saving ? "Saving..." : isDirty ? "Save Settings *" : "Settings Saved"}</span>
           </button>
         </div>
       </div>
@@ -115,7 +124,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
       {/* SETTINGS MODULES */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* VOICE & 24/7 SETTINGS */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col gap-4">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col gap-4">
           <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
             <Radio className="w-5 h-5 text-cyan-400" />
             <span>Voice & Session Persistence</span>
@@ -125,7 +134,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-white">24/7 Voice Lock</div>
-              <div className="text-xs text-[var(--text-muted)]">Keep bot connected in voice channel indefinitely</div>
+              <div className="text-xs text-(--text-muted)">Keep bot connected in voice channel indefinitely</div>
             </div>
             <input
               type="checkbox"
@@ -141,7 +150,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-white">Auto-Leave on Empty Voice</div>
-              <div className="text-xs text-[var(--text-muted)]">Leave voice channel when all human listeners depart</div>
+              <div className="text-xs text-(--text-muted)">Leave voice channel when all human listeners depart</div>
             </div>
             <input
               type="checkbox"
@@ -174,7 +183,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
         </div>
 
         {/* AUDIO & VOLUME SETTINGS */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col gap-4">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col gap-4">
           <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
             <Volume2 className="w-5 h-5 text-emerald-400" />
             <span>Audio & Output Volume</span>
@@ -196,14 +205,14 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
               }
               className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400"
             />
-            <span className="text-[10px] text-[var(--text-dim)]">Standard: 1-100% • VIP Boost: Up to 150%</span>
+            <span className="text-[10px] text-(--text-dim)">Standard: 1-100% • VIP Boost: Up to 150%</span>
           </div>
 
           {/* Autoplay toggle */}
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-white">Autoplay & Smart Auto-DJ</div>
-              <div className="text-xs text-[var(--text-muted)]">Automatically stream recommended songs when queue is empty</div>
+              <div className="text-xs text-(--text-muted)">Automatically stream recommended songs when queue is empty</div>
             </div>
             <input
               type="checkbox"
@@ -229,7 +238,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
         </div>
 
         {/* DJ ROLE & RBAC PERMISSIONS */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col gap-4">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col gap-4">
           <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
             <Shield className="w-5 h-5 text-amber-400" />
             <span>DJ Role & RBAC Access Control</span>
@@ -239,7 +248,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="text-sm font-semibold text-white">Enforce DJ Permissions</div>
-              <div className="text-xs text-[var(--text-muted)]">Restrict skip, stop, clear, and volume to DJ role or administrators</div>
+              <div className="text-xs text-(--text-muted)">Restrict skip, stop, clear, and volume to DJ role or administrators</div>
             </div>
             <input
               type="checkbox"
@@ -288,7 +297,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
         </div>
 
         {/* BOUND COMMAND CHANNELS */}
-        <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col gap-4">
+        <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col gap-4">
           <h3 className="text-base font-bold text-white flex items-center gap-2 border-b border-white/5 pb-2">
             <Lock className="w-5 h-5 text-rose-400" />
             <span>Bound Channels & Restrictions</span>
@@ -305,7 +314,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
               }
               className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs font-mono"
             />
-            <span className="text-[10px] text-[var(--text-dim)]">
+            <span className="text-[10px] text-(--text-dim)">
               When specified, bot commands and player panels are restricted to this channel.
             </span>
           </div>

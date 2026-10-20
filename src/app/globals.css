@@ -195,3 +195,21 @@ body {
   background: rgba(239, 68, 68, 0.4);
   color: #fff;
 }
+
+/* Global Select & Option styling */
+select {
+  background-color: #0e0b1c !important;
+  color: #f8fafc !important;
+  color-scheme: dark;
+}
+
+select option {
+  background-color: #0e0b1c !important;
+  color: #f8fafc !important;
+}
+
+select option:checked,
+select option:hover {
+  background-color: #7c3aed !important;
+  color: #ffffff !important;
+}

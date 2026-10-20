@@ -154,6 +154,10 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         mock_vc.is_connected.return_value = True
         mock_join.return_value = mock_vc
 
+        session = self.session_manager.get_session_sync(999888777)
+        if session:
+            session.reset()
+
         sample_track = QueuedTrack(
             title="Futuristic Synth Groove",
             url="https://youtube.com/watch?v=123",
@@ -165,7 +169,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         )
         mock_resolve.return_value = sample_track
 
-        await self.cog.alias_play.callback(self.cog, self.interaction, query="synth groove")
+        await self.cog.alias_play.callback(self.cog, self.interaction, "synth groove")
 
         # Must have deferred immediately
         self.response.defer.assert_awaited()
@@ -183,7 +187,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         mock_join.return_value = mock_vc
         mock_resolve.side_effect = asyncio.TimeoutError()
 
-        await self.cog.alias_play.callback(self.cog, self.interaction, query="extremely slow track")
+        await self.cog.alias_play.callback(self.cog, self.interaction, "extremely slow track")
 
         # Must have deferred immediately
         self.response.defer.assert_awaited()
@@ -198,7 +202,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         """Verify /play immediately responds when user is not connected to voice."""
         self.user.voice = None
 
-        await self.cog.alias_play.callback(self.cog, self.interaction, query="lofi beats")
+        await self.cog.alias_play.callback(self.cog, self.interaction, "lofi beats")
 
         self.response.defer.assert_awaited()
         # After defer is_done=True → send_ephemeral_or_fallback routes to followup.send
@@ -367,7 +371,7 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
 
         # Execute 5 concurrent /play commands
         tasks = [
-            self.cog.alias_play.callback(self.cog, inter, query=f"song {idx}")
+            self.cog.alias_play.callback(self.cog, inter, f"song {idx}")
             for idx, inter in enumerate(interactions)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -378,6 +382,140 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         for inter in interactions:
             inter.response.defer.assert_awaited()
             inter.edit_original_response.assert_awaited()
+
+    # =========================================================================
+    # 7. MM-855661 REGRESSION SUITE (TIMEOUTS, RETRY, DEDUPLICATION & RECOVERY)
+    # =========================================================================
+
+    @patch("music_bot.services.resolver_service._run_ytdlp")
+    async def test_search_transient_failure_followed_by_success(self, mock_run):
+        """Verify AudioResolver.search falls back to secondary profile retry on primary failure."""
+        AudioResolver.clear_caches()
+        # First call fails with TimeoutError, second call (retry) succeeds
+        mock_run.side_effect = [
+            asyncio.TimeoutError("Primary search timed out"),
+            {
+                "entries": [
+                    {
+                        "id": "kal123",
+                        "title": "Kalyani",
+                        "uploader": "Carnatic Official",
+                        "duration": 240,
+                        "webpage_url": "https://www.youtube.com/watch?v=kal123",
+                    }
+                ]
+            },
+        ]
+
+        results = await AudioResolver.search("kalyani", limit=5)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["id"], "kal123")
+        self.assertEqual(results[0]["title"], "Kalyani")
+        self.assertEqual(mock_run.call_count, 2)
+        AudioResolver.clear_caches()
+
+    @patch("music_bot.services.resolver_service._run_ytdlp")
+    async def test_search_retry_limit_reached_returns_empty(self, mock_run):
+        """Verify AudioResolver.search returns empty list gracefully when primary and retry fail."""
+        AudioResolver.clear_caches()
+        mock_run.side_effect = [
+            asyncio.TimeoutError("Primary search timed out"),
+            asyncio.TimeoutError("Retry search timed out"),
+        ]
+
+        results = await AudioResolver.search("kalyani", limit=5)
+        self.assertEqual(results, [])
+        self.assertEqual(mock_run.call_count, 2)
+        AudioResolver.clear_caches()
+
+    @patch("music_bot.services.resolver_service._run_ytdlp")
+    async def test_search_in_flight_deduplication(self, mock_run):
+        """Verify concurrent searches for the same query join the in-flight task without duplicating worker calls."""
+        AudioResolver.clear_caches()
+
+        async def _delayed_run(*args, **kwargs):
+            await asyncio.sleep(0.05)
+            return {
+                "entries": [
+                    {
+                        "id": "kal_dedup",
+                        "title": "Kalyani - Official Audio",
+                        "uploader": "Classical Music Official",
+                        "channel": "Classical Music Official",
+                        "channel_is_verified": True,
+                        "duration": 300,
+                        "webpage_url": "https://www.youtube.com/watch?v=kal_dedup",
+                    }
+                ]
+            }
+
+        mock_run.side_effect = _delayed_run
+
+        t1 = asyncio.create_task(AudioResolver.search("kalyani", limit=5))
+        t2 = asyncio.create_task(AudioResolver.search("kalyani", limit=5))
+        res1, res2 = await asyncio.gather(t1, t2)
+
+        self.assertEqual(len(res1), 1)
+        self.assertEqual(len(res2), 1)
+        self.assertEqual(res1[0]["id"], "kal_dedup")
+        self.assertEqual(res2[0]["id"], "kal_dedup")
+        # Both coroutines shared the single worker invocation
+        self.assertEqual(mock_run.call_count, 1)
+        AudioResolver.clear_caches()
+
+    @patch("music_bot.services.resolver_service._run_ytdlp")
+    async def test_stream_extraction_timeout_distinct_error_diagnostic(self, mock_run):
+        """Verify that when stream extraction times out, a distinct [TIMEOUT] diagnostic is produced."""
+        AudioResolver.clear_caches()
+        async def _mock_run(func, *, operation, **kwargs):
+            if operation in ("search", "search_retry", "search_fallback"):
+                return {
+                    "entries": [
+                        {
+                            "id": "stream_slow_id",
+                            "title": "Kalyani - Official Video",
+                            "uploader": "Carnatic Official",
+                            "channel": "Carnatic Official",
+                            "channel_is_verified": True,
+                            "duration": 180,
+                            "webpage_url": "https://www.youtube.com/watch?v=stream_slow_id",
+                        }
+                    ]
+                }
+            # Stream extraction raises TimeoutError
+            raise asyncio.TimeoutError("Stream extraction socket timed out")
+
+        mock_run.side_effect = _mock_run
+
+        track = await AudioResolver.resolve_track("kalyani", 12345, "Tester")
+        self.assertIsNone(track)
+        last_err = AudioResolver.last_resolver_error or ""
+        self.assertIn("[TIMEOUT]", last_err)
+        self.assertIn("Network or resolution timed out", last_err)
+        AudioResolver.clear_caches()
+
+    @patch("music_bot.services.resolver_service._run_ytdlp")
+    async def test_kalyani_query_to_result_matching(self, mock_run):
+        """Verify correct query-to-result matching for 'kalyani' query."""
+        AudioResolver.clear_caches()
+        mock_run.return_value = {
+            "entries": [
+                {
+                    "id": "kal_match",
+                    "title": "Kalyani - Classical Recording",
+                    "uploader": "Official Artist Channel",
+                    "duration": 210,
+                    "webpage_url": "https://www.youtube.com/watch?v=kal_match",
+                    "url": "https://audio-stream.googlevideo.com/videoplayback?id=kal_match",
+                }
+            ]
+        }
+
+        results = await AudioResolver.search("kalyani", limit=5)
+        self.assertGreater(len(results), 0)
+        self.assertEqual(results[0]["id"], "kal_match")
+        self.assertIn("kalyani", results[0]["title"].lower())
+        AudioResolver.clear_caches()
 
 
 if __name__ == "__main__":

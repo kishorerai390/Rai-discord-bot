@@ -101,6 +101,111 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(telemetry.success)
         self.assertEqual(telemetry.stage, "Connected")
 
+    async def test_recovery_does_not_move_newer_connected_client(self):
+        """Recovery joins must leave a healthy VoiceClient in another channel untouched."""
+        connected_channel = MagicMock(spec=discord.VoiceChannel)
+        connected_channel.id = self.voice_channel.id + 1
+        connected_client = MagicMock(spec=discord.VoiceClient)
+        connected_client.is_connected.return_value = True
+        connected_client.is_playing.return_value = True
+        connected_client.channel = connected_channel
+        self.guild.voice_client = connected_client
+
+        result = await VoiceManager.join_voice_channel(
+            self.member,
+            self.text_channel,
+            self.session,
+            target_channel=self.voice_channel,
+            reuse_connected_only=True,
+        )
+
+        self.assertIsNone(result)
+        self.assertIs(self.session.voice_client, connected_client)
+        self.voice_channel.connect.assert_not_called()
+        connected_client.move_to.assert_not_called()
+
+    async def test_cancelled_recovery_does_not_purge_newer_connected_client(self):
+        """Cancelling an in-flight recovery must not evict a connection established meanwhile."""
+        connect_started = asyncio.Event()
+        connected_client = MagicMock(spec=discord.VoiceClient)
+        connected_client.is_connected.return_value = True
+        connected_client.is_playing.return_value = True
+        connected_client.channel = self.voice_channel
+
+        async def pending_connect(**kwargs):
+            connect_started.set()
+            await asyncio.Event().wait()
+
+        self.voice_channel.connect = AsyncMock(side_effect=pending_connect)
+        with patch.object(
+            VoiceManager,
+            "_purge_voice_client_state",
+            new_callable=AsyncMock,
+        ) as purge:
+            recovery = asyncio.create_task(
+                VoiceManager.join_voice_channel(
+                    self.member,
+                    self.text_channel,
+                    self.session,
+                    target_channel=self.voice_channel,
+                    reuse_connected_only=True,
+                )
+            )
+            await asyncio.wait_for(connect_started.wait(), timeout=1)
+            self.guild.voice_client = connected_client
+            recovery.cancel()
+
+            with self.assertRaises(asyncio.CancelledError):
+                await recovery
+
+        self.assertIs(self.guild.voice_client, connected_client)
+        self.assertIs(self.session.voice_client, connected_client)
+        purge.assert_not_awaited()
+
+    async def test_failed_recovery_preserves_newer_connected_client(self):
+        """Failed handshakes must not purge a healthy connection established during recovery."""
+        connected_channel = MagicMock(spec=discord.VoiceChannel)
+        connected_channel.id = self.voice_channel.id + 1
+        connected_client = MagicMock(spec=discord.VoiceClient)
+        connected_client.is_connected.return_value = True
+        connected_client.is_playing.return_value = True
+        connected_client.channel = connected_channel
+
+        for failure in (
+            discord.ClientException("connection was superseded"),
+            asyncio.TimeoutError(),
+            RuntimeError("connection failed"),
+        ):
+            with self.subTest(failure=type(failure).__name__):
+                VoiceManager._guild_locks.clear()
+                VoiceManager._in_flight_tasks.clear()
+                VoiceManager._in_flight_channels.clear()
+                self.guild.voice_client = None
+
+                async def fail_after_new_connection(**kwargs):
+                    self.guild.voice_client = connected_client
+                    raise failure
+
+                self.voice_channel.connect = AsyncMock(side_effect=fail_after_new_connection)
+                with patch.object(
+                    VoiceManager,
+                    "_purge_voice_client_state",
+                    new_callable=AsyncMock,
+                ) as purge:
+                    result = await VoiceManager.join_voice_channel(
+                        self.member,
+                        self.text_channel,
+                        self.session,
+                        target_channel=self.voice_channel,
+                        reuse_connected_only=True,
+                    )
+
+                self.assertIsNone(result)
+                self.assertIs(self.guild.voice_client, connected_client)
+                self.assertIs(self.session.voice_client, connected_client)
+                self.assertEqual(self.session.state, PlaybackState.PLAYING)
+                purge.assert_not_awaited()
+
     async def test_02_delayed_voice_state_update(self):
         """Scenario 2: Gateway voice state update delayed, reports Gateway Voice State Request."""
         try:
@@ -451,5 +556,3 @@ class TestVoiceConnectionLifecycle(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

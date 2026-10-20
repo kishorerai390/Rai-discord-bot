@@ -31,13 +31,13 @@ logger = logging.getLogger("NekoSongs.Client")
 
 
 async def _determine_prefix(bot: NekoSongsBot, message: discord.Message) -> List[str]:
-    """Dynamic prefix resolver prioritizing custom guild prefix, unique music prefix (m!), and comma (,)."""
+    """Dynamic prefix resolver prioritizing custom guild prefix, ?, m!, and comma (,)."""
     prefixes: List[str] = []
     if message.guild:
         guild_pref = await bot.get_guild_prefix(message.guild.id)
         if guild_pref and guild_pref not in prefixes:
             prefixes.append(guild_pref)
-    for p in [config.MUSIC_PREFIX or "m!", ",", "m!"]:
+    for p in ["?", config.MUSIC_PREFIX or "m!", ",", "m!"]:
         if p and p not in prefixes:
             prefixes.append(p)
     return commands.when_mentioned_or(*prefixes)(bot, message)
@@ -900,10 +900,6 @@ class NekoSongsBot(commands.Bot):
                     else:
                         session.voice_client = vc
                         continue
-                elif vc:
-                    # Stale / dead voice client state; purge before attempting clean reconnect
-                    await VoiceManager._purge_voice_client_state(guild)
-
                 target_vc_id = g_set.twenty_four_seven_channel_id
                 if not target_vc_id:
                     # STRICT GUARD: Never guess or hop into arbitrary voice channels!
@@ -938,27 +934,15 @@ class NekoSongsBot(commands.Bot):
                     f"Voice Status: Disconnected | Disconnect Reason: Gateway drop / restart"
                 )
 
-                try:
-                    from music_bot.services.voice_service import VoiceManager
-                    reconnected_vc = await asyncio.wait_for(
-                        VoiceManager.join_voice_channel(
-                            guild.me, session.text_channel, session, target_channel=target_vc
-                        ),
-                        timeout=25.0,
-                    )
-                    if reconnected_vc and reconnected_vc.is_connected():
-                        session.voice_client = reconnected_vc
-                        session.is_intentional_stop = False
-                        session.is_intentional_disconnect = False
-                        session.recovery_status = "Connected (24/7 active)"
-                        logger.info(
-                            f"[Voice] [24/7 Guardian SUCCESS] Reconnected 24/7 voice client in {guild.name} "
-                            f"to #{target_vc.name}"
-                        )
-                except Exception as rec_err:
-                    logger.warning(
-                        f"[Voice] [24/7 Guardian WARNING] Reconnection attempt failed in guild {guild.id}: {rec_err}"
-                    )
+                from music_bot.services.session_memory_service import MusicSessionMemoryService
+                asyncio.create_task(
+                    MusicSessionMemoryService.handle_unexpected_disconnect(
+                        self,
+                        guild.id,
+                        channel_id=target_vc.id,
+                    ),
+                    name=f"GuardianRecoveryRequest-{guild.id}",
+                )
         except Exception as loop_err:
             logger.debug(f"[Voice] [24/7 Guardian Loop Exception] {loop_err}")
 
@@ -975,6 +959,11 @@ class NekoSongsBot(commands.Bot):
         self.web_actions_loop.cancel()
         if hasattr(self, "twenty_four_seven_guardian_loop"):
             self.twenty_four_seven_guardian_loop.cancel()
+        try:
+            from music_bot.services.session_memory_service import MusicSessionMemoryService
+            await MusicSessionMemoryService.cancel_recovery_tasks()
+        except Exception as recovery_err:
+            logger.warning(f"Voice recovery shutdown cleanup notice: {recovery_err}")
 
         if hasattr(self, "web_server") and self.web_server:
             try:

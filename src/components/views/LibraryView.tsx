@@ -144,7 +144,7 @@ export function LibraryView({
   return (
     <div className="flex flex-col gap-6">
       {/* HEADER CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
@@ -152,7 +152,7 @@ export function LibraryView({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white">Server Music Library</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              <p className="text-xs text-(--text-muted) mt-0.5">
                 Saved playlists, community snapshots, and your personal favorites.
               </p>
             </div>
@@ -173,8 +173,8 @@ export function LibraryView({
             onClick={() => setTab("playlists")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               tab === "playlists"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-purple-900/30"
-                : "text-[var(--text-muted)] hover:text-white hover:bg-white/5"
+                ? "bg-(--primary) text-white shadow-md shadow-purple-900/30"
+                : "text-(--text-muted) hover:text-white hover:bg-white/5"
             }`}
           >
             <Bookmark className="w-4 h-4" />
@@ -185,8 +185,8 @@ export function LibraryView({
             onClick={() => setTab("favorites")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
               tab === "favorites"
-                ? "bg-[var(--primary)] text-white shadow-md shadow-purple-900/30"
-                : "text-[var(--text-muted)] hover:text-white hover:bg-white/5"
+                ? "bg-(--primary) text-white shadow-md shadow-purple-900/30"
+                : "text-(--text-muted) hover:text-white hover:bg-white/5"
             }`}
           >
             <Heart className="w-4 h-4 text-rose-400" />
@@ -196,15 +196,15 @@ export function LibraryView({
       </div>
 
       {/* CONTENT PANEL */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-[var(--cyan)] gap-3">
+          <div className="flex flex-col items-center justify-center py-16 text-(--cyan) gap-3">
             <Loader2 className="w-8 h-8 animate-spin" />
             <p className="text-sm font-semibold">Loading your library records...</p>
           </div>
         ) : tab === "playlists" ? (
           playlists.length === 0 ? (
-            <div className="text-center py-16 text-[var(--text-muted)] text-sm">
+            <div className="text-center py-16 text-(--text-muted) text-sm">
               📂 No playlists saved yet. Queue some tracks and click &quot;Save Current Queue&quot;!
             </div>
           ) : (
@@ -212,7 +212,7 @@ export function LibraryView({
               {playlists.map((pl) => (
                 <div
                   key={pl.id}
-                  className="rounded-2xl p-4 bg-white/5 border border-white/5 hover:border-[var(--card-border-hover)] transition-all flex flex-col justify-between"
+                  className="rounded-2xl p-4 bg-white/5 border border-white/5 hover:border-(--card-border-hover) transition-all flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -227,7 +227,7 @@ export function LibraryView({
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                    <p className="text-xs text-[var(--text-muted)]">
+                    <p className="text-xs text-(--text-muted)">
                       {pl.track_count || 0} Tracks • Created {new Date(pl.created_at).toLocaleDateString()}
                     </p>
                   </div>
@@ -246,7 +246,7 @@ export function LibraryView({
             </div>
           )
         ) : favorites.length === 0 ? (
-          <div className="text-center py-16 text-[var(--text-muted)] text-sm">
+          <div className="text-center py-16 text-(--text-muted) text-sm">
             ❤️ No favorite tracks saved yet. Heart tracks while playing to access them here!
           </div>
         ) : (
@@ -269,8 +269,8 @@ export function LibraryView({
                     <p className="text-sm font-semibold text-white truncate" title={fav.title}>
                       {fav.title}
                     </p>
-                    <p className="text-xs text-[var(--text-muted)] truncate">{fav.artist || "Unknown"}</p>
-                    <span className="text-[10px] font-mono text-[var(--text-dim)]">
+                    <p className="text-xs text-(--text-muted) truncate">{fav.artist || "Unknown"}</p>
+                    <span className="text-[10px] font-mono text-(--text-dim)">
                       {formatDuration(fav.duration || 0)}
                     </span>
                   </div>
@@ -278,8 +278,15 @@ export function LibraryView({
 
                 <div className="flex items-center gap-1 shrink-0 ml-2">
                   <button
-                    onClick={() => onEnqueue(fav.url || `${fav.title} ${fav.artist}`)}
-                    className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 transition-all"
+                    onClick={async () => {
+                      const ok = await onEnqueue(fav.url || `${fav.title} ${fav.artist}`);
+                      if (ok) {
+                        onShowToast(`Enqueued: ${fav.title} 🎵`, "success");
+                      } else {
+                        onShowToast("Failed to enqueue track", "danger");
+                      }
+                    }}
+                    className="p-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/30 active:scale-95 transition-all"
                     title="Add to queue"
                   >
                     <Plus className="w-4 h-4" />

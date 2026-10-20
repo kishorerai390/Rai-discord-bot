@@ -25,6 +25,7 @@ import subprocess
 import time
 import unittest
 import urllib.request
+from urllib.parse import parse_qs, urlparse
 import aiohttp
 from aiohttp import web
 
@@ -318,29 +319,32 @@ class TestMobileResponsiveViewports(unittest.IsolatedAsyncioTestCase):
         """Verify bottom player bar reflows into a 2-tier stacked flex layout on screens <= 768px."""
         # Test on 360px mobile
         await self._set_viewport(360, 800, mobile=True)
-        await self._navigate_and_wait("/")
+        await self._navigate_and_wait("/dashboard")
 
         player_styles = await self.cdp.evaluate("""
             (() => {
                 const bar = document.querySelector('footer.player-bar');
-                const left = document.querySelector('.player-bar-left');
-                const center = document.querySelector('.player-bar-center');
+                const inner = document.querySelector('.player-bar-inner');
+                const controls = document.querySelector('.player-tier-controls');
                 const right = document.querySelector('.player-bar-right');
                 const csBar = window.getComputedStyle(bar);
+                const csInner = window.getComputedStyle(inner);
                 const csRight = window.getComputedStyle(right);
                 return {
-                    display: csBar.display,
-                    flexDirection: csBar.flexDirection,
-                    rightHidden: csRight.display === 'none',
-                    leftWidth: left.offsetWidth,
-                    centerWidth: center.offsetWidth,
+                    barDisplay: csBar.display,
+                    innerDisplay: csInner.display,
+                    flexDirection: csInner.flexDirection,
+                    rightVisible: csRight.display !== 'none',
+                    controlsWidth: controls.offsetWidth,
                     barHeight: bar.offsetHeight
                 };
             })()
         """)
-        self.assertEqual(player_styles["display"], "flex", "Player bar must use flex layout on mobile.")
+        self.assertEqual(player_styles["barDisplay"], "block", "Player bar must remain visible on mobile.")
+        self.assertEqual(player_styles["innerDisplay"], "flex", "Player bar contents must use flex layout.")
         self.assertEqual(player_styles["flexDirection"], "column", "Player bar must stack vertically into 2 tiers.")
-        self.assertTrue(player_styles["rightHidden"], "Desktop-only right controls must be hidden on mobile.")
+        self.assertTrue(player_styles["rightVisible"], "Mobile volume and utility controls must remain available.")
+        self.assertGreater(player_styles["controlsWidth"], 0, "Playback controls must remain visible on mobile.")
         self.assertGreaterEqual(player_styles["barHeight"], 80, "Player bar must have adequate height for both tiers.")
 
         # Test on 1440px desktop
@@ -358,13 +362,13 @@ class TestMobileResponsiveViewports(unittest.IsolatedAsyncioTestCase):
                 };
             })()
         """)
-        self.assertEqual(desktop_player["display"], "grid", "Player bar must remain desktop 3-column grid on desktop.")
+        self.assertEqual(desktop_player["display"], "block", "Player bar must remain visible on desktop.")
         self.assertTrue(desktop_player["rightVisible"], "Desktop right controls must be visible on desktop.")
 
     async def test_04_touch_friendly_tap_targets(self):
         """Verify buttons and interactive elements meet touch target minimums (>= 34px on smallest mobile, >= 40px on standard)."""
         await self._set_viewport(375, 812, mobile=True)
-        await self._navigate_and_wait("/")
+        await self._navigate_and_wait("/dashboard")
 
         targets = await self.cdp.evaluate("""
             (() => {
@@ -392,7 +396,8 @@ class TestMobileResponsiveViewports(unittest.IsolatedAsyncioTestCase):
                 auth_data = data.get("data", {})
                 self.assertIn("redirect_uri", auth_data)
                 self.assertTrue(auth_data["redirect_uri"].endswith("/api/auth/callback"))
-                self.assertIn("redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fapi%2Fauth%2Fcallback", auth_data["url"])
+                oauth_params = parse_qs(urlparse(auth_data["url"]).query)
+                self.assertEqual(oauth_params["redirect_uri"], [auth_data["redirect_uri"]])
 
 
 if __name__ == "__main__":

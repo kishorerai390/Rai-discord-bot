@@ -69,20 +69,20 @@ export function Sidebar({
 
   return (
     <aside
-      className={`fixed top-0 left-0 bottom-[var(--player-height)] z-50 w-[var(--sidebar-width)] bg-[var(--bg-sidebar)] border-r border-[var(--border-subtle)] backdrop-blur-xl flex flex-col p-4 gap-3 overflow-y-auto overflow-x-hidden transition-transform duration-300 ${
+      className={`fixed top-0 left-0 bottom-(--player-height) z-50 w-(--sidebar-width) bg-(--bg-sidebar) border-r border-(--border-subtle) backdrop-blur-xl flex flex-col p-4 gap-3 overflow-y-auto overflow-x-hidden transition-transform duration-300 ${
         mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       }`}
     >
       {/* BRAND LOGO */}
       <Link href="/" className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-cyan-400 flex items-center justify-center text-xl shadow-lg shadow-purple-600/30">
+        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-600 to-cyan-400 flex items-center justify-center text-xl shadow-lg shadow-purple-600/30">
           🎵
         </div>
         <div>
           <h1 className="font-extrabold text-base tracking-tight text-white leading-tight">
             MusicMaid
           </h1>
-          <p className="text-xs text-[var(--text-dim)] font-medium">Discord Music Engine</p>
+          <p className="text-xs text-(--text-dim) font-medium">Discord Music Engine</p>
         </div>
       </Link>
 
@@ -90,10 +90,10 @@ export function Sidebar({
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/[0.04] border border-[var(--border-subtle)] hover:border-purple-500/40 transition-all text-left"
+          className="w-full flex items-center justify-between p-2.5 rounded-xl bg-white/4 border border-(--border-subtle) hover:border-purple-500/40 transition-all text-left"
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+            <div className="w-6 h-6 rounded-lg bg-linear-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
               ⚡
             </div>
             <div className="truncate">
@@ -104,7 +104,7 @@ export function Sidebar({
               </div>
             </div>
           </div>
-          <span className="text-xs text-[var(--text-dim)] shrink-0">▼</span>
+          <span className="text-xs text-(--text-dim) shrink-0">▼</span>
         </button>
 
         {dropdownOpen && (
@@ -134,7 +134,7 @@ export function Sidebar({
       <Link
         href="/premium"
         onClick={onCloseMobile}
-        className="group relative overflow-hidden rounded-xl p-3 bg-gradient-to-br from-purple-900/30 via-fuchsia-900/20 to-pink-900/30 border border-fuchsia-500/40 hover:border-fuchsia-400/80 transition-all shadow-lg hover:shadow-fuchsia-500/20"
+        className="group relative overflow-hidden rounded-xl p-3 bg-linear-to-br from-purple-900/30 via-fuchsia-900/20 to-pink-900/30 border border-fuchsia-500/40 hover:border-fuchsia-400/80 transition-all shadow-lg hover:shadow-fuchsia-500/20"
       >
         <div className="flex items-center justify-between mb-1">
           <span className="text-[10px] font-extrabold tracking-wider text-pink-400 uppercase">
@@ -148,14 +148,14 @@ export function Sidebar({
         <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
           Studio DSP, 24/7 staying mode & zero queue limits
         </p>
-        <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow">
+        <div className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-linear-to-r from-pink-500 to-purple-600 text-white shadow">
           <span>View Plans</span>
           <span>⚡</span>
         </div>
       </Link>
 
       {/* NAVIGATION LIST */}
-      <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-dim)] px-2 mt-1">
+      <div className="text-[11px] font-bold uppercase tracking-wider text-(--text-dim) px-2 mt-1">
         Music Engine
       </div>
       <nav className="flex flex-col gap-1">
@@ -170,10 +170,10 @@ export function Sidebar({
               className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 link.isPremium
                   ? isActive
-                    ? "bg-gradient-to-r from-pink-500/30 to-purple-600/30 text-white border border-pink-500/50 shadow-lg shadow-pink-500/20"
+                    ? "bg-linear-to-r from-pink-500/30 to-purple-600/30 text-white border border-pink-500/50 shadow-lg shadow-pink-500/20"
                     : "text-pink-300 bg-pink-500/10 border border-pink-500/30 hover:bg-pink-500/20 hover:text-white"
                   : isActive
-                  ? "bg-gradient-to-r from-purple-600/30 to-cyan-500/15 text-white border border-purple-500/45 shadow-md shadow-purple-600/15"
+                  ? "bg-linear-to-r from-purple-600/30 to-cyan-500/15 text-white border border-purple-500/45 shadow-md shadow-purple-600/15"
                   : "text-slate-400 hover:text-white hover:bg-white/5"
               }`}
             >
@@ -189,7 +189,7 @@ export function Sidebar({
             onClick={onCloseMobile}
             className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black transition-all ${
               pathname === "/owner"
-                ? "bg-gradient-to-r from-amber-500/30 to-orange-500/30 text-amber-300 border border-amber-400/60 shadow-lg shadow-amber-500/20"
+                ? "bg-linear-to-r from-amber-500/30 to-orange-500/30 text-amber-300 border border-amber-400/60 shadow-lg shadow-amber-500/20"
                 : "text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 hover:text-white"
             }`}
           >
@@ -200,14 +200,14 @@ export function Sidebar({
       </nav>
 
       {/* SIDEBAR FOOTER (VOICE PILL & USER PROFILE) */}
-      <div className="mt-auto pt-3 border-t border-[var(--border-subtle)] flex flex-col gap-2.5">
+      <div className="mt-auto pt-3 border-t border-(--border-subtle) flex flex-col gap-2.5">
         <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
           <Volume2 className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">{voiceStatusText}</span>
         </div>
 
         {currentUser ? (
-          <div className="flex flex-col gap-2 p-2 rounded-xl bg-white/[0.03] border border-[var(--border-subtle)]">
+          <div className="flex flex-col gap-2 p-2 rounded-xl bg-white/3 border border-(--border-subtle)">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 min-w-0">
                 <img
@@ -221,7 +221,7 @@ export function Sidebar({
                   </div>
                   <div className="mt-0.5">
                     {isOwner ? (
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-400 to-orange-500 text-black">
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-linear-to-r from-amber-400 to-orange-500 text-black">
                         👑 CREATOR VIP
                       </span>
                     ) : (

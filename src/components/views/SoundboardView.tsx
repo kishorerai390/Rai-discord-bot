@@ -80,13 +80,13 @@ export function SoundboardView({ guildId, onShowToast }: SoundboardViewProps) {
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto">
       {/* HEADER CARD */}
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white flex items-center gap-2">
             <Volume2 className="w-6 h-6 text-pink-400" />
             <span>Instant Voice Soundboard</span>
           </h2>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
+          <p className="text-xs text-(--text-muted) mt-1">
             Trigger studio SFX clips into your connected voice channel in real time. Rate-limited to 3s to prevent audio clutter.
           </p>
         </div>
@@ -132,7 +132,7 @@ export function SoundboardView({ guildId, onShowToast }: SoundboardViewProps) {
               className={`glass-card rounded-2xl border p-4 flex flex-col items-center justify-center text-center gap-2.5 transition-all group ${
                 isActive
                   ? "border-pink-400 bg-pink-500/20 scale-95 shadow-lg shadow-pink-500/30"
-                  : "border-white/10 bg-white/[0.03] hover:bg-white/[0.08] hover:border-pink-500/40 hover:scale-[1.02]"
+                  : "border-white/10 bg-white/3 hover:bg-white/8 hover:border-pink-500/40 hover:scale-[1.02]"
               } ${cooldownRemaining > 0 ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
             >
               <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
@@ -142,7 +142,7 @@ export function SoundboardView({ guildId, onShowToast }: SoundboardViewProps) {
                 <div className="text-sm font-bold text-white group-hover:text-pink-300 transition-colors">
                   {sound.name}
                 </div>
-                <div className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider font-semibold mt-0.5">
+                <div className="text-[10px] text-(--text-dim) uppercase tracking-wider font-semibold mt-0.5">
                   {sound.category}
                 </div>
               </div>

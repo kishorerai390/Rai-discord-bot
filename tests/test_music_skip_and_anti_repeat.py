@@ -179,6 +179,33 @@ class TestSkipAndAntiRepeat:
             assert t1.url in mock_session.recent_skipped_urls
             mock_start.assert_called_once_with(mock_bot, mock_session, rec_track)
 
+    async def test_manual_request_during_autodj_lookup_keeps_queue_priority(self, mock_bot, mock_session):
+        finished_track = make_track("Finished Song", "https://youtube.com/watch?v=finished1")
+        manual_track = make_track("Requested Song", "https://youtube.com/watch?v=manual123")
+        auto_track = make_track("Auto-DJ Song", "https://youtube.com/watch?v=auto12345")
+        mock_session.current_track = finished_track
+        mock_session.queue = deque()
+        mock_session.state = PlaybackState.PLAYING
+        mock_session.dj_enabled = True
+        mock_bot.db.get_dj_settings.return_value = MagicMock(enabled=True)
+
+        async def recommendation_with_concurrent_request(*_args):
+            mock_session.queue.append(manual_track)
+            return auto_track, "Mocked recommendation"
+
+        with patch(
+            "music_bot.services.dj_service.NekoDJService.get_recommendation",
+            new=AsyncMock(side_effect=recommendation_with_concurrent_request),
+        ), patch.object(
+            MusicPlayerService,
+            "start_playback",
+            new_callable=AsyncMock,
+        ) as mock_start:
+            await MusicPlayerService.handle_track_finished(mock_bot, mock_session)
+
+        mock_start.assert_awaited_once_with(mock_bot, mock_session, manual_track)
+        assert not mock_session.queue
+
     async def test_paused_playback_followed_by_skip(self, mock_bot, mock_session):
         """8. Paused playback followed by Skip cleanly advances and resets paused state."""
         t1 = make_track("Paused Song", "https://yt/paused")
@@ -330,5 +357,3 @@ class TestSkipAndAntiRepeat:
         assert mock_session.volume == 50
         assert mock_inner.volume == 0.5
         mock_interaction.followup.send.assert_called_once_with("🔊 Volume set to `50%`.", ephemeral=True)
-
-

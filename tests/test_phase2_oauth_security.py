@@ -140,7 +140,7 @@ class TestPhase2OAuthSecuritySuite(AioHTTPTestCase):
             resp = await self.client.get(f"/api/auth/callback?code=mock_code&state={state}", allow_redirects=False)
             self.assertEqual(resp.status, 302)
             loc = resp.headers.get("Location", "")
-            self.assertIn("/?auth=success", loc)
+            self.assertEqual(loc, "/dashboard?auth=success")
             # CRITICAL: Verify session token is NOT leaked in the URL query string
             self.assertNotIn("token=", loc)
             # Verify session cookie was safely issued

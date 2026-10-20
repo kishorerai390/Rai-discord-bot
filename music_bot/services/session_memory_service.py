@@ -40,6 +40,7 @@ class MusicSessionMemoryService:
     """Master coordinator for persistent Rythm-style music session recovery and memory."""
 
     _reconnecting_guilds: set[int] = set()
+    _recovery_tasks: dict[int, asyncio.Task[None]] = {}
 
     # =========================================================================
     # 1. PLAYBACK CHECKPOINT PERSISTENCE (PHASE 3)
@@ -364,6 +365,55 @@ class MusicSessionMemoryService:
         guild_id: int,
         channel_id: Optional[int] = None,
     ) -> None:
+        task = cls._recovery_tasks.get(guild_id)
+        if task and not task.done():
+            logger.debug(f"[SessionMemory] Guild {guild_id} recovery is already running; joining the existing recovery.")
+            await asyncio.shield(task)
+            return
+
+        task = asyncio.create_task(
+            cls._run_unexpected_disconnect(bot, guild_id, channel_id),
+            name=f"VoiceRecovery-{guild_id}",
+        )
+        cls._recovery_tasks[guild_id] = task
+        cls._reconnecting_guilds.add(guild_id)
+
+        def _cleanup_recovery(done_task: asyncio.Task[None]) -> None:
+            if cls._recovery_tasks.get(guild_id) is done_task:
+                cls._recovery_tasks.pop(guild_id, None)
+                cls._reconnecting_guilds.discard(guild_id)
+            if not done_task.cancelled():
+                exception = done_task.exception()
+                if exception:
+                    logger.error(
+                        "[SessionMemory] Recovery task failed for guild %s: %s",
+                        guild_id,
+                        exception,
+                        exc_info=(type(exception), exception, exception.__traceback__),
+                    )
+
+        task.add_done_callback(_cleanup_recovery)
+        await asyncio.shield(task)
+
+    @classmethod
+    async def cancel_recovery_tasks(cls) -> None:
+        tasks = list(cls._recovery_tasks.items())
+        for _, task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*(task for _, task in tasks), return_exceptions=True)
+        for guild_id, task in tasks:
+            if cls._recovery_tasks.get(guild_id) is task:
+                cls._recovery_tasks.pop(guild_id, None)
+            cls._reconnecting_guilds.discard(guild_id)
+
+    @classmethod
+    async def _run_unexpected_disconnect(
+        cls,
+        bot: RaiMusicBot,
+        guild_id: int,
+        channel_id: Optional[int] = None,
+    ) -> None:
         """Handles sudden voice disconnection with bounded exponential backoff and jitter."""
         session = bot.session_manager.get_session_sync(guild_id)
         if not session:
@@ -386,11 +436,6 @@ class MusicSessionMemoryService:
             except Exception:
                 pass
 
-        if guild_id in cls._reconnecting_guilds:
-            logger.debug(f"[SessionMemory] Guild {guild_id} already has a reconnect task in-flight; skipping duplicate.")
-            return
-        cls._reconnecting_guilds.add(guild_id)
-
         try:
             logger.warning(
                 f"[SessionMemory] Unexpected voice disconnect detected in guild {guild_id} "
@@ -411,6 +456,18 @@ class MusicSessionMemoryService:
 
             guild = bot.get_guild(guild_id)
             if not guild:
+                return
+
+            connected_vc = guild.voice_client
+            if connected_vc and connected_vc.is_connected():
+                session.voice_client = connected_vc
+                session.state = (
+                    PlaybackState.PLAYING if connected_vc.is_playing() else PlaybackState.CONNECTED
+                )
+                logger.info(
+                    "[SessionMemory] Guild %s already has a healthy voice connection; recovery will not replace it.",
+                    guild_id,
+                )
                 return
 
             saved = None
@@ -465,6 +522,7 @@ class MusicSessionMemoryService:
             # 2. Bounded Exponential Backoff with Jitter (e.g. 2s, 4s, 8s, max 3 attempts)
             delays = [2.0, 4.0, 8.0]
             reconnected = False
+            reused_connection = False
 
             for attempt, base_delay in enumerate(delays, 1):
                 session.recovery_attempts = attempt
@@ -475,13 +533,47 @@ class MusicSessionMemoryService:
 
                 try:
                     from music_bot.services.voice_service import VoiceManager
+                    connected_vc = guild.voice_client
+                    if connected_vc and connected_vc.is_connected():
+                        session.voice_client = connected_vc
+                        if connected_vc.channel and connected_vc.channel.id == vc_channel.id:
+                            reconnected = True
+                            reused_connection = True
+                            break
+                        session.state = (
+                            PlaybackState.PLAYING if connected_vc.is_playing() else PlaybackState.CONNECTED
+                        )
+                        logger.info(
+                            "[SessionMemory] Guild %s acquired a healthy connection in another channel; "
+                            "stale recovery will not move it.",
+                            guild_id,
+                        )
+                        return
                     vc = await asyncio.wait_for(
-                        VoiceManager.join_voice_channel(guild.me, text_ch, session, target_channel=vc_channel),  # type: ignore
+                        VoiceManager.join_voice_channel(
+                            guild.me,
+                            text_ch,
+                            session,
+                            target_channel=vc_channel,
+                            reuse_connected_only=True,
+                        ),  # type: ignore
                         timeout=50.0,
                     )
                     if vc and vc.is_connected():
                         reconnected = True
                         break
+                    connected_vc = guild.voice_client
+                    if connected_vc and connected_vc.is_connected():
+                        session.voice_client = connected_vc
+                        session.state = (
+                            PlaybackState.PLAYING if connected_vc.is_playing() else PlaybackState.CONNECTED
+                        )
+                        logger.info(
+                            "[SessionMemory] Guild %s retained a healthy voice connection; "
+                            "stale recovery stopped.",
+                            guild_id,
+                        )
+                        return
                 except Exception as e:
                     logger.debug(f"[SessionMemory] Attempt {attempt} failed: {e}")
 
@@ -495,7 +587,7 @@ class MusicSessionMemoryService:
             session.recovery_status = "Connected (24/7 active)"
 
             # 3. Resume playback at checkpoint if track was playing
-            if saved and saved.current_track and saved.session_status != "PAUSED":
+            if not reused_connection and saved and saved.current_track and saved.session_status != "PAUSED":
                 from music_bot.services.player_service import MusicPlayerService
                 pos = saved.last_known_position
                 if pos > 3:
@@ -507,7 +599,6 @@ class MusicSessionMemoryService:
         except Exception as err:
             logger.error(f"[SessionMemory] Disconnect recovery handler error for guild {guild_id}: {err}", exc_info=True)
         finally:
-            cls._reconnecting_guilds.discard(guild_id)
             try:
                 from music_bot.services.presence_service import DynamicPresenceService
                 asyncio.create_task(DynamicPresenceService.sync_presence(bot, force=True))

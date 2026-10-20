@@ -37,7 +37,6 @@ VIDEO_ID_REGEX = re.compile(r"^[a-zA-Z0-9_-]{11}$")
 BASE_YTDL_OPTIONS: Dict[str, Any] = {
     "format": "bestaudio/best",
     "noplaylist": True,
-    "nocheckcertificate": True,
     "ignoreerrors": False,
     "logtostderr": False,
     "quiet": True,
