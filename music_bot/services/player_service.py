@@ -1058,24 +1058,36 @@ class MusicPlayerService:
             next_info_line = ""
 
         server_mute_alert = "\n\n⚠️ **Notice:** The bot is currently **Server-Muted** in Discord voice settings." if is_server_muted else ""
-        is_spotify = ("spotify.com" in (track.url or "")) or (getattr(track, "source", None) == "spotify")
-        spotify_source_tag = " • 🟢 `Spotify Source`" if is_spotify else ""
+        # Unified multi-provider source tag
+        track_provider = getattr(track, "provider", None) or ("spotify" if "spotify.com" in (track.url or "") else ("apple_music" if "apple.com" in (track.url or "") else "youtube"))
+        provider_tags = {
+            "spotify": " • 🟢 `Spotify`",
+            "apple_music": " • 🍎 `Apple Music`",
+            "audius": " • 🟣 `Audius`",
+            "jamendo": " • 🟠 `Jamendo`",
+            "direct_audio": " • 🌐 `Direct Audio`",
+            "youtube": " • 🔴 `YouTube`",
+        }
+        provider_source_tag = provider_tags.get(track_provider, f" • `{track_provider.title()}`")
 
-        embed_color = COLOR_ERROR if session.state == PlaybackState.ERROR else (COLOR_WARNING if is_server_muted else (COLOR_CYAN if session.is_playing else COLOR_PRIMARY))
+        embed_color = COLOR_ERROR if session.state == PlaybackState.ERROR else (COLOR_WARNING if is_server_muted else (0xF472B6 if session.is_playing else COLOR_PRIMARY))
 
         badge_247 = "🕒 24/7" if getattr(session, "stay_in_vc", False) else "🕒 Normal"
         badges_header = f"`{badge_state}`  `📜 Queue: {len(session.queue)}`  `🎛️ EQ: {preset_name}`  `{badge_247}`"
 
+        # Format duration exactly like Zynrax: e.g. "3m 34s"
+        total_m = total // 60
+        total_s = total % 60
+        duration_badge = f"`{total_m}m {total_s}s`" if total > 0 else "`🔴 LIVE`"
+
         embed = discord.Embed(
-            title=f"{EmojiManager.get('NOTE')} MusicMaid ✦ Now Playing",
+            title="Now Playing",
             description=(
-                f"{badges_header}\n\n"
-                f"### [{track.title}]({track.url})\n"
-                f"👤 **Artist:** `{track.artist}`{spotify_source_tag}{vc_channel_str}\n\n"
-                f"**Progress:**\n{progress_str}\n\n"
-                f"• **Requested by:** {requester_str}\n"
-                f"• **Volume:** `{session.volume}%` • **Status:** {status_text}\n"
-                f"• **Filter:** `{preset_name}` • **Loop:** `{loop_str}`"
+                f"[{track.title}]({track.url}) - {track.artist}{provider_source_tag}{vc_channel_str}\n\n"
+                f"**Duration:** {duration_badge} • **Progress:** {progress_str}\n"
+                f"Requested by ( {requester_str} )\n\n"
+                f"**Status & Engine:** {badges_header}\n"
+                f"• **Volume:** `{session.volume}%` • **Status:** {status_text} • **Filter:** `{preset_name}` • **Loop:** `{loop_str}`"
                 f"{next_info_line}{recovery_line}{error_line}{server_mute_alert}"
             ),
             color=embed_color,

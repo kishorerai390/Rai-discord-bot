@@ -1050,7 +1050,7 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"The music search for `{_safe_query_for_log(query)}` exceeded the search deadline.\n\n"
                             f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting upstream providers.'}`\n"
-                            f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata.\n"
+                            f"• **Supported Sources:** YouTube, Audius, Jamendo, Spotify & Apple Music metadata, and direct audio URLs.\n"
                             f"• **Tip:** Try repeating your search or use a direct song/stream URL."
                         ),
                         color=COLOR_ERROR,
@@ -1081,7 +1081,7 @@ class MusicCog(commands.Cog, name="Music"):
                         description=(
                             f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{_safe_query_for_log(query)}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
-                            f"• **Supported Sources:** YouTube, SoundCloud, and Spotify metadata."
+                            f"• **Supported Sources:** YouTube, Audius, Jamendo, Spotify & Apple Music metadata, and direct audio URLs."
                             f"{cookie_hint}"
                         ),
                         color=COLOR_ERROR,
@@ -1194,23 +1194,26 @@ class MusicCog(commands.Cog, name="Music"):
                     )
                     if success:
                         try:
-                            # Deploy the interactive player panel directly to the slash command interaction
-                            from music_bot.services.player_service import NowPlayingControlView
-                            player_embed = MusicPlayerService.build_now_playing_embed(session)
-                            player_view = NowPlayingControlView(session, bot=self.bot)
-                            msg = await interaction.edit_original_response(
-                                content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*",
-                                embed=player_embed,
-                                view=player_view,
-                            )
-                            session.now_playing_message = msg
-                            session.now_playing_message_id = msg.id
+                            # If a player message was already created or deployed, update it; otherwise deploy once
+                            if not session.now_playing_message:
+                                from music_bot.services.player_service import NowPlayingControlView
+                                player_embed = MusicPlayerService.build_now_playing_embed(session)
+                                player_view = NowPlayingControlView(session, bot=self.bot)
+                                msg = await interaction.edit_original_response(
+                                    content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*",
+                                    embed=player_embed,
+                                    view=player_view,
+                                )
+                                session.now_playing_message = msg
+                                session.now_playing_message_id = msg.id
+                            else:
+                                await interaction.edit_original_response(
+                                    content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*",
+                                    embed=None,
+                                    view=None,
+                                )
                         except Exception as edit_err:
-                            logger.warning(f"[Playback] Could not edit original response on play success: {edit_err}")
-                            try:
-                                await interaction.followup.send(f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*")
-                            except Exception:
-                                pass
+                            logger.warning(f"[Playback] Notice editing interaction on play success: {edit_err}")
 
                     else:
                         err_detail = getattr(session, "last_error", None) or "Audio pipeline could not decode or play the audio stream."
@@ -3190,6 +3193,69 @@ class MusicCog(commands.Cog, name="Music"):
     async def alias_clear(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
         await self.music_clear.callback(self, interaction)
+
+    @app_commands.command(name="join", description="Connect music bot to your current voice channel")
+    async def alias_join(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        await self.music_join.callback(self, interaction)
+
+    @app_commands.command(name="leave", description="Disconnect music bot from voice and clear queue")
+    async def alias_leave(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        await self.music_leave.callback(self, interaction)
+
+    @app_commands.command(name="skipto", description="Skip directly to a specific song number in queue")
+    @app_commands.describe(position="Queue position number to jump to")
+    async def alias_skipto(self, interaction: discord.Interaction, position: int) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if position < 1 or position > len(session.queue):
+            await interaction.followup.send(f"❌ Invalid track number. The queue has {len(session.queue)} tracks.", ephemeral=True)
+            return
+
+        tracks = list(session.queue)
+        # Drop songs preceding target position
+        for _ in range(position - 1):
+            tracks.pop(0)
+        session.queue = deque(tracks)
+        success, msg, _ = await MusicPlayerService.skip(self.bot, session)
+        await interaction.followup.send(f"⏭️ Skipped to track `#{position}`:\n{msg}")
+
+    @app_commands.command(name="replay", description="Replay the currently playing song from the start")
+    async def alias_replay(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if not session.current_track:
+            await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            return
+        await MusicPlayerService.seek(self.bot, session, 0)
+        await interaction.followup.send(f"🔄 Replaying **{session.current_track.title}** from the beginning.")
+
+    @app_commands.command(name="grab", description="Save and send the currently playing song details to your DMs")
+    async def alias_grab(self, interaction: discord.Interaction) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
+        if not session.current_track:
+            await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
+            return
+        track = session.current_track
+        embed = discord.Embed(
+            title="💾 Saved Song Details",
+            description=(
+                f"### [{track.title}]({track.url})\n"
+                f"👤 **Artist:** `{track.artist}`\n"
+                f"⏱️ **Duration:** `{format_duration(track.duration)}`\n"
+                f"🏰 **Server:** `{interaction.guild.name if interaction.guild else 'Unknown'}`"
+            ),
+            color=COLOR_PRIMARY,
+        )
+        if track.thumbnail:
+            embed.set_thumbnail(url=track.thumbnail)
+        try:
+            await interaction.user.send(embed=embed)
+            await interaction.followup.send("📩 Sent current song information to your direct messages!", ephemeral=True)
+        except Exception:
+            await interaction.followup.send("❌ Could not send DM. Please verify that your direct messages are open.", ephemeral=True)
 
     @property
     def alias_autodj(self):

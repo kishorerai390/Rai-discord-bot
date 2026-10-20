@@ -31,13 +31,13 @@ logger = logging.getLogger("NekoSongs.Client")
 
 
 async def _determine_prefix(bot: NekoSongsBot, message: discord.Message) -> List[str]:
-    """Dynamic prefix resolver prioritizing custom guild prefix, unique music prefix (m!), and comma (,)."""
+    """Dynamic prefix resolver prioritizing custom guild prefix, ?, m!, and comma (,)."""
     prefixes: List[str] = []
     if message.guild:
         guild_pref = await bot.get_guild_prefix(message.guild.id)
         if guild_pref and guild_pref not in prefixes:
             prefixes.append(guild_pref)
-    for p in [config.MUSIC_PREFIX or "m!", ",", "m!"]:
+    for p in ["?", config.MUSIC_PREFIX or "m!", ",", "m!"]:
         if p and p not in prefixes:
             prefixes.append(p)
     return commands.when_mentioned_or(*prefixes)(bot, message)

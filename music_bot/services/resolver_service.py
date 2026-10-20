@@ -201,6 +201,11 @@ def analyze_query_intent(query: str) -> Dict[str, Any]:
     # Strip standalone language keywords if specified at the end/beginning (e.g. 'tamil song title')
     if detected_language:
         core_title = re.sub(rf"\b{re.escape(detected_language)}\b", "", core_title)
+    # Strip generic media descriptors (e.g. 'song', 'songs', 'audio', 'track', 'music', 'video')
+    # only if meaningful core words remain
+    stripped_media = re.sub(r"\b(songs?|audio|track|music|video)\b", "", core_title, flags=re.IGNORECASE)
+    if stripped_media.strip():
+        core_title = stripped_media
     core_title = " ".join(core_title.split())
 
     return {
@@ -1277,6 +1282,7 @@ class AudioResolver:
     _search_cache: Dict[str, List[Dict[str, Any]]] = {}
     _track_cache: Dict[str, Tuple[QueuedTrack, float]] = {}  # cache_key -> (track, timestamp)
     _pending_tasks: Dict[str, asyncio.Task[Optional[QueuedTrack]]] = {}
+    _pending_search_tasks: Dict[str, asyncio.Task[List[Dict[str, Any]]]] = {}
 
     PROFILE_PRESETS: List[List[str]] = [
         ["android", "web"],
@@ -1473,125 +1479,172 @@ class AudioResolver:
         limit: int = 5,
         correlation_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Search YouTube for tracks matching query with in-memory caching and intelligent candidate ranking."""
+        """Search YouTube for tracks matching query with deduplication, in-memory caching, transient retry, and candidate ranking."""
         cache_key = f"original-v4:{limit}:{query.strip().lower()}"
         if cache_key in cls._search_cache:
             return cls._search_cache[cache_key]
 
-        correlation_id = correlation_id or uuid.uuid4().hex[:8].upper()
-        # Query candidates from YouTube for intelligent re-ranking (up to 15 candidates)
-        fetch_count = max(limit * 3, 15) if not query.startswith("http") else limit
-        search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
-
-        data = None
-        # 1. Primary YouTube Search in executor (extract_flat=True for ultra-fast response)
-        try:
-            primary_opts = _build_ytdl_options(["android"], extract_flat=True)
-            ydl_instance = yt_dlp.YoutubeDL(primary_opts)
-            data = await _run_ytdlp(
-                functools.partial(ydl_instance.extract_info, search_query, download=False),
-                timeout=5.0,
-                operation="search",
-                correlation_id=correlation_id,
-            )
-        except Exception as e:
+        # Deduplicate concurrent identical search queries to prevent worker starvation
+        if cache_key in cls._pending_search_tasks and not cls._pending_search_tasks[cache_key].done():
             logger.info(
-                "[Resolver] provider=youtube operation=search corr_id=%s exception_type=%s outcome=failed",
-                correlation_id,
-                type(e).__name__,
-            )
-            data = None
-
-        entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
-        raw_candidates: List[Dict[str, Any]] = []
-        for entry in (entries or []):
-            if not entry or entry.get("has_drm"):
-                continue
-
-            # Extract highest-quality thumbnail from yt-dlp metadata
-            thumb = entry.get("thumbnail")
-            if not thumb and entry.get("thumbnails"):
-                thumbs = entry.get("thumbnails")
-                if isinstance(thumbs, list) and thumbs:
-                    thumb = thumbs[-1].get("url") or thumbs[0].get("url")
-            vid_id = entry.get("id")
-            if not thumb and vid_id:
-                thumb = f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg"
-
-            track_url = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else entry.get("url", ""))
-            track_id = vid_id or f"yt_{abs(hash(entry.get('title', '')))}"
-            uploader_name = entry.get("uploader") or entry.get("channel") or ""
-
-            raw_candidates.append({
-                "id": str(track_id),
-                "title": entry.get("title", "Unknown Track"),
-                "url": track_url,
-                "duration": int(entry.get("duration", 0) or 0),
-                "artist": uploader_name or "Unknown Artist",
-                "uploader": uploader_name,
-                "channel": entry.get("channel") or uploader_name,
-                "channel_is_verified": bool(entry.get("channel_is_verified")),
-                "thumbnail": thumb,
-                "provider": "youtube",
-            })
-
-        # Rank candidates using query intent analysis
-        intent = analyze_query_intent(query)
-        scored_candidates = []
-        for c in raw_candidates:
-            if not is_original_recording_candidate(c, intent):
-                continue
-            s, r = score_candidate_detailed(c, intent)
-            title_match_ratio, combined_match_ratio, title_confidence = _candidate_match_metrics(c, intent)
-            scored_candidates.append(
-                (
-                    {
-                        **c,
-                        "_match_score": s,
-                        "_match_reasons": r,
-                        "_title_match_ratio": title_match_ratio,
-                        "_title_match_confidence": title_confidence,
-                        "_combined_match_ratio": combined_match_ratio,
-                    },
-                    s,
-                    r,
-                )
-            )
-
-        scored_candidates.sort(key=lambda x: x[1], reverse=True)
-        normalized_query = " ".join(query.split())
-        for rank, (candidate, score, reasons) in enumerate(scored_candidates[:5], 1):
-            video_id = candidate.get("id")
-            canonical_url = (
-                f"https://www.youtube.com/watch?v={video_id}"
-                if video_id and not str(video_id).startswith("yt_")
-                else None
-            )
-            logger.info(
-                "[Search] provider=youtube strategy=ytsearch correlation_id=%s "
-                "query=%r normalized_query=%r rank=%d title=%r channel=%r "
-                "duration_seconds=%d video_id=%s url=%s score=%.1f "
-                "title_match=%.2f reasons=%s",
+                "[Search] provider=youtube operation=search correlation_id=%s outcome=joined_pending_search query=%r",
                 correlation_id,
                 _safe_query_for_log(query),
-                _safe_query_for_log(normalized_query),
-                rank,
-                candidate.get("title"),
-                candidate.get("uploader") or candidate.get("channel") or candidate.get("artist"),
-                candidate.get("duration", 0),
-                video_id,
-                canonical_url or "unavailable",
-                score,
-                candidate.get("_title_match_ratio", 0.0),
-                ",".join(reasons),
             )
+            try:
+                res = await asyncio.shield(cls._pending_search_tasks[cache_key])
+                if res is not None:
+                    return res
+            except Exception:
+                pass
 
-        results = [
-            {**candidate, "original_source_match": True}
-            for candidate, _, _ in scored_candidates[:limit]
-        ]
-        cls._search_cache[cache_key] = results
-        return results
+        async def _execute_search() -> List[Dict[str, Any]]:
+            corr_id = correlation_id or uuid.uuid4().hex[:8].upper()
+            fetch_count = max(limit * 3, 15) if not query.startswith("http") else limit
+            search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
+
+            data = None
+            search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
+            # 1. Primary search with bounded timeout
+            try:
+                primary_opts = _build_ytdl_options(["android"], extract_flat=True)
+                ydl_instance = yt_dlp.YoutubeDL(primary_opts)
+                data = await _run_ytdlp(
+                    functools.partial(ydl_instance.extract_info, search_query, download=False),
+                    timeout=search_timeout,
+                    operation="search",
+                    correlation_id=corr_id,
+                )
+            except Exception as e:
+                logger.info(
+                    "[Resolver] provider=youtube operation=search corr_id=%s exception_type=%s outcome=primary_failed",
+                    corr_id,
+                    type(e).__name__,
+                )
+                data = None
+
+            # 2. Configurable 1-retry fallback for transient network/client timeouts
+            if not data:
+                try:
+                    retry_opts = _build_ytdl_options(["web", "mweb"], extract_flat=True)
+                    ydl_retry = yt_dlp.YoutubeDL(retry_opts)
+                    data = await _run_ytdlp(
+                        functools.partial(ydl_retry.extract_info, search_query, download=False),
+                        timeout=search_timeout,
+                        operation="search_retry",
+                        correlation_id=corr_id,
+                        retry_count=1,
+                    )
+                except Exception as retry_err:
+                    logger.info(
+                        "[Resolver] provider=youtube operation=search_retry corr_id=%s exception_type=%s outcome=retry_failed",
+                        corr_id,
+                        type(retry_err).__name__,
+                    )
+                    data = None
+
+            entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
+            raw_candidates: List[Dict[str, Any]] = []
+            for entry in (entries or []):
+                if not entry or entry.get("has_drm"):
+                    continue
+
+                thumb = entry.get("thumbnail")
+                if not thumb and entry.get("thumbnails"):
+                    thumbs = entry.get("thumbnails")
+                    if isinstance(thumbs, list) and thumbs:
+                        thumb = thumbs[-1].get("url") or thumbs[0].get("url")
+                vid_id = entry.get("id")
+                if not thumb and vid_id:
+                    thumb = f"https://i.ytimg.com/vi/{vid_id}/hqdefault.jpg"
+
+                track_url = entry.get("webpage_url") or (f"https://www.youtube.com/watch?v={vid_id}" if vid_id else entry.get("url", ""))
+                track_id = vid_id or f"yt_{abs(hash(entry.get('title', '')))}"
+                uploader_name = entry.get("uploader") or entry.get("channel") or ""
+
+                raw_candidates.append({
+                    "id": str(track_id),
+                    "title": entry.get("title", "Unknown Track"),
+                    "url": track_url,
+                    "duration": int(entry.get("duration", 0) or 0),
+                    "artist": uploader_name or "Unknown Artist",
+                    "uploader": uploader_name,
+                    "channel": entry.get("channel") or uploader_name,
+                    "channel_is_verified": bool(entry.get("channel_is_verified")),
+                    "thumbnail": thumb,
+                    "provider": "youtube",
+                })
+
+            intent = analyze_query_intent(query)
+            scored_candidates = []
+            for c in raw_candidates:
+                if not is_original_recording_candidate(c, intent):
+                    continue
+                s, r = score_candidate_detailed(c, intent)
+                title_match_ratio, combined_match_ratio, title_confidence = _candidate_match_metrics(c, intent)
+                scored_candidates.append(
+                    (
+                        {
+                            **c,
+                            "_match_score": s,
+                            "_match_reasons": r,
+                            "_title_match_ratio": title_match_ratio,
+                            "_title_match_confidence": title_confidence,
+                            "_combined_match_ratio": combined_match_ratio,
+                        },
+                        s,
+                        r,
+                    )
+                )
+
+            scored_candidates.sort(key=lambda x: x[1], reverse=True)
+            normalized_query = " ".join(query.split())
+            for rank, (candidate, score, reasons) in enumerate(scored_candidates[:5], 1):
+                video_id = candidate.get("id")
+                canonical_url = (
+                    f"https://www.youtube.com/watch?v={video_id}"
+                    if video_id and not str(video_id).startswith("yt_")
+                    else None
+                )
+                logger.info(
+                    "[Search] provider=youtube strategy=ytsearch correlation_id=%s "
+                    "query=%r normalized_query=%r rank=%d title=%r channel=%r "
+                    "duration_seconds=%d video_id=%s url=%s score=%.1f "
+                    "title_match=%.2f reasons=%s",
+                    corr_id,
+                    _safe_query_for_log(query),
+                    _safe_query_for_log(normalized_query),
+                    rank,
+                    candidate.get("title"),
+                    candidate.get("uploader") or candidate.get("channel") or candidate.get("artist"),
+                    candidate.get("duration", 0),
+                    video_id,
+                    canonical_url or "unavailable",
+                    score,
+                    candidate.get("_title_match_ratio", 0.0),
+                    ",".join(reasons),
+                )
+
+            search_results = [
+                {**candidate, "original_source_match": True}
+                for candidate, _, _ in scored_candidates[:limit]
+            ]
+            if search_results:
+                cls._search_cache[cache_key] = search_results
+            return search_results
+
+        search_task = asyncio.create_task(_execute_search())
+        cls._pending_search_tasks[cache_key] = search_task
+
+        def _cleanup_search_task(f: asyncio.Future[Any]) -> None:
+            if cls._pending_search_tasks.get(cache_key) is f:
+                cls._pending_search_tasks.pop(cache_key, None)
+
+        search_task.add_done_callback(_cleanup_search_task)
+        try:
+            return await search_task
+        except Exception:
+            return []
 
     @classmethod
     async def resolve_spotify_metadata(cls, spotify_url: str) -> Optional[Dict[str, Any]]:
@@ -1871,9 +1924,12 @@ class AudioResolver:
                 thumbnail=resolved.thumbnail,
             )
             setattr(out_track, "_correlation_id", correlation_id)
+            if hasattr(resolved, "provider"):
+                setattr(out_track, "provider", getattr(resolved, "provider"))
             logger.info(
-                "[Resolver] provider=youtube operation=resolve correlation_id=%s "
+                "[Resolver] provider=%s operation=resolve correlation_id=%s "
                 "outcome=resolved title=%r video_id=%s",
+                getattr(out_track, "provider", "youtube"),
                 correlation_id,
                 out_track.title,
                 _video_id_from_url(out_track.url) or "unavailable",
@@ -1886,6 +1942,7 @@ class AudioResolver:
         """Clear all in-memory track resolution and search caches."""
         cls._track_cache.clear()
         cls._search_cache.clear()
+        cls._pending_search_tasks.clear()
         logger.info("[Resolver] Cleared in-memory track and search caches.")
 
     @classmethod
@@ -1940,47 +1997,67 @@ class AudioResolver:
         results: List[Dict[str, str]] = []
         seen = set()
 
-        # 1. Instant check: match local track cache
+        # 1. Instant check: match local track cache for real resolved tracks
         q_lower = q.lower()
         for k, (cached_track, _) in list(cls._track_cache.items()):
-            if q_lower in cached_track.title.lower() or q_lower in k:
+            if q_lower in cached_track.title.lower() or (cached_track.artist and q_lower in cached_track.artist.lower()):
                 if cached_track.title not in seen:
                     seen.add(cached_track.title)
                     results.append({
                         "title": cached_track.title,
-                        "artist": cached_track.artist or "Cached Track",
+                        "artist": cached_track.artist or "Resolved Track",
                         "url": cached_track.url or cached_track.title,
                     })
                     if len(results) >= limit:
                         return results
 
-        # 2. Fast remote suggest API (<150ms HTTP GET, no cookies or IP block risk)
-        try:
-            import aiohttp
-            suggest_url = f"https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q={urllib.parse.quote_plus(q)}"
-            timeout = aiohttp.ClientTimeout(total=1.2)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(suggest_url) as resp:
-                    if resp.status == 200:
-                        data = await resp.json(content_type=None)
-                        if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
-                            for suggestion in data[1]:
-                                if suggestion not in seen:
-                                    seen.add(suggestion)
-                                    results.append({
-                                        "title": str(suggestion),
-                                        "artist": "Search Suggestion",
-                                        "url": str(suggestion),
-                                    })
-                                    if len(results) >= limit:
-                                        break
-        except Exception as e:
-            logger.debug("[Autocomplete] Suggest fetch failed (exception_type=%s)", type(e).__name__)
+        # 2. Check cached search candidates for genuine songs
+        for search_key, candidates in list(cls._search_cache.items()):
+            for cand in candidates:
+                cand_title = cand.get("title", "")
+                cand_artist = cand.get("artist") or cand.get("uploader") or cand.get("channel") or ""
+                if q_lower in cand_title.lower() or q_lower in cand_artist.lower():
+                    if cand_title and cand_title not in seen:
+                        seen.add(cand_title)
+                        results.append({
+                            "title": cand_title,
+                            "artist": cand_artist or "YouTube Music",
+                            "url": cand.get("url") or cand_title,
+                        })
+                        if len(results) >= limit:
+                            return results
 
-        # 3. Fallback: return the query itself
+        # 3. Query playback history from database if available
+        try:
+            from music_bot.database.db import MusicDatabase
+            from music_bot.config import MUSIC_DATABASE_PATH
+            import aiosqlite
+            if MUSIC_DATABASE_PATH.exists():
+                async with aiosqlite.connect(str(MUSIC_DATABASE_PATH)) as db:
+                    db.row_factory = aiosqlite.Row
+                    async with db.execute(
+                        "SELECT DISTINCT title, artist, url FROM music_history WHERE title LIKE ? OR artist LIKE ? ORDER BY id DESC LIMIT ?",
+                        (f"%{q}%", f"%{q}%", limit),
+                    ) as cur:
+                        for row in await cur.fetchall():
+                            t_title = row["title"]
+                            t_artist = row["artist"] or "History"
+                            if t_title and t_title not in seen:
+                                seen.add(t_title)
+                                results.append({
+                                    "title": t_title,
+                                    "artist": t_artist,
+                                    "url": row["url"] or t_title,
+                                })
+                                if len(results) >= limit:
+                                    return results
+        except Exception:
+            pass
+
+        # 4. Fallback: Return clean play action for current query (no generic spam)
         if not results:
             results.append({
-                "title": f"Play: {q}",
+                "title": f"Play '{q}'",
                 "artist": "Direct Search",
                 "url": q,
             })
@@ -2015,8 +2092,16 @@ class AudioResolver:
             if spotify_info:
                 cleaned_query = spotify_info.get("search_query", query_or_url)
                 logger.info(f"[Resolver] Resolved Spotify metadata: '{spotify_info.get('title')}' by '{spotify_info.get('artist')}'")
-        elif "apple.com" in query_or_url:
-            cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
+        # 1. Multi-provider URL detection & metadata extraction
+        apple_info = None
+        if "apple.com" in query_or_url:
+            from music_bot.services.apple_music_service import AppleMusicService
+            apple_info = await AppleMusicService.resolve_url(query_or_url)
+            if apple_info:
+                cleaned_query = apple_info.get("search_query", query_or_url)
+                logger.info(f"[Resolver] Resolved Apple Music metadata: '{apple_info.get('title')}' by '{apple_info.get('artist')}'")
+            else:
+                cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
         intent = analyze_query_intent(cleaned_query)
 
@@ -2032,6 +2117,19 @@ class AudioResolver:
                     t.url = spotify_info["url"]
                 elif query_or_url.startswith("http"):
                     t.url = query_or_url
+                setattr(t, "provider", "spotify")
+            elif t and apple_info:
+                if apple_info.get("title"):
+                    t.title = apple_info["title"]
+                if apple_info.get("artist") and apple_info["artist"] != "Unknown Artist":
+                    t.artist = apple_info["artist"]
+                if apple_info.get("thumbnail"):
+                    t.thumbnail = apple_info["thumbnail"]
+                if apple_info.get("url"):
+                    t.url = apple_info["url"]
+                elif query_or_url.startswith("http"):
+                    t.url = query_or_url
+                setattr(t, "provider", "apple_music")
             return t
 
         cls.last_resolver_error = None
@@ -2048,20 +2146,44 @@ class AudioResolver:
         failed_stage = "init"
         is_direct_url = cleaned_query.startswith("http://") or cleaned_query.startswith("https://")
 
-        # 1. Direct SoundCloud resolution path
-        if is_direct_url and "soundcloud.com" in cleaned_query:
-            sc_track = await cls.resolve_soundcloud_track(cleaned_query, requester_id, requester_name)
-            if sc_track and sc_track.stream_url:
-                source_candidate = {"title": sc_track.title, "uploader": sc_track.artist}
-                if is_original_recording_candidate(source_candidate, analyze_query_intent(sc_track.title)):
-                    dur = time.time() - start_t
-                    logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct SoundCloud resolved in {dur:.2f}s -> '{sc_track.title}'")
-                    return sc_track
-            cls.last_resolver_error = (
-                f"[NO_ORIGINAL_MATCH] Original recording could not be verified for the SoundCloud link "
-                f"(Ref: MM-{corr_id})."
-            )
-            return None
+        # 2. SSRF-validated direct audio stream resolution
+        if is_direct_url and not is_spotify and not ("apple.com" in cleaned_query) and not ("youtube.com" in cleaned_query or "youtu.be" in cleaned_query):
+            if "soundcloud.com" in cleaned_query:
+                cls.last_resolver_error = (
+                    f"[UNSUPPORTED_PROVIDER] SoundCloud is not supported by policy. "
+                    f"Please use YouTube, Audius, or Jamendo (Ref: MM-{corr_id})."
+                )
+                return None
+
+            from music_bot.services.network_security import validate_safe_url
+            is_safe, sec_err, canonical_url = validate_safe_url(cleaned_query)
+            if not is_safe:
+                logger.warning(f"[Resolver] Blocked unsafe direct URL '{cleaned_query}': {sec_err}")
+                cls.last_resolver_error = f"[SECURITY_VIOLATION] (Ref: MM-{corr_id}) Direct URL blocked: {sec_err}"
+                return None
+
+            # Attempt direct audio extraction via yt-dlp with SSRF protection
+            try:
+                direct_opts = _build_ytdl_options(None, use_cookies=False)
+                direct_ydl = yt_dlp.YoutubeDL(direct_opts)
+                direct_data = await _run_ytdlp(
+                    functools.partial(direct_ydl.extract_info, canonical_url, download=False),
+                    timeout=10.0,
+                    operation="direct_url_extract",
+                    correlation_id=corr_id,
+                )
+                if direct_data:
+                    direct_track = cls._parse_entry(direct_data, requester_id, requester_name)
+                    if direct_track and direct_track.stream_url:
+                        # Verify stream URL is also safe against SSRF
+                        s_safe, s_err, _ = validate_safe_url(direct_track.stream_url)
+                        if s_safe:
+                            direct_track = _apply_metadata_enhancements(direct_track)
+                            setattr(direct_track, "provider", "direct_audio")
+                            logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct audio URL resolved -> '{direct_track.title}'")
+                            return direct_track
+            except Exception as direct_exc:
+                logger.info(f"[Resolver] [Ref: MM-{corr_id}] Direct URL extraction failed: {_format_error(direct_exc)}")
 
         def _entry_matches_original_policy(data: Any) -> bool:
             if not isinstance(data, dict):
@@ -2130,9 +2252,10 @@ class AudioResolver:
                 try:
                     flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
                     flat_ydl = yt_dlp.YoutubeDL(flat_opts)
+                    search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
                     search_data = await _run_ytdlp(
                         functools.partial(flat_ydl.extract_info, search_query, download=False),
-                        timeout=6.0,
+                        timeout=search_timeout,
                         operation="search_fallback",
                         correlation_id=corr_id,
                     )
@@ -2154,6 +2277,51 @@ class AudioResolver:
                     else:
                         cat = "NO_RESULTS"
                         reason = f"YouTube search completed but returned no candidates for '{cleaned_query[:60]}'."
+
+                    # Attempt multi-provider fallback (Audius / Jamendo) before failing
+                    try:
+                        from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
+                        audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
+                        for cand in audius_candidates:
+                            if is_original_recording_candidate(cand, intent):
+                                fb_track = QueuedTrack(
+                                    title=cand["title"],
+                                    url=cand["url"],
+                                    stream_url=cand["stream_url"],
+                                    duration=cand["duration"],
+                                    requester_id=requester_id,
+                                    requester_name=requester_name,
+                                    artist=cand["artist"],
+                                    thumbnail=cand.get("thumbnail"),
+                                )
+                                fb_track = _apply_metadata_enhancements(fb_track)
+                                setattr(fb_track, "provider", "audius")
+                                logger.info(
+                                    f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Audius resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
+                                )
+                                return fb_track
+
+                        jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
+                        for cand in jamendo_candidates:
+                            if is_original_recording_candidate(cand, intent):
+                                fb_track = QueuedTrack(
+                                    title=cand["title"],
+                                    url=cand["url"],
+                                    stream_url=cand["stream_url"],
+                                    duration=cand["duration"],
+                                    requester_id=requester_id,
+                                    requester_name=requester_name,
+                                    artist=cand["artist"],
+                                    thumbnail=cand.get("thumbnail"),
+                                )
+                                fb_track = _apply_metadata_enhancements(fb_track)
+                                setattr(fb_track, "provider", "jamendo")
+                                logger.info(
+                                    f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Jamendo resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
+                                )
+                                return fb_track
+                    except Exception as fb_exc:
+                        logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Pre-search fallback error: {fb_exc}")
 
                     cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
                     logger.warning(
@@ -2420,6 +2588,62 @@ class AudioResolver:
         else:
             cat = "RESOLUTION_EXHAUSTED"
             reason = f"Audio resolution exhausted for '{cleaned_query[:50]}' ({last_failure_reason})."
+
+        # Stage 4: Intelligent Multi-Provider Fallback (Audius & Jamendo)
+        # When YouTube times out or fails, search secondary permitted providers
+        if not is_direct_url and (cat == "TIMEOUT" or "timed out" in lower_failure_reason or cat == "RESOLUTION_EXHAUSTED"):
+            logger.info(
+                f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{cleaned_query[:40]}'"
+            )
+            # Try Audius
+            try:
+                from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
+                audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
+                for cand in audius_candidates:
+                    if is_original_recording_candidate(cand, intent):
+                        fb_track = QueuedTrack(
+                            title=cand["title"],
+                            url=cand["url"],
+                            stream_url=cand["stream_url"],
+                            duration=cand["duration"],
+                            requester_id=requester_id,
+                            requester_name=requester_name,
+                            artist=cand["artist"],
+                            thumbnail=cand.get("thumbnail"),
+                        )
+                        fb_track = _apply_metadata_enhancements(fb_track)
+                        setattr(fb_track, "provider", "audius")
+                        logger.info(
+                            f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Audius resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
+                        )
+                        return fb_track
+            except Exception as audius_exc:
+                logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Audius fallback error: {audius_exc}")
+
+            # Try Jamendo
+            try:
+                from music_bot.services.alternative_providers import JamendoProviderService
+                jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
+                for cand in jamendo_candidates:
+                    if is_original_recording_candidate(cand, intent):
+                        fb_track = QueuedTrack(
+                            title=cand["title"],
+                            url=cand["url"],
+                            stream_url=cand["stream_url"],
+                            duration=cand["duration"],
+                            requester_id=requester_id,
+                            requester_name=requester_name,
+                            artist=cand["artist"],
+                            thumbnail=cand.get("thumbnail"),
+                        )
+                        fb_track = _apply_metadata_enhancements(fb_track)
+                        setattr(fb_track, "provider", "jamendo")
+                        logger.info(
+                            f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Jamendo resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
+                        )
+                        return fb_track
+            except Exception as jam_exc:
+                logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Jamendo fallback error: {jam_exc}")
 
         cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
         logger.warning(
