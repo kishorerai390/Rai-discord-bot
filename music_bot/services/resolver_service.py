@@ -1504,7 +1504,7 @@ class AudioResolver:
             search_query = f"ytsearch{fetch_count}:{query}" if not query.startswith("http") else query
 
             data = None
-            search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
+            search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "15.0"))
             # 1. Primary search with bounded timeout
             try:
                 primary_opts = _build_ytdl_options(["android"], extract_flat=True)
@@ -2252,7 +2252,7 @@ class AudioResolver:
                 try:
                     flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
                     flat_ydl = yt_dlp.YoutubeDL(flat_opts)
-                    search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
+                    search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "15.0"))
                     search_data = await _run_ytdlp(
                         functools.partial(flat_ydl.extract_info, search_query, download=False),
                         timeout=search_timeout,
@@ -2381,13 +2381,13 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
+            # Tier 1: Primary Public Profile (ios, android) - 20.0s timeout for cold cloud responses
             try:
                 tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
-                    timeout=14.0,
+                    timeout=20.0,
                     operation="stream_extract_tier1",
                     correlation_id=corr_id,
                     retry_count=cand_idx - 1,
@@ -2469,13 +2469,13 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
+            # Tier 2: Fallback Public Profile (web, mweb, android) - 15.0s timeout
             try:
                 tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier2_ydl.extract_info, target_url, download=False),
-                    timeout=10.0,
+                    timeout=15.0,
                     operation="stream_extract_tier2",
                     correlation_id=corr_id,
                     retry_count=cand_idx,
@@ -2526,7 +2526,7 @@ class AudioResolver:
                     tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                     data = await _run_ytdlp(
                         functools.partial(tier3_ydl.extract_info, top_target, download=False),
-                        timeout=8.0,
+                        timeout=12.0,
                         operation="stream_extract_cookie_fallback",
                         correlation_id=corr_id,
                         retry_count=1,
