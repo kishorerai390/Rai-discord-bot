@@ -5,12 +5,24 @@ import path from "path";
 
 const PRESENCE_FILE = path.join(process.cwd(), "data", "bot_presence.json");
 
+const ALLOWED_SIGNATURE_SYMBOLS = [
+  "vr_headset",
+  "music_note",
+  "soundwave",
+  "radio",
+  "vinyl",
+  "energy_core",
+] as const;
+
+type SignatureSymbol = typeof ALLOWED_SIGNATURE_SYMBOLS[number];
+
 interface BotPresence {
   mode: "dynamic" | "manual";
   status: "online" | "idle" | "dnd" | "invisible";
   activity_type: "listening" | "playing" | "watching" | "competing" | "custom";
   activity_text: string;
   idle_text: string;
+  signature_symbol?: SignatureSymbol;
   updated_at?: string;
 }
 
@@ -20,6 +32,7 @@ const DEFAULT_PRESENCE: BotPresence = {
   activity_type: "listening",
   activity_text: "MusicMaid | /play",
   idle_text: "24/7 high-fidelity lossless music player.",
+  signature_symbol: "vr_headset",
 };
 
 function readPresence(): BotPresence {
@@ -120,6 +133,9 @@ export async function POST(req: NextRequest) {
       activity_type: body.activity_type || "listening",
       activity_text: String(body.activity_text || ""),
       idle_text: String(body.idle_text || "24/7 lossless audio player."),
+      signature_symbol: ALLOWED_SIGNATURE_SYMBOLS.includes(body.signature_symbol)
+        ? body.signature_symbol
+        : readPresence().signature_symbol || "vr_headset",
       updated_at: new Date().toISOString(),
     };
 

@@ -63,6 +63,9 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
   const [botStatus, setBotStatus] = useState<"online" | "idle" | "dnd" | "invisible">("online");
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [signatureSymbol, setSignatureSymbol] = useState<string>("vr_headset");
+  const [symbolMenuOpen, setSymbolMenuOpen] = useState(false);
+  const [updatingSymbol, setUpdatingSymbol] = useState(false);
 
   const handleUpdateStatus = async (newStatus: "online" | "idle" | "dnd" | "invisible") => {
     setStatusMenuOpen(false);
@@ -72,7 +75,7 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
       const res = await fetch("/api/owner/presence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus, mode: "manual" }),
+        body: JSON.stringify({ status: newStatus, mode: "manual", signature_symbol: signatureSymbol }),
       });
       const data = await res.json();
       if (data.success) {
@@ -88,22 +91,47 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
     }
   };
 
+  const handleUpdateSymbol = async (newSymbol: string) => {
+    setSymbolMenuOpen(false);
+    setSignatureSymbol(newSymbol);
+    setUpdatingSymbol(true);
+    try {
+      const res = await fetch("/api/owner/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signature_symbol: newSymbol }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onShowToast(`MusicMaid signature symbol updated to ${newSymbol.replace('_', ' ').toUpperCase()}! ✦`, "success");
+      } else {
+        onShowToast(data.error?.message || "Failed to update symbol", "danger");
+      }
+    } catch (e: any) {
+      onShowToast(`Symbol update error: ${e.message}`, "danger");
+    } finally {
+      setUpdatingSymbol(false);
+    }
+  };
+
   const fetchOverviewData = async () => {
     try {
-      const [ovRes, hlRes, flRes, incRes, bkRes] = await Promise.all([
+      const [ovRes, hlRes, flRes, incRes, bkRes, presRes] = await Promise.all([
         fetch("/api/owner/overview"),
         fetch("/api/owner/health"),
         fetch("/api/owner/feature-flags"),
         fetch("/api/owner/incidents"),
         fetch("/api/owner/backups"),
+        fetch("/api/owner/presence"),
       ]);
 
-      const [ovData, hlData, flData, incData, bkData] = await Promise.all([
+      const [ovData, hlData, flData, incData, bkData, presData] = await Promise.all([
         ovRes.json(),
         hlRes.json(),
         flRes.json(),
         incRes.json(),
         bkRes.json(),
+        presRes.json(),
       ]);
 
       if (ovData.success) setOverview(ovData.data);
@@ -111,6 +139,10 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
       if (flData.success) setFlags(flData.data.flags || {});
       if (incData.success) setIncidents(incData.data.incidents || []);
       if (bkData.success) setBackups(bkData.data.backups || []);
+      if (presData.success && presData.data) {
+        if (presData.data.status) setBotStatus(presData.data.status);
+        if (presData.data.signature_symbol) setSignatureSymbol(presData.data.signature_symbol);
+      }
     } catch (e: any) {
       console.warn("Owner dashboard load warning:", e);
     } finally {
@@ -424,6 +456,89 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
               </div>
               <p className="text-[11px] text-(--text-dim) mt-2 font-mono">
                 {overview?.cluster_name || "MusicMaid-Core-01"}
+              </p>
+            </div>
+
+            {/* SIGNATURE SYMBOL */}
+            <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5 relative">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-(--text-muted) uppercase tracking-wider block font-mono">
+                  SIGNATURE SYMBOL
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateSymbol("vr_headset")}
+                  className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 transition-colors"
+                  title="Reset to default VR Headset"
+                >
+                  Reset
+                </button>
+              </div>
+              <div className="relative mt-2">
+                <button
+                  type="button"
+                  onClick={() => setSymbolMenuOpen(!symbolMenuOpen)}
+                  disabled={updatingSymbol}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#120f24] border-2 border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.35)] text-white text-sm font-bold transition-all hover:border-purple-400 focus:outline-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-purple-400">
+                      {signatureSymbol === "vr_headset" && "🎧"}
+                      {signatureSymbol === "music_note" && "🎵"}
+                      {signatureSymbol === "soundwave" && "📶"}
+                      {signatureSymbol === "radio" && "📻"}
+                      {signatureSymbol === "vinyl" && "💿"}
+                      {signatureSymbol === "energy_core" && "✨"}
+                    </span>
+                    <span className="capitalize text-xs font-bold text-white">
+                      {signatureSymbol.replace("_", " ")}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-purple-300 transition-transform duration-200 ${
+                      symbolMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {symbolMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setSymbolMenuOpen(false)}
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[#16122c] border border-purple-500/40 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                      {[
+                        { id: "vr_headset", label: "VR Headset", icon: "🎧", subtitle: "Default Signature" },
+                        { id: "music_note", label: "Neon Music Note", icon: "🎵", subtitle: "Hi-Fi Audio" },
+                        { id: "soundwave", label: "Soundwave", icon: "📶", subtitle: "Harmonic Wave" },
+                        { id: "radio", label: "Digital Radio", icon: "📻", subtitle: "Broadcaster" },
+                        { id: "vinyl", label: "Holographic Vinyl", icon: "💿", subtitle: "Analog Soul" },
+                        { id: "energy_core", label: "AI Energy Core", icon: "✨", subtitle: "Futuristic Core" },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleUpdateSymbol(item.id)}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold transition-all text-left ${
+                            signatureSymbol === item.id
+                              ? "bg-purple-600/30 text-white"
+                              : "text-slate-300 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{item.icon}</span>
+                            <span>{item.label}</span>
+                          </div>
+                          <span className="text-[10px] text-(--text-dim) font-normal font-mono">{item.subtitle}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <p className="text-[11px] text-(--text-dim) mt-2 font-mono">
+                Website & Player Emblem
               </p>
             </div>
 
