@@ -2168,7 +2168,7 @@ class AudioResolver:
                 direct_ydl = yt_dlp.YoutubeDL(direct_opts)
                 direct_data = await _run_ytdlp(
                     functools.partial(direct_ydl.extract_info, canonical_url, download=False),
-                    timeout=10.0,
+                    timeout=15.0,
                     operation="direct_url_extract",
                     correlation_id=corr_id,
                 )

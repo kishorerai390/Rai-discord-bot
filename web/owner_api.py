@@ -128,10 +128,15 @@ class OwnerApiRouter:
 
         git_commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "staging"
 
+        from music_bot.services.presence_service import DynamicPresenceService
+        pres_state = DynamicPresenceService.get_state(self.bot)
+
         return web.json_response({
             "success": True,
             "data": {
                 "bot_status": "ONLINE" if bot_ready else "STARTING",
+                "configured_status": pres_state.get("configured_status", "online"),
+                "discord_presence": pres_state.get("discord_presence", "online"),
                 "cluster_name": "MusicMaid-Core-01",
                 "uptime_seconds": uptime_seconds,
                 "gateway_latency_ms": latency_ms,
