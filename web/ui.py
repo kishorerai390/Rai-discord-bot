@@ -418,10 +418,30 @@ UI_HTML = r"""<!DOCTYPE html>
       border-color: rgba(168, 85, 247, 0.5);
       transform: translateY(-1px);
     }
+    .symbol-choice-card:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 2px;
+      border-color: var(--cyan);
+    }
     .symbol-choice-card.selected {
       background: rgba(168, 85, 247, 0.2);
       border-color: var(--primary);
       box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .signature-symbol-wrap,
+      .signature-symbol-svg,
+      .symbol-choice-card {
+        transition: none !important;
+        transform: none !important;
+        animation: none !important;
+      }
+      .signature-symbol-wrap:hover .signature-symbol-svg {
+        transform: none !important;
+      }
+      .symbol-choice-card:hover {
+        transform: none !important;
+      }
     }
 
     /* NAV LINKS LIST */
@@ -3189,6 +3209,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
           <img src="/public/musicmaid_avatar.jpg" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.style.display='none';">
           <span style="font-weight:800; font-size:1.1rem; color:#fff;">MusicMaid</span>
+          <span id="mobile-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
         </div>
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="btn btn-sm btn-primary" style="padding:0.3rem 0.65rem; font-size:0.75rem; border-radius:20px; font-weight:800;" onclick="navigate('/premium')">💎 Premium</button>
@@ -3781,6 +3802,12 @@ UI_HTML = r"""<!DOCTYPE html>
         barIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 16);
       }
 
+      // Update mobile top bar branding badge
+      const mobileIcon = document.getElementById('mobile-brand-symbol');
+      if (mobileIcon) {
+        mobileIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 16);
+      }
+
       // Update presence live preview icon
       const presIcon = document.getElementById('presence-symbol-preview');
       if (presIcon) {
@@ -4317,6 +4344,11 @@ UI_HTML = r"""<!DOCTYPE html>
           trackDurationSeconds = currentSession.duration_seconds || 0;
           if (!isScrubbing) {
             playbackSeconds = currentSession.position_seconds || 0;
+          }
+          if (currentSession.signature_symbol && MUSICMAID_SIGNATURE_SYMBOLS[currentSession.signature_symbol]) {
+            if (activeSignatureSymbol !== currentSession.signature_symbol) {
+              updateSignatureSymbolBranding(currentSession.signature_symbol);
+            }
           }
           updatePlaybackBarUI();
         }
@@ -5931,8 +5963,10 @@ UI_HTML = r"""<!DOCTYPE html>
                   </div>
 
                   <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.5rem; margin-top:0.2rem;" id="symbol-choices-grid">
-                    ${Object.entries(MUSICMAID_SIGNATURE_SYMBOLS).map(([key, item]) => `
-                      <div class="symbol-choice-card ${(presence.signature_symbol || activeSignatureSymbol || 'vr_headset') === key ? 'selected' : ''}" id="sym-card-${key}" onclick="selectSignatureSymbol('${key}')" role="button" tabindex="0" aria-label="${item.name}">
+                    ${Object.entries(MUSICMAID_SIGNATURE_SYMBOLS).map(([key, item]) => {
+                      const isSel = (presence.signature_symbol || activeSignatureSymbol || 'vr_headset') === key;
+                      return `
+                      <div class="symbol-choice-card ${isSel ? 'selected' : ''}" id="sym-card-${key}" onclick="selectSignatureSymbol('${key}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); selectSignatureSymbol('${key}');}" role="button" tabindex="0" aria-label="${item.name}: ${item.subtitle}" aria-pressed="${isSel ? 'true' : 'false'}">
                         <div style="display:flex; align-items:center; justify-content:center; width:28px; height:28px;">
                           ${item.svg(22, true)}
                         </div>
@@ -5941,7 +5975,7 @@ UI_HTML = r"""<!DOCTYPE html>
                           <div style="font-size:0.64rem; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.subtitle}</div>
                         </div>
                       </div>
-                    `).join('')}
+                    `}).join('')}
                   </div>
                   <input type="hidden" id="owner-pres-signature-symbol" value="${presence.signature_symbol || activeSignatureSymbol || 'vr_headset'}">
                 </div>
@@ -6246,8 +6280,10 @@ UI_HTML = r"""<!DOCTYPE html>
         if (card) {
           if (k === symbolKey) {
             card.classList.add('selected');
+            card.setAttribute('aria-pressed', 'true');
           } else {
             card.classList.remove('selected');
+            card.setAttribute('aria-pressed', 'false');
           }
         }
       });

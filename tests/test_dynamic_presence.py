@@ -186,6 +186,41 @@ class TestDynamicPresenceService(unittest.TestCase):
             idle_text="",
         ))
 
+    def test_signature_symbol_selection_and_persistence(self):
+        import asyncio
+        # Test each of the 6 signature symbols
+        valid_symbols = ["vr_headset", "music_note", "soundwave", "radio", "vinyl", "energy_core"]
+        for sym in valid_symbols:
+            res = asyncio.run(DynamicPresenceService.update_state(
+                self.bot,
+                signature_symbol=sym
+            ))
+            self.assertEqual(res["signature_symbol"], sym)
+            state = DynamicPresenceService.get_state(self.bot)
+            self.assertEqual(state["signature_symbol"], sym)
+
+    def test_signature_symbol_allowlist_validation_rejects_invalid(self):
+        import asyncio
+        # Set to known valid first
+        asyncio.run(DynamicPresenceService.update_state(self.bot, signature_symbol="music_note"))
+        self.assertEqual(DynamicPresenceService._signature_symbol, "music_note")
+
+        # Attempt to pass an invalid or malicious symbol
+        asyncio.run(DynamicPresenceService.update_state(self.bot, signature_symbol="invalid_symbol_hacked"))
+        # Must retain previous valid symbol and not accept the invalid one
+        self.assertEqual(DynamicPresenceService._signature_symbol, "music_note")
+
+    def test_reset_signature_symbol_restores_vr_headset_default(self):
+        import asyncio
+        # First set to energy_core
+        asyncio.run(DynamicPresenceService.update_state(self.bot, signature_symbol="energy_core"))
+        self.assertEqual(DynamicPresenceService._signature_symbol, "energy_core")
+
+        # Now reset to default 'vr_headset'
+        res = asyncio.run(DynamicPresenceService.update_state(self.bot, signature_symbol="vr_headset"))
+        self.assertEqual(res["signature_symbol"], "vr_headset")
+        self.assertEqual(DynamicPresenceService._signature_symbol, "vr_headset")
+
 
 if __name__ == "__main__":
     unittest.main()

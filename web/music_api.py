@@ -393,6 +393,7 @@ class MusicApiRouter:
                 "sleep_timer_seconds": max(0, int(session.sleep_timer_end - time.time())) if getattr(session, "sleep_timer_end", 0) > time.time() else None,
                 "last_error": getattr(session, "last_error", None),
                 "permissions": perms,
+                "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
             }
             data["session"] = {k: v for k, v in data.items() if k != "session"}
             return json_success(data)
@@ -432,6 +433,7 @@ class MusicApiRouter:
                     "voice_status": voice_status,
                     "last_error": None,
                     "permissions": perms,
+                    "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
                 }
                 return json_success(data)
         except Exception as e:
@@ -460,6 +462,7 @@ class MusicApiRouter:
             "voice_status": voice_status,
             "last_error": None,
             "permissions": perms,
+            "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
         }
         idle_data["session"] = {k: v for k, v in idle_data.items() if k != "session"}
         return json_success(idle_data)
@@ -1172,6 +1175,7 @@ class MusicApiRouter:
             "auto_updater_active": True,
             "self_healing_status": "Optimal",
             "last_heartbeat": heartbeat.last_heartbeat if heartbeat else None,
+            "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
         }
         return json_success(data)
 
