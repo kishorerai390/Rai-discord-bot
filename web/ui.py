@@ -3816,19 +3816,18 @@ UI_HTML = r"""<!DOCTYPE html>
         window.history.replaceState({}, document.title, window.location.pathname);
       }
 
-      // Handle Route immediately so page views render with zero delay
-      handleRoute();
-      window.addEventListener('popstate', handleRoute);
-
       try {
         updateSignatureSymbolBranding(activeSignatureSymbol);
+        await fetchAuthStatus();
+        handleRoute();
+        window.addEventListener('popstate', handleRoute);
         setupRealtimeWebSocket();
         initFirebaseClient();
-        await fetchAuthStatus();
         await fetchGuilds();
         await syncAll();
       } catch (err) {
         console.warn("Initial sync non-fatal error:", err);
+        handleRoute();
       }
 
       // Start synchronized progress timer (1-second tick)
@@ -4001,13 +4000,18 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function getAuthHeaders(customHeaders = {}) {
+      const headers = { ...customHeaders };
+      const token = localStorage.getItem('rai_session_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      return headers;
+    }
+
     async function fetchAuthStatus() {
       try {
-        const token = localStorage.getItem('rai_session_token');
-        const headers = {};
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
+        const headers = getAuthHeaders();
         const res = await fetch('/api/auth/me', {
           headers: headers,
           cache: 'no-store',
@@ -4017,11 +4021,21 @@ UI_HTML = r"""<!DOCTYPE html>
         if (json.success && json.data && json.data.authenticated && json.data.user) {
           currentUser = json.data.user;
           renderAuthBox(currentUser);
+          // If user was on the login/landing screen, dynamically re-render to show signed-in view
+          const currentPath = location.pathname;
+          if (currentPath === '/' || currentPath === '/login') {
+            renderLoginView();
+          }
         } else {
+          const token = localStorage.getItem('rai_session_token');
           if (token && json.success && (!json.data || !json.data.authenticated)) {
             localStorage.removeItem('rai_session_token');
           }
           renderAuthBox(null);
+          const currentPath = location.pathname;
+          if (currentPath === '/' || currentPath === '/login') {
+            renderLoginView();
+          }
         }
       } catch(e) {
         renderAuthBox(null);
@@ -4916,7 +4930,10 @@ UI_HTML = r"""<!DOCTYPE html>
 
     async function updateControlRoomMetrics() {
       try {
-        const res = await fetch('/api/owner/overview');
+        const res = await fetch('/api/owner/overview', {
+          credentials: 'include',
+          headers: getAuthHeaders()
+        });
         const json = await res.json();
         if (json.success && json.data) {
           const ov = json.data;
@@ -5658,13 +5675,15 @@ UI_HTML = r"""<!DOCTYPE html>
       `;
 
       try {
+        const authH = getAuthHeaders();
+        const fetchOpts = { headers: authH, credentials: 'include', cache: 'no-store' };
         const [resOverview, resHealth, resIncidents, resFlags, resBackups, resPresence] = await Promise.all([
-          fetch('/api/owner/overview'),
-          fetch('/api/owner/health'),
-          fetch('/api/owner/incidents'),
-          fetch('/api/owner/feature-flags'),
-          fetch('/api/owner/backups'),
-          fetch('/api/owner/presence'),
+          fetch('/api/owner/overview', fetchOpts),
+          fetch('/api/owner/health', fetchOpts),
+          fetch('/api/owner/incidents', fetchOpts),
+          fetch('/api/owner/feature-flags', fetchOpts),
+          fetch('/api/owner/backups', fetchOpts),
+          fetch('/api/owner/presence', fetchOpts),
         ]);
 
         const [ovData, hlData, incData, flagData, bkpData, presData] = await Promise.all([
@@ -6023,7 +6042,8 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const res = await fetch('/api/owner/incidents/acknowledge', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+          headers: getAuthHeaders({'Content-Type': 'application/json'}),
           body: JSON.stringify({ incident_id: id })
         });
         const json = await res.json();
@@ -6040,7 +6060,8 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const res = await fetch('/api/owner/feature-flags', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+          headers: getAuthHeaders({'Content-Type': 'application/json'}),
           body: JSON.stringify({ flag: flag, enabled: enabled })
         });
         const json = await res.json();
@@ -6056,7 +6077,11 @@ UI_HTML = r"""<!DOCTYPE html>
     async function triggerManualBackup() {
       showToast("Creating instant database backup...");
       try {
-        const res = await fetch('/api/owner/backups/create', { method: 'POST' });
+        const res = await fetch('/api/owner/backups/create', {
+          method: 'POST',
+          credentials: 'include',
+          headers: getAuthHeaders()
+        });
         const json = await res.json();
         if (json.success) {
           showToast(`Backup created: ${json.data.filename}`);
@@ -6081,7 +6106,10 @@ UI_HTML = r"""<!DOCTYPE html>
       box.innerHTML = 'Searching...';
 
       try {
-        const res = await fetch(`/api/owner/users/search?user_id=${encodeURIComponent(uid)}`);
+        const res = await fetch(`/api/owner/users/search?user_id=${encodeURIComponent(uid)}`, {
+          credentials: 'include',
+          headers: getAuthHeaders()
+        });
         const json = await res.json();
         if (json.success) {
           const u = json.data;
@@ -6127,7 +6155,8 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const res = await fetch('/api/owner/users/entitlement', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+          headers: getAuthHeaders({'Content-Type': 'application/json'}),
           body: JSON.stringify({ user_id: uid, action: 'grant', tier: tier, days: 30, reason: reason })
         });
         const json = await res.json();
@@ -6148,7 +6177,8 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const res = await fetch('/api/owner/users/entitlement', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+          headers: getAuthHeaders({'Content-Type': 'application/json'}),
           body: JSON.stringify({ user_id: uid, action: 'revoke', reason: reason })
         });
         const json = await res.json();
@@ -6229,18 +6259,27 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function saveBotPresenceSettings() {
-      const mode = document.getElementById('owner-pres-mode')?.value || 'dynamic';
+      let mode = document.getElementById('owner-pres-mode')?.value || 'dynamic';
       const status = document.getElementById('owner-pres-status')?.value || 'online';
       const actType = document.getElementById('owner-pres-act-type')?.value || 'listening';
-      const actText = document.getElementById('owner-pres-act-text')?.value || '';
-      const idleText = document.getElementById('owner-pres-idle-text')?.value || '';
+      const actText = (document.getElementById('owner-pres-act-text')?.value || '').trim();
+      const idleText = (document.getElementById('owner-pres-idle-text')?.value || '').trim();
       const sigSymbol = document.getElementById('owner-pres-signature-symbol')?.value || activeSignatureSymbol || 'vr_headset';
+
+      // Smart UX: If the creator has typed a manual activity text or selected a custom status,
+      // and hasn't explicitly set mode to dynamic, treat it as manual mode so it shows in Discord immediately!
+      if (actText && mode === 'dynamic') {
+        mode = 'manual';
+        const modeInput = document.getElementById('owner-pres-mode');
+        if (modeInput) modeInput.value = 'manual';
+      }
 
       showToast("Applying presence & branding changes to Discord Gateway...", "info");
       try {
         const res = await fetch('/api/owner/presence', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+          headers: getAuthHeaders({'Content-Type': 'application/json'}),
           body: JSON.stringify({
             mode: mode,
             status: status,
@@ -6270,7 +6309,8 @@ UI_HTML = r"""<!DOCTYPE html>
       try {
         const res = await fetch('/api/owner/presence', {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          credentials: 'include',
+          headers: getAuthHeaders({'Content-Type': 'application/json'}),
           body: JSON.stringify({
             mode: 'dynamic',
             status: 'online',
