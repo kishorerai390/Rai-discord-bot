@@ -297,7 +297,8 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     /* CUSTOM VOICE CHANNEL DROPDOWN (100% RELIABLE DARK THEME) */
-    .vc-switcher {
+    /* CUSTOM VOICE & PRESENCE DROPDOWNS (100% RELIABLE DARK THEME) */
+    .vc-switcher, .pres-custom-switcher {
       position: relative;
       background: #0e0b1c;
       border: 1px solid rgba(168, 85, 247, 0.4);
@@ -310,12 +311,12 @@ UI_HTML = r"""<!DOCTYPE html>
       transition: all 0.2s ease;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     }
-    .vc-switcher:hover {
+    .vc-switcher:hover, .pres-custom-switcher:hover {
       background: #141026;
       border-color: var(--cyan);
       box-shadow: 0 0 14px rgba(0, 229, 255, 0.25);
     }
-    .vc-dropdown-menu {
+    .vc-dropdown-menu, .pres-dropdown-menu {
       position: absolute;
       top: 108%;
       left: 0;
@@ -332,8 +333,8 @@ UI_HTML = r"""<!DOCTYPE html>
       padding: 0.4rem;
       gap: 0.25rem;
     }
-    .vc-dropdown-menu.open { display: flex; }
-    .vc-opt {
+    .vc-dropdown-menu.open, .pres-dropdown-menu.open { display: flex; }
+    .vc-opt, .pres-opt {
       display: flex;
       align-items: center;
       gap: 0.6rem;
@@ -346,11 +347,11 @@ UI_HTML = r"""<!DOCTYPE html>
       transition: all 0.15s ease;
       background: transparent;
     }
-    .vc-opt:hover {
+    .vc-opt:hover, .pres-opt:hover {
       background: rgba(168, 85, 247, 0.25);
       color: #fff;
     }
-    .vc-opt.selected {
+    .vc-opt.selected, .pres-opt.selected {
       background: rgba(0, 229, 255, 0.2);
       color: var(--cyan);
       font-weight: 700;
@@ -5844,32 +5845,51 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem;">
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Control Mode</label>
-                    <select id="owner-pres-mode" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;" onchange="togglePresenceModeUI()">
-                      <option value="dynamic" style="background:#0e0b1c; color:#f8fafc;" ${presence.mode === 'dynamic' ? 'selected' : ''}>⚡ Dynamic (Auto-Sync)</option>
-                      <option value="manual" style="background:#0e0b1c; color:#f8fafc;" ${presence.mode === 'manual' ? 'selected' : ''}>🔒 Manual (Override)</option>
-                    </select>
+                    <div class="pres-custom-switcher" onclick="togglePresDropdown('pres-mode-menu', event)">
+                      <span id="owner-pres-mode-label" style="font-size:0.82rem; font-weight:600; color:#fff;">${presence.mode === 'manual' ? '🔒 Manual (Override)' : '⚡ Dynamic (Auto-Sync)'}</span>
+                      <span style="font-size:0.72rem; color:var(--text-dim);">▼</span>
+                      <div class="pres-dropdown-menu" id="pres-mode-menu">
+                        <div class="pres-opt ${presence.mode !== 'manual' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-mode', 'dynamic', '⚡ Dynamic (Auto-Sync)')">⚡ Dynamic (Auto-Sync)</div>
+                        <div class="pres-opt ${presence.mode === 'manual' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-mode', 'manual', '🔒 Manual (Override)')">🔒 Manual (Override)</div>
+                      </div>
+                    </div>
+                    <input type="hidden" id="owner-pres-mode" value="${presence.mode || 'dynamic'}">
                   </div>
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Bot Status</label>
-                    <select id="owner-pres-status" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;">
-                      <option value="online" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'online' ? 'selected' : ''}>🟢 Online</option>
-                      <option value="idle" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'idle' ? 'selected' : ''}>🟡 Idle</option>
-                      <option value="dnd" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'dnd' ? 'selected' : ''}>🔴 Do Not Disturb</option>
-                      <option value="invisible" style="background:#0e0b1c; color:#f8fafc;" ${presence.status === 'invisible' ? 'selected' : ''}>⚪ Invisible / Offline</option>
-                    </select>
+                    <div class="pres-custom-switcher" onclick="togglePresDropdown('pres-status-menu', event)">
+                      <span id="owner-pres-status-label" style="font-size:0.82rem; font-weight:600; color:#fff;">
+                        ${presence.status === 'idle' ? '🟡 Idle' : (presence.status === 'dnd' ? '🔴 Do Not Disturb' : (presence.status === 'invisible' ? '⚪ Invisible / Offline' : '🟢 Online'))}
+                      </span>
+                      <span style="font-size:0.72rem; color:var(--text-dim);">▼</span>
+                      <div class="pres-dropdown-menu" id="pres-status-menu">
+                        <div class="pres-opt ${presence.status === 'online' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-status', 'online', '🟢 Online')">🟢 Online</div>
+                        <div class="pres-opt ${presence.status === 'idle' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-status', 'idle', '🟡 Idle')">🟡 Idle</div>
+                        <div class="pres-opt ${presence.status === 'dnd' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-status', 'dnd', '🔴 Do Not Disturb')">🔴 Do Not Disturb</div>
+                        <div class="pres-opt ${presence.status === 'invisible' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-status', 'invisible', '⚪ Invisible / Offline')">⚪ Invisible / Offline</div>
+                      </div>
+                    </div>
+                    <input type="hidden" id="owner-pres-status" value="${presence.status || 'online'}">
                   </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.8rem;">
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Activity Type</label>
-                    <select id="owner-pres-act-type" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem; background:#0e0b1c; color:#f8fafc; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); outline:none; color-scheme:dark;">
-                      <option value="listening" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'listening' ? 'selected' : ''}>🎧 Listening to</option>
-                      <option value="playing" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'playing' ? 'selected' : ''}>🎮 Playing</option>
-                      <option value="watching" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'watching' ? 'selected' : ''}>📺 Watching</option>
-                      <option value="competing" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'competing' ? 'selected' : ''}>🏆 Competing in</option>
-                      <option value="custom" style="background:#0e0b1c; color:#f8fafc;" ${presence.activity_type === 'custom' ? 'selected' : ''}>💬 Custom Status</option>
-                    </select>
+                    <div class="pres-custom-switcher" onclick="togglePresDropdown('pres-act-type-menu', event)">
+                      <span id="owner-pres-act-type-label" style="font-size:0.82rem; font-weight:600; color:#fff;">
+                        ${presence.activity_type === 'playing' ? '🎮 Playing' : (presence.activity_type === 'watching' ? '📺 Watching' : (presence.activity_type === 'competing' ? '🏆 Competing in' : (presence.activity_type === 'custom' ? '💬 Custom Status' : '🎧 Listening to')))}
+                      </span>
+                      <span style="font-size:0.72rem; color:var(--text-dim);">▼</span>
+                      <div class="pres-dropdown-menu" id="pres-act-type-menu">
+                        <div class="pres-opt ${presence.activity_type === 'listening' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-act-type', 'listening', '🎧 Listening to')">🎧 Listening to</div>
+                        <div class="pres-opt ${presence.activity_type === 'playing' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-act-type', 'playing', '🎮 Playing')">🎮 Playing</div>
+                        <div class="pres-opt ${presence.activity_type === 'watching' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-act-type', 'watching', '📺 Watching')">📺 Watching</div>
+                        <div class="pres-opt ${presence.activity_type === 'competing' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-act-type', 'competing', '🏆 Competing in')">🏆 Competing in</div>
+                        <div class="pres-opt ${presence.activity_type === 'custom' ? 'selected' : ''}" onclick="selectPresOption('owner-pres-act-type', 'custom', '💬 Custom Status')">💬 Custom Status</div>
+                      </div>
+                    </div>
+                    <input type="hidden" id="owner-pres-act-type" value="${presence.activity_type || 'listening'}">
                   </div>
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Manual Activity Text</label>
@@ -6140,6 +6160,44 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       } catch(e) {
         showToast("Error revoking entitlement", "danger");
+      }
+    }
+
+    function togglePresDropdown(menuId, e) {
+      e.stopPropagation();
+      // Close all other open presence dropdowns
+      document.querySelectorAll('.pres-dropdown-menu').forEach(m => {
+        if (m.id !== menuId) m.classList.remove('open');
+      });
+      document.getElementById(menuId)?.classList.toggle('open');
+    }
+
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.pres-dropdown-menu').forEach(m => m.classList.remove('open'));
+    });
+
+    function selectPresOption(hiddenInputId, val, label) {
+      const hidden = document.getElementById(hiddenInputId);
+      if (hidden) hidden.value = val;
+      const labelEl = document.getElementById(`${hiddenInputId}-label`);
+      if (labelEl) labelEl.textContent = label;
+
+      // Close dropdown and update selection highlights
+      document.querySelectorAll('.pres-dropdown-menu').forEach(m => m.classList.remove('open'));
+      const menu = labelEl?.parentElement?.querySelector('.pres-dropdown-menu');
+      if (menu) {
+        menu.querySelectorAll('.pres-opt').forEach(opt => {
+          if (opt.textContent.trim() === label.trim()) {
+            opt.classList.add('selected');
+          } else {
+            opt.classList.remove('selected');
+          }
+        });
+      }
+
+      if (hiddenInputId === 'owner-pres-mode') {
+        const actInput = document.getElementById('owner-pres-act-text');
+        if (val === 'manual' && actInput) actInput.focus();
       }
     }
 
