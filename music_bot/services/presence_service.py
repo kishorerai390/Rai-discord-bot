@@ -62,7 +62,17 @@ class DynamicPresenceService:
     _custom_activity_type: str = "listening"  # "listening" | "playing" | "watching" | "competing" | "custom"
     _custom_activity_text: str = ""
     _custom_idle_text: Optional[str] = None
+    _signature_symbol: str = "vr_headset"  # "vr_headset" | "music_note" | "soundwave" | "radio" | "vinyl" | "energy_core"
     _config_loaded: bool = False
+
+    ALLOWED_SYMBOLS = {
+        "vr_headset",
+        "music_note",
+        "soundwave",
+        "radio",
+        "vinyl",
+        "energy_core",
+    }
 
     @classmethod
     def load_config(cls) -> None:
@@ -77,6 +87,8 @@ class DynamicPresenceService:
                     cls._custom_activity_type = data.get("activity_type", "listening")
                     cls._custom_activity_text = data.get("activity_text", "")
                     cls._custom_idle_text = data.get("idle_text") or None
+                    sym = data.get("signature_symbol", "vr_headset")
+                    cls._signature_symbol = sym if sym in cls.ALLOWED_SYMBOLS else "vr_headset"
             except Exception as e:
                 logger.warning(f"Could not load presence config: {e}")
 
@@ -92,6 +104,7 @@ class DynamicPresenceService:
                     "activity_type": cls._custom_activity_type,
                     "activity_text": cls._custom_activity_text,
                     "idle_text": cls._custom_idle_text or "",
+                    "signature_symbol": cls._signature_symbol,
                 }, f, indent=2)
         except Exception as e:
             logger.warning(f"Could not save presence config: {e}")
@@ -115,6 +128,7 @@ class DynamicPresenceService:
             "activity_type": cls._custom_activity_type,
             "activity_text": cls._custom_activity_text,
             "idle_text": cls._custom_idle_text or "",
+            "signature_symbol": cls._signature_symbol,
             "live_activity_name": live_activity_name,
             "live_status": live_status,
             "last_update_time": cls._last_update_time,
@@ -130,6 +144,7 @@ class DynamicPresenceService:
         activity_type: Optional[str] = None,
         activity_text: Optional[str] = None,
         idle_text: Optional[str] = None,
+        signature_symbol: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Update presence configuration, save to disk, and immediately synchronize Discord presence."""
         if not cls._config_loaded:
@@ -146,6 +161,10 @@ class DynamicPresenceService:
         if idle_text is not None:
             cleaned = str(idle_text).strip()
             cls._custom_idle_text = cleaned if cleaned else None
+        if signature_symbol is not None:
+            sym = str(signature_symbol).strip().lower()
+            if sym in cls.ALLOWED_SYMBOLS:
+                cls._signature_symbol = sym
 
         cls.save_config()
 

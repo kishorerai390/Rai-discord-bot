@@ -323,6 +323,46 @@ UI_HTML = r"""<!DOCTYPE html>
       color: #ffffff !important;
     }
 
+    /* MUSICMAID SIGNATURE SYMBOLS & BRANDING */
+    .signature-symbol-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .signature-symbol-wrap:hover .signature-symbol-svg {
+      filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.85)) drop-shadow(0 0 14px rgba(16, 185, 129, 0.6));
+      transform: scale(1.08);
+    }
+    .signature-symbol-svg {
+      display: inline-block;
+      vertical-align: middle;
+      transition: all 0.25s ease;
+      filter: drop-shadow(0 0 4px rgba(168, 85, 247, 0.45));
+    }
+    .symbol-choice-card {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.6rem 0.8rem;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .symbol-choice-card:hover {
+      background: rgba(168, 85, 247, 0.12);
+      border-color: rgba(168, 85, 247, 0.5);
+      transform: translateY(-1px);
+    }
+    .symbol-choice-card.selected {
+      background: rgba(168, 85, 247, 0.2);
+      border-color: var(--primary);
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+    }
+
     /* NAV LINKS LIST */
     .nav-group-title {
       font-size: 0.68rem;

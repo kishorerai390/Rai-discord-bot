@@ -623,6 +623,7 @@ class OwnerApiRouter:
             activity_type=body.get("activity_type"),
             activity_text=body.get("activity_text"),
             idle_text=body.get("idle_text"),
+            signature_symbol=body.get("signature_symbol"),
         )
 
         log_incident(
