@@ -84,12 +84,16 @@ class TestMusicMaidPremiumSuite:
 
     async def test_03_website_url_configuration_precedence(self):
         """3. Verify URL configuration prioritizes MUSICMAID_WEBSITE_URL."""
-        with patch.dict(os.environ, {"MUSICMAID_WEBSITE_URL": "https://custom-maid.org"}, clear=False):
+        with patch.dict(os.environ, {
+            "PUBLIC_BASE_URL": "",
+            "MUSICMAID_WEBSITE_URL": "https://custom-maid.org",
+        }, clear=False):
             assert get_musicmaid_website_url() == "https://custom-maid.org"
             assert get_public_web_url() == "https://custom-maid.org"
 
         # Ignores localhost even if set in MUSICMAID_WEBSITE_URL, falling back to public default
         with patch.dict(os.environ, {
+            "PUBLIC_BASE_URL": "",
             "MUSICMAID_WEBSITE_URL": "http://localhost:3000",
             "RENDER_EXTERNAL_URL": "",
             "PUBLIC_URL": "",
@@ -130,7 +134,10 @@ class TestMusicMaidPremiumSuite:
         interaction.response.is_done.return_value = True
         interaction.edit_original_response = AsyncMock()
 
-        with patch.dict(os.environ, {"MUSICMAID_WEBSITE_URL": "https://musicmaid.onrender.com"}, clear=False):
+        with patch.dict(os.environ, {
+            "PUBLIC_BASE_URL": "",
+            "MUSICMAID_WEBSITE_URL": "https://musicmaid.onrender.com",
+        }, clear=False):
             await cog.cmd_premium.callback(cog, interaction, action=None, key=None)
 
         interaction.edit_original_response.assert_called_once()

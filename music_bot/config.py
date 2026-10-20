@@ -195,11 +195,12 @@ def get_musicmaid_website_url() -> Optional[str]:
     """
     Resolve and validate the authoritative public MusicMaid website URL.
     Prioritizes:
-    1. MUSICMAID_WEBSITE_URL
-    2. RENDER_EXTERNAL_URL
-    3. PUBLIC_URL
-    4. WEB_BASE_URL
-    5. Fallback production default: https://rai-discord-bot.onrender.com
+    1. PUBLIC_BASE_URL
+    2. MUSICMAID_WEBSITE_URL
+    3. RENDER_EXTERNAL_URL
+    4. PUBLIC_URL
+    5. WEB_BASE_URL
+    6. Fallback production default: https://rai-discord-bot.onrender.com
     Returns None if no valid public URL is configured or if only localhost is provided.
     """
     candidates = [

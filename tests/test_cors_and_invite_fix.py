@@ -9,7 +9,8 @@ from music_bot.services.resolver_service import AudioResolver
 
 
 @pytest.mark.asyncio
-async def test_firebase_config_support_invite_url():
+async def test_firebase_config_support_invite_url(monkeypatch):
+    monkeypatch.setenv("SUPPORT_INVITE_URL", SUPPORT_INVITE_URL)
     server = RaiCommunityOSServer(bot=MagicMock(), port=8080)
     app = web.Application()
     server.setup_routes(app)
@@ -20,7 +21,7 @@ async def test_firebase_config_support_invite_url():
         assert resp.status == 200
         json_data = await resp.json()
         assert json_data["success"] is True
-        assert json_data["data"]["supportInviteUrl"] == "https://discord.gg/d7T8cJK3XF"
+        assert json_data["data"]["supportInviteUrl"] == SUPPORT_INVITE_URL
     finally:
         await client.close()
 
@@ -58,8 +59,12 @@ async def test_cors_headers_preserved_on_unauthenticated_post():
 
 @pytest.mark.asyncio
 async def test_resolver_alla_bolo_query():
-    track = await AudioResolver.resolve_track("alla bolo", requester_id=1, requester_name="Tester")
+    track = await AudioResolver.resolve_track(
+        "Ala Bolelo Jailer 2",
+        requester_id=1,
+        requester_name="Tester",
+    )
     assert track is not None
     assert track.stream_url is not None
     assert len(track.stream_url) > 10
-    assert "Ala Bolelo" in track.title or "bolo" in track.title.lower()
+    assert "Ala Bolelo" in track.title

@@ -186,6 +186,11 @@ class MusicPlayerService:
         cls, bot: RaiMusicBot, session: GuildMusicSession, track: QueuedTrack
     ) -> bool:
         """Start playing track on session's voice client."""
+        correlation_id = getattr(
+            track,
+            "_correlation_id",
+            getattr(session, "_play_request_correlation_id", "unavailable"),
+        )
         session.is_intentional_stop = False
         session.is_intentional_disconnect = False
 
@@ -228,15 +233,43 @@ class MusicPlayerService:
             logger.debug(f"Permission/mute inspection warning: {perm_err}")
 
         # Ensure track stream_url is resolved
-        from music_bot.services.resolver_service import AudioResolver
+        from music_bot.services.resolver_service import (
+            AudioResolver,
+            _video_id_from_url,
+            apply_resolved_track,
+        )
         if not track.stream_url:
             session.state = PlaybackState.RESOLVING
-            fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+            correlation_id = getattr(
+                track,
+                "_correlation_id",
+                getattr(session, "_play_request_correlation_id", "unavailable"),
+            )
+            fresh = await AudioResolver.resolve_track(
+                track.url or track.title,
+                track.requester_id,
+                track.requester_name,
+                correlation_id=correlation_id,
+            )
             if fresh and fresh.stream_url:
-                track.stream_url = fresh.stream_url
-                track.duration = fresh.duration
-                if not track.thumbnail and fresh.thumbnail:
-                    track.thumbnail = fresh.thumbnail
+                if not apply_resolved_track(track, fresh):
+                    logger.error(
+                        "[Playback] operation=stream_identity_validation correlation_id=%s "
+                        "outcome=mismatch queued_title=%r queued_video_id=%s "
+                        "resolved_title=%r resolved_video_id=%s",
+                        correlation_id,
+                        track.title,
+                        _video_id_from_url(track.url) or "unavailable",
+                        fresh.title,
+                        _video_id_from_url(fresh.url) or "unavailable",
+                    )
+                    session.state = PlaybackState.ERROR
+                    session.last_error = (
+                        "The audio resolver returned a different video than the selected track. "
+                        "Playback was stopped to prevent playing the wrong song."
+                    )
+                    await cls.handle_track_finished(bot, session)
+                    return False
             else:
                 logger.error(f"Cannot play '{track.title}': Failed to resolve playable audio stream URL.")
                 session.state = PlaybackState.ERROR
@@ -331,19 +364,32 @@ class MusicPlayerService:
                     pass
 
                 # YouTube stream re-resolution recovery with profile rotation
-                fresh = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+                fresh = await AudioResolver.resolve_track(
+                    track.url or track.title,
+                    track.requester_id,
+                    track.requester_name,
+                    correlation_id=getattr(track, "_correlation_id", "unavailable"),
+                )
                 if fresh and fresh.stream_url:
-                    track.stream_url = fresh.stream_url
-                    try:
-                        audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
-                        volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
-                        first_frame = await asyncio.wait_for(
-                            loop.run_in_executor(None, volume_transformer.read),
-                            timeout=10.0,
+                    if apply_resolved_track(track, fresh):
+                        try:
+                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                            first_frame = await asyncio.wait_for(
+                                loop.run_in_executor(None, volume_transformer.read),
+                                timeout=10.0,
+                            )
+                        except Exception as re_read_err:
+                            logger.warning(f"Secondary YouTube frame read failed for '{track.title}': {re_read_err}")
+                            first_frame = b""
+                    else:
+                        logger.error(
+                            "[Playback] operation=stream_recovery correlation_id=%s outcome=identity_mismatch "
+                            "queued_video_id=%s resolved_video_id=%s",
+                            getattr(track, "_correlation_id", "unavailable"),
+                            _video_id_from_url(track.url) or "unavailable",
+                            _video_id_from_url(fresh.url) or "unavailable",
                         )
-                    except Exception as re_read_err:
-                        logger.warning(f"Secondary YouTube frame read failed for '{track.title}': {re_read_err}")
-                        first_frame = b""
 
                 if not first_frame:
                     try:
@@ -467,9 +513,32 @@ class MusicPlayerService:
                 except Exception as dj_err:
                     logger.debug(f"Maid DJ announcement exception: {dj_err}")
 
+            if getattr(track, "_auto_dj_candidate", False) and session.queue:
+                try:
+                    playable_source.cleanup()
+                except Exception:
+                    pass
+                manual_track = session.queue.popleft()
+                logger.info(
+                    "[Playback] operation=autodj_preempted correlation_id=%s "
+                    "auto_dj_title=%r queued_title=%r outcome=manual_queue_priority",
+                    correlation_id,
+                    track.title,
+                    manual_track.title,
+                )
+                return await cls.start_playback(bot, session, manual_track)
+
             session.voice_client.play(playable_source, after=after_playback)
             session.state = PlaybackState.PLAYING
             session.skip_votes.clear()
+            logger.info(
+                "[Playback] operation=audio_started correlation_id=%s title=%r "
+                "video_id=%s queued_video_id=%s outcome=started",
+                correlation_id,
+                track.title,
+                _video_id_from_url(track.url) or "unavailable",
+                _video_id_from_url(track.url) or "unavailable",
+            )
 
             # Launch real-time progress bar updater loop (every 5 seconds)
             if session.progress_updater_task and not session.progress_updater_task.done():
@@ -593,13 +662,30 @@ class MusicPlayerService:
     ) -> bool:
         """Auto-recovers an expired or disconnected audio stream and resumes from the exact second."""
         try:
-            from music_bot.services.resolver_service import AudioResolver, FFMPEG_OPTIONS
+            from music_bot.services.resolver_service import (
+                AudioResolver,
+                FFMPEG_OPTIONS,
+                _video_id_from_url,
+                apply_resolved_track,
+            )
 
             # Re-resolve fresh stream URL only if missing, for sub-100ms instant seeking
             if not track.stream_url:
-                fresh_track = await AudioResolver.resolve_track(track.url, track.requester_id, track.requester_name)
+                fresh_track = await AudioResolver.resolve_track(
+                    track.url,
+                    track.requester_id,
+                    track.requester_name,
+                    correlation_id=getattr(track, "_correlation_id", "unavailable"),
+                )
                 if fresh_track and fresh_track.stream_url:
-                    track.stream_url = fresh_track.stream_url
+                    if not apply_resolved_track(track, fresh_track):
+                        logger.error(
+                            "[Playback] operation=resume_resolve correlation_id=%s outcome=identity_mismatch "
+                            "queued_video_id=%s resolved_video_id=%s",
+                            getattr(track, "_correlation_id", "unavailable"),
+                            _video_id_from_url(track.url) or "unavailable",
+                            _video_id_from_url(fresh_track.url) or "unavailable",
+                        )
 
             if not track.stream_url or not session.voice_client or not session.voice_client.is_connected():
                 await cls.handle_track_finished(bot, session)
@@ -632,18 +718,31 @@ class MusicPlayerService:
 
             if not first_frame:
                 logger.info(f"Stream URL may be expired during resume for '{track.title}'. Re-resolving...")
-                fresh_track = await AudioResolver.resolve_track(track.url or track.title, track.requester_id, track.requester_name)
+                fresh_track = await AudioResolver.resolve_track(
+                    track.url or track.title,
+                    track.requester_id,
+                    track.requester_name,
+                    correlation_id=getattr(track, "_correlation_id", "unavailable"),
+                )
                 if fresh_track and fresh_track.stream_url:
-                    track.stream_url = fresh_track.stream_url
-                    try:
-                        audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
-                        volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
-                        first_frame = await asyncio.wait_for(
-                            loop.run_in_executor(None, volume_transformer.read),
-                            timeout=8.0,
+                    if apply_resolved_track(track, fresh_track):
+                        try:
+                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                            first_frame = await asyncio.wait_for(
+                                loop.run_in_executor(None, volume_transformer.read),
+                                timeout=8.0,
+                            )
+                        except Exception:
+                            first_frame = b""
+                    else:
+                        logger.error(
+                            "[Playback] operation=resume_recovery correlation_id=%s outcome=identity_mismatch "
+                            "queued_video_id=%s resolved_video_id=%s",
+                            getattr(track, "_correlation_id", "unavailable"),
+                            _video_id_from_url(track.url) or "unavailable",
+                            _video_id_from_url(fresh_track.url) or "unavailable",
                         )
-                    except Exception:
-                        first_frame = b""
 
             if not first_frame:
                 logger.error(f"Failed to resume stream for '{track.title}': No audio data decoded.")
@@ -699,6 +798,7 @@ class MusicPlayerService:
     @classmethod
     async def handle_track_finished(cls, bot: RaiMusicBot, session: GuildMusicSession) -> None:
         """Called automatically when track ends to play next track or handle loops/autoplay."""
+        transition_generation = session.playback_generation
         if session.progress_updater_task and not session.progress_updater_task.done():
             session.progress_updater_task.cancel()
             session.progress_updater_task = None
@@ -757,11 +857,40 @@ class MusicPlayerService:
                     dj_settings = await dj_res
                 else:
                     dj_settings = dj_res
+                if session.queue:
+                    next_track = session.queue.popleft()
+                    logger.info(
+                        "[Playback] operation=track_transition correlation_id=%s "
+                        "outcome=manual_queue_priority title=%r",
+                        getattr(next_track, "_correlation_id", "unavailable"),
+                        next_track.title,
+                    )
+                    await cls.start_playback(bot, session, next_track)
+                    return
                 if dj_settings and (getattr(dj_settings, "enabled", False) or getattr(session, "dj_enabled", False) or session.autoplay):
                     from music_bot.services.dj_service import NekoDJService
                     rec = await NekoDJService.get_recommendation(bot, session)
                     if rec:
                         track, rationale = rec
+                        if session.queue:
+                            next_track = session.queue.popleft()
+                            logger.info(
+                                "[Playback] operation=autodj_transition correlation_id=%s "
+                                "outcome=manual_queue_priority title=%r",
+                                getattr(next_track, "_correlation_id", "unavailable"),
+                                next_track.title,
+                            )
+                            await cls.start_playback(bot, session, next_track)
+                            return
+                        if session.playback_generation != transition_generation:
+                            logger.info(
+                                "[Playback] operation=autodj_transition outcome=stale_candidate_discarded "
+                                "generation_before=%s generation_now=%s",
+                                transition_generation,
+                                session.playback_generation,
+                            )
+                            return
+                        setattr(track, "_auto_dj_candidate", True)
                         logger.info(f"Neko DJ Non-Stop auto-queueing next track: '{track.title}' ({rationale})")
                         await cls.start_playback(bot, session, track)
                         return
@@ -811,6 +940,7 @@ class MusicPlayerService:
                                 c["url"], 0, "MusicMaid 24/7 Radio"
                             )
                             if resolved:
+                                setattr(resolved, "_auto_dj_candidate", True)
                                 # Feature 93: Night-Time Bedtime Audio Fade-Out Curve (00:00-05:00 UTC)
                                 if 0 <= hour < 5 and session.volume > 45:
                                     session.volume = max(40, session.volume - 5)
@@ -1053,12 +1183,22 @@ class MusicPlayerService:
     async def _precache_track(cls, track: QueuedTrack) -> None:
         """Feature 114: Pre-cache audio stream URL in the background for zero-gap playback."""
         try:
+            from music_bot.services.resolver_service import apply_resolved_track
             resolved = await AudioResolver.resolve_track(
-                track.url or track.title, track.requester_id, track.requester_name
+                track.url or track.title,
+                track.requester_id,
+                track.requester_name,
+                correlation_id=getattr(track, "_correlation_id", "unavailable"),
             )
             if resolved and resolved.stream_url:
-                track.stream_url = resolved.stream_url
-                track.duration = resolved.duration
+                if not apply_resolved_track(track, resolved):
+                    logger.error(
+                        "[Playback] operation=precache correlation_id=%s outcome=identity_mismatch "
+                        "queued_title=%r resolved_title=%r",
+                        getattr(track, "_correlation_id", "unavailable"),
+                        track.title,
+                        resolved.title,
+                    )
         except Exception:
             pass
 
@@ -2907,5 +3047,3 @@ build_queue_embed = MusicPlayerService.build_queue_embed
 build_audio_embed = MusicPlayerService.build_audio_embed
 build_autodj_embed = MusicPlayerService.build_autodj_embed
 build_settings_embed = MusicPlayerService.build_settings_embed
-
-

@@ -33,6 +33,8 @@ from music_bot.services.voice_service import VoiceManager
 
 class TestTwentyFourSevenVoiceInvestigation(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        MusicSessionMemoryService._reconnecting_guilds.clear()
+        MusicSessionMemoryService._recovery_tasks.clear()
         self.db_path = Path(f"test_247_investigation_{os.getpid()}_{id(self)}.db")
         self.db = MusicDatabase(self.db_path)
         await self.db.connect()
@@ -182,6 +184,7 @@ class TestTwentyFourSevenVoiceInvestigation(unittest.IsolatedAsyncioTestCase):
         self.session.voice_client = None
         self.session.is_intentional_disconnect = False
         self.session.is_intentional_stop = False
+        self.guild.voice_client = None
 
         # Ensure database confirms 24/7 enabled
         settings = await self.db.get_guild_settings(self.guild_id)
@@ -223,6 +226,7 @@ class TestTwentyFourSevenVoiceInvestigation(unittest.IsolatedAsyncioTestCase):
         """7. Multiple watchdogs or repeated events -> no duplicate reconnect loops."""
         self.session.voice_client = None
         self.session.is_intentional_disconnect = False
+        self.guild.voice_client = None
 
         call_count = 0
 
@@ -245,6 +249,125 @@ class TestTwentyFourSevenVoiceInvestigation(unittest.IsolatedAsyncioTestCase):
 
             # Reconnection lock / tracking ensures only 1 recovery flow executed
             self.assertEqual(call_count, 1)
+
+    async def test_08_concurrent_recovery_callers_share_one_recovery_task(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+        call_count = 0
+
+        async def blocked_recovery(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            started.set()
+            await release.wait()
+
+        with patch.object(
+            MusicSessionMemoryService,
+            "_run_unexpected_disconnect",
+            new=blocked_recovery,
+        ):
+            callers = [
+                asyncio.create_task(
+                    MusicSessionMemoryService.handle_unexpected_disconnect(self.bot, self.guild_id)
+                )
+                for _ in range(3)
+            ]
+            await started.wait()
+            await asyncio.sleep(0)
+            self.assertEqual(call_count, 1)
+            self.assertIn(self.guild_id, MusicSessionMemoryService._reconnecting_guilds)
+
+            release.set()
+            await asyncio.gather(*callers)
+
+        self.assertNotIn(self.guild_id, MusicSessionMemoryService._reconnecting_guilds)
+        self.assertNotIn(self.guild_id, MusicSessionMemoryService._recovery_tasks)
+
+    async def test_09_cancelled_caller_does_not_cancel_shared_recovery(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def blocked_recovery(*args, **kwargs):
+            started.set()
+            await release.wait()
+
+        with patch.object(
+            MusicSessionMemoryService,
+            "_run_unexpected_disconnect",
+            new=blocked_recovery,
+        ):
+            first = asyncio.create_task(
+                MusicSessionMemoryService.handle_unexpected_disconnect(self.bot, self.guild_id)
+            )
+            await started.wait()
+            second = asyncio.create_task(
+                MusicSessionMemoryService.handle_unexpected_disconnect(self.bot, self.guild_id)
+            )
+            await asyncio.sleep(0)
+            first.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await first
+
+            self.assertIn(self.guild_id, MusicSessionMemoryService._reconnecting_guilds)
+            release.set()
+            await second
+
+        self.assertNotIn(self.guild_id, MusicSessionMemoryService._reconnecting_guilds)
+        self.assertNotIn(self.guild_id, MusicSessionMemoryService._recovery_tasks)
+
+    async def test_10_recovery_preserves_a_newer_healthy_voice_connection(self):
+        self.guild.voice_client = None
+        newer_channel = MagicMock(spec=discord.VoiceChannel)
+        newer_channel.id = self.channel_id + 1
+        newer_vc = MagicMock()
+        newer_vc.is_connected.return_value = True
+        newer_vc.is_playing.return_value = True
+        newer_vc.channel = newer_channel
+
+        async def connect_newer_client(*args, **kwargs):
+            self.guild.voice_client = newer_vc
+
+        with patch.object(MusicSessionMemoryService, "checkpoint_session", new_callable=AsyncMock), \
+             patch("music_bot.services.voice_service.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join, \
+             patch("asyncio.sleep", new=connect_newer_client):
+            await MusicSessionMemoryService.handle_unexpected_disconnect(
+                self.bot, self.guild_id, channel_id=self.channel_id
+            )
+
+        mock_join.assert_not_awaited()
+        self.assertIs(self.guild.voice_client, newer_vc)
+        self.assertIs(self.session.voice_client, newer_vc)
+
+    async def test_11_recovery_reuses_healthy_connection_without_restarting_playback(self):
+        with patch.object(MusicSessionMemoryService, "checkpoint_session", new_callable=AsyncMock), \
+             patch("music_bot.services.voice_service.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join, \
+             patch("music_bot.services.player_service.MusicPlayerService.start_playback", new_callable=AsyncMock) as mock_play:
+            await MusicSessionMemoryService.handle_unexpected_disconnect(
+                self.bot, self.guild_id, channel_id=self.channel_id
+            )
+
+        mock_join.assert_not_awaited()
+        mock_play.assert_not_awaited()
+        self.assertIs(self.session.voice_client, self.vc)
+
+    async def test_12_guardian_delegates_recovery_to_shared_coordinator(self):
+        from music_bot.bot import RaiMusicBot
+
+        self.bot.guilds = [self.guild]
+        self.guild.voice_client = None
+        with patch.object(
+            MusicSessionMemoryService,
+            "handle_unexpected_disconnect",
+            new_callable=AsyncMock,
+        ) as mock_recovery:
+            await RaiMusicBot.twenty_four_seven_guardian_loop.coro(self.bot)
+            await asyncio.sleep(0)
+
+        mock_recovery.assert_awaited_once_with(
+            self.bot,
+            self.guild_id,
+            channel_id=self.channel_id,
+        )
 
 
 if __name__ == "__main__":

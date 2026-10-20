@@ -26,7 +26,6 @@ logger = logging.getLogger("Rai.SoundCloudProvider")
 BASE_SC_OPTIONS: Dict[str, Any] = {
     "format": "bestaudio/best",
     "noplaylist": True,
-    "nocheckcertificate": True,
     "ignoreerrors": False,
     "quiet": True,
     "no_warnings": True,

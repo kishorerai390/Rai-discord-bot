@@ -141,7 +141,7 @@ class TestDiscordOAuthAndButtonActions(AioHTTPTestCase):
              patch.object(self.rai_server.api_router.auth, "fetch_discord_guilds", AsyncMock(return_value=mock_guilds_resp)):
             resp = await self.client.get(f"/api/auth/callback?code=valid_code&state={test_state}", allow_redirects=False)
             assert resp.status == 302
-            assert "/?auth=success" in resp.headers.get("Location", "")
+            assert resp.headers.get("Location", "") == "/dashboard?auth=success"
             assert "rai_session" in resp.cookies
 
     async def test_06_auth_logout(self):

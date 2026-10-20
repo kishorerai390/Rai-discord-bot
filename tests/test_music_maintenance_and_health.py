@@ -118,6 +118,7 @@ class TestMusicMaintenanceAndHealth:
         mock_bot.session_manager.get_session_sync.return_value = mock_session
 
         mock_guild = MagicMock()
+        mock_guild.voice_client = None
         mock_bot.get_guild.return_value = mock_guild
         mock_channel = MagicMock(spec=discord.VoiceChannel)
         mock_guild.get_channel.return_value = mock_channel

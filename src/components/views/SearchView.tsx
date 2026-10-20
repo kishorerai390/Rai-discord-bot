@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Search, Plus, Music2, Check, Loader2, Play, SkipForward } from "lucide-react";
 import { formatDuration, DEFAULT_TRACK_ARTWORK } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ interface SearchResultItem {
   thumbnail?: string;
   provider?: string;
   source?: string;
+  original_source_match?: boolean;
 }
 
 const POPULAR_SUGGESTIONS = [
@@ -40,10 +41,7 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [enqueuedMap, setEnqueuedMap] = useState<Record<string, boolean>>({});
 
-  const handleSearch = async (overrideQuery?: string) => {
-    const q = (overrideQuery ?? query).trim();
-    if (!q) return;
-
+  const searchForQuery = useCallback(async (q: string) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/music/search?q=${encodeURIComponent(q)}`);
@@ -59,7 +57,20 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
     } finally {
       setLoading(false);
     }
+  }, [onShowToast]);
+
+  const handleSearch = (overrideQuery?: string) => {
+    const q = (overrideQuery ?? query).trim();
+    if (q) void searchForQuery(q);
   };
+
+  useEffect(() => {
+    const initialQuery = new URLSearchParams(window.location.search).get("q")?.trim();
+    if (initialQuery) {
+      setQuery(initialQuery);
+      void searchForQuery(initialQuery);
+    }
+  }, [searchForQuery]);
 
   const handleRefineSearch = (item: SearchResultItem) => {
     const refinedQuery = `${item.title} ${item.artist}`.trim();
@@ -220,6 +231,11 @@ export function SearchView({ guildId, onEnqueue, onControl, onShowToast }: Searc
                         {resultSource ? `Source: ${resultSource}` : "Source: Unknown"}
                       </span>
                     </div>
+                    {item.original_source_match && (
+                      <span className="mt-1 inline-block text-[10px] text-emerald-300">
+                        Passed original-source filters (not audio verification)
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleRefineSearch(item)}

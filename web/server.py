@@ -300,6 +300,16 @@ class RaiCommunityOSServer:
                     {"success": False, "error": {"code": "INTERNAL_SERVER_ERROR", "message": "An internal server error occurred"}},
                     status=500
                 )
+        if isinstance(response, web.HTTPException):
+            response_headers = response.headers.copy()
+            for cookie in response.cookies.values():
+                response_headers.add("Set-Cookie", cookie.OutputString())
+            response = web.Response(
+                status=response.status,
+                reason=response.reason,
+                headers=response_headers,
+                body=response.body,
+            )
         origin = request.headers.get("Origin")
         allowed_origin = None
         if origin:

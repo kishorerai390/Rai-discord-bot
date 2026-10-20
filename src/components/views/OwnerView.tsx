@@ -18,6 +18,7 @@ import {
   Radio,
   FileText,
   Clock,
+  ChevronDown,
 } from "lucide-react";
 import type {
   ClusterOverview,
@@ -57,6 +58,35 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
 
   // Snapshot creation state
   const [creatingBackup, setCreatingBackup] = useState(false);
+
+  // Bot Status / Presence state
+  const [botStatus, setBotStatus] = useState<"online" | "idle" | "dnd" | "invisible">("online");
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const handleUpdateStatus = async (newStatus: "online" | "idle" | "dnd" | "invisible") => {
+    setStatusMenuOpen(false);
+    if (newStatus === botStatus) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch("/api/owner/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, mode: "manual" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBotStatus(newStatus);
+        onShowToast(`Discord bot status updated to ${newStatus.toUpperCase()}! ✦`, "success");
+      } else {
+        onShowToast(data.error?.message || "Failed to update bot status", "danger");
+      }
+    } catch (e: any) {
+      onShowToast(`Status update error: ${e.message}`, "danger");
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
 
   const fetchOverviewData = async () => {
     try {
@@ -329,17 +359,70 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
       {activeTab === "overview" && (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5">
-              <span className="text-[11px] font-bold text-(--text-muted) uppercase tracking-wider">
-                Bot Gateway Status
+            <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-5 relative">
+              <span className="text-[11px] font-bold text-(--text-muted) uppercase tracking-wider block font-mono">
+                BOT STATUS
               </span>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-xl font-extrabold text-white">
-                  {overview?.bot_status || "ONLINE"}
-                </span>
+              <div className="relative mt-2">
+                <button
+                  type="button"
+                  onClick={() => setStatusMenuOpen(!statusMenuOpen)}
+                  disabled={updatingStatus}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#120f24] border-2 border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.35)] text-white text-sm font-bold transition-all hover:border-purple-400 focus:outline-none"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full shadow-[0_0_10px] shrink-0 ${
+                        botStatus === "online"
+                          ? "bg-[#3ba55d] shadow-[#3ba55d]"
+                          : botStatus === "idle"
+                          ? "bg-[#faa81a] shadow-[#faa81a]"
+                          : botStatus === "dnd"
+                          ? "bg-[#ed4245] shadow-[#ed4245]"
+                          : "bg-[#747f8d] shadow-[#747f8d]"
+                      }`}
+                    />
+                    <span className="capitalize">{botStatus === "dnd" ? "Do Not Disturb" : botStatus}</span>
+                  </div>
+                  <ChevronDown
+                    className={`w-4 h-4 text-purple-300 transition-transform duration-200 ${
+                      statusMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {statusMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setStatusMenuOpen(false)}
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-[#16122c] border border-purple-500/40 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+                      {[
+                        { id: "online", label: "Online", color: "bg-[#3ba55d]", glow: "shadow-[#3ba55d]" },
+                        { id: "idle", label: "Idle", color: "bg-[#faa81a]", glow: "shadow-[#faa81a]" },
+                        { id: "dnd", label: "Do Not Disturb", color: "bg-[#ed4245]", glow: "shadow-[#ed4245]" },
+                        { id: "invisible", label: "Invisible", color: "bg-[#747f8d]", glow: "shadow-[#747f8d]" },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleUpdateStatus(item.id as any)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-bold transition-all text-left ${
+                            botStatus === item.id
+                              ? "bg-purple-600/30 text-white"
+                              : "text-slate-300 hover:bg-white/10 hover:text-white"
+                          }`}
+                        >
+                          <span className={`w-3.5 h-3.5 rounded-full ${item.color} ${item.glow} shadow-[0_0_8px] shrink-0`} />
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-              <p className="text-[11px] text-(--text-dim) mt-1 font-mono">
+              <p className="text-[11px] text-(--text-dim) mt-2 font-mono">
                 {overview?.cluster_name || "MusicMaid-Core-01"}
               </p>
             </div>

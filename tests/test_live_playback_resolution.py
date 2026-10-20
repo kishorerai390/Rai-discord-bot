@@ -37,9 +37,13 @@ class TestLivePlaybackResolution(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(track, f"Failed resolving 'kalyani': {AudioResolver.last_resolver_error}")
         self.assertTrue(bool(track.stream_url), "Stream URL must be populated")
 
-    async def test_03_resolve_enna_sonna_hindi(self):
-        track = await AudioResolver.resolve_track("enna sonna", 12345, "Tester")
-        self.assertIsNotNone(track, f"Failed resolving 'enna sonna': {AudioResolver.last_resolver_error}")
+    async def test_03_resolve_pichuva_kaththi_original(self):
+        track = await AudioResolver.resolve_track("Pichuva Kaththi Enna Sonna", 12345, "Tester")
+        self.assertIsNotNone(
+            track,
+            f"Failed resolving the specified original recording: {AudioResolver.last_resolver_error}",
+        )
+        self.assertIn("Pichuva Kaththi", track.title)
         self.assertTrue(bool(track.stream_url), "Stream URL must be populated")
 
     async def test_04_resolve_tamil_query_kaappaan(self):

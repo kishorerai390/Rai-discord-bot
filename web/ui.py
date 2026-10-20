@@ -1157,8 +1157,8 @@ UI_HTML = r"""<!DOCTYPE html>
         font-size: 1rem;
       }
       .p-btn-play {
-        width: 36px;
-        height: 36px;
+        width: 40px;
+        height: 40px;
         font-size: 1.1rem;
       }
       .player-status-left .chip-pill {
@@ -2971,6 +2971,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Add Music</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
+        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">🎨</span> Stage Canvas</a></li>
       </ul>
 
       <!-- YOUR MUSIC -->
@@ -2991,7 +2992,10 @@ UI_HTML = r"""<!DOCTYPE html>
       <!-- SERVER (Visible to Admins / Managers) -->
       <span class="nav-group-title" style="margin-top:0.6rem;" id="nav-group-server-title">SERVER</span>
       <ul class="nav-list" id="nav-group-server-list">
+        <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Listening Analytics</a></li>
+        <li><a class="nav-link" id="nav-guilds" onclick="navigate('/guilds')"><span class="nav-icon">🏠</span> Servers</a></li>
         <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
+        <li><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🩺</span> System Health</a></li>
       </ul>
 
       <!-- UTILITY QUICK ACCESS -->

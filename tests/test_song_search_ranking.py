@@ -21,6 +21,8 @@ from music_bot.services.resolver_service import (
     AudioResolver,
     analyze_query_intent,
     is_original_recording_candidate,
+    apply_resolved_track,
+    requires_candidate_confirmation,
     score_candidate,
     score_candidate_detailed,
 )
@@ -92,7 +94,7 @@ class TestSongSearchRanking(unittest.TestCase):
             "Title relevance must outweigh publisher and duration bonuses for a partial match",
         )
 
-    def test_01c_standard_search_requires_query_match_and_rejects_covers(self):
+    def test_01c_standard_search_requires_source_evidence_and_rejects_covers(self):
         intent = analyze_query_intent("Kalyani")
         original_release = {
             "title": "Kalyani - Official Music Video",
@@ -109,30 +111,232 @@ class TestSongSearchRanking(unittest.TestCase):
             "uploader": "Unknown Channel",
             "duration": 240,
         }
+        verified_label_upload = {
+            "title": "Pichuva Kaththi - Enna Sonna Video Song",
+            "uploader": "TrendMusic",
+            "channel_is_verified": True,
+            "duration": 240,
+        }
 
         self.assertTrue(is_original_recording_candidate(original_release, intent))
         self.assertFalse(is_original_recording_candidate(cover, intent))
-        self.assertTrue(is_original_recording_candidate(unidentified_upload, intent))
+        self.assertFalse(is_original_recording_candidate(unidentified_upload, intent))
+        self.assertTrue(
+            is_original_recording_candidate(
+                verified_label_upload,
+                analyze_query_intent("Pichuva Kaththi Enna Sonna"),
+            )
+        )
 
-    def test_01c2_accepts_small_transliteration_variations(self):
+    def test_01c2_similarly_spelled_song_requires_user_confirmation(self):
         intent = analyze_query_intent("enna sonna")
-        original = {
+        similar_title = {
             "title": "Enna Sona - OK Jaanu",
             "uploader": "Sony Music India",
             "duration": 213,
         }
 
-        self.assertTrue(is_original_recording_candidate(original, intent))
+        self.assertTrue(is_original_recording_candidate(similar_title, intent))
+        self.assertTrue(
+            requires_candidate_confirmation(
+                [{"_title_match_confidence": 0.944, "_title_match_ratio": 1.0, "_match_score": 200.0}]
+            )
+        )
 
-    def test_01d_explicit_alternate_search_still_allows_remixes(self):
+    def test_01c3_allows_long_title_typo_but_rejects_short_form_clip(self):
+        intent = analyze_query_intent("rasagula anirudh")
+        original = {
+            "title": "Rasagulla - Video Song | Hi | Anirudh Ravichander",
+            "uploader": "Sony Music South",
+            "duration": 242,
+        }
+        short_form_clip = {
+            "title": "Rasagulla - Trending Instagram Dance Reels | Anirudh Ravichander",
+            "uploader": "Sony Music South",
+            "duration": 68,
+        }
+
+        self.assertTrue(is_original_recording_candidate(original, intent))
+        self.assertFalse(is_original_recording_candidate(short_form_clip, intent))
+
+    def test_01d_explicit_alternate_request_allows_the_requested_variant(self):
         intent = analyze_query_intent("Kalyani remix")
         remix = {
-            "title": "Kalyani DJ Remix",
+            "title": "Kalyani DJ Remix - Official Audio",
             "uploader": "DJ Channel",
             "duration": 210,
         }
+        original = {
+            "title": "Kalyani - Official Music Video",
+            "uploader": "Sony Music South",
+            "duration": 240,
+        }
 
         self.assertTrue(is_original_recording_candidate(remix, intent))
+        self.assertFalse(is_original_recording_candidate(original, intent))
+
+    def test_01f_romanized_tamil_title_match_beats_unrelated_hindi_title(self):
+        query = "Pichuva Kaththi Enna Sona"
+        intent = analyze_query_intent(query)
+        tamil_candidate = {
+            "id": "tamil123456",
+            "title": "Pichuva Kaththi - Enna Sonna Video Song",
+            "uploader": "TrendMusic",
+            "channel_is_verified": True,
+            "duration": 240,
+        }
+        hindi_candidate = {
+            "id": "hindi123456",
+            "title": "Enna Sona - OK Jaanu Official Video",
+            "uploader": "Sony Music India",
+            "duration": 213,
+        }
+
+        tamil_score = score_candidate(tamil_candidate, intent)
+        hindi_score = score_candidate(hindi_candidate, intent)
+        self.assertTrue(is_original_recording_candidate(tamil_candidate, intent))
+        self.assertFalse(is_original_recording_candidate(hindi_candidate, intent))
+        self.assertGreater(tamil_score, hindi_score)
+
+    def test_01g_ambiguous_and_weak_results_require_confirmation(self):
+        ambiguous = [
+            {"_title_match_ratio": 1.0, "_match_score": 225.0},
+            {"_title_match_ratio": 1.0, "_match_score": 215.0},
+        ]
+        weak = [{"_title_match_ratio": 0.5, "_match_score": 170.0}]
+        confident = [
+            {"_title_match_ratio": 1.0, "_match_score": 220.0},
+            {"_title_match_ratio": 0.8, "_match_score": 175.0},
+        ]
+
+        self.assertTrue(requires_candidate_confirmation(ambiguous))
+        self.assertTrue(requires_candidate_confirmation(weak))
+        self.assertFalse(requires_candidate_confirmation(confident))
+
+    def test_01h_stream_metadata_cannot_replace_a_different_selected_video(self):
+        selected = QueuedTrack(
+            title="Pichuva Kaththi - Enna Sonna",
+            url="https://www.youtube.com/watch?v=tamil123456",
+        )
+        wrong_resolution = QueuedTrack(
+            title="Enna Sona - OK Jaanu",
+            url="https://www.youtube.com/watch?v=hindi123456",
+            stream_url="https://audio.example/wrong",
+        )
+
+        self.assertFalse(apply_resolved_track(selected, wrong_resolution))
+        self.assertEqual(selected.url, "https://www.youtube.com/watch?v=tamil123456")
+        self.assertEqual(selected.title, "Pichuva Kaththi - Enna Sonna")
+        self.assertEqual(selected.stream_url, "")
+
+    def test_01i_same_video_resolution_refreshes_metadata_and_stream(self):
+        selected = QueuedTrack(
+            title="Pichuva Kaththi Enna Sonna",
+            url="https://youtu.be/tamil123456",
+        )
+        resolved = QueuedTrack(
+            title="Pichuva Kaththi - Enna Sonna Video Song",
+            url="https://www.youtube.com/watch?v=tamil123456",
+            stream_url="https://audio.example/tamil",
+            duration=240,
+            artist="TrendMusic",
+        )
+
+        self.assertTrue(apply_resolved_track(selected, resolved))
+        self.assertEqual(selected.title, resolved.title)
+        self.assertEqual(selected.url, resolved.url)
+        self.assertEqual(selected.stream_url, resolved.stream_url)
+
+    def test_01j_search_returns_exact_romanized_tamil_candidate_not_hindi_neighbor(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            entries = [
+                {
+                    "id": "hindi123456",
+                    "title": "Enna Sona - OK Jaanu Official Video",
+                    "uploader": "Sony Music India",
+                    "duration": 213,
+                },
+                {
+                    "id": "tamil123456",
+                    "title": "Pichuva Kaththi - Enna Sonna Video Song",
+                    "uploader": "TrendMusic",
+                    "channel_is_verified": True,
+                    "duration": 240,
+                },
+            ]
+            with patch(
+                "music_bot.services.resolver_service._build_ytdl_options",
+                return_value={},
+            ), patch(
+                "music_bot.services.resolver_service.yt_dlp.YoutubeDL",
+                return_value=ydl,
+            ), patch(
+                "music_bot.services.resolver_service._run_ytdlp",
+                new=AsyncMock(return_value={"entries": entries}),
+            ):
+                results = await AudioResolver.search(
+                    "Pichuva Kaththi Enna Sona",
+                    limit=5,
+                    correlation_id="TEST-PICHUVA",
+                )
+
+            self.assertEqual([candidate["id"] for candidate in results], ["tamil123456"])
+            self.assertEqual(results[0]["_title_match_ratio"], 1.0)
+
+        asyncio.run(_test())
+
+    def test_01k_stream_extraction_rejects_different_video_than_ranked_candidate(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            selected = {
+                "id": "tamil123456",
+                "title": "Pichuva Kaththi - Enna Sonna Video Song",
+                "url": "https://www.youtube.com/watch?v=tamil123456",
+                "duration": 240,
+                "artist": "TrendMusic",
+                "uploader": "TrendMusic",
+                "channel_is_verified": True,
+            }
+            wrong_video_data = {
+                "id": "hindi123456",
+                "title": "Pichuva Kaththi - Enna Sonna Video Song",
+                "webpage_url": "https://www.youtube.com/watch?v=hindi123456",
+                "url": "https://audio.example/wrong",
+                "uploader": "TrendMusic",
+                "channel_is_verified": True,
+                "duration": 240,
+            }
+            ydl = MagicMock()
+            ydl.extract_info.return_value = wrong_video_data
+            with patch.object(
+                AudioResolver,
+                "search",
+                new=AsyncMock(return_value=[selected]),
+            ), patch(
+                "music_bot.services.resolver_service._build_ytdl_options",
+                return_value={},
+            ), patch(
+                "music_bot.services.resolver_service.yt_dlp.YoutubeDL",
+                return_value=ydl,
+            ), patch(
+                "music_bot.services.resolver_service._run_ytdlp",
+                new=AsyncMock(return_value=wrong_video_data),
+            ), patch(
+                "music_bot.services.resolver_service.get_active_cookie_file",
+                return_value=None,
+            ):
+                result = await AudioResolver._execute_resolution_pipeline(
+                    "Pichuva Kaththi Enna Sona",
+                    123,
+                    "Tester",
+                    correlation_id="TEST-IDENTITY",
+                )
+
+            self.assertIsNone(result)
+
+        asyncio.run(_test())
 
     def test_01e_search_only_returns_verified_original_for_normal_request(self):
         async def _test():
@@ -159,6 +363,31 @@ class TestSongSearchRanking(unittest.TestCase):
                 results = await AudioResolver.search("Kalyani", limit=5)
 
             self.assertEqual([result["id"] for result in results], ["original1234"])
+            self.assertTrue(results[0]["original_source_match"])
+
+        asyncio.run(_test())
+
+    def test_01e2_direct_youtube_link_explicitly_selects_a_remix(self):
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            ydl.extract_info.return_value = {
+                "id": "remix1234567",
+                "title": "Kalyani DJ Remix",
+                "webpage_url": "https://www.youtube.com/watch?v=remix1234567",
+                "url": "https://audio.example/stream",
+                "duration": 210,
+                "uploader": "Unknown DJ Channel",
+            }
+
+            with patch("music_bot.services.resolver_service._build_ytdl_options", return_value={}), \
+                 patch("music_bot.services.resolver_service.yt_dlp.YoutubeDL", return_value=ydl):
+                result = await AudioResolver._execute_resolution_pipeline(
+                    "https://www.youtube.com/watch?v=remix1234567", 123, "Tester"
+                )
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result.title, "Kalyani DJ Remix")
 
         asyncio.run(_test())
 
@@ -505,6 +734,23 @@ class TestSongSearchRanking(unittest.TestCase):
                     "TIMEOUT" in res_err or "timed out" in res_err.lower(),
                     f"Expected TIMEOUT diagnostic in last_resolver_error, got: '{res_err}'"
                 )
+
+            AudioResolver.last_resolver_error = None
+            mock_ydl.extract_info.side_effect = None
+            mock_ydl.extract_info.return_value = {"entries": []}
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl), patch.object(
+                AudioResolver,
+                "search",
+                new=AsyncMock(return_value=[]),
+            ):
+                track = await AudioResolver._execute_resolution_pipeline(
+                    "no results regression query",
+                    123,
+                    "TestUser",
+                )
+
+            self.assertIsNone(track)
+            self.assertIn("[NO_RESULTS]", AudioResolver.last_resolver_error or "")
 
         asyncio.run(_test())
 
