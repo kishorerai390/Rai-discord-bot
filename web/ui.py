@@ -296,6 +296,66 @@ UI_HTML = r"""<!DOCTYPE html>
       color: var(--cyan);
     }
 
+    /* CUSTOM VOICE CHANNEL DROPDOWN (100% RELIABLE DARK THEME) */
+    .vc-switcher {
+      position: relative;
+      background: #0e0b1c;
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      border-radius: var(--radius-md);
+      padding: 0.55rem 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+    .vc-switcher:hover {
+      background: #141026;
+      border-color: var(--cyan);
+      box-shadow: 0 0 14px rgba(0, 229, 255, 0.25);
+    }
+    .vc-dropdown-menu {
+      position: absolute;
+      top: 108%;
+      left: 0;
+      right: 0;
+      background: #0e0b1c;
+      border: 1px solid rgba(168, 85, 247, 0.45);
+      border-radius: var(--radius-md);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.85);
+      display: none;
+      flex-direction: column;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 105;
+      padding: 0.4rem;
+      gap: 0.25rem;
+    }
+    .vc-dropdown-menu.open { display: flex; }
+    .vc-opt {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #f8fafc;
+      transition: all 0.15s ease;
+      background: transparent;
+    }
+    .vc-opt:hover {
+      background: rgba(168, 85, 247, 0.25);
+      color: #fff;
+    }
+    .vc-opt.selected {
+      background: rgba(0, 229, 255, 0.2);
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
     /* GLOBAL SELECT & DROPDOWN STYLING */
     select {
       background: #0d0b18 !important;
@@ -2988,7 +3048,10 @@ UI_HTML = r"""<!DOCTYPE html>
             <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
           </div>
           <div class="brand-title-wrap">
-            <h1>MusicMaid</h1>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+              <h1>MusicMaid</h1>
+              <span id="sidebar-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature VR Emblem" style="cursor:pointer;" onclick="event.stopPropagation(); navigate('/control-room');"></span>
+            </div>
             <p>Handmade Player</p>
           </div>
         </a>
@@ -3010,15 +3073,25 @@ UI_HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
-      <!-- DYNAMIC VOICE CHANNEL SELECTOR -->
+      <!-- DYNAMIC VOICE CHANNEL SELECTOR (CUSTOM DARK DROPDOWN) -->
       <div style="margin: 0.1rem 0 0.55rem 0;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
           <span style="font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-dim);">Voice Channel</span>
-          <span id="vc-refresh-btn" onclick="fetchVoiceChannels()" style="font-size:0.68rem; color:var(--cyan); cursor:pointer;" title="Refresh voice channels">🔄 Refresh</span>
+          <span id="vc-refresh-btn" onclick="fetchVoiceChannels()" style="font-size:0.68rem; color:var(--cyan); cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem;" title="Refresh voice channels">
+            <span id="vc-refresh-icon">🔄</span> Refresh
+          </span>
         </div>
-        <select id="voice-channel-selector" onchange="onVoiceChannelSelect(this.value)" style="width:100%; background:#0e0b1c; border:1px solid rgba(168,85,247,0.35); border-radius:var(--radius-md); color:#f8fafc; padding:0.5rem 0.75rem; font-size:0.8rem; font-weight:600; outline:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.5);">
-          <option value="" style="background:#0e0b1c; color:#f8fafc;">🔊 Auto-Detect Channel</option>
-        </select>
+        <div class="vc-switcher" id="vc-switcher-btn" onclick="toggleVoiceChannelMenu(event)">
+          <div style="display:flex; align-items:center; gap:0.5rem; overflow:hidden;">
+            <span style="color:var(--cyan); font-size:0.9rem;">🔊</span>
+            <span id="vc-active-label" style="font-size:0.8rem; font-weight:600; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Auto-Detect Channel</span>
+          </div>
+          <span style="font-size:0.75rem; color:var(--text-dim);">▼</span>
+          <div class="vc-dropdown-menu" id="vc-dropdown-menu">
+            <!-- Populated dynamically via fetchVoiceChannels -->
+          </div>
+        </div>
+        <input type="hidden" id="voice-channel-selector" value="">
       </div>
 
       <!-- DIRECT DISCORD BOT INVITE & COMMUNITY LINKS -->
@@ -3138,7 +3211,10 @@ UI_HTML = r"""<!DOCTYPE html>
         <div class="player-bar-left">
           <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
           <div class="bar-meta-stack">
-            <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
+            <div style="display:flex; align-items:center; gap:0.4rem;">
+              <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
+              <span id="bar-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
+            </div>
             <span class="bar-artist" id="bar-artist">Artist name · Current server</span>
             <span class="bar-idle-state" id="bar-idle-state">Idle state: Search for music to get started</span>
           </div>
@@ -3484,38 +3560,226 @@ UI_HTML = r"""<!DOCTYPE html>
       document.getElementById('lyrics-modal')?.classList.remove('open');
     }
 
+    let cachedVoiceChannels = [];
+
+    function toggleVoiceChannelMenu(e) {
+      e.stopPropagation();
+      const menu = document.getElementById('vc-dropdown-menu');
+      if (menu) {
+        menu.classList.toggle('open');
+      }
+    }
+
+    document.addEventListener('click', () => {
+      document.getElementById('vc-dropdown-menu')?.classList.remove('open');
+    });
+
     async function fetchVoiceChannels() {
+      const icon = document.getElementById('vc-refresh-icon');
+      if (icon) {
+        icon.style.display = 'inline-block';
+        icon.style.transition = 'transform 0.5s ease';
+        icon.style.transform = 'rotate(360deg)';
+      }
+
+      const menu = document.getElementById('vc-dropdown-menu');
+      const activeLabel = document.getElementById('vc-active-label');
+      const hiddenInput = document.getElementById('voice-channel-selector');
+
       try {
-        const sel = document.getElementById('voice-channel-selector');
-        if (!sel) return;
         const res = await fetch(`/api/music/voice-channels?guild_id=${currentGuildId}`);
         const json = await res.json();
         if (json.success && json.data) {
-          const channels = json.data.channels || [];
-          sel.innerHTML = '<option value="" style="background:#0e0b1c; color:#f8fafc;">🔊 Auto-Detect Channel</option>';
-          channels.forEach(ch => {
-            const opt = document.createElement('option');
-            opt.value = ch.id;
-            opt.style.backgroundColor = '#0e0b1c';
-            opt.style.color = '#f8fafc';
-            const listenerTag = ch.listeners > 0 ? ` (${ch.listeners} listening)` : '';
-            const curTag = ch.is_current ? ' ★ Connected' : '';
-            opt.textContent = `🔊 #${ch.name}${listenerTag}${curTag}`;
-            if (selectedVoiceChannelId === ch.id || (!selectedVoiceChannelId && ch.is_current)) {
-              opt.selected = true;
+          cachedVoiceChannels = json.data.channels || [];
+          
+          let menuHtml = `
+            <div class="vc-opt ${!selectedVoiceChannelId ? 'selected' : ''}" onclick="onVoiceChannelSelect('')">
+              <span>🔊</span>
+              <span>Auto-Detect Channel</span>
+            </div>
+          `;
+
+          let foundActive = false;
+          cachedVoiceChannels.forEach(ch => {
+            const isSelected = selectedVoiceChannelId === ch.id || (!selectedVoiceChannelId && ch.is_current);
+            if (isSelected) {
+              foundActive = true;
+              if (activeLabel) activeLabel.textContent = `#${ch.name}`;
+              if (hiddenInput) hiddenInput.value = ch.id;
             }
-            sel.appendChild(opt);
+            const listenerTag = ch.listeners > 0 ? ` <span style="font-size:0.7rem; color:var(--text-dim);">(${ch.listeners} listening)</span>` : '';
+            const curTag = ch.is_current ? ' <span style="font-size:0.7rem; color:var(--emerald);">★ Connected</span>' : '';
+            menuHtml += `
+              <div class="vc-opt ${isSelected ? 'selected' : ''}" onclick="onVoiceChannelSelect('${ch.id}')">
+                <span>🔊</span>
+                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">#${ch.name}${listenerTag}${curTag}</span>
+              </div>
+            `;
           });
+
+          if (!foundActive && activeLabel) {
+            activeLabel.textContent = 'Auto-Detect Channel';
+            if (hiddenInput) hiddenInput.value = '';
+          }
+
+          if (menu) menu.innerHTML = menuHtml;
+          showToast(`Refreshed ${cachedVoiceChannels.length} voice channels 🔊`, "info");
         }
-      } catch(e) {}
+      } catch(e) {
+        showToast("Error refreshing voice channels", "warning");
+      } finally {
+        if (icon) {
+          setTimeout(() => { icon.style.transform = 'none'; }, 550);
+        }
+      }
     }
 
     async function onVoiceChannelSelect(chId) {
       selectedVoiceChannelId = chId || '';
       localStorage.setItem('rai_selected_voice_channel', selectedVoiceChannelId);
+      const hiddenInput = document.getElementById('voice-channel-selector');
+      if (hiddenInput) hiddenInput.value = selectedVoiceChannelId;
+
+      const activeLabel = document.getElementById('vc-active-label');
+      if (!chId) {
+        if (activeLabel) activeLabel.textContent = 'Auto-Detect Channel';
+      } else {
+        const found = cachedVoiceChannels.find(c => c.id === chId);
+        if (found && activeLabel) {
+          activeLabel.textContent = `#${found.name}`;
+        }
+      }
+
+      // Re-render menu selection state
+      document.getElementById('vc-dropdown-menu')?.classList.remove('open');
+      const menu = document.getElementById('vc-dropdown-menu');
+      if (menu) {
+        const items = menu.querySelectorAll('.vc-opt');
+        items.forEach(el => el.classList.remove('selected'));
+      }
+
       if (chId) {
-        showToast("Connecting to selected voice channel... 🔊", "info");
+        showToast("Connecting bot to voice channel... 🔊", "info");
         await dispatchCmd('CONNECT_VOICE', { channel_id: chId });
+      } else {
+        showToast("Set to Auto-Detect voice channel on play.", "info");
+      }
+    }
+
+    // =========================================================================
+    // MUSICMAID SIGNATURE SYMBOLS (VR HEADSET, SOUNDWAVE, ENERGY CORE, ETC.)
+    // =========================================================================
+    const MUSICMAID_SIGNATURE_SYMBOLS = {
+      vr_headset: {
+        name: "VR Headset",
+        subtitle: "Signature Cyber-VR Audio",
+        svg: (size=24, neon=true) => `
+          <svg class="signature-symbol-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="VR Headset Symbol" role="img">
+            <path d="M4 11C4 8.23858 6.23858 6 9 6H15C17.7614 6 20 8.23858 20 11V15C20 16.6569 18.6569 18 17 18H15L13.5 16H10.5L9 18H7C5.34315 18 4 16.6569 4 15V11Z" stroke="${neon ? '#a855f7' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 11.5H10.5" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+            <path d="M13.5 11.5H16" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="9.25" cy="11.5" r="0.75" fill="#34d399"/>
+            <circle cx="14.75" cy="11.5" r="0.75" fill="#34d399"/>
+            <path d="M7 6L7 4" stroke="#a855f7" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M17 6L17 4" stroke="#a855f7" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M12 4V6" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M20 12.5C21.1046 12.5 22 13.3954 22 14.5C22 15.6046 21.1046 16.5 20 16.5" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M4 12.5C2.89543 12.5 2 13.3954 2 14.5C2 15.6046 2.89543 16.5 4 16.5" stroke="#a855f7" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        `
+      },
+      music_note: {
+        name: "Neon Music Note",
+        subtitle: "High-Fidelity Audio",
+        svg: (size=24, neon=true) => `
+          <svg class="signature-symbol-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Neon Music Note" role="img">
+            <path d="M9 18V5L20 3V16" stroke="${neon ? '#a855f7' : 'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="6" cy="18" r="3" stroke="#a855f7" stroke-width="2" fill="rgba(168,85,247,0.2)"/>
+            <circle cx="17" cy="16" r="3" stroke="#10b981" stroke-width="2" fill="rgba(16,185,129,0.25)"/>
+            <path d="M9 10L20 8" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        `
+      },
+      soundwave: {
+        name: "Soundwave",
+        subtitle: "Harmonic Waveform",
+        svg: (size=24, neon=true) => `
+          <svg class="signature-symbol-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Soundwave" role="img">
+            <path d="M3 12H5" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M7 8V16" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M11 4V20" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M15 7V17" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M19 10V14" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M21 12H22" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        `
+      },
+      radio: {
+        name: "Digital Radio",
+        subtitle: "Broadcast Master",
+        svg: (size=24, neon=true) => `
+          <svg class="signature-symbol-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Digital Radio" role="img">
+            <path d="M5 19H19C20.1046 19 21 18.1046 21 17V9C21 7.89543 20.1046 7 19 7H5C3.89543 7 3 7.89543 3 9V17C3 18.1046 3.89543 19 5 19Z" stroke="${neon ? '#a855f7' : 'currentColor'}" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M6 7L16 3" stroke="#10b981" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="8.5" cy="13" r="2.5" stroke="#a855f7" stroke-width="1.8" fill="rgba(168,85,247,0.2)"/>
+            <path d="M14 11H18" stroke="#10b981" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M14 14H17" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        `
+      },
+      vinyl: {
+        name: "Holographic Vinyl",
+        subtitle: "Analog Soul & Groove",
+        svg: (size=24, neon=true) => `
+          <svg class="signature-symbol-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Holographic Vinyl" role="img">
+            <circle cx="12" cy="12" r="9" stroke="${neon ? '#a855f7' : 'currentColor'}" stroke-width="2"/>
+            <circle cx="12" cy="12" r="5" stroke="#a855f7" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <circle cx="12" cy="12" r="2.5" stroke="#10b981" stroke-width="1.8" fill="#10b981"/>
+            <circle cx="12" cy="12" r="0.75" fill="#0d0b18"/>
+          </svg>
+        `
+      },
+      energy_core: {
+        name: "AI Energy Core",
+        subtitle: "Futuristic Intelligence",
+        svg: (size=24, neon=true) => `
+          <svg class="signature-symbol-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="AI Energy Core" role="img">
+            <path d="M12 2L14.8 9.2L22 12L14.8 14.8L12 22L9.2 14.8L2 12L9.2 9.2L12 2Z" stroke="${neon ? '#a855f7' : 'currentColor'}" stroke-width="2" stroke-linejoin="round" fill="rgba(168,85,247,0.15)"/>
+            <circle cx="12" cy="12" r="2.5" stroke="#10b981" stroke-width="2" fill="#34d399"/>
+            <circle cx="18" cy="6" r="1.5" fill="#10b981"/>
+          </svg>
+        `
+      }
+    };
+
+    let activeSignatureSymbol = localStorage.getItem('musicmaid_signature_symbol') || 'vr_headset';
+
+    function getSignatureSymbolSvg(symbolKey, size=24) {
+      const sym = MUSICMAID_SIGNATURE_SYMBOLS[symbolKey] || MUSICMAID_SIGNATURE_SYMBOLS.vr_headset;
+      return sym.svg(size, true);
+    }
+
+    function updateSignatureSymbolBranding(symbolKey) {
+      if (!MUSICMAID_SIGNATURE_SYMBOLS[symbolKey]) symbolKey = 'vr_headset';
+      activeSignatureSymbol = symbolKey;
+      localStorage.setItem('musicmaid_signature_symbol', symbolKey);
+
+      // Update sidebar branding badge
+      const sidebarIcon = document.getElementById('sidebar-brand-symbol');
+      if (sidebarIcon) {
+        sidebarIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 18);
+      }
+
+      // Update player bar branding badge
+      const barIcon = document.getElementById('bar-brand-symbol');
+      if (barIcon) {
+        barIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 16);
+      }
+
+      // Update presence live preview icon
+      const presIcon = document.getElementById('presence-symbol-preview');
+      if (presIcon) {
+        presIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 28);
       }
     }
 
@@ -3556,6 +3820,7 @@ UI_HTML = r"""<!DOCTYPE html>
       window.addEventListener('popstate', handleRoute);
 
       try {
+        updateSignatureSymbolBranding(activeSignatureSymbol);
         setupRealtimeWebSocket();
         initFirebaseClient();
         await fetchAuthStatus();
@@ -5426,6 +5691,9 @@ UI_HTML = r"""<!DOCTYPE html>
         const flags = flagData.data?.flags || {};
         const backups = bkpData.data?.backups || [];
         const presence = presData.data || {};
+        if (presence.signature_symbol) {
+          updateSignatureSymbolBranding(presence.signature_symbol);
+        }
 
         document.getElementById('control-room-body').innerHTML = `
           <!-- 4 METRIC TILES (Infini-Dash Ref) -->
@@ -5545,17 +5813,22 @@ UI_HTML = r"""<!DOCTYPE html>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.2rem;">
               <!-- Current Live Presence Display -->
               <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-sm); padding:1rem; display:flex; flex-direction:column; gap:0.75rem;">
-                <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Live Discord Gateway State</span>
+                <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Live Discord Gateway State & Signature Symbol</span>
                 <div style="display:flex; align-items:center; gap:0.8rem;">
-                  <span style="font-size:1.8rem;">
+                  <span style="font-size:1.8rem;" title="Discord Gateway Status Indicator">
                     ${presence.status === 'online' ? '🟢' : (presence.status === 'idle' ? '🟡' : (presence.status === 'dnd' ? '🔴' : '⚪'))}
                   </span>
-                  <div>
-                    <div id="owner-pres-live-act" style="font-weight:700; color:#fff; font-size:1.05rem;">
-                      ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'MusicMaid Lossless Audio')}
-                    </div>
-                    <div style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
-                      Status: ${presence.live_status || presence.status || 'online'} • Mode: ${presence.mode}
+                  <div style="display:flex; align-items:center; gap:0.6rem;">
+                    <span id="presence-symbol-preview" class="signature-symbol-wrap" title="MusicMaid Signature VR Emblem" style="padding:0.4rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
+                      ${getSignatureSymbolSvg(presence.signature_symbol || activeSignatureSymbol || 'vr_headset', 28)}
+                    </span>
+                    <div>
+                      <div id="owner-pres-live-act" style="font-weight:700; color:#fff; font-size:1.05rem;">
+                        ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'MusicMaid Lossless Audio')}
+                      </div>
+                      <div style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
+                        Status: ${presence.live_status || presence.status || 'online'} • Mode: ${presence.mode}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5602,6 +5875,32 @@ UI_HTML = r"""<!DOCTYPE html>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Manual Activity Text</label>
                     <input type="text" id="owner-pres-act-text" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="e.g. MusicMaid | /play" value="${(presence.activity_text || '').replace(/"/g, '&quot;')}">
                   </div>
+                </div>
+
+                <!-- MUSICMAID SIGNATURE SYMBOL (BRANDING & WEBSITE IDENTITY) -->
+                <div style="background:rgba(147,51,234,0.06); border:1px solid rgba(168,85,247,0.25); border-radius:var(--radius-sm); padding:0.85rem; display:flex; flex-direction:column; gap:0.6rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.4rem;">
+                    <div>
+                      <span style="font-size:0.75rem; text-transform:uppercase; color:var(--cyan); font-family:'JetBrains Mono',monospace; font-weight:700;">MusicMaid Signature Symbol</span>
+                      <div style="font-size:0.7rem; color:var(--text-dim); margin-top:0.15rem;">Brand emblem across dashboard, bottom player & bot identity preview</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" style="padding:0.25rem 0.6rem; font-size:0.72rem;" onclick="resetSignatureSymbolToDefault()" title="Reset to VR Headset default">🔄 Reset Symbol</button>
+                  </div>
+
+                  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.5rem; margin-top:0.2rem;" id="symbol-choices-grid">
+                    ${Object.entries(MUSICMAID_SIGNATURE_SYMBOLS).map(([key, item]) => `
+                      <div class="symbol-choice-card ${(presence.signature_symbol || activeSignatureSymbol || 'vr_headset') === key ? 'selected' : ''}" id="sym-card-${key}" onclick="selectSignatureSymbol('${key}')" role="button" tabindex="0" aria-label="${item.name}">
+                        <div style="display:flex; align-items:center; justify-content:center; width:28px; height:28px;">
+                          ${item.svg(22, true)}
+                        </div>
+                        <div style="overflow:hidden;">
+                          <div style="font-size:0.75rem; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.name}</div>
+                          <div style="font-size:0.64rem; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.subtitle}</div>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                  <input type="hidden" id="owner-pres-signature-symbol" value="${presence.signature_symbol || activeSignatureSymbol || 'vr_headset'}">
                 </div>
 
                 <div>
@@ -5844,14 +6143,42 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    function selectSignatureSymbol(symbolKey) {
+      if (!MUSICMAID_SIGNATURE_SYMBOLS[symbolKey]) symbolKey = 'vr_headset';
+      const hiddenInput = document.getElementById('owner-pres-signature-symbol');
+      if (hiddenInput) hiddenInput.value = symbolKey;
+
+      // Update selection styling on choice cards
+      Object.keys(MUSICMAID_SIGNATURE_SYMBOLS).forEach(k => {
+        const card = document.getElementById(`sym-card-${k}`);
+        if (card) {
+          if (k === symbolKey) {
+            card.classList.add('selected');
+          } else {
+            card.classList.remove('selected');
+          }
+        }
+      });
+
+      // Update instant preview across UI
+      updateSignatureSymbolBranding(symbolKey);
+      showToast(`Selected emblem: ${MUSICMAID_SIGNATURE_SYMBOLS[symbolKey].name}`, "info");
+    }
+
+    function resetSignatureSymbolToDefault() {
+      selectSignatureSymbol('vr_headset');
+      showToast("Reset signature symbol to VR Headset default 🎧", "info");
+    }
+
     async function saveBotPresenceSettings() {
       const mode = document.getElementById('owner-pres-mode')?.value || 'dynamic';
       const status = document.getElementById('owner-pres-status')?.value || 'online';
       const actType = document.getElementById('owner-pres-act-type')?.value || 'listening';
       const actText = document.getElementById('owner-pres-act-text')?.value || '';
       const idleText = document.getElementById('owner-pres-idle-text')?.value || '';
+      const sigSymbol = document.getElementById('owner-pres-signature-symbol')?.value || activeSignatureSymbol || 'vr_headset';
 
-      showToast("Applying presence changes to Discord Gateway...", "info");
+      showToast("Applying presence & branding changes to Discord Gateway...", "info");
       try {
         const res = await fetch('/api/owner/presence', {
           method: 'POST',
@@ -5861,12 +6188,16 @@ UI_HTML = r"""<!DOCTYPE html>
             status: status,
             activity_type: actType,
             activity_text: actText,
-            idle_text: idleText
+            idle_text: idleText,
+            signature_symbol: sigSymbol
           })
         });
         const json = await res.json();
         if (json.success) {
-          showToast("Discord bot presence updated successfully!", "success");
+          showToast("Discord bot presence & signature symbol updated successfully!", "success");
+          if (json.data?.signature_symbol) {
+            updateSignatureSymbolBranding(json.data.signature_symbol);
+          }
           renderCreatorControlRoom();
         } else {
           showToast(json.error?.message || "Failed to update presence", "danger");
@@ -5887,7 +6218,8 @@ UI_HTML = r"""<!DOCTYPE html>
             status: 'online',
             activity_type: 'listening',
             activity_text: '',
-            idle_text: ''
+            idle_text: '',
+            signature_symbol: activeSignatureSymbol || 'vr_headset'
           })
         });
         const json = await res.json();
