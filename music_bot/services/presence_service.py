@@ -216,10 +216,10 @@ class DynamicPresenceService:
             act_name = cls._custom_activity_text or "MusicMaid"
             if act_type == discord.ActivityType.custom:
                 try:
-                    # In Discord API for bot accounts, CustomActivity text is stored in `name` or `state`
+                    # In Discord API for bot accounts, CustomActivity uses `state` for the display text
                     act = discord.CustomActivity(name=act_name, state=act_name)
                 except Exception:
-                    act = discord.Activity(type=discord.ActivityType.listening, name=act_name)
+                    act = discord.Activity(type=discord.ActivityType.playing, name=act_name)
             else:
                 act = discord.Activity(type=act_type, name=act_name)
             sig = f"STATE:MANUAL:{cls._custom_status}:{cls._custom_activity_type}:{act_name}"
