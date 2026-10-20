@@ -111,26 +111,87 @@ class DynamicPresenceService:
 
     @classmethod
     def get_state(cls, bot: Optional[Any] = None) -> Dict[str, Any]:
-        """Return full presence control state and live Discord activity information."""
+        """Return full presence control state and 5 independent live telemetry dimensions:
+        1. configured_status: Desired status chosen by owner (online, idle, dnd, invisible)
+        2. gateway_connected: Truthful Gateway socket connection status (True/False)
+        3. discord_presence: Current visible status reported by Discord Gateway
+        4. voice_connected: Whether bot is connected to active voice channel
+        5. playback_state: Current playback state across cluster ('playing' | 'paused' | 'recovering' | 'idle' | 'unavailable')
+        """
         if not cls._config_loaded:
             cls.load_config()
 
         live_activity_name = ""
-        live_status = cls._custom_status
+        # 1. Configured presence
+        configured_status = cls._custom_status or "online"
+
+        # 2. Actual gateway connection
+        if bot is not None and hasattr(bot, "is_ready") and callable(bot.is_ready):
+            gateway_connected = bool(bot.is_ready())
+        else:
+            gateway_connected = False
+
+        # 3. Discord-visible presence
+        if bot and hasattr(bot, "status") and bot.status is not None:
+            discord_presence = str(bot.status.value) if hasattr(bot.status, "value") else str(bot.status)
+        else:
+            discord_presence = "unknown"
+
         if bot and hasattr(bot, "activity") and bot.activity:
             live_activity_name = getattr(bot.activity, "name", "")
-        if bot and hasattr(bot, "status") and bot.status:
-            live_status = str(bot.status.value) if hasattr(bot.status, "value") else str(bot.status)
+
+        # 4. Voice connection & 5. Playback state
+        sm = SessionManager.get_instance() if hasattr(SessionManager, "get_instance") else None
+        sessions: list[GuildMusicSession] = sm.get_all_sessions() if sm else []
+
+        voice_connected = False
+        voice_channel_name: Optional[str] = None
+        has_playing = False
+        has_paused = False
+        has_recovering = False
+
+        for s in sessions:
+            vc = getattr(s, "voice_client", None)
+            if vc and getattr(vc, "is_connected", lambda: False)():
+                voice_connected = True
+                ch = getattr(vc, "channel", None)
+                if ch and hasattr(ch, "name") and not voice_channel_name:
+                    voice_channel_name = ch.name
+
+            st = getattr(s, "state", None)
+            if st == PlaybackState.PLAYING:
+                has_playing = True
+            elif st == PlaybackState.PAUSED:
+                has_paused = True
+            elif st == PlaybackState.RECOVERING:
+                has_recovering = True
+
+        if not gateway_connected:
+            playback_state = "unavailable"
+        elif has_recovering:
+            playback_state = "recovering"
+        elif has_playing:
+            playback_state = "playing"
+        elif has_paused:
+            playback_state = "paused"
+        else:
+            playback_state = "idle"
 
         return {
             "mode": cls._mode,
-            "status": cls._custom_status,
+            "status": configured_status,  # Backwards compatibility alias
+            "configured_status": configured_status,
+            "gateway_connected": gateway_connected,
+            "discord_presence": discord_presence,
+            "voice_connected": voice_connected,
+            "voice_channel": voice_channel_name,
+            "playback_state": playback_state,
             "activity_type": cls._custom_activity_type,
             "activity_text": cls._custom_activity_text,
             "idle_text": cls._custom_idle_text or "",
             "signature_symbol": cls._signature_symbol,
             "live_activity_name": live_activity_name,
-            "live_status": live_status,
+            "live_status": discord_presence,  # Backwards compatibility
             "last_update_time": cls._last_update_time,
             "last_signature": cls._last_signature,
         }
@@ -150,9 +211,12 @@ class DynamicPresenceService:
         if not cls._config_loaded:
             cls.load_config()
 
+        status_changed = False
         if mode in ("dynamic", "manual"):
             cls._mode = mode
         if status in STATUS_MAP:
+            if cls._custom_status != status:
+                status_changed = True
             cls._custom_status = status
         if activity_type in ACTIVITY_TYPE_MAP:
             cls._custom_activity_type = activity_type
@@ -168,10 +232,13 @@ class DynamicPresenceService:
 
         cls.save_config()
 
+        update_applied = False
         if bot:
-            await cls.sync_presence(bot, force=True)
+            update_applied = await cls.sync_presence(bot, force=True)
 
-        return cls.get_state(bot)
+        res = cls.get_state(bot)
+        res["update_applied"] = update_applied
+        return res
 
     @classmethod
     def sanitize_track_metadata(cls, title: str, artist: Optional[str] = None) -> str:
@@ -200,8 +267,9 @@ class DynamicPresenceService:
     def resolve_target_activity(cls, bot: Any) -> Tuple[discord.Activity, discord.Status, str]:
         """
         Determines the authoritative global Discord activity across all active guild sessions:
-        - Manual Mode: Returns owner-configured activity and status override.
+        - Manual Mode: Returns owner-configured activity and owner-configured status.
         - Dynamic Mode:
+          Uses owner's configured status (online, idle, dnd, invisible) with dynamically chosen activity:
           Priority 1: Active session recovery in progress -> 'Restoring session...'
           Priority 2: Genuine active playback -> '{title} • {artist}'
           Priority 3: Idle / Paused / Stopped -> custom idle text or DEFAULT_IDLE_ACTIVITY
@@ -209,21 +277,22 @@ class DynamicPresenceService:
         if not cls._config_loaded:
             cls.load_config()
 
+        # The authoritative desired status configured by the bot owner
+        target_status = STATUS_MAP.get(cls._custom_status, discord.Status.online)
+
         # 0. Manual Override Mode Check
         if cls._mode == "manual":
-            status = STATUS_MAP.get(cls._custom_status, discord.Status.online)
             act_type = ACTIVITY_TYPE_MAP.get(cls._custom_activity_type, discord.ActivityType.listening)
             act_name = cls._custom_activity_text or "MusicMaid"
             if act_type == discord.ActivityType.custom:
                 try:
-                    # In discord.py, passing name='Custom Status', state=act_name guarantees {'type': 4, 'name': 'Custom Status', 'state': act_name}
                     act = discord.CustomActivity(name="Custom Status", state=act_name)
                 except Exception:
                     act = discord.Activity(type=discord.ActivityType.playing, name=act_name)
             else:
                 act = discord.Activity(type=act_type, name=act_name)
             sig = f"STATE:MANUAL:{cls._custom_status}:{cls._custom_activity_type}:{act_name}"
-            return act, status, sig
+            return act, target_status, sig
 
         sm = SessionManager.get_instance() if hasattr(SessionManager, "get_instance") else None
         sessions: list[GuildMusicSession] = sm.get_all_sessions() if sm else []
@@ -233,12 +302,12 @@ class DynamicPresenceService:
             s for s in sessions if getattr(s, "state", None) == PlaybackState.RECOVERING
         ]
         if recovering_sessions:
-            sig = "STATE:RECOVERING"
+            sig = f"STATE:RECOVERING:{cls._custom_status}"
             act = discord.Activity(
                 type=discord.ActivityType.listening,
                 name=DEFAULT_RECOVERY_ACTIVITY,
             )
-            return act, discord.Status.online, sig
+            return act, target_status, sig
 
         # 2. Playing state check: strictly genuine active playback with playing voice client
         playing_sessions = []
@@ -270,21 +339,21 @@ class DynamicPresenceService:
             active_sess = playing_sessions[0]
             track = active_sess.current_track
             formatted_title = cls.sanitize_track_metadata(track.title, getattr(track, "artist", None))
-            sig = f"STATE:PLAYING:{track.title}:{getattr(track, 'artist', '')}"
+            sig = f"STATE:PLAYING:{cls._custom_status}:{track.title}:{getattr(track, 'artist', '')}"
             act = discord.Activity(
                 type=discord.ActivityType.listening,
                 name=formatted_title,
             )
-            return act, discord.Status.online, sig
+            return act, target_status, sig
 
         # 3. Idle / Paused state default
-        sig = "STATE:IDLE"
+        sig = f"STATE:IDLE:{cls._custom_status}"
         idle_name = cls._custom_idle_text or DEFAULT_IDLE_ACTIVITY
         act = discord.Activity(
             type=discord.ActivityType.listening,
             name=idle_name,
         )
-        return act, discord.Status.online, sig
+        return act, target_status, sig
 
     @classmethod
     async def sync_presence(cls, bot: Any, force: bool = False) -> bool:

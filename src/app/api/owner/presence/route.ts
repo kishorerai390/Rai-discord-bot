@@ -85,8 +85,16 @@ export async function GET(req: NextRequest) {
     success: true,
     data: {
       presence: current,
+      mode: current.mode,
+      status: current.status,
+      configured_status: current.status,
+      gateway_connected: false,
+      discord_presence: current.status,
+      voice_connected: false,
+      playback_state: "unavailable",
       live_status: current.status,
       live_activity: current.activity_text,
+      signature_symbol: current.signature_symbol || "vr_headset",
     },
   });
 }

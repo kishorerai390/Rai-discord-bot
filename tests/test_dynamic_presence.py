@@ -18,9 +18,16 @@ class TestDynamicPresenceService(unittest.TestCase):
         self.sm._sessions.clear()
         DynamicPresenceService._last_signature = None
         DynamicPresenceService._last_update_time = 0.0
+        DynamicPresenceService._mode = "dynamic"
+        DynamicPresenceService._custom_status = "online"
+        DynamicPresenceService._custom_activity_type = "listening"
+        DynamicPresenceService._custom_activity_text = ""
+        DynamicPresenceService._custom_idle_text = None
+        DynamicPresenceService._signature_symbol = "vr_headset"
 
         self.bot = MagicMock()
         self.bot.is_ready.return_value = True
+        self.bot.status = discord.Status.online
         self.bot.change_presence = AsyncMock()
 
     def test_sanitize_track_metadata(self):
@@ -47,7 +54,7 @@ class TestDynamicPresenceService(unittest.TestCase):
         self.assertEqual(act.name, DEFAULT_IDLE_ACTIVITY)
         self.assertEqual(act.type, discord.ActivityType.listening)
         self.assertEqual(status, discord.Status.online)
-        self.assertEqual(sig, "STATE:IDLE")
+        self.assertTrue(sig.startswith("STATE:IDLE"))
 
     def test_playing_activity_with_correct_title_and_artist(self):
         session = self.sm.get_session_sync(12345)
@@ -95,7 +102,7 @@ class TestDynamicPresenceService(unittest.TestCase):
 
         act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
         self.assertEqual(act.name, DEFAULT_IDLE_ACTIVITY)
-        self.assertEqual(sig, "STATE:IDLE")
+        self.assertTrue(sig.startswith("STATE:IDLE"))
 
     def test_failed_or_stopped_playback_reports_idle(self):
         session = self.sm.get_session_sync(12345)
@@ -103,7 +110,7 @@ class TestDynamicPresenceService(unittest.TestCase):
 
         act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
         self.assertEqual(act.name, DEFAULT_IDLE_ACTIVITY)
-        self.assertEqual(sig, "STATE:IDLE")
+        self.assertTrue(sig.startswith("STATE:IDLE"))
 
     def test_recovery_state_takes_precedence(self):
         session = self.sm.get_session_sync(12345)
@@ -111,7 +118,7 @@ class TestDynamicPresenceService(unittest.TestCase):
 
         act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
         self.assertEqual(act.name, DEFAULT_RECOVERY_ACTIVITY)
-        self.assertEqual(sig, "STATE:RECOVERING")
+        self.assertTrue(sig.startswith("STATE:RECOVERING"))
 
     def test_sync_presence_rate_limiting_and_transitions(self):
         import asyncio
@@ -178,7 +185,7 @@ class TestDynamicPresenceService(unittest.TestCase):
 
         act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
         self.assertEqual(act.name, "Special Community Jam")
-        self.assertEqual(sig, "STATE:IDLE")
+        self.assertTrue(sig.startswith("STATE:IDLE"))
 
         # Cleanup
         asyncio.run(DynamicPresenceService.update_state(
@@ -220,6 +227,87 @@ class TestDynamicPresenceService(unittest.TestCase):
         res = asyncio.run(DynamicPresenceService.update_state(self.bot, signature_symbol="vr_headset"))
         self.assertEqual(res["signature_symbol"], "vr_headset")
         self.assertEqual(DynamicPresenceService._signature_symbol, "vr_headset")
+
+    def test_apply_each_supported_status_in_dynamic_and_manual(self):
+        import asyncio
+        for st in ["online", "idle", "dnd", "invisible"]:
+            # Test in Dynamic mode
+            asyncio.run(DynamicPresenceService.update_state(self.bot, mode="dynamic", status=st))
+            act, status, sig = DynamicPresenceService.resolve_target_activity(self.bot)
+            expected_status = {
+                "online": discord.Status.online,
+                "idle": discord.Status.idle,
+                "dnd": discord.Status.dnd,
+                "invisible": discord.Status.invisible,
+            }[st]
+            self.assertEqual(status, expected_status)
+            self.assertTrue(sig.endswith(f":{st}"))
+
+            # Test in Manual mode
+            asyncio.run(DynamicPresenceService.update_state(self.bot, mode="manual", status=st, activity_text="Test"))
+            act_m, status_m, sig_m = DynamicPresenceService.resolve_target_activity(self.bot)
+            self.assertEqual(status_m, expected_status)
+            self.assertIn(f":MANUAL:{st}:", sig_m)
+
+    def test_invisible_status_retains_active_gateway_connection(self):
+        import asyncio
+        asyncio.run(DynamicPresenceService.update_state(self.bot, status="invisible"))
+        state = DynamicPresenceService.get_state(self.bot)
+
+        # Configured is invisible, but gateway is 100% active and connected
+        self.assertEqual(state["configured_status"], "invisible")
+        self.assertEqual(state["gateway_connected"], True)
+        self.assertNotEqual(state["playback_state"], "unavailable")
+
+    def test_five_independent_status_fields_reporting(self):
+        import asyncio
+        # Add an active music session with connected voice client
+        session = self.sm.get_session_sync(999)
+        track = QueuedTrack(url="u", title="Song", artist="Art", duration=120, requester_id=1, requester_name="U")
+        session.current_track = track
+        session.state = PlaybackState.PLAYING
+
+        vc = MagicMock()
+        vc.is_connected.return_value = True
+        vc.is_playing.return_value = True
+        vc.is_paused.return_value = False
+        vc.channel.name = "General VC"
+        session.voice_client = vc
+
+        asyncio.run(DynamicPresenceService.update_state(self.bot, mode="dynamic", status="dnd"))
+        state = DynamicPresenceService.get_state(self.bot)
+
+        self.assertEqual(state["configured_status"], "dnd")
+        self.assertEqual(state["gateway_connected"], True)
+        self.assertEqual(state["discord_presence"], "online")
+        self.assertEqual(state["voice_connected"], True)
+        self.assertEqual(state["voice_channel"], "General VC")
+        self.assertEqual(state["playback_state"], "playing")
+
+    def test_stale_or_missing_bot_telemetry_reports_unknown(self):
+        state = DynamicPresenceService.get_state(bot=None)
+        self.assertEqual(state["gateway_connected"], False)
+        self.assertEqual(state["discord_presence"], "unknown")
+        self.assertEqual(state["playback_state"], "unavailable")
+
+    def test_persistence_across_service_reloads(self):
+        import asyncio
+        asyncio.run(DynamicPresenceService.update_state(
+            self.bot,
+            mode="dynamic",
+            status="idle",
+            signature_symbol="vinyl",
+            idle_text="Lossless Audio Studio"
+        ))
+
+        # Reset in-memory config and reload from disk
+        DynamicPresenceService._config_loaded = False
+        DynamicPresenceService.load_config()
+
+        self.assertEqual(DynamicPresenceService._mode, "dynamic")
+        self.assertEqual(DynamicPresenceService._custom_status, "idle")
+        self.assertEqual(DynamicPresenceService._signature_symbol, "vinyl")
+        self.assertEqual(DynamicPresenceService._custom_idle_text, "Lossless Audio Studio")
 
 
 if __name__ == "__main__":
