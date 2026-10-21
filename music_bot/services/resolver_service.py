@@ -2553,7 +2553,7 @@ class AudioResolver:
                     break
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
-        # A verified session may still work when anonymous datacenter requests are rate-limited.
+        # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
         if candidate_urls and get_active_cookie_file() and not youtube_rate_limited:
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
@@ -2643,7 +2643,7 @@ class AudioResolver:
         elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
-        elif any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age")):
+        elif "access_denied" in lower_failure_reason or "access restriction" in lower_failure_reason or any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age", "forbidden")):
             cat = "ACCESS_RESTRICTION"
             reason = f"YouTube access restriction encountered: {last_failure_reason}"
         elif "No playable" in last_failure_reason or "format is not available" in lower_failure_reason:
