@@ -2747,7 +2747,7 @@ class AudioResolver:
                 from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
                 audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
                 for cand in audius_candidates:
-                    if is_original_recording_candidate(cand, intent):
+                    if is_alternative_provider_candidate(cand, intent):
                         fb_track = QueuedTrack(
                             title=cand["title"],
                             url=cand["url"],
@@ -2772,7 +2772,7 @@ class AudioResolver:
                 from music_bot.services.alternative_providers import JamendoProviderService
                 jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
                 for cand in jamendo_candidates:
-                    if is_original_recording_candidate(cand, intent):
+                    if is_alternative_provider_candidate(cand, intent):
                         fb_track = QueuedTrack(
                             title=cand["title"],
                             url=cand["url"],
