@@ -2380,14 +2380,16 @@ class AudioResolver:
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
+        youtube_rate_limited = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
+            # The extractor may use an 8s socket timeout and retry once. Keep the
+            # outer timeout long enough for that bounded retry to finish.
             try:
                 tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
-                    timeout=14.0,
+                    timeout=20.0,
                     operation="stream_extract_tier1",
                     correlation_id=corr_id,
                     retry_count=cand_idx - 1,
@@ -2419,6 +2421,9 @@ class AudioResolver:
                     cand_idx,
                     type(t1_err).__name__,
                 )
+                if "429" in t1_msg or "too many requests" in t1_msg.lower():
+                    youtube_rate_limited = True
+                    last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
                 if "format is not available" in t1_msg.lower():
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
@@ -2469,13 +2474,16 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
+            if youtube_rate_limited:
+                break
+
+            # Tier 2 gets the same bounded retry window as the primary profile.
             try:
                 tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier2_ydl.extract_info, target_url, download=False),
-                    timeout=10.0,
+                    timeout=20.0,
                     operation="stream_extract_tier2",
                     correlation_id=corr_id,
                     retry_count=cand_idx,
@@ -2500,6 +2508,9 @@ class AudioResolver:
             except Exception as t2_err:
                 t2_msg = _format_error(t2_err)
                 last_failure_reason = t2_msg
+                if "429" in t2_msg or "too many requests" in t2_msg.lower():
+                    youtube_rate_limited = True
+                    last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
                 logger.warning(
                     "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier2 "
                     "candidate=%d exception_type=%s",
@@ -2507,9 +2518,11 @@ class AudioResolver:
                     cand_idx,
                     type(t2_err).__name__,
                 )
+                if youtube_rate_limited:
+                    break
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist)
-        if candidate_urls and get_active_cookie_file():
+        if candidate_urls and not youtube_rate_limited and get_active_cookie_file():
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
             logger.info(
@@ -2576,6 +2589,9 @@ class AudioResolver:
         elif "video is unavailable" in lower_failure_reason or "private video" in lower_failure_reason or "has been removed" in lower_failure_reason:
             cat = "VIDEO_UNAVAILABLE"
             reason = f"YouTube reports that the requested video is unavailable for '{cleaned_query[:50]}'. Try another public link."
+        elif youtube_rate_limited or "429" in lower_failure_reason or "too many requests" in lower_failure_reason:
+            cat = "YOUTUBE_RATE_LIMITED"
+            reason = "YouTube is temporarily limiting requests from this server. Wait before retrying, or try the song title instead of a video link."
         elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
@@ -2591,7 +2607,7 @@ class AudioResolver:
 
         # Stage 4: Intelligent Multi-Provider Fallback (Audius & Jamendo)
         # When YouTube times out or fails, search secondary permitted providers
-        if not is_direct_url and (cat == "TIMEOUT" or "timed out" in lower_failure_reason or cat == "RESOLUTION_EXHAUSTED"):
+        if not is_direct_url and (cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "YOUTUBE_RATE_LIMITED"} or "timed out" in lower_failure_reason):
             logger.info(
                 f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{cleaned_query[:40]}'"
             )
