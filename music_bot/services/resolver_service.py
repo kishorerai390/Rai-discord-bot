@@ -2533,8 +2533,11 @@ class AudioResolver:
                 "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback outcome=started",
                 corr_id,
             )
+            # android_vr does not support cookie authentication in yt-dlp.
+            # Start the authenticated fallback with a cookie-compatible web client,
+            # then retain yt-dlp's default-client fallback as the final attempt.
             for cookie_clients, cookie_format in (
-                (["android_vr"], "best"),
+                (["web"], "bestaudio/best"),
                 (None, "bestaudio/best"),
             ):
                 try:
