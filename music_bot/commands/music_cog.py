@@ -4938,7 +4938,7 @@ class MusicCog(commands.Cog, name="Music"):
         embed = discord.Embed(
             title="⏱️ AUDIO PIPELINE DIAGNOSTIC NOTICE",
             description=(
-                f"Diagnostic probe reached execution deadline (**11.0s**) while testing `{query[:50]}`.\n"
+                f"Diagnostic probe reached execution deadline (**55.0s**) while testing `{query[:50]}`.\n"
                 "External audio extractors (YouTube) or network endpoints experienced high latency."
             ),
             color=0xFEE75C,
@@ -5060,12 +5060,15 @@ class MusicCog(commands.Cog, name="Music"):
             s_val = f"🔴 **FAIL** ({s_dur:.0f}ms)\n• Error: `{search_err or 'No search results returned'}`"
         embed.add_field(name="2. Stage 1: YouTube Search Provider", value=s_val, inline=False)
 
-        # 3. Stage 2: Track & Stream Resolution Probe (Bounded to 4.0s)
+        # 3. Stage 2: Track & Stream Resolution Probe. Match the resolver's
+        # bounded yt-dlp retry and authenticated fallback window.
         r_t0 = time.time()
         track = None
         resolve_err = None
         try:
-            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=6.0)
+            track = await asyncio.wait_for(AudioResolver.resolve_track(query, 0, "Debugger"), timeout=45.0)
+        except asyncio.TimeoutError:
+            resolve_err = "Stream resolution exceeded the 45-second diagnostic limit"
         except Exception as re:
             resolve_err = str(re)
         r_dur = (time.time() - r_t0) * 1000
@@ -5177,11 +5180,11 @@ class MusicCog(commands.Cog, name="Music"):
         try:
             embed = await asyncio.wait_for(
                 self._run_pipeline_diagnostics(test_query or "lofi chill beat", interaction.guild, corr_id=corr_id),
-                timeout=11.0,
+                timeout=55.0,
             )
             await interaction.edit_original_response(embed=embed)
         except asyncio.TimeoutError:
-            logger.warning(f"[Debug] [ID: DBG-{corr_id}] Pipeline diagnostics timed out after 11.0s deadline.")
+            logger.warning(f"[Debug] [ID: DBG-{corr_id}] Pipeline diagnostics timed out after 55.0s deadline.")
             timeout_embed = self._build_debug_timeout_embed(test_query or "lofi chill beat", corr_id)
             try:
                 await interaction.edit_original_response(embed=timeout_embed)
@@ -5206,7 +5209,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @commands.command(name="debug", aliases=["diag", "audioinfo"])
     async def pfx_debug(self, ctx: commands.Context, *, test_query: Optional[str] = None) -> None:
-        """Run audio pipeline diagnostics via text command with bounded 11.0s timeout."""
+        """Run audio pipeline diagnostics via text command with bounded 55.0s timeout."""
         import uuid
         corr_id = uuid.uuid4().hex[:6].upper()
         loading_msg = await ctx.send("🔍 Running audio pipeline diagnostics (checking FFmpeg, cookies, yt-dlp, and resolution)...")
@@ -5214,7 +5217,7 @@ class MusicCog(commands.Cog, name="Music"):
         try:
             embed = await asyncio.wait_for(
                 self._run_pipeline_diagnostics(test_query or "lofi chill beat", ctx.guild, corr_id=corr_id),
-                timeout=11.0,
+                timeout=55.0,
             )
             await loading_msg.edit(content=None, embed=embed)
         except asyncio.TimeoutError:

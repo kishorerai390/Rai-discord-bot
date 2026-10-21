@@ -2382,6 +2382,7 @@ class AudioResolver:
         verification_failed = False
         youtube_rate_limited = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
+            t1_msg = ""
             # The extractor may use an 8s socket timeout and retry once. Keep the
             # outer timeout long enough for that bounded retry to finish.
             try:
@@ -2474,7 +2475,7 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            if youtube_rate_limited:
+            if youtube_rate_limited or "timed out" in t1_msg.lower():
                 break
 
             # Tier 2 gets the same bounded retry window as the primary profile.
@@ -2519,6 +2520,8 @@ class AudioResolver:
                     type(t2_err).__name__,
                 )
                 if youtube_rate_limited:
+                    break
+                if "timed out" in t2_msg.lower():
                     break
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
