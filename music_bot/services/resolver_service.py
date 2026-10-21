@@ -2254,23 +2254,38 @@ class AudioResolver:
             if not candidate_urls:
                 # Query up to 15 candidate tracks from YouTube for comprehensive original-vs-remix ranking
                 search_query = f"ytsearch15:{cleaned_query}"
-                try:
-                    flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
-                    flat_ydl = yt_dlp.YoutubeDL(flat_opts)
-                    search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
-                    search_data = await _run_ytdlp(
-                        functools.partial(flat_ydl.extract_info, search_query, download=False),
-                        timeout=search_timeout,
-                        operation="search_fallback",
-                        correlation_id=corr_id,
+                active_cooldown = youtube_cooldown_status()
+                if active_cooldown["cooldown_active"]:
+                    search_error = (
+                        f"YouTube {active_cooldown['last_failure']} cooldown active "
+                        f"({active_cooldown['cooldown_remaining_seconds']} seconds remaining)"
                     )
-                    if search_data:
-                        entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
-                        search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
-                except Exception as search_exc:
-                    search_error = _format_error(search_exc)
-                    logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
-
+                    logger.info(
+                        "[Resolver] [Ref: MM-%s] provider=youtube operation=search_fallback "
+                        "outcome=skipped_cooldown category=%s remaining_seconds=%s",
+                        corr_id,
+                        active_cooldown["last_failure"],
+                        active_cooldown["cooldown_remaining_seconds"],
+                    )
+                else:
+                     try:
+                         flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
+                         flat_ydl = yt_dlp.YoutubeDL(flat_opts)
+                         search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
+                         search_data = await _run_ytdlp(
+                             functools.partial(flat_ydl.extract_info, search_query, download=False),
+                             timeout=search_timeout,
+                             operation="search_fallback",
+                             correlation_id=corr_id,
+                         )
+                         if search_data:
+                             entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
+                             search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
+                     except Exception as search_exc:
+                         search_error = _format_error(search_exc)
+                         logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
+ 
+ 
                 if not search_entries:
                     dur = time.time() - start_t
                     if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
