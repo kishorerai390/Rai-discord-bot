@@ -2381,9 +2381,9 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (ios, android) - 20.0s timeout for cold cloud responses
+            # Tier 1: Primary Public Profile (android, android_vr) - 20.0s timeout for cold cloud responses
             try:
-                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=False)
+                tier1_opts = _build_ytdl_options(["android", "android_vr"], use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
@@ -2422,9 +2422,9 @@ class AudioResolver:
                 if "format is not available" in t1_msg.lower():
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
-                        (["android", "ios", "web"], "bestaudio/best"),
-                        (["web"], "best"),
+                        (["android", "mweb", "android_vr"], "bestaudio/best"),
                         (["android_vr"], "best"),
+                        (["web"], "best"),
                     ):
                         try:
                             fb_opts = _build_ytdl_options(fallback_clients, use_cookies=False)
@@ -2469,9 +2469,9 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            # Tier 2: Fallback Public Profile (web, mweb, android) - 15.0s timeout
+            # Tier 2: Fallback Public Profile (default yt-dlp, mweb, android) - 15.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(None, use_cookies=False)
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier2_ydl.extract_info, target_url, download=False),
@@ -2573,9 +2573,9 @@ class AudioResolver:
                 f"No original recording could be verified for '{cleaned_query[:50]}'. "
                 "Try a result from the artist's or label's official channel."
             )
-        elif "video is unavailable" in lower_failure_reason or "private video" in lower_failure_reason or "has been removed" in lower_failure_reason:
+        elif any(k in lower_failure_reason for k in ("video is unavailable", "private video", "has been removed", "not available", "deleted")):
             cat = "VIDEO_UNAVAILABLE"
-            reason = f"YouTube reports that the requested video is unavailable for '{cleaned_query[:50]}'. Try another public link."
+            reason = f"YouTube reports that the requested video is unavailable for '{cleaned_query[:50]}'. Try another public link or search by song title."
         elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
@@ -2591,14 +2591,15 @@ class AudioResolver:
 
         # Stage 4: Intelligent Multi-Provider Fallback (Audius & Jamendo)
         # When YouTube times out or fails, search secondary permitted providers
-        if not is_direct_url and (cat == "TIMEOUT" or "timed out" in lower_failure_reason or cat == "RESOLUTION_EXHAUSTED"):
+        fallback_query = cleaned_query if not is_direct_url else (title_hint or "")
+        if fallback_query and (cat in ("TIMEOUT", "RESOLUTION_EXHAUSTED", "VIDEO_UNAVAILABLE") or "timed out" in lower_failure_reason):
             logger.info(
-                f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{cleaned_query[:40]}'"
+                f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{fallback_query[:40]}'"
             )
             # Try Audius
             try:
                 from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
-                audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
+                audius_candidates = await AudiusProviderService.search(fallback_query, limit=3)
                 for cand in audius_candidates:
                     if is_original_recording_candidate(cand, intent):
                         fb_track = QueuedTrack(
@@ -2623,7 +2624,7 @@ class AudioResolver:
             # Try Jamendo
             try:
                 from music_bot.services.alternative_providers import JamendoProviderService
-                jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
+                jamendo_candidates = await JamendoProviderService.search(fallback_query, limit=3)
                 for cand in jamendo_candidates:
                     if is_original_recording_candidate(cand, intent):
                         fb_track = QueuedTrack(

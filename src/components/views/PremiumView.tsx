@@ -175,7 +175,7 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
     <div className="flex flex-col gap-6">
       {/* CREATOR VIP / ACTIVE STATUS BANNER */}
       {isOwner ? (
-        <div className="rounded-2xl p-6 bg-gradient-to-r from-amber-500/20 via-purple-900/30 to-cyan-500/20 border-2 border-amber-500/50 shadow-xl shadow-amber-900/20 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="rounded-2xl p-6 bg-linear-to-r from-amber-500/20 via-purple-900/30 to-cyan-500/20 border-2 border-amber-500/50 shadow-xl shadow-amber-900/20 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4 text-center md:text-left">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/30 border border-amber-500/60 flex items-center justify-center text-3xl shadow-lg shadow-amber-500/30">
               👑
@@ -195,7 +195,7 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
           </span>
         </div>
       ) : isPremium ? (
-        <div className="rounded-2xl p-6 bg-gradient-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="rounded-2xl p-6 bg-linear-to-r from-purple-500/20 to-cyan-500/20 border border-purple-500/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-purple-500/30 border border-purple-500/50 flex items-center justify-center text-2xl">
               💎
@@ -203,7 +203,7 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
             <div>
               <span className="text-xs font-bold uppercase text-purple-300">Active Membership</span>
               <h3 className="text-xl font-bold text-white">MusicMaid Pro Active</h3>
-              <p className="text-xs text-[var(--text-muted)]">
+              <p className="text-xs text-(--text-muted)">
                 Enjoy lossless 320kbps streaming, DSP filters, and unlimited queue slots.
               </p>
             </div>
@@ -222,8 +222,8 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
 
       {/* STUDENT SHOWCASE / PORTFOLIO BANNER */}
       <div className="rounded-2xl p-4 bg-purple-900/20 border border-purple-500/30 flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-[var(--cyan)] shrink-0 mt-0.5" />
-        <div className="text-xs text-[var(--text-muted)] leading-relaxed">
+        <AlertCircle className="w-5 h-5 text-(--cyan) shrink-0 mt-0.5" />
+        <div className="text-xs text-(--text-muted) leading-relaxed">
           <strong className="text-white">Student Developer Portfolio & Preview Mode: </strong>
           Payments are managed safely with Razorpay integration and automated database entitlements. In demonstration mode, premium features can also be directly granted by bot administrators.
         </div>
@@ -234,16 +234,16 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
         {/* FREE TIER */}
         <div className="rounded-2xl p-6 bg-white/5 border border-white/10 flex flex-col justify-between">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-dim)]">Community</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-(--text-dim)">Community</span>
             <h3 className="text-xl font-bold text-white mt-1">Free Tier</h3>
             <div className="text-3xl font-extrabold text-white mt-3">
-              ₹0 <span className="text-sm font-normal text-[var(--text-muted)]">/ forever</span>
+              ₹0 <span className="text-sm font-normal text-(--text-muted)">/ forever</span>
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-2">
+            <p className="text-xs text-(--text-muted) mt-2">
               Essential Discord audio streaming for casual gaming and small servers.
             </p>
 
-            <ul className="mt-6 space-y-3 text-xs text-[var(--text-muted)]">
+            <ul className="mt-6 space-y-3 text-xs text-(--text-muted)">
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-emerald-400" /> Standard 128kbps Opus Audio
               </li>
@@ -265,8 +265,8 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
         </div>
 
         {/* MONTHLY PRO */}
-        <div className="rounded-2xl p-6 bg-gradient-to-b from-purple-900/30 to-purple-950/20 border-2 border-[var(--primary)] shadow-xl shadow-purple-900/30 flex flex-col justify-between relative">
-          <span className="absolute -top-3 right-6 bg-[var(--primary)] text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider shadow-md">
+        <div className="rounded-2xl p-6 bg-linear-to-b from-purple-900/30 to-purple-950/20 border-2 border-(--primary) shadow-xl shadow-purple-900/30 flex flex-col justify-between relative">
+          <span className="absolute -top-3 right-6 bg-(--primary) text-white text-[10px] font-extrabold px-3 py-0.5 rounded-full uppercase tracking-wider shadow-md">
             Most Popular
           </span>
 
@@ -274,9 +274,9 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
             <span className="text-xs font-bold uppercase tracking-wider text-purple-300">Creator Pass</span>
             <h3 className="text-xl font-bold text-white mt-1">Monthly Pro</h3>
             <div className="text-3xl font-extrabold text-white mt-3">
-              ₹99 <span className="text-sm font-normal text-[var(--text-muted)]">/ month</span>
+              ₹99 <span className="text-sm font-normal text-(--text-muted)">/ month</span>
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-2">
+            <p className="text-xs text-(--text-muted) mt-2">
               Lossless 320kbps audio, 24/7 staying, DSP equalizer filters, and volume boost.
             </p>
 
@@ -323,13 +323,13 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
             <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Lifetime Club</span>
             <h3 className="text-xl font-bold text-white mt-1">Yearly VIP</h3>
             <div className="text-3xl font-extrabold text-white mt-3">
-              ₹799 <span className="text-sm font-normal text-[var(--text-muted)]">/ year</span>
+              ₹799 <span className="text-sm font-normal text-(--text-muted)">/ year</span>
             </div>
-            <p className="text-xs text-[var(--text-muted)] mt-2">
+            <p className="text-xs text-(--text-muted) mt-2">
               Save 33% annually. Includes exclusive Discord VIP role and dedicated server priority.
             </p>
 
-            <ul className="mt-6 space-y-3 text-xs text-[var(--text-muted)]">
+            <ul className="mt-6 space-y-3 text-xs text-(--text-muted)">
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-cyan-400" /> All Monthly Pro Features Included
               </li>
