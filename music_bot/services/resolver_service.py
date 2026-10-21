@@ -2587,8 +2587,14 @@ class AudioResolver:
                         ",".join(cookie_clients) if cookie_clients else "yt-dlp default",
                         type(t3_err).__name__,
                     )
-                    if youtube_rate_limited or "timed out" in t3_msg.lower():
+                    # Stop immediately on an explicit rate limit; do not amplify HTTP 429s.
+                    if youtube_rate_limited:
                         break
+                    # A transient timeout on the web client should not suppress the
+                    # final yt-dlp default-client attempt. Keep this to one bounded
+                    # attempt per profile; _run_ytdlp enforces the per-attempt timeout.
+                    if "timed out" in t3_msg.lower():
+                        continue
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error
