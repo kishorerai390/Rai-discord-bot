@@ -2521,8 +2521,9 @@ class AudioResolver:
                 if youtube_rate_limited:
                     break
 
-        # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist)
-        if candidate_urls and not youtube_rate_limited and get_active_cookie_file():
+        # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
+        # A verified session may still work when anonymous datacenter requests are rate-limited.
+        if candidate_urls and get_active_cookie_file():
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
             logger.info(
@@ -2539,7 +2540,7 @@ class AudioResolver:
                     tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                     data = await _run_ytdlp(
                         functools.partial(tier3_ydl.extract_info, top_target, download=False),
-                        timeout=8.0,
+                        timeout=20.0,
                         operation="stream_extract_cookie_fallback",
                         correlation_id=corr_id,
                         retry_count=1,
@@ -2568,7 +2569,11 @@ class AudioResolver:
                             verification_failed = True
                             last_failure_reason = "Original recording could not be verified from title and source metadata"
                 except Exception as t3_err:
-                    last_failure_reason = _format_error(t3_err)
+                    t3_msg = _format_error(t3_err)
+                    last_failure_reason = t3_msg
+                    if "429" in t3_msg or "too many requests" in t3_msg.lower():
+                        youtube_rate_limited = True
+                        last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
                     logger.warning(
                         "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback "
                         "client_profile=%s exception_type=%s",
@@ -2576,6 +2581,8 @@ class AudioResolver:
                         ",".join(cookie_clients) if cookie_clients else "yt-dlp default",
                         type(t3_err).__name__,
                     )
+                    if youtube_rate_limited or "timed out" in t3_msg.lower():
+                        break
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error
