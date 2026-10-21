@@ -823,6 +823,19 @@ async def _run_ytdlp(
         exc = future.exception()
         if exc is not None:
             elapsed_ms = (time.monotonic() - started_at) * 1000
+            # A timed-out asyncio waiter cannot stop an already-running yt-dlp
+            # worker thread. Capture its eventual upstream error too: otherwise
+            # a late HTTP 429/403 is logged by yt-dlp but the health monitor only
+            # sees the earlier outer timeout and starts an incorrectly short cooldown.
+            if provider == "youtube":
+                try:
+                    record_youtube_failure(_format_error(exc))
+                except Exception:
+                    logger.debug(
+                        "[Resolver] provider=%s operation=%s corr_id=%s "
+                        "outcome=late_failure_health_update_failed",
+                        provider, operation, correlation_id,
+                    )
             logger.warning(
                 "[Resolver] provider=%s operation=%s corr_id=%s duration_ms=%.1f "
                 "exception_type=%s retry_count=%d outcome=late_worker_failure",
