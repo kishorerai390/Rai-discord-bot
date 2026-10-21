@@ -2738,7 +2738,7 @@ class AudioResolver:
 
         # Stage 4: Intelligent Multi-Provider Fallback (Audius & Jamendo)
         # When YouTube times out or fails, search secondary permitted providers
-        if not is_direct_url and (cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "YOUTUBE_RATE_LIMITED"} or "timed out" in lower_failure_reason):
+        if not is_direct_url and (cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "YOUTUBE_RATE_LIMITED", "ACCESS_RESTRICTION", "UNAVAILABLE_FORMAT"} or "timed out" in lower_failure_reason):
             logger.info(
                 f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{cleaned_query[:40]}'"
             )
