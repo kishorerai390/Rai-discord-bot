@@ -2526,9 +2526,18 @@ class AudioResolver:
                 if "429" in t1_msg or "too many requests" in t1_msg.lower():
                     youtube_rate_limited = True
                     last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
-                if "format is not available" in t1_msg.lower():
+                if (
+                    "format is not available" in t1_msg.lower()
+                    or "failed to extract any player response" in t1_msg.lower()
+                    or "player response" in t1_msg.lower()
+                ):
+                    # Newer YouTube responses may fail for one client profile while
+                    # another supported profile still resolves the same public video.
+                    # Keep this bounded and verify the returned video ID below.
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
+                        (["mweb"], "bestaudio/best"),
+                        (["tv_downgraded"], "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
                         (["web"], "best"),
                         (["android_vr"], "best"),
