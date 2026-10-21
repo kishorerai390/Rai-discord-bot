@@ -668,17 +668,17 @@ def is_alternative_provider_candidate(
         return False
 
     title = (candidate.get("title") or "").lower()
-    if any(re.search(rf"\\b{re.escape(marker)}\\b", title) for marker in NON_SONG_CONTENT_MARKERS):
+    if any(re.search(rf"\b{re.escape(marker)}\b", title) for marker in NON_SONG_CONTENT_MARKERS):
         return False
 
     uploader = (candidate.get("uploader") or candidate.get("channel") or candidate.get("artist") or "").lower()
     combined_text = f"{title} {uploader}"
-    cand_has_remix = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in REMIX_KEYWORDS)
-    cand_has_slowed = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in SLOWED_KEYWORDS)
-    cand_has_cover = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in COVER_KEYWORDS)
-    cand_has_mod = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in OTHER_MOD_KEYWORDS)
+    cand_has_remix = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in REMIX_KEYWORDS)
+    cand_has_slowed = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in SLOWED_KEYWORDS)
+    cand_has_cover = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in COVER_KEYWORDS)
+    cand_has_mod = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in OTHER_MOD_KEYWORDS)
     cand_has_live = any(p.search(combined_text) for p in LIVE_PATTERNS)
-    cand_has_parody = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in PARODY_TRIBUTE_KEYWORDS)
+    cand_has_parody = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in PARODY_TRIBUTE_KEYWORDS)
 
     if query_intent.get("user_requested_alternate"):
         requested_alternate_match = (
