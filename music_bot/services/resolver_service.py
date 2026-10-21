@@ -652,6 +652,52 @@ def is_original_recording_candidate(
     return True
 
 
+def is_alternative_provider_candidate(
+    candidate: Dict[str, Any],
+    query_intent: Dict[str, Any],
+) -> bool:
+    """Match Audius/Jamendo catalog entries without YouTube-specific official-upload rules.
+
+    Alternative catalogs often lack VEVO, verified-channel, or official-release
+    metadata. Keep title/artist matching and alternate-version safety checks,
+    but do not reject a good catalog match solely because it is not marked
+    as an official YouTube upload.
+    """
+    _, reasons = score_candidate_detailed(candidate, query_intent)
+    if any(reason.startswith("unrequested_") for reason in reasons):
+        return False
+
+    title = (candidate.get("title") or "").lower()
+    if any(re.search(rf"\\b{re.escape(marker)}\\b", title) for marker in NON_SONG_CONTENT_MARKERS):
+        return False
+
+    uploader = (candidate.get("uploader") or candidate.get("channel") or candidate.get("artist") or "").lower()
+    combined_text = f"{title} {uploader}"
+    cand_has_remix = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in REMIX_KEYWORDS)
+    cand_has_slowed = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in SLOWED_KEYWORDS)
+    cand_has_cover = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in COVER_KEYWORDS)
+    cand_has_mod = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in OTHER_MOD_KEYWORDS)
+    cand_has_live = any(p.search(combined_text) for p in LIVE_PATTERNS)
+    cand_has_parody = any(re.search(rf"\\b{re.escape(k)}\\b", combined_text) for k in PARODY_TRIBUTE_KEYWORDS)
+
+    if query_intent.get("user_requested_alternate"):
+        requested_alternate_match = (
+            (query_intent.get("wants_remix") and cand_has_remix)
+            or (query_intent.get("wants_slowed") and cand_has_slowed)
+            or (query_intent.get("wants_cover") and cand_has_cover)
+            or (query_intent.get("wants_other_mod") and cand_has_mod)
+            or (query_intent.get("wants_parody") and cand_has_parody)
+            or (query_intent.get("wants_live") and cand_has_live)
+        )
+        if not requested_alternate_match:
+            return False
+    elif cand_has_remix or cand_has_slowed or cand_has_cover or cand_has_mod or cand_has_live or cand_has_parody:
+        return False
+
+    title_match_ratio, combined_match_ratio, _ = _candidate_match_metrics(candidate, query_intent)
+    return title_match_ratio >= 0.5 and combined_match_ratio >= 0.75
+
+
 def requires_candidate_confirmation(candidates: List[Dict[str, Any]]) -> bool:
     """Require a user choice when top results are weak or too close to distinguish."""
     if not candidates:
@@ -2316,7 +2362,7 @@ class AudioResolver:
                         from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
                         audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
                         for cand in audius_candidates:
-                            if is_original_recording_candidate(cand, intent):
+                            if is_alternative_provider_candidate(cand, intent):
                                 fb_track = QueuedTrack(
                                     title=cand["title"],
                                     url=cand["url"],
