@@ -113,15 +113,29 @@ function initBotSchema(db: Database.Database): void {
       CREATE TABLE IF NOT EXISTS web_sessions (
         session_id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
+        discord_user_id TEXT,
         username TEXT,
+        discriminator TEXT DEFAULT '0',
         avatar TEXT,
+        access_token TEXT,
+        refresh_token TEXT,
         is_active INTEGER DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         expires_at TEXT
       );
+      -- Add discriminator column if upgrading from older schema
+      ALTER TABLE web_sessions ADD COLUMN discriminator TEXT DEFAULT '0';
+      ALTER TABLE web_sessions ADD COLUMN discord_user_id TEXT;
+      ALTER TABLE web_sessions ADD COLUMN access_token TEXT;
+      ALTER TABLE web_sessions ADD COLUMN refresh_token TEXT;
     `);
   } catch (err) {
-    console.warn("Bot schema init notice (non-fatal):", err);
+    // ALTER TABLE throws if column already exists — this is expected and non-fatal
+    if (String(err).includes("duplicate column")) {
+      // Schema is already up-to-date
+    } else {
+      console.warn("Bot schema init notice (non-fatal):", err);
+    }
   }
 }
 
@@ -164,8 +178,20 @@ export function getWebSessionByToken(token: string) {
       .prepare(
         "SELECT * FROM web_sessions WHERE session_id = ? AND is_active = 1"
       )
-      .get(token);
-    return row as any;
+      .get(token) as any;
+    if (!row) return null;
+    // Validate expiry server-side to prevent stale sessions
+    if (row.expires_at) {
+      try {
+        const expiry = new Date(row.expires_at);
+        if (!isNaN(expiry.getTime()) && expiry < new Date()) {
+          return null;
+        }
+      } catch {
+        // Malformed expiry — treat as still valid
+      }
+    }
+    return row;
   } catch {
     return null;
   }

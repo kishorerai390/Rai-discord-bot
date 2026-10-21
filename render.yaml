@@ -33,7 +33,19 @@ services:
       - key: PUBLIC_BASE_URL
         sync: false
 
-      # ── Session Security (generate a strong random secret) ──────────────────
+      # ── Session Security ─────────────────────────────────────────────────────
+      # REQUIRED: SESSION_SECRET must be a securely generated, persistent random
+      # string. Absence causes a startup failure (RuntimeError) intentionally —
+      # an ephemeral secret would invalidate every user session on every restart.
+      #
+      # Generate with:
+      #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+      #
+      # Then set it in Render Dashboard > Environment > SESSION_SECRET.
+      # Do NOT commit the value to git. Do NOT print/log it.
+      #
+      # Rotation: change the value in Render and redeploy — existing sessions
+      # will be invalidated and users must re-login (expected behaviour).
       - key: SESSION_SECRET
         sync: false
 
@@ -87,3 +99,25 @@ services:
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
+
+# ── Database Persistence (CRITICAL for production) ───────────────────────────
+# Render's free tier uses an EPHEMERAL filesystem.
+# data/bot.db and data/music.db are LOST on every redeploy.
+# This causes ALL user sessions, favorites, playlists, and settings to be wiped.
+#
+# To preserve data across deploys, add a persistent disk (requires Starter plan):
+#
+#     disk:
+#       name: musicmaid-data
+#       mountPath: /opt/render/project/src/data
+#       sizeGB: 1
+#
+# Then set DATABASE_PATH and MUSIC_DATABASE_PATH to use the mounted path:
+#   DATABASE_PATH=data/bot.db         (relative to project root, already correct)
+#   MUSIC_DATABASE_PATH=data/music.db (relative to project root, already correct)
+#
+# The mount path /opt/render/project/src/data is the absolute path of the data/
+# directory when the project root is /opt/render/project/src/.
+#
+# Until a persistent disk is attached, treat all stored data as ephemeral.
+# Do NOT delete production databases to fix authentication errors.
