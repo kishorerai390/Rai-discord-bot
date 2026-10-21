@@ -876,8 +876,13 @@ class MusicCog(commands.Cog, name="Music"):
         query: str,
         ephemeral: bool = False,
         correlation_id: Optional[str] = None,
+        fallback_query: Optional[str] = None,
     ) -> None:
-        """Internal worker executing search, resolve, queueing, and playback transition."""
+        """Internal worker executing search, resolve, queueing, and playback transition.
+
+        When a user selects a YouTube result, retain the original search text so
+        secondary providers can still be tried if that selected video is not playable.
+        """
         correlation_id = correlation_id or uuid.uuid4().hex[:8].upper()
         try:
             start_t = time.time()
@@ -1004,6 +1009,7 @@ class MusicCog(commands.Cog, name="Music"):
                             selected_interaction,
                             selected_url,
                             correlation_id=correlation_id,
+                            fallback_query=query,
                         )
 
                     selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
@@ -1041,6 +1047,58 @@ class MusicCog(commands.Cog, name="Music"):
                     correlation_id,
                     type(e).__name__,
                 )
+
+            # A selected YouTube URL may fail extraction even though the original
+            # song search is still usable. Retry once using that original query so
+            # the resolver can reach its normal Audius/Jamendo fallback path.
+            # This does not change direct-link behavior for users who pasted a URL.
+            if not track and fallback_query and fallback_query.strip() and fallback_query.strip() != query.strip():
+                logger.warning(
+                    "[Playback] operation=selected_video_fallback correlation_id=%s "
+                    "outcome=started reason=selected_video_unplayable",
+                    correlation_id,
+                )
+                try:
+                    track = await asyncio.wait_for(
+                        AudioResolver.resolve_track(
+                            fallback_query,
+                            member.id,
+                            str(member),
+                            correlation_id=correlation_id,
+                        ),
+                        timeout=60.0,
+                    )
+                    if track:
+                        is_timed_out = False
+                        logger.info(
+                            "[Playback] operation=selected_video_fallback correlation_id=%s "
+                            "outcome=resolved provider=%s",
+                            correlation_id,
+                            getattr(track, "provider", "unknown"),
+                        )
+                    else:
+                        # Prefer the original-query diagnostic if the fallback also
+                        # fails; it describes the complete recovery attempt.
+                        is_timed_out = False
+                        logger.warning(
+                            "[Playback] operation=selected_video_fallback correlation_id=%s outcome=failed",
+                            correlation_id,
+                        )
+                except asyncio.TimeoutError:
+                    is_timed_out = False
+                    logger.warning(
+                        "[Playback] operation=selected_video_fallback correlation_id=%s "
+                        "exception_type=TimeoutError outcome=timeout",
+                        correlation_id,
+                    )
+                except Exception as fallback_exc:
+                    is_timed_out = False
+                    logger.warning(
+                        "[Playback] operation=selected_video_fallback correlation_id=%s "
+                        "exception_type=%s outcome=failed",
+                        correlation_id,
+                        type(fallback_exc).__name__,
+                    )
 
             if not track:
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
