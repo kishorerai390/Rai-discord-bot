@@ -29,6 +29,11 @@ import yt_dlp
 
 from music_bot.config import REDIS_URL
 from music_bot.database.models import QueuedTrack
+from music_bot.services.youtube_health_monitor import (
+    cooldown_status as youtube_cooldown_status,
+    inspect_cookie_file as inspect_youtube_cookie_file,
+    record_failure as record_youtube_failure,
+)
 
 logger = logging.getLogger("RaiMusic.Resolver")
 
@@ -2381,6 +2386,27 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         youtube_rate_limited = False
+
+        # Emit a safe cookie-health snapshot and respect the upstream cooldown before
+        # starting more YouTube extraction requests. A cooldown never blocks the
+        # existing alternative-provider fallback for search queries.
+        cookie_path = get_active_cookie_file()
+        inspect_youtube_cookie_file(cookie_path)
+        health_cooldown = youtube_cooldown_status()
+        if health_cooldown["cooldown_active"]:
+            last_failure_reason = (
+                f"YouTube {health_cooldown['last_failure']} cooldown active "
+                f"({health_cooldown['cooldown_remaining_seconds']} seconds remaining)"
+            )
+            youtube_rate_limited = health_cooldown["last_failure"] == "rate_limited"
+            candidate_urls = []
+            logger.warning(
+                "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract "
+                "outcome=skipped_cooldown category=%s remaining_seconds=%s",
+                corr_id,
+                health_cooldown["last_failure"],
+                health_cooldown["cooldown_remaining_seconds"],
+            )
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
             t1_msg = ""
             # The extractor may use an 8s socket timeout and retry once. Keep the
@@ -2414,6 +2440,7 @@ class AudioResolver:
                         last_failure_reason = "Original recording could not be verified from title and source metadata"
             except Exception as t1_err:
                 t1_msg = _format_error(t1_err)
+                record_youtube_failure(t1_msg)
                 last_failure_reason = t1_msg
                 logger.info(
                     "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier1 "
@@ -2508,6 +2535,7 @@ class AudioResolver:
                         last_failure_reason = "Original recording could not be verified from title and source metadata"
             except Exception as t2_err:
                 t2_msg = _format_error(t2_err)
+                record_youtube_failure(t2_msg)
                 last_failure_reason = t2_msg
                 if "429" in t2_msg or "too many requests" in t2_msg.lower():
                     youtube_rate_limited = True
@@ -2525,8 +2553,8 @@ class AudioResolver:
                     break
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
-        # A verified session may still work when anonymous datacenter requests are rate-limited.
-        if candidate_urls and get_active_cookie_file():
+        # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
+        if candidate_urls and get_active_cookie_file() and not youtube_rate_limited:
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
             logger.info(
@@ -2576,6 +2604,7 @@ class AudioResolver:
                             last_failure_reason = "Original recording could not be verified from title and source metadata"
                 except Exception as t3_err:
                     t3_msg = _format_error(t3_err)
+                    record_youtube_failure(t3_msg)
                     last_failure_reason = t3_msg
                     if "429" in t3_msg or "too many requests" in t3_msg.lower():
                         youtube_rate_limited = True
@@ -2614,7 +2643,7 @@ class AudioResolver:
         elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
-        elif any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age")):
+        elif "access_denied" in lower_failure_reason or "access restriction" in lower_failure_reason or any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age", "forbidden")):
             cat = "ACCESS_RESTRICTION"
             reason = f"YouTube access restriction encountered: {last_failure_reason}"
         elif "No playable" in last_failure_reason or "format is not available" in lower_failure_reason:
