@@ -2460,6 +2460,7 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         youtube_rate_limited = False
+        youtube_access_blocked = False
 
         # Emit a safe cookie-health snapshot and respect the upstream cooldown before
         # starting more YouTube extraction requests. A cooldown never blocks the
@@ -2526,6 +2527,25 @@ class AudioResolver:
                 if "429" in t1_msg or "too many requests" in t1_msg.lower():
                     youtube_rate_limited = True
                     last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
+                if any(marker in t1_msg.lower() for marker in (
+                    "sign in to confirm", "not a bot", "confirm you're not a bot",
+                    "confirm you’re not a bot", "captcha", "consent required",
+                )):
+                    # Repeating other YouTube clients or cookie attempts after an
+                    # explicit access challenge wastes time and can worsen rate limits.
+                    # Preserve the alternative-provider fallback below for searches.
+                    youtube_access_blocked = True
+                    last_failure_reason = (
+                        "YouTube requires an accepted authenticated session or is "
+                        "challenging this server; public extraction was stopped."
+                    )
+                    logger.warning(
+                        "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract "
+                        "outcome=stopped_access_challenge alternative_fallback=%s",
+                        corr_id,
+                        not is_direct_url,
+                    )
+                    break
                 if (
                     "format is not available" in t1_msg.lower()
                     or "failed to extract any player response" in t1_msg.lower()
@@ -2637,7 +2657,12 @@ class AudioResolver:
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
         # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
-        if candidate_urls and get_active_cookie_file() and not youtube_rate_limited:
+        if (
+            candidate_urls
+            and get_active_cookie_file()
+            and not youtube_rate_limited
+            and not youtube_access_blocked
+        ):
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
             logger.info(
