@@ -25,4 +25,4 @@ jobs:
           python -m pip install -r requirements.txt pytest pytest-asyncio
       - name: Run focused resolver and player regressions
         run: |
-          python -m pytest -q tests/test_youtube_access_challenge.py tests/test_musicmaid_master_player_ui.py
+          python -m pytest -q tests/test_youtube_access_challenge.py tests/test_musicmaid_master_player_ui.py tests/test_natural_music_requests.py
