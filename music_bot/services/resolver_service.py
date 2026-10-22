@@ -37,6 +37,22 @@ from music_bot.services.youtube_health_monitor import (
 
 logger = logging.getLogger("RaiMusic.Resolver")
 
+YOUTUBE_ACCESS_CHALLENGE_MARKERS = (
+    "sign in to confirm",
+    "not a bot",
+    "confirm you're not a bot",
+    "confirm you’re not a bot",
+    "captcha",
+    "consent required",
+)
+
+
+def _is_youtube_access_challenge(error_message: str) -> bool:
+    """Return whether yt-dlp reported an explicit YouTube access challenge."""
+    message = str(error_message or "").casefold()
+    return any(marker in message for marker in YOUTUBE_ACCESS_CHALLENGE_MARKERS)
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
 
@@ -2527,10 +2543,7 @@ class AudioResolver:
                 if "429" in t1_msg or "too many requests" in t1_msg.lower():
                     youtube_rate_limited = True
                     last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
-                if any(marker in t1_msg.lower() for marker in (
-                    "sign in to confirm", "not a bot", "confirm you're not a bot",
-                    "confirm you’re not a bot", "captcha", "consent required",
-                )):
+                if _is_youtube_access_challenge(t1_msg):
                     # Repeating other YouTube clients or cookie attempts after an
                     # explicit access challenge wastes time and can worsen rate limits.
                     # Preserve the alternative-provider fallback below for searches.
