@@ -2618,7 +2618,7 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            if youtube_rate_limited or "timed out" in t1_msg.lower():
+            if youtube_rate_limited or youtube_access_blocked or "timed out" in t1_msg.lower():
                 break
 
             # Tier 2 gets the same bounded retry window as the primary profile.
