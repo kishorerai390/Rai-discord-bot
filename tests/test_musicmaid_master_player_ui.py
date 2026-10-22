@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from music_bot.services.session_service import GuildMusicSession, LoopMode, PlaybackState, QueuedTrack
-from music_bot.services.player_service import MusicPlayerService, NowPlayingControlView, VolumeModal
+from music_bot.services.player_service import MusicPlayerService, NowPlayingControlView, VolumeModal, create_progress_bar
 
 
 def make_track(title="Test Song", url="https://youtube.com/watch?v=mock123", duration=240, artist="Test Artist"):
@@ -221,3 +221,17 @@ class TestMusicMaidPlayerUI:
         assert mock_session.current_track is None
         assert mock_session.state == PlaybackState.IDLE
         vc.stop.assert_called_once()
+
+
+def test_progress_bar_clamps_position_and_respects_width():
+    assert create_progress_bar(0, 100, 5) == "▶ ●────"
+    assert create_progress_bar(50, 100, 5) == "▶ ──●──"
+    assert create_progress_bar(100, 100, 5) == "▶ ────●"
+    assert create_progress_bar(150, 100, 5) == "▶ ────●"
+    assert create_progress_bar(-10, 100, 5) == "▶ ●────"
+
+
+def test_progress_bar_handles_unknown_duration_and_invalid_width():
+    assert create_progress_bar(0, 0, 4) == "▶ ───●"
+    assert create_progress_bar(10, 0, 1) == "▶ ●"
+    assert create_progress_bar(10, 20, 0) == "▶ ●"
