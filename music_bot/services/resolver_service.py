@@ -764,8 +764,18 @@ def apply_resolved_track(track: QueuedTrack, resolved: QueuedTrack) -> bool:
     resolved_url = urllib.parse.urlsplit(resolved.url) if resolved.url else None
     expected_is_url = bool(expected_url and expected_url.scheme in {"http", "https"})
     resolved_is_url = bool(resolved_url and resolved_url.scheme in {"http", "https"})
+    expected_host = (expected_url.hostname or "").casefold() if expected_url else ""
+    expected_is_spotify = expected_host == "spotify.com" or expected_host.endswith(".spotify.com")
     if expected_id:
         if expected_id != resolved_id:
+            return False
+    elif expected_is_spotify:
+        # Spotify URLs identify catalog metadata, while the playable URL must come
+        # from another supported provider. Permit that provider change only when the
+        # matched title is strong and the artist also agrees (or title is near-exact).
+        title_ratio = SequenceMatcher(None, track.title.casefold(), resolved.title.casefold()).ratio()
+        artist_ratio = SequenceMatcher(None, (track.artist or "").casefold(), (resolved.artist or "").casefold()).ratio()
+        if title_ratio < 0.78 or (title_ratio < 0.94 and artist_ratio < 0.45):
             return False
     elif expected_is_url and resolved_is_url:
         if (expected_url.hostname, expected_url.path) != (resolved_url.hostname, resolved_url.path):
