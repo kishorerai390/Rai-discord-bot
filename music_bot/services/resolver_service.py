@@ -53,6 +53,26 @@ def _is_youtube_access_challenge(error_message: str) -> bool:
     return any(marker in message for marker in YOUTUBE_ACCESS_CHALLENGE_MARKERS)
 
 
+def _should_attempt_cookie_fallback(
+    candidate_urls: List[str],
+    cookie_file: Optional[str],
+    youtube_rate_limited: bool,
+    youtube_access_blocked: bool,
+    youtube_timed_out: bool,
+) -> bool:
+    """Use configured authenticated cookies after a public access challenge.
+
+    A challenge is a reason to try the explicitly configured cookie fallback,
+    not a reason to skip it. Rate limits and timeouts still suppress retries.
+    """
+    return bool(
+        candidate_urls
+        and cookie_file
+        and not youtube_rate_limited
+        and not youtube_timed_out
+    )
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
 
@@ -2723,12 +2743,13 @@ class AudioResolver:
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
         # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
-        if (
-            candidate_urls
-            and get_active_cookie_file()
-            and not youtube_rate_limited
-            and not youtube_access_blocked
-            and not youtube_timed_out
+        active_cookie_file = get_active_cookie_file()
+        if _should_attempt_cookie_fallback(
+            candidate_urls,
+            active_cookie_file,
+            youtube_rate_limited,
+            youtube_access_blocked,
+            youtube_timed_out,
         ):
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
