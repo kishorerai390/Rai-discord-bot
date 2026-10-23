@@ -1,0 +1,40 @@
+name: MusicMaid Full Regression Suite
+
+on:
+  push:
+    branches: [test/musicmaid-full-regression]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musicmaid-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-asyncio
+      - name: Compile Python files
+        run: python -m compileall -q music_bot tests
+      - name: Run complete test suite
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: python -m pytest -q --tb=short
