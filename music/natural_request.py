@@ -208,67 +208,6 @@ class MusicRequestConfirmView(discord.ui.View):
         )
 
 
-class SongSelectionView(discord.ui.View):
-    """Let the requester choose a matching song before playback."""
-
-    def __init__(self, service: "NaturalMusicService", bot: commands.Bot,
-                 guild: discord.Guild, channel: discord.abc.Messageable,
-                 user: discord.Member, candidates: List[TrackCandidate],
-                 play_now: bool, voice_channel: discord.VoiceChannel):
-        super().__init__(timeout=60.0)
-        self.service = service
-        self.bot = bot
-        self.guild = guild
-        self.channel = channel
-        self.user = user
-        self.candidates = candidates[:5]
-        self.play_now = play_now
-        self.voice_channel = voice_channel
-        options = []
-        for i, candidate in enumerate(self.candidates):
-            duration = f"{candidate.duration // 60}:{candidate.duration % 60:02d}" if candidate.duration else "Live / unknown"
-            description = f"{candidate.artist} • {duration} • {candidate.provider_name}"
-            options.append(discord.SelectOption(
-                label=f"{i + 1}. {candidate.title}"[:100],
-                description=description[:100],
-                value=str(i),
-            ))
-        select = discord.ui.Select(
-            placeholder="Choose the exact song to play…",
-            min_values=1, max_values=1, options=options,
-            custom_id=f"rai_song_select:{guild.id}:{user.id}",
-        )
-        select.callback = self._select_song
-        self.add_item(select)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user.id:
-            await interaction.response.send_message(
-                "Only the person who requested these results can choose a song.", ephemeral=True
-            )
-            return False
-        return True
-
-    async def _select_song(self, interaction: discord.Interaction) -> None:
-        index = int(interaction.data["values"][0])
-        candidate = self.candidates[index]
-        for item in self.children:
-            item.disabled = True
-        await interaction.response.edit_message(
-            content=f"🎵 Selected **{candidate.title}** — preparing playback…",
-            embed=None, view=self,
-        )
-        await self.service.execute_play_request(
-            bot=self.bot, guild=self.guild, channel=self.channel, user=self.user,
-            query=candidate.url, play_now=self.play_now, voice_channel=self.voice_channel,
-            show_selection=False,
-        )
-
-    async def on_timeout(self) -> None:
-        for item in self.children:
-            item.disabled = True
-
-
 class NaturalMusicService:
     """
     Dedicated coordinator for natural song requests and zero-interference playback.
@@ -485,7 +424,6 @@ class NaturalMusicService:
         query: str,
         play_now: bool,
         voice_channel: Optional[discord.VoiceChannel] = None,
-        show_selection: bool = True,
     ) -> bool:
         """
         Executes verified song resolution, queue insertion, and zero-interference playback.
@@ -554,23 +492,7 @@ class NaturalMusicService:
                     await channel.send(f"❌ I couldn't find a playable track for: **{clean_query}**")
                     return False
 
-                # Let the requester choose when multiple matches are available.
-                # This avoids silently playing the first, possibly incorrect result.
-                if len(candidates) > 1 and show_selection:
-                    view = SongSelectionView(
-                        service=self, bot=bot, guild=guild, channel=channel, user=user,
-                        candidates=candidates[:5], play_now=play_now, voice_channel=target_vc,
-                    )
-                    lines = []
-                    for i, candidate in enumerate(candidates[:5], 1):
-                        duration = f"{candidate.duration // 60}:{candidate.duration % 60:02d}" if candidate.duration else "Live / unknown"
-                        lines.append(f"**{i}. {candidate.title}** — {candidate.artist} · {duration} · `{candidate.provider_name}`")
-                    await channel.send(
-                        content="🎵 **Choose a song to play** (results expire in 60 seconds):\n" + "\n".join(lines),
-                        view=view,
-                    )
-                    return True
-
+                # Resolve first candidate
                 selected_candidate = candidates[0]
                 res = await resolver_service.resolve_track(
                     selected_candidate,
@@ -605,7 +527,9 @@ class NaturalMusicService:
                         volume=player.volume,
                     )
                     vc.play(source, after=player.play_next)
-                    await player.update_panel()
+                    panel_embed = music_cog._create_now_playing_embed(player, song_to_enqueue)
+                    panel_view = MusicControlView(music_cog, guild)
+                    await channel.send(embed=panel_embed, view=panel_view)
                     return True
                 except Exception as exc:
                     logger.error(f"Playback error in {guild.name}: {exc}")
@@ -633,7 +557,9 @@ class NaturalMusicService:
                     volume=player.volume,
                 )
                 vc.play(source, after=player.play_next)
-                await player.update_panel()
+                panel_embed = music_cog._create_now_playing_embed(player, song_to_enqueue)
+                panel_view = MusicControlView(music_cog, guild)
+                await channel.send(embed=panel_embed, view=panel_view)
                 return True
             except Exception as exc:
                 logger.error(f"Playback error in {guild.name}: {exc}")
