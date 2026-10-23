@@ -1687,8 +1687,29 @@ class AudioResolver:
             for c in raw_candidates:
                 if not is_original_recording_candidate(c, intent):
                     continue
-                s, r = score_candidate_detailed(c, intent)
                 title_match_ratio, combined_match_ratio, title_confidence = _candidate_match_metrics(c, intent)
+                # Do not let a matching artist/channel rescue a weak title match.
+                # Spotify searches often include both title and artist (e.g. "Vibe Mix kishore");
+                # a Topic channel can otherwise push an unrelated song containing only "Vibe Mix"
+                # above genuinely matching tracks. Require a minimum title-only overlap for
+                # multi-word queries before applying publisher/source bonuses.
+                query_tokens = [
+                    token for token in re.findall(r"\\w+", intent.get("core_title", "").lower())
+                    if len(token) > 1
+                ]
+                minimum_title_match = 0.70 if len(query_tokens) >= 3 else 0.50
+                if len(query_tokens) >= 2 and title_match_ratio < minimum_title_match:
+                    logger.info(
+                        "[Search] provider=youtube correlation_id=%s outcome=rejected_weak_title_match "
+                        "query=%r candidate_title=%r title_match=%.2f required=%.2f",
+                        corr_id,
+                        _safe_query_for_log(query),
+                        c.get("title"),
+                        title_match_ratio,
+                        minimum_title_match,
+                    )
+                    continue
+                s, r = score_candidate_detailed(c, intent)
                 scored_candidates.append(
                     (
                         {
