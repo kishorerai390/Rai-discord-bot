@@ -728,6 +728,9 @@ class MusicPlayerService:
                 )
                 if fresh_track and fresh_track.stream_url:
                     if apply_resolved_track(track, fresh_track):
+                        # A refreshed URL can be valid while a seek offset near the end
+                        # yields EOF (or an upstream CDN rejects the ranged request).
+                        # Retry the refreshed stream from its beginning before giving up.
                         try:
                             audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
                             volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
@@ -737,6 +740,27 @@ class MusicPlayerService:
                             )
                         except Exception:
                             first_frame = b""
+
+                        if not first_frame and start_seconds > 0:
+                            try:
+                                audio_source.cleanup()
+                            except Exception:
+                                pass
+                            try:
+                                retry_opts = dict(ffmpeg_opts)
+                                retry_opts["before_options"] = base_before
+                                audio_source = discord.FFmpegPCMAudio(track.stream_url, **retry_opts)
+                                volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                                first_frame = await asyncio.wait_for(
+                                    loop.run_in_executor(None, volume_transformer.read),
+                                    timeout=8.0,
+                                )
+                                if first_frame:
+                                    # The old seek/range request failed; resume from 0 rather
+                                    # than falsely declaring a refreshed stream unplayable.
+                                    start_seconds = 0
+                            except Exception:
+                                first_frame = b""
                     else:
                         logger.error(
                             "[Playback] operation=resume_recovery correlation_id=%s outcome=identity_mismatch "
