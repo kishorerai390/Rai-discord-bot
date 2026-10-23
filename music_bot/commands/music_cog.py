@@ -1318,7 +1318,29 @@ class MusicCog(commands.Cog, name="Music"):
             await interaction.response.defer(ephemeral=False)
         if not await self._check_permissions(interaction):
             return
-        await self._play_query(interaction, query)
+
+        # For text searches, show candidates before playing so near-matches such
+        # as Kalyan are not silently chosen for a request like Kalyani.
+        normalized_query = query.strip()
+        is_url = normalized_query.lower().startswith(("http://", "https://", "spotify:"))
+        if is_url:
+            await self._play_query(interaction, normalized_query)
+            return
+
+        candidates = await AudioResolver.search(normalized_query, limit=5)
+        if not candidates:
+            # Preserve the existing resolver/provider fallback when search is unavailable.
+            await self._play_query(interaction, normalized_query)
+            return
+
+        async def on_select(inter: discord.Interaction, idx: int):
+            chosen = candidates[idx]
+            await self._play_query(inter, chosen["url"], fallback_query=normalized_query)
+
+        view = TrackSelectView(candidates, interaction.user.id, on_select)
+        await interaction.followup.send(
+            f"🎵 **Choose the exact match for:** `{normalized_query}`", view=view
+        )
 
     @music_play.autocomplete("query")
     async def music_play_autocomplete(
@@ -1352,7 +1374,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         async def on_select(inter: discord.Interaction, idx: int):
             chosen = candidates[idx]
-            await self._play_query(inter, chosen["url"])
+            await self._play_query(inter, chosen["url"], fallback_query=query.strip())
 
         view = TrackSelectView(candidates, interaction.user.id, on_select)
         await interaction.followup.send("🐱 **Select a track to play:**", view=view)
