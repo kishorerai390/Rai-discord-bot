@@ -76,3 +76,20 @@ def test_bgutil_provider_is_not_hardcoded_when_unconfigured(monkeypatch):
     options = _build_ytdl_options(player_clients=["web"])
     assert "youtubepot-bgutilhttp" not in options["extractor_args"]
 
+def test_automatic_provider_takes_precedence_over_static_po_token(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_POT_PROVIDER_URL", "https://pot.example.test")
+    monkeypatch.setenv("PO_TOKEN", "static-token")
+    options = _build_ytdl_options(player_clients=["web"])
+    assert "po_token" not in options["extractor_args"]["youtube"]
+    assert options["extractor_args"]["youtubepot-bgutilhttp"]["base_url"] == "https://pot.example.test"
+
+
+def test_manual_po_token_uses_yt_dlp_gvs_syntax_without_provider(monkeypatch):
+    monkeypatch.delenv("YOUTUBE_POT_PROVIDER_URL", raising=False)
+    monkeypatch.setenv("PO_TOKEN", "static-token")
+    options = _build_ytdl_options(player_clients=["web"])
+    assert options["extractor_args"]["youtube"]["po_token"] == [
+        "web.gvs+static-token",
+        "mweb.gvs+static-token",
+    ]
+
