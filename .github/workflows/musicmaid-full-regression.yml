@@ -38,9 +38,4 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
         run: |
-          # These three legacy tests import the removed top-level core/ package
-          # through the older cogs/music.py and music/source.py implementations.
-          python -m pytest -q --tb=short \
-            --ignore=tests/test_music_pipeline.py \
-            --ignore=tests/test_natural_music_requests.py \
-            --ignore=tests/test_response_visibility_and_music.py
+          python -m pytest -q --tb=short
