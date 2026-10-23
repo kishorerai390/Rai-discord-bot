@@ -957,6 +957,87 @@ class MusicCog(commands.Cog, name="Music"):
                     await self.send_ephemeral_or_fallback(interaction, embed=embed_conn_err)
                     return
 
+            # Spotify playlists/albums are metadata collections, not playable audio URLs.
+            # Convert the collection into ordered queue entries; the player resolves each
+            # Spotify track URL to a supported playable provider only when it reaches playback.
+            spotify_collection_url = bool(
+                re.search(
+                    r"(?:open\\.)?spotify\\.com/(?:intl-[a-z]{2}/)?(?:playlist|album)/[A-Za-z0-9]+",
+                    query,
+                    re.IGNORECASE,
+                )
+                or re.match(r"spotify:(?:playlist|album):[A-Za-z0-9]+", query, re.IGNORECASE)
+            )
+            if spotify_collection_url:
+                try:
+                    from music_bot.services.importer_service import PlaylistImporterService
+
+                    playlist_title, playlist_tracks, _platform = await PlaylistImporterService.extract_tracks_from_url(
+                        query,
+                        requester_id=member.id,
+                        requester_name=str(member),
+                        limit=100,
+                    )
+                except Exception as collection_exc:
+                    playlist_tracks = []
+                    logger.warning(
+                        "[Playback] operation=spotify_collection correlation_id=%s outcome=failed error_type=%s",
+                        correlation_id,
+                        type(collection_exc).__name__,
+                    )
+
+                if playlist_tracks:
+                    # De-duplicate Spotify IDs/URLs both within the imported list and
+                    # against the current queue. Do not resolve every track up front:
+                    # that would multiply provider timeouts for large playlists.
+                    seen_urls = {
+                        str(getattr(item, "url", "")).strip().casefold()
+                        for item in list(session.queue) + ([session.current_track] if session.current_track else [])
+                        if getattr(item, "url", "")
+                    }
+                    unique_tracks = []
+                    for item in playlist_tracks:
+                        item_url = str(getattr(item, "url", "")).strip()
+                        if not item_url or item_url.casefold() in seen_urls:
+                            continue
+                        seen_urls.add(item_url.casefold())
+                        unique_tracks.append(item)
+
+                    if not unique_tracks:
+                        await self.send_ephemeral_or_fallback(
+                            interaction,
+                            content="ℹ️ Those Spotify tracks are already in the queue (or the collection had no new tracks).",
+                        )
+                        return
+
+                    async with session.lock:
+                        for item in unique_tracks:
+                            session.queue.append(item)
+                        started = False
+                        if not session.has_active_track and not session.is_playing and not session.is_paused and session.queue:
+                            first_track = session.queue.popleft()
+                            session._play_request_correlation_id = correlation_id
+                            started = await MusicPlayerService.start_playback(self.bot, session, first_track)
+
+                    queued_count = len(unique_tracks)
+                    embed_collection = discord.Embed(
+                        title="🎧 MusicMaid ✦ Spotify Autoplay",
+                        description=(
+                            f"**{playlist_title or 'Spotify collection'}**\n"
+                            f"Added **{queued_count}** track(s) in Spotify order.\n\n"
+                            "Tracks are matched to playable audio sources as they reach playback; "
+                            "Spotify itself does not provide the bot with a full audio stream."
+                        ),
+                        color=COLOR_CYAN,
+                    )
+                    if started and session.current_track and session.current_track.thumbnail:
+                        embed_collection.set_thumbnail(url=session.current_track.thumbnail)
+                    try:
+                        await interaction.edit_original_response(content=None, embed=embed_collection, view=None)
+                    except Exception:
+                        await interaction.followup.send(embed=embed_collection)
+                    return
+
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
             embed_loading = discord.Embed(
                 title=f"{EmojiManager.get('SEARCH', self.bot)} MusicMaid ✦ Resolving Track",
