@@ -183,3 +183,9 @@ OK
 
 Licensed under the [MIT License](LICENSE).  
 Crafted with passion by **Kishore** and the **Noctyra Studio** team for audiophiles and Discord communities everywhere.
+
+## YouTube extraction: automatic PO-token provider
+
+The resolver supports the optional `YOUTUBE_POT_PROVIDER_URL` environment variable for a **self-hosted** BgUtils PO-token provider. The bot installs the `bgutil-ytdlp-pot-provider` yt-dlp plugin and passes this URL to the plugin. Deploy the provider as a separate private/restricted service using the official [BgUtils provider instructions](https://github.com/Brainicism/bgutil-ytdlp-pot-provider), then set `YOUTUBE_POT_PROVIDER_URL` on the bot to that service's reachable base URL. Keep the provider endpoint private or protected; it should not be an unrestricted public token-generation service.
+
+The provider generates per-video PO tokens automatically, reducing the need to rotate manually supplied `PO_TOKEN` values. A provider is not bundled or created automatically by this repository; leave the URL unset until you have deployed one. Existing YouTube cookies, Audius/Jamendo fallbacks, and resolver tiers remain available. PO tokens may help with 403/bot challenges but do not guarantee YouTube will accept requests from a blocked IP or an invalid session.
