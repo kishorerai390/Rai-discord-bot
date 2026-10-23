@@ -93,6 +93,7 @@ async def test_play_voice_connection_succeeds(mock_bot, mock_interaction):
     )
 
     with patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join, \
+         patch("music_bot.commands.music_cog.AudioResolver.search", new_callable=AsyncMock, return_value=[]), \
          patch("music_bot.commands.music_cog.AudioResolver.resolve_track", new_callable=AsyncMock) as mock_resolve, \
          patch("music_bot.commands.music_cog.MusicPlayerService.start_playback", new_callable=AsyncMock) as mock_start, \
          patch("music_bot.commands.music_cog.MusicPlayerService.build_now_playing_embed", return_value=discord.Embed(title="Now Playing")):
