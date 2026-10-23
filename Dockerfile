@@ -1,37 +1,23 @@
-# Multi-stage production container for MusicMaid (Discord Music Bot) on Render
+# Production container for MusicMaid (Discord Music Bot) on Render
 FROM python:3.11-slim
 
-# Prevent Python buffering and interactive prompts
 ENV PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    DENO_INSTALL=/usr/local/deno \
+    PATH="/usr/local/deno/bin:${PATH}"
 
-# Install system dependencies: FFmpeg, libopus, build tools, curl, git
+# FFmpeg/libopus for voice, Node + Deno for yt-dlp EJS challenge solving.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libopus0 \
-    libopus-dev \
-    nodejs \
-    build-essential \
-    curl \
-    git \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify system FFmpeg installation
-RUN ffmpeg -version
+    ffmpeg libopus0 libopus-dev nodejs build-essential curl git ca-certificates unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://deno.land/install.sh | sh -s v2.1.4 \
+    && deno --version && node --version && ffmpeg -version
 
 WORKDIR /app
-
-# Install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy bot application source code
 COPY . .
-
-# Expose HTTP port for Render health checks and Web Player ($PORT dynamically set by Render)
 EXPOSE 10000
-
-# Start command
 CMD ["python", "main.py"]
