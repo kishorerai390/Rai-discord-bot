@@ -264,6 +264,38 @@ class SpotifyService:
         return None
 
     # ---------------------------------------------------------
+    @classmethod
+    async def search_tracks(cls, query: str, limit: int = 6) -> List[SpotifyTrack]:
+        """Search track metadata through the official Spotify Web API."""
+        query = (query or "").strip()
+        if not query or not cls.is_configured():
+            return []
+        params = urllib.parse.urlencode({"q": query, "type": "track", "limit": max(1, min(int(limit), 10))})
+        data = await cls._api_get(f"search?{params}")
+        if not data:
+            return []
+        tracks: List[SpotifyTrack] = []
+        for item in data.get("tracks", {}).get("items", []):
+            track_id = item.get("id")
+            if not track_id:
+                continue
+            artists = ", ".join(a.get("name", "") for a in item.get("artists", [])) or "Unknown Artist"
+            album = item.get("album", {})
+            images = album.get("images", [])
+            tracks.append(SpotifyTrack(
+                id=track_id,
+                title=item.get("name", "Unknown Title"),
+                artist=artists,
+                album=album.get("name"),
+                duration_seconds=(item.get("duration_ms", 0) or 0) // 1000,
+                url=item.get("external_urls", {}).get("spotify") or cls.get_canonical_url(SpotifyItemType.TRACK, track_id),
+                thumbnail_url=images[0].get("url") if images else None,
+                preview_url=item.get("preview_url"),
+                is_playable=item.get("is_playable", True),
+                explicit=item.get("explicit", False),
+            ))
+        return tracks
+
     # Public Track / Album / Playlist Resolution
     # ---------------------------------------------------------
     @classmethod
