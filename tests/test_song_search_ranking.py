@@ -774,7 +774,17 @@ class TestSongSearchRanking(unittest.TestCase):
                 AudioResolver,
                 "search",
                 new=AsyncMock(return_value=[]),
+            ), patch(
+                "music_bot.services.resolver_service.youtube_cooldown_status",
+                return_value={
+                    "cooldown_active": False,
+                    "cooldown_remaining_seconds": 0,
+                    "last_failure": "none",
+                    "last_failure_at": None,
+                },
             ):
+                # The prior timeout scenario deliberately activates a process-local
+                # cooldown. Isolate this no-results scenario from that shared state.
                 track = await AudioResolver._execute_resolution_pipeline(
                     "no results regression query",
                     123,
