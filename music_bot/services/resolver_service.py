@@ -2721,13 +2721,13 @@ class AudioResolver:
                 if "timed out" in t2_msg.lower():
                     break
 
-        # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
-        # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
+        # Stage 4: Optional Cookie Fallback when a configured cookie file exists.
+        # An access challenge is the reason to try the authenticated session once;
+        # continue to suppress retries after rate limits and network timeouts.
         if (
             candidate_urls
             and get_active_cookie_file()
             and not youtube_rate_limited
-            and not youtube_access_blocked
             and not youtube_timed_out
         ):
             failed_stage = "cookie_fallback"
