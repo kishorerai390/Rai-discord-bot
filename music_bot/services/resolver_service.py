@@ -2477,6 +2477,7 @@ class AudioResolver:
         verification_failed = False
         youtube_rate_limited = False
         youtube_access_blocked = False
+        youtube_timed_out = False
 
         # Emit a safe cookie-health snapshot and respect the upstream cooldown before
         # starting more YouTube extraction requests. A cooldown never blocks the
@@ -2632,7 +2633,8 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            if youtube_rate_limited or youtube_access_blocked or "timed out" in t1_msg.lower():
+            if youtube_rate_limited or youtube_access_blocked or "timed out" in t1_msg.lower() or "timeout" in t1_msg.lower():
+                youtube_timed_out = "timed out" in t1_msg.lower() or "timeout" in t1_msg.lower()
                 break
 
             # Tier 2 gets the same bounded retry window as the primary profile.
@@ -2697,6 +2699,7 @@ class AudioResolver:
             and get_active_cookie_file()
             and not youtube_rate_limited
             and not youtube_access_blocked
+            and not youtube_timed_out
         ):
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
