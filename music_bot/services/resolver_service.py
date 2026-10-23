@@ -290,7 +290,7 @@ def _candidate_match_metrics(
     query_intent: Dict[str, Any],
 ) -> Tuple[float, float, float]:
     query_tokens = [
-        token for token in re.findall(r"\w+", query_intent.get("core_title", "").lower())
+                    token for token in re.findall(r"\w+", intent.get("core_title", "").lower())
         if len(token) > 1
     ]
     if not query_tokens:
@@ -1687,8 +1687,29 @@ class AudioResolver:
             for c in raw_candidates:
                 if not is_original_recording_candidate(c, intent):
                     continue
-                s, r = score_candidate_detailed(c, intent)
                 title_match_ratio, combined_match_ratio, title_confidence = _candidate_match_metrics(c, intent)
+                # Do not let a matching artist/channel rescue a weak title match.
+                # Spotify searches often include both title and artist (e.g. "Vibe Mix kishore");
+                # a Topic channel can otherwise push an unrelated song containing only "Vibe Mix"
+                # above genuinely matching tracks. Require a minimum title-only overlap for
+                # multi-word queries before applying publisher/source bonuses.
+                query_tokens = [
+                    token for token in re.findall(r"\\w+", intent.get("core_title", "").lower())
+                    if len(token) > 1
+                ]
+                minimum_title_match = 0.70 if len(query_tokens) >= 3 else 0.50
+                if len(query_tokens) >= 2 and title_match_ratio < minimum_title_match:
+                    logger.info(
+                        "[Search] provider=youtube correlation_id=%s outcome=rejected_weak_title_match "
+                        "query=%r candidate_title=%r title_match=%.2f required=%.2f",
+                        corr_id,
+                        _safe_query_for_log(query),
+                        c.get("title"),
+                        title_match_ratio,
+                        minimum_title_match,
+                    )
+                    continue
+                s, r = score_candidate_detailed(c, intent)
                 scored_candidates.append(
                     (
                         {
@@ -2721,13 +2742,13 @@ class AudioResolver:
                 if "timed out" in t2_msg.lower():
                     break
 
-        # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
-        # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
+        # Stage 4: Optional Cookie Fallback when a configured cookie file exists.
+        # An access challenge is the reason to try the authenticated session once;
+        # continue to suppress retries after rate limits and network timeouts.
         if (
             candidate_urls
             and get_active_cookie_file()
             and not youtube_rate_limited
-            and not youtube_access_blocked
             and not youtube_timed_out
         ):
             failed_stage = "cookie_fallback"

@@ -71,6 +71,44 @@ class TestSongSearchRanking(unittest.TestCase):
         self.assertGreaterEqual(orig_score - remix_score, 80.0, "Expected at least 80 point separation for remix penalty")
         self.assertTrue(any("unrequested_remix" in r for r in remix_reasons))
 
+    def test_01aa_search_rejects_weak_title_match_even_from_topic_channel(self):
+        """Artist/channel authority must not rescue a weak title match."""
+        async def _test():
+            AudioResolver.clear_caches()
+            ydl = MagicMock()
+            entries = [
+                {
+                    "id": "weak12345678",
+                    "title": "Mere Sapnon Ki Rani - Vibe Mix",
+                    "uploader": "Kishore Kumar - Topic",
+                    "duration": 240,
+                },
+                {
+                    "id": "strong1234567",
+                    "title": "Vibe Mix Kishore Official Audio",
+                    "uploader": "Kishore - Topic",
+                    "duration": 240,
+                },
+            ]
+            with patch(
+                "music_bot.services.resolver_service._build_ytdl_options",
+                return_value={},
+            ), patch(
+                "music_bot.services.resolver_service.yt_dlp.YoutubeDL",
+                return_value=ydl,
+            ), patch(
+                "music_bot.services.resolver_service._run_ytdlp",
+                new=AsyncMock(return_value={"entries": entries}),
+            ):
+                results = await AudioResolver.search(
+                    "Vibe Mix kishore", limit=5, correlation_id="TEST-WEAK-TITLE"
+                )
+            ids = [candidate["id"] for candidate in results]
+            self.assertNotIn("weak12345678", ids)
+            self.assertIn("strong1234567", ids)
+
+        asyncio.run(_test())
+
     def test_01b_title_match_outweighs_unrelated_official_upload(self):
         """A weakly related official upload must not outrank the exact requested title."""
         intent = analyze_query_intent("blue moon midnight rain")
