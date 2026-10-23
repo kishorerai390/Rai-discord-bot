@@ -3,6 +3,7 @@
 import pytest
 
 from music_bot.services.resolver_service import (
+    _build_ytdl_options,
     _is_youtube_access_challenge,
     _should_attempt_cookie_fallback,
 )
@@ -61,3 +62,17 @@ def test_cookie_fallback_stays_disabled_without_verified_cookies_or_after_rate_l
     assert _should_attempt_cookie_fallback(
         candidate, "/tmp/verified-cookies.txt", False, False, True
     ) is False
+
+def test_bgutil_provider_url_is_passed_to_ytdlp(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_POT_PROVIDER_URL", "https://pot.example.test/")
+    options = _build_ytdl_options(player_clients=["web"])
+    assert options["extractor_args"]["youtubepot-bgutilhttp"] == {
+        "base_url": "https://pot.example.test",
+    }
+
+
+def test_bgutil_provider_is_not_hardcoded_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("YOUTUBE_POT_PROVIDER_URL", raising=False)
+    options = _build_ytdl_options(player_clients=["web"])
+    assert "youtubepot-bgutilhttp" not in options["extractor_args"]
+
