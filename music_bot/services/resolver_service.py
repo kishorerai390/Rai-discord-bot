@@ -1310,6 +1310,10 @@ def _build_ytdl_options(
         "socket_timeout": 8,
         "extractor_retries": 1,
         "retries": 1,
+        # JukeBot's lean request profile: avoid playlist expansion and local cache I/O.
+        # Keep stream extraction on the normal processing path; search callers use process=False.
+        "source_address": "0.0.0.0",
+        "cachedir": False,
         "extractor_args": {
             "youtube": {
                 "skip": ["translated_subs"],
@@ -1599,7 +1603,7 @@ class AudioResolver:
                 primary_opts = _build_ytdl_options(["android"], extract_flat=True)
                 ydl_instance = yt_dlp.YoutubeDL(primary_opts)
                 data = await _run_ytdlp(
-                    functools.partial(ydl_instance.extract_info, search_query, download=False),
+                    functools.partial(ydl_instance.extract_info, search_query, download=False, process=False),
                     timeout=search_timeout,
                     operation="search",
                     correlation_id=corr_id,
@@ -1618,7 +1622,7 @@ class AudioResolver:
                     retry_opts = _build_ytdl_options(["web", "mweb"], extract_flat=True)
                     ydl_retry = yt_dlp.YoutubeDL(retry_opts)
                     data = await _run_ytdlp(
-                        functools.partial(ydl_retry.extract_info, search_query, download=False),
+                        functools.partial(ydl_retry.extract_info, search_query, download=False, process=False),
                         timeout=search_timeout,
                         operation="search_retry",
                         correlation_id=corr_id,
@@ -2357,7 +2361,7 @@ class AudioResolver:
                          flat_ydl = yt_dlp.YoutubeDL(flat_opts)
                          search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
                          search_data = await _run_ytdlp(
-                             functools.partial(flat_ydl.extract_info, search_query, download=False),
+                             functools.partial(flat_ydl.extract_info, search_query, download=False, process=False),
                              timeout=search_timeout,
                              operation="search_fallback",
                              correlation_id=corr_id,
