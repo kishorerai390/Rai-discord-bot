@@ -2559,10 +2559,24 @@ class AudioResolver:
                         not is_direct_url,
                     )
                     break
+                # Do not fan out into six more extractor profiles after upstream
+                # throttling, access challenges, or a network timeout. Those requests
+                # cannot fix the server-side restriction and made failed searches take
+                # 30-60+ seconds. Other genuine format/player-response failures retain
+                # the existing bounded profile fallbacks.
+                t1_lower = t1_msg.lower()
+                upstream_blocked_or_slow = any(marker in t1_lower for marker in (
+                    "http error 403", "http error 429", "too many requests",
+                    "timed out", "timeout", "sign in to confirm", "not a bot",
+                    "confirm you're not a bot", "confirm you’re not a bot",
+                ))
                 if (
-                    "format is not available" in t1_msg.lower()
-                    or "failed to extract any player response" in t1_msg.lower()
-                    or "player response" in t1_msg.lower()
+                    not upstream_blocked_or_slow
+                    and (
+                        "format is not available" in t1_lower
+                        or "failed to extract any player response" in t1_lower
+                        or "player response" in t1_lower
+                    )
                 ):
                     # Newer YouTube responses may fail for one client profile while
                     # another supported profile still resolves the same public video.
