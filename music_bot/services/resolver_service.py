@@ -1022,14 +1022,28 @@ def _detect_js_runtimes() -> Dict[str, Any]:
     if node_path:
         runtimes["node"] = {"path": node_path}
 
-    deno_path = shutil.which("deno")
-    if not deno_path:
-        deno_home = Path.home() / ".deno" / "bin" / "deno"
-        if deno_home.exists():
-            deno_path = str(deno_home)
-
+    # Match JukeBot's production approach: explicitly advertise a supported
+    # JavaScript runtime to yt-dlp instead of relying only on PATH discovery.
+    # Native Render deployments bootstrap Deno into the repository-local
+    # .deno directory from main.py, so include that path as well.
+    deno_candidates = [
+        shutil.which("deno"),
+        str(BASE_DIR / ".deno" / "bin" / "deno"),
+        str(Path.home() / ".deno" / "bin" / "deno"),
+    ]
+    deno_path = next(
+        (candidate for candidate in deno_candidates if candidate and Path(candidate).is_file()),
+        None,
+    )
     if deno_path:
         runtimes["deno"] = {"path": deno_path}
+
+    # Some deployments have Node available but not on PATH in the bot process.
+    if "node" not in runtimes:
+        for candidate in ("/usr/bin/node", "/usr/local/bin/node"):
+            if Path(candidate).is_file():
+                runtimes["node"] = {"path": candidate}
+                break
 
     return runtimes
 
