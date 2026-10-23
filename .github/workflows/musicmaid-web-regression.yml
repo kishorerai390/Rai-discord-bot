@@ -1,0 +1,35 @@
+name: MusicMaid Website Regression
+
+on:
+  push:
+    branches: [test/musicmaid-full-regression]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musicmaid-web-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  website-build-and-typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+      - name: Install website dependencies
+        run: npm ci
+      - name: Type-check website
+        run: npm run typecheck
+      - name: Build website
+        run: npm run build
