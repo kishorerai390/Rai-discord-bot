@@ -663,7 +663,16 @@ def is_original_recording_candidate(
         or bool(re.search(r"\b(?:official|record(?:s| label)?|label)\b", uploader))
     )
     if not title_has_official_marker and not uploader_has_official_marker:
-        return False
+        # For short, single-word searches, official-upload metadata is often absent
+        # from valid regional tracks. Accept only a strong title match in that case;
+        # keep the stricter official-upload requirement for longer ambiguous queries.
+        query_tokens = re.findall(r"\w+", str(query_intent.get("clean_query") or "").lower())
+        title_match_ratio, combined_match_ratio, title_confidence = _candidate_match_metrics(
+            candidate,
+            query_intent,
+        )
+        if len(query_tokens) != 1 or title_match_ratio < 0.75 or combined_match_ratio < 0.75 or title_confidence < 0.75:
+            return False
 
     return True
 
