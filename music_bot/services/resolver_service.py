@@ -1373,7 +1373,9 @@ def _build_ytdl_options(
     token_data = _load_po_tokens_and_cookies()
     po_token = os.environ.get("PO_TOKEN") or token_data.get("active_po_token")
     visitor_data = os.environ.get("VISITOR_DATA") or token_data.get("visitor_data")
-    if po_token:
+    if po_token and not pot_provider_url:
+        # Use manually configured tokens only when the automatic provider is
+        # absent; provider-generated tokens are video/context-specific.
         opts["extractor_args"]["youtube"]["po_token"] = [
             f"web.gvs+{po_token}",
             f"mweb.gvs+{po_token}",
