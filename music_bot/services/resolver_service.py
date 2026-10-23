@@ -2663,6 +2663,14 @@ class AudioResolver:
                     cand_idx,
                     type(t2_err).__name__,
                 )
+                if _is_youtube_access_challenge(t2_msg):
+                    youtube_access_blocked = True
+                    last_failure_reason = "YouTube requires an accepted authenticated session or is challenging this server; public extraction was stopped."
+                    logger.warning(
+                        "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier2 "
+                        "outcome=stopped_access_challenge", corr_id,
+                    )
+                    break
                 if youtube_rate_limited:
                     break
                 if "timed out" in t2_msg.lower():
@@ -2737,7 +2745,15 @@ class AudioResolver:
                         ",".join(cookie_clients) if cookie_clients else "yt-dlp default",
                         type(t3_err).__name__,
                     )
-                    # Stop immediately on an explicit rate limit; do not amplify HTTP 429s.
+                    # Stop immediately on rate limits or explicit access challenges.
+                    if _is_youtube_access_challenge(t3_msg):
+                        youtube_access_blocked = True
+                        last_failure_reason = "YouTube requires an accepted authenticated session or is challenging this server; authenticated extraction was stopped."
+                        logger.warning(
+                            "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback "
+                            "outcome=stopped_access_challenge", corr_id,
+                        )
+                        break
                     if youtube_rate_limited:
                         break
                     # A transient timeout on the web client should not suppress the
