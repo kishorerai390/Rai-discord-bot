@@ -58,7 +58,11 @@ services:
         value: data/bot.db
 
       # ── YouTube / Audio ──────────────────────────────────────────────────────
-      # Paste Netscape-format cookies here to bypass YouTube datacenter blocks
+      # Optional self-hosted BgUtils PO-token provider service URL (e.g. https://your-provider.onrender.com)
+      - key: YOUTUBE_POT_PROVIDER_URL
+        sync: false
+
+      # Paste Netscape-format cookies here only when required for authorized access
       - key: YOUTUBE_COOKIES
         sync: false
 
