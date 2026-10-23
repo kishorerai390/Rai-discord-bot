@@ -290,7 +290,7 @@ def _candidate_match_metrics(
     query_intent: Dict[str, Any],
 ) -> Tuple[float, float, float]:
     query_tokens = [
-        token for token in re.findall(r"\w+", query_intent.get("core_title", "").lower())
+                    token for token in re.findall(r"\w+", intent.get("core_title", "").lower())
         if len(token) > 1
     ]
     if not query_tokens:
