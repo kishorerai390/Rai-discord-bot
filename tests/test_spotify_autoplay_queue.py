@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from music_bot.database.models import QueuedTrack
 from music_bot.services.importer_service import PlaylistImporterService
+from music_bot.services.resolver_service import apply_resolved_track
 
 
 @pytest.mark.asyncio
@@ -71,3 +73,42 @@ async def test_spotify_collection_import_respects_limit():
     assert platform == "Spotify"
     assert len(tracks) == 2
     assert [track.title for track in tracks] == ["Song 0", "Song 1"]
+
+
+
+def test_spotify_metadata_track_can_match_a_verified_playable_provider():
+    spotify_track = QueuedTrack(
+        title="Blue Bird",
+        artist="Ikimono-gakari",
+        url="https://open.spotify.com/track/abc123",
+        stream_url="",
+    )
+    playable_match = QueuedTrack(
+        title="Blue Bird",
+        artist="Ikimono-gakari",
+        url="https://www.youtube.com/watch?v=video123",
+        stream_url="https://audio.example.test/stream",
+    )
+
+    assert apply_resolved_track(spotify_track, playable_match) is True
+    assert spotify_track.url == "https://www.youtube.com/watch?v=video123"
+    assert spotify_track.stream_url == "https://audio.example.test/stream"
+
+
+def test_spotify_metadata_track_rejects_unrelated_playable_provider_match():
+    spotify_track = QueuedTrack(
+        title="Blue Bird",
+        artist="Ikimono-gakari",
+        url="https://open.spotify.com/track/abc123",
+        stream_url="",
+    )
+    unrelated = QueuedTrack(
+        title="Heavy Metal Workout Mix",
+        artist="Various Artists",
+        url="https://www.youtube.com/watch?v=unrelated",
+        stream_url="https://audio.example.test/stream",
+    )
+
+    assert apply_resolved_track(spotify_track, unrelated) is False
+    assert spotify_track.url == "https://open.spotify.com/track/abc123"
+    assert spotify_track.stream_url == ""
