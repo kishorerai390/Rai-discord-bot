@@ -2531,7 +2531,9 @@ class AudioResolver:
             # The extractor may use an 8s socket timeout and retry once. Keep the
             # outer timeout long enough for that bounded retry to finish.
             try:
-                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=False)
+                # JukeBot-style primary profile: let yt-dlp choose its default YouTube client first.
+                # Keep Android/iOS/MWEB/TV profiles in the bounded fallback tiers below.
+                tier1_opts = _build_ytdl_options(None, use_cookies=False)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
