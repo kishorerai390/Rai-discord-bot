@@ -984,9 +984,21 @@ class MusicCog(commands.Cog, name="Music"):
                 )
                 vc.play(source, after=player.play_next)
 
-                # Reuse the shared panel so slash commands and natural requests
-                # cannot create separate Now Playing cards for the same player.
-                await player.update_panel()
+                # Public community message: Now Playing panel in the music channel
+                panel_embed = self._create_now_playing_embed(player, song)
+                panel_view = MusicControlView(self, interaction.guild)
+                if player.panel_message:
+                    try:
+                        await player.panel_message.delete()
+                    except Exception:
+                        pass
+                    player.panel_message = None
+
+                if interaction.channel:
+                    try:
+                        player.panel_message = await interaction.channel.send(embed=panel_embed, view=panel_view)
+                    except Exception as pe:
+                        logger.debug(f"Could not send public panel message: {pe}")
 
                 # Ephemeral user-specific confirmation
                 vc_channel = getattr(vc, "channel", None)
