@@ -962,7 +962,7 @@ class MusicCog(commands.Cog, name="Music"):
             # Spotify track URL to a supported playable provider only when it reaches playback.
             spotify_collection_url = bool(
                 re.search(
-                    r"(?:open\\.)?spotify\\.com/(?:intl-[a-z]{2}/)?(?:playlist|album)/[A-Za-z0-9]+",
+                    r"(?:open\.)?spotify\.com/(?:intl-[a-z]{2}/)?(?:playlist|album)/[A-Za-z0-9]+",
                     query,
                     re.IGNORECASE,
                 )
@@ -985,6 +985,16 @@ class MusicCog(commands.Cog, name="Music"):
                         correlation_id,
                         type(collection_exc).__name__,
                     )
+
+                if not playlist_tracks:
+                    await self.send_ephemeral_or_fallback(
+                        interaction,
+                        content=(
+                            "❌ I couldn't load tracks from that Spotify playlist or album. "
+                            "Check that the link is public and Spotify metadata credentials are configured."
+                        ),
+                    )
+                    return
 
                 if playlist_tracks:
                     # De-duplicate Spotify IDs/URLs both within the imported list and
