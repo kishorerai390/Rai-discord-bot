@@ -716,6 +716,33 @@ class TestSongSearchRanking(unittest.TestCase):
     # =========================================================================
     # 7. YOUTUBE RESOLVER TIMEOUT AND EMPTY SEARCH RESULTS
     # =========================================================================
+    def test_06b_youtube_search_uses_metadata_only_processing(self):
+        """JukeBot-style search should not trigger full extractor processing for each candidate."""
+        async def _test():
+            AudioResolver.clear_caches()
+            mock_ydl = MagicMock()
+            mock_ydl.extract_info.return_value = {
+                "entries": [{
+                    "id": "test123",
+                    "title": "Kalyani Official Audio",
+                    "uploader": "Sony Music South",
+                    "duration": 210,
+                    "webpage_url": "https://www.youtube.com/watch?v=test123",
+                }]
+            }
+
+            with patch("yt_dlp.YoutubeDL", return_value=mock_ydl):
+                await AudioResolver.search("Kalyani", limit=5)
+
+            calls = mock_ydl.extract_info.call_args_list
+            self.assertTrue(calls, "Search should invoke yt-dlp")
+            self.assertTrue(
+                any(call.kwargs.get("process") is False for call in calls),
+                f"Expected metadata-only process=False search call, got: {calls!r}",
+            )
+
+        asyncio.run(_test())
+
     def test_07_youtube_resolver_timeout_and_empty_search_results(self):
         """
         Verify that resolver timeouts and empty upstream search responses are properly
