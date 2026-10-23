@@ -50,12 +50,14 @@ def format_duration(seconds: Optional[int], is_position: bool = False) -> str:
 
 
 def create_progress_bar(elapsed: int, total: int, length: int = 15) -> str:
-    """Generate visual progress bar slider (e.g. ▶ ──🔘──────)."""
+    """Render a predictable Unicode progress bar with a single position marker."""
+    # Keep the output valid for zero/negative lengths and avoid division by zero.
+    width = max(1, int(length))
     if total <= 0:
-        return "🔘──────────────"
+        return "▶ " + "─" * (width - 1) + "●"
     ratio = min(1.0, max(0.0, elapsed / total))
-    pos = int(round(ratio * (length - 1)))
-    bar = "─" * pos + "🔘" + "─" * (length - 1 - pos)
+    pos = int(round(ratio * (width - 1)))
+    bar = "─" * pos + "●" + "─" * (width - 1 - pos)
     return f"▶ {bar}"
 
 

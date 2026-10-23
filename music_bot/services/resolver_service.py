@@ -37,6 +37,22 @@ from music_bot.services.youtube_health_monitor import (
 
 logger = logging.getLogger("RaiMusic.Resolver")
 
+YOUTUBE_ACCESS_CHALLENGE_MARKERS = (
+    "sign in to confirm",
+    "not a bot",
+    "confirm you're not a bot",
+    "confirm you’re not a bot",
+    "captcha",
+    "consent required",
+)
+
+
+def _is_youtube_access_challenge(error_message: str) -> bool:
+    """Return whether yt-dlp reported an explicit YouTube access challenge."""
+    message = str(error_message or "").casefold()
+    return any(marker in message for marker in YOUTUBE_ACCESS_CHALLENGE_MARKERS)
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
 
@@ -2460,6 +2476,8 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         youtube_rate_limited = False
+        youtube_access_blocked = False
+        youtube_timed_out = False
 
         # Emit a safe cookie-health snapshot and respect the upstream cooldown before
         # starting more YouTube extraction requests. A cooldown never blocks the
@@ -2526,10 +2544,40 @@ class AudioResolver:
                 if "429" in t1_msg or "too many requests" in t1_msg.lower():
                     youtube_rate_limited = True
                     last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
+                if _is_youtube_access_challenge(t1_msg):
+                    # Repeating other YouTube clients or cookie attempts after an
+                    # explicit access challenge wastes time and can worsen rate limits.
+                    # Preserve the alternative-provider fallback below for searches.
+                    youtube_access_blocked = True
+                    last_failure_reason = (
+                        "YouTube requires an accepted authenticated session or is "
+                        "challenging this server; public extraction was stopped."
+                    )
+                    logger.warning(
+                        "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract "
+                        "outcome=stopped_access_challenge alternative_fallback=%s",
+                        corr_id,
+                        not is_direct_url,
+                    )
+                    break
+                # Do not fan out into six more extractor profiles after upstream
+                # throttling, access challenges, or a network timeout. Those requests
+                # cannot fix the server-side restriction and made failed searches take
+                # 30-60+ seconds. Other genuine format/player-response failures retain
+                # the existing bounded profile fallbacks.
+                t1_lower = t1_msg.lower()
+                upstream_blocked_or_slow = any(marker in t1_lower for marker in (
+                    "http error 403", "http error 429", "too many requests",
+                    "timed out", "timeout", "sign in to confirm", "not a bot",
+                    "confirm you're not a bot", "confirm you’re not a bot",
+                ))
                 if (
-                    "format is not available" in t1_msg.lower()
-                    or "failed to extract any player response" in t1_msg.lower()
-                    or "player response" in t1_msg.lower()
+                    not upstream_blocked_or_slow
+                    and (
+                        "format is not available" in t1_lower
+                        or "failed to extract any player response" in t1_lower
+                        or "player response" in t1_lower
+                    )
                 ):
                     # Newer YouTube responses may fail for one client profile while
                     # another supported profile still resolves the same public video.
@@ -2585,7 +2633,8 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            if youtube_rate_limited or "timed out" in t1_msg.lower():
+            if youtube_rate_limited or youtube_access_blocked or "timed out" in t1_msg.lower() or "timeout" in t1_msg.lower():
+                youtube_timed_out = "timed out" in t1_msg.lower() or "timeout" in t1_msg.lower()
                 break
 
             # Tier 2 gets the same bounded retry window as the primary profile.
@@ -2630,6 +2679,14 @@ class AudioResolver:
                     cand_idx,
                     type(t2_err).__name__,
                 )
+                if _is_youtube_access_challenge(t2_msg):
+                    youtube_access_blocked = True
+                    last_failure_reason = "YouTube requires an accepted authenticated session or is challenging this server; public extraction was stopped."
+                    logger.warning(
+                        "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier2 "
+                        "outcome=stopped_access_challenge", corr_id,
+                    )
+                    break
                 if youtube_rate_limited:
                     break
                 if "timed out" in t2_msg.lower():
@@ -2637,7 +2694,13 @@ class AudioResolver:
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
         # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
-        if candidate_urls and get_active_cookie_file() and not youtube_rate_limited:
+        if (
+            candidate_urls
+            and get_active_cookie_file()
+            and not youtube_rate_limited
+            and not youtube_access_blocked
+            and not youtube_timed_out
+        ):
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
             logger.info(
@@ -2699,7 +2762,15 @@ class AudioResolver:
                         ",".join(cookie_clients) if cookie_clients else "yt-dlp default",
                         type(t3_err).__name__,
                     )
-                    # Stop immediately on an explicit rate limit; do not amplify HTTP 429s.
+                    # Stop immediately on rate limits or explicit access challenges.
+                    if _is_youtube_access_challenge(t3_msg):
+                        youtube_access_blocked = True
+                        last_failure_reason = "YouTube requires an accepted authenticated session or is challenging this server; authenticated extraction was stopped."
+                        logger.warning(
+                            "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback "
+                            "outcome=stopped_access_challenge", corr_id,
+                        )
+                        break
                     if youtube_rate_limited:
                         break
                     # A transient timeout on the web client should not suppress the
