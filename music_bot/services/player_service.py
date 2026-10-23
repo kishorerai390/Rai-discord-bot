@@ -1966,6 +1966,33 @@ class MusicPlayerService:
                 except Exception:
                     session.now_playing_message_id = None
 
+            # 2b. Recover an existing MusicMaid panel if the in-memory session reference was lost.
+            # This prevents duplicate player cards after session recreation or overlapping startup recovery.
+            if not session.now_playing_message:
+                try:
+                    bot_user_id = getattr(getattr(bot or getattr(session, "bot", None), "user", None), "id", None)
+                    async for candidate in channel.history(limit=15):
+                        if bot_user_id and getattr(getattr(candidate, "author", None), "id", None) != bot_user_id:
+                            continue
+                        if not candidate.embeds:
+                            continue
+                        title = (candidate.embeds[0].title or "").lower()
+                        if "musicmaid" not in title and "master player" not in title:
+                            continue
+                        await candidate.edit(embed=embed, view=view)
+                        session.now_playing_message = candidate
+                        session.now_playing_message_id = candidate.id
+                        session.now_playing_channel_id = channel.id
+                        logger.info(
+                            "[PlayerPanel] Recovered existing panel guild=%s channel=%s message=%s",
+                            session.guild_id, channel.id, candidate.id,
+                        )
+                        if session.is_playing and (not session.progress_updater_task or session.progress_updater_task.done()):
+                            session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
+                        return
+                except Exception as recovery_err:
+                    logger.debug("[PlayerPanel] Existing-panel recovery skipped: %s", recovery_err)
+
             # 3. Post new message and register as persistent panel
             try:
                 perms = channel.permissions_for(channel.guild.me)
