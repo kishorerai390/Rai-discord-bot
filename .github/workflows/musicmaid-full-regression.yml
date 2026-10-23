@@ -38,4 +38,7 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
         run: |
-          python -m pytest -q --tb=short
+          # This module makes real YouTube requests; keep CI deterministic and offline.
+          # Run it separately as a manual live smoke test when upstream is reachable.
+          python -m pytest -q --tb=short \
+            --ignore=tests/test_live_playback_resolution.py
