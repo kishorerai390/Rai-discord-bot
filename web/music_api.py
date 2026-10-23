@@ -1016,6 +1016,25 @@ class MusicApiRouter:
                 "provider": "youtube" if vid else "direct",
             }])
 
+        # Official Spotify catalog search (metadata only; audio is resolved from public sources).
+        try:
+            from music_bot.services.spotify_service import SpotifyService
+            spotify_tracks = await SpotifyService.search_tracks(q, limit=6)
+            if spotify_tracks:
+                return json_success([{
+                    "id": f"spotify_{track.id}",
+                    "title": track.title,
+                    "artist": track.artist,
+                    "album": track.album,
+                    "url": track.url,
+                    "duration": track.duration_seconds,
+                    "thumbnail": track.thumbnail_url,
+                    "provider": "spotify",
+                    "spotify_url": track.url,
+                } for track in spotify_tracks])
+        except Exception as sp_err:
+            logger.debug(f"Spotify catalog search note: {sp_err}")
+
         # 2. Primary Search via AudioResolver (fetches individual YouTube thumbnails)
         results = []
         try:
