@@ -1359,12 +1359,25 @@ def _build_ytdl_options(
     if js_runtimes:
         opts["js_runtimes"] = js_runtimes
 
-    # Inject PO-Token if configured
+    # Prefer an automatic PO-token provider for per-video GVS tokens.
+    # The provider service is separate from this bot process and is configured
+    # through YOUTUBE_POT_PROVIDER_URL; do not hardcode a public third-party host.
+    pot_provider_url = os.environ.get("YOUTUBE_POT_PROVIDER_URL", "").strip().rstrip("/")
+    if pot_provider_url:
+        opts["extractor_args"]["youtubepot-bgutilhttp"] = {
+            "base_url": pot_provider_url,
+        }
+
+    # Backward-compatible manual token support. yt-dlp expects an explicit
+    # client/context pair (GVS); a generic "web+token" value is not valid syntax.
     token_data = _load_po_tokens_and_cookies()
     po_token = os.environ.get("PO_TOKEN") or token_data.get("active_po_token")
     visitor_data = os.environ.get("VISITOR_DATA") or token_data.get("visitor_data")
     if po_token:
-        opts["extractor_args"]["youtube"]["po_token"] = [f"web+{po_token}", f"mweb+{po_token}"]
+        opts["extractor_args"]["youtube"]["po_token"] = [
+            f"web.gvs+{po_token}",
+            f"mweb.gvs+{po_token}",
+        ]
     if visitor_data:
         opts["extractor_args"]["youtube"]["visitor_data"] = [visitor_data]
 
