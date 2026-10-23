@@ -2390,7 +2390,7 @@ class AudioResolver:
  
                 if not search_entries:
                     dur = time.time() - start_t
-                    if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
+                    if search_error and ("timeouterror" in search_error.lower() or "timeout" in search_error.lower() or "timed out" in search_error.lower()):
                         cat = "TIMEOUT"
                         reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
                     elif search_error:
@@ -2823,7 +2823,7 @@ class AudioResolver:
         elif youtube_rate_limited or "429" in lower_failure_reason or "too many requests" in lower_failure_reason:
             cat = "YOUTUBE_RATE_LIMITED"
             reason = "YouTube is temporarily limiting requests from this server. Wait before retrying, or try the song title instead of a video link."
-        elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
+        elif "timeouterror" in lower_failure_reason or "timeout" in lower_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
         elif "access_denied" in lower_failure_reason or "access restriction" in lower_failure_reason or any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age", "forbidden")):
