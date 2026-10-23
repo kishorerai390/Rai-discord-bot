@@ -2325,6 +2325,11 @@ class MusicCog(commands.Cog, name="Music"):
         settings = await self.bot.db.get_guild_settings(guild.id)
         session = await self.session_manager.get_session(guild.id)
 
+        # Keep the in-memory session aligned with the durable guild setting.
+        # Recovery and auto-leave logic read the session flag while /247 status
+        # reads the database; stale in-memory values previously made them disagree.
+        session.twenty_four_seven = bool(settings.twenty_four_seven_enabled)
+
         act = action.value if action else "toggle"
         vc_connected = bool(session.voice_client and session.voice_client.is_connected())
 
