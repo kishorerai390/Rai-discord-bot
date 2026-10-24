@@ -144,10 +144,11 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
     # =========================================================================
 
     @patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel")
+    @patch("music_bot.commands.music_cog.AudioResolver.search", new_callable=AsyncMock, return_value=[])
     @patch("music_bot.commands.music_cog.AudioResolver.resolve_track")
     @patch("music_bot.commands.music_cog.MusicPlayerService.start_playback")
     async def test_play_command_immediate_defer_and_success(
-        self, mock_playback, mock_resolve, mock_join
+        self, mock_playback, mock_resolve, mock_search, mock_join
     ):
         """Verify /play defers immediately and updates original response within deadline."""
         mock_vc = MagicMock(spec=discord.VoiceClient)
@@ -178,9 +179,10 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
         mock_playback.assert_awaited()
 
     @patch("music_bot.commands.music_cog.VoiceManager.join_voice_channel")
+    @patch("music_bot.commands.music_cog.AudioResolver.search", new_callable=AsyncMock, return_value=[])
     @patch("music_bot.commands.music_cog.AudioResolver.resolve_track")
     async def test_play_command_resolver_timeout_graceful_exit(
-        self, mock_resolve, mock_join
+        self, mock_resolve, mock_search, mock_join
     ):
         """Verify /play cleanly informs user when track resolution times out (no 'Thinking...' hang)."""
         mock_vc = MagicMock(spec=discord.VoiceClient)
