@@ -677,6 +677,24 @@ def is_original_recording_candidate(
     return True
 
 
+def _is_strong_fallback_title_match(candidate: Dict[str, Any], query_intent: Dict[str, Any]) -> bool:
+    """Reject obvious near-name collisions in secondary-provider fallback.
+
+    The general ranker intentionally tolerates fuzzy tokens for YouTube search.
+    That is too permissive for fallback playback: e.g. 'kalyani' must not accept
+    'Kalyan'. For single-word title requests require an exact title token; for
+    multi-word queries retain the existing broader ranking rules.
+    """
+    query_tokens = [
+        token for token in re.findall(r"\\w+", str(query_intent.get("core_title") or "").casefold())
+        if len(token) > 1
+    ]
+    if len(query_tokens) != 1 or len(query_tokens[0]) < 4:
+        return True
+    title_tokens = set(re.findall(r"\\w+", str(candidate.get("title") or "").casefold()))
+    return query_tokens[0] in title_tokens
+
+
 def is_alternative_provider_candidate(
     candidate: Dict[str, Any],
     query_intent: Dict[str, Any],
@@ -2412,7 +2430,7 @@ class AudioResolver:
                         from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
                         audius_candidates = await AudiusProviderService.search(fallback_search_query, limit=3)
                         for cand in audius_candidates:
-                            if is_alternative_provider_candidate(cand, intent):
+                            if is_alternative_provider_candidate(cand, intent) and _is_strong_fallback_title_match(cand, intent):
                                 fb_track = QueuedTrack(
                                     title=cand["title"],
                                     url=cand["url"],
@@ -2432,7 +2450,7 @@ class AudioResolver:
 
                         jamendo_candidates = await JamendoProviderService.search(fallback_search_query, limit=3)
                         for cand in jamendo_candidates:
-                            if is_original_recording_candidate(cand, intent):
+                            if is_original_recording_candidate(cand, intent) and _is_strong_fallback_title_match(cand, intent):
                                 fb_track = QueuedTrack(
                                     title=cand["title"],
                                     url=cand["url"],
@@ -2854,7 +2872,7 @@ class AudioResolver:
                 from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
                 audius_candidates = await AudiusProviderService.search(fallback_search_query, limit=3)
                 for cand in audius_candidates:
-                    if is_alternative_provider_candidate(cand, intent):
+                    if is_alternative_provider_candidate(cand, intent) and _is_strong_fallback_title_match(cand, intent):
                         fb_track = QueuedTrack(
                             title=cand["title"],
                             url=cand["url"],
@@ -2879,7 +2897,7 @@ class AudioResolver:
                 from music_bot.services.alternative_providers import JamendoProviderService
                 jamendo_candidates = await JamendoProviderService.search(fallback_search_query, limit=3)
                 for cand in jamendo_candidates:
-                    if is_alternative_provider_candidate(cand, intent):
+                    if is_alternative_provider_candidate(cand, intent) and _is_strong_fallback_title_match(cand, intent):
                         fb_track = QueuedTrack(
                             title=cand["title"],
                             url=cand["url"],
