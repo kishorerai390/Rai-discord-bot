@@ -877,6 +877,8 @@ class MusicCog(commands.Cog, name="Music"):
         ephemeral: bool = False,
         correlation_id: Optional[str] = None,
         fallback_query: Optional[str] = None,
+        title_hint: Optional[str] = None,
+        artist_hint: Optional[str] = None,
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition.
 
@@ -1010,6 +1012,10 @@ class MusicCog(commands.Cog, name="Music"):
                             selected_url,
                             correlation_id=correlation_id,
                             fallback_query=query,
+                            # Preserve selected metadata for Audius/Jamendo fallback
+                            # if YouTube blocks extraction of this exact video.
+                            title_hint=selected.get("title"),
+                            artist_hint=selected.get("uploader") or selected.get("channel"),
                         )
 
                     selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
@@ -1028,6 +1034,8 @@ class MusicCog(commands.Cog, name="Music"):
                         query,
                         member.id,
                         str(member),
+                        title_hint=title_hint,
+                        artist_hint=artist_hint,
                         correlation_id=correlation_id,
                     ),
                     timeout=90.0,
