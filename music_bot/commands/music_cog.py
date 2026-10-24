@@ -1075,46 +1075,10 @@ class MusicCog(commands.Cog, name="Music"):
                         correlation_id,
                         type(search_exc).__name__,
                     )
-                if requires_candidate_confirmation(candidates):
-                    logger.info(
-                        "[Playback] operation=candidate_confirmation correlation_id=%s "
-                        "candidate_count=%d outcome=required",
-                        correlation_id,
-                        len(candidates),
-                    )
-
-                    async def on_candidate_select(
-                        selected_interaction: discord.Interaction,
-                        selected_index: int,
-                    ) -> None:
-                        selected = candidates[selected_index]
-                        selected_url = selected.get("url") or ""
-                        logger.info(
-                            "[Playback] operation=candidate_selected correlation_id=%s "
-                            "title=%r video_id=%s score=%s",
-                            correlation_id,
-                            selected.get("title"),
-                            selected.get("id") or _video_id_from_url(selected_url) or "unavailable",
-                            selected.get("_match_score", "unavailable"),
-                        )
-                        await self._play_query(
-                            selected_interaction,
-                            selected_url,
-                            correlation_id=correlation_id,
-                            # A selected result is an explicit identity choice. Do not
-                            # retry the broad search query here: it can resolve to a
-                            # different song (e.g. KALYAM instead of KALYANI).
-                            fallback_query=None,
-                        )
-
-                    selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
-                    await interaction.edit_original_response(
-                        content="Several results are plausible, or the best match is uncertain. Choose the intended track:",
-                        embed=None,
-                        view=selection_view,
-                    )
-                    return
-
+                # MusicMaid now resolves the best-ranked candidate directly for normal
+                # text searches. Avoid the dropdown that interrupted playback flow.
+                # Explicit URLs remain pinned to their supplied identity.
+                
             search_start = time.time()
             is_timed_out = False
             try:
@@ -4047,34 +4011,9 @@ class MusicCog(commands.Cog, name="Music"):
                     correlation_id,
                     type(search_exc).__name__,
                 )
-        if requires_candidate_confirmation(candidates):
-            async def on_candidate_select(
-                selected_interaction: discord.Interaction,
-                selected_index: int,
-            ) -> None:
-                selected = candidates[selected_index]
-                selected_url = selected.get("url") or ""
-                logger.info(
-                    "[Playback] operation=candidate_selected correlation_id=%s "
-                    "title=%r video_id=%s score=%s",
-                    correlation_id,
-                    selected.get("title"),
-                    selected.get("id") or _video_id_from_url(selected_url) or "unavailable",
-                    selected.get("_match_score", "unavailable"),
-                )
-                await self._play_query(
-                    selected_interaction,
-                    selected_url,
-                    correlation_id=correlation_id,
-                )
-
-            selection_view = TrackSelectView(candidates, ctx.author.id, on_candidate_select)
-            await status_msg.edit(
-                content="Several results are plausible, or the best match is uncertain. Choose the intended track:",
-                view=selection_view,
-            )
-            return
-
+        # Prefix play follows the same direct best-match flow; do not interrupt
+        # ordinary requests with the song-selection dropdown.
+        
         try:
             track = await asyncio.wait_for(
                 AudioResolver.resolve_track(
