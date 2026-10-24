@@ -71,6 +71,7 @@ from music_bot.services.resolver_service import (
     AudioResolver,
     _safe_query_for_log,
     _video_id_from_url,
+    analyze_query_intent,
     requires_candidate_confirmation,
 )
 from music_bot.services.session_service import (
@@ -85,6 +86,21 @@ if TYPE_CHECKING:
     from music_bot.bot import RaiMusicBot
 
 logger = logging.getLogger("NekoSongs.Commands")
+
+
+def _alternative_track_matches_query(query: str, track: Any) -> bool:
+    """Reject alternative-provider fallbacks whose title changes the requested song identity."""
+    intent = analyze_query_intent(query)
+    core_tokens = [
+        token for token in re.findall(r"\w+", str(intent.get("core_title") or "").casefold())
+        if len(token) >= 4
+    ]
+    if not core_tokens:
+        return True
+    title_tokens = set(
+        re.findall(r"\w+", str(getattr(track, "title", "") or "").casefold())
+    )
+    return all(token in title_tokens for token in core_tokens)
 
 
 # =============================================================================
@@ -1180,6 +1196,32 @@ class MusicCog(commands.Cog, name="Music"):
                         correlation_id,
                         type(fallback_exc).__name__,
                     )
+
+            # Keep Audius/Jamendo fallback, but never silently substitute a
+            # near-spelling title (e.g. Kalyan for a Kalyani request).
+            provider = str(getattr(track, "provider", "") or "").casefold() if track else ""
+            if (
+                track
+                and provider in {"audius", "jamendo"}
+                and not query.startswith(("http://", "https://"))
+                and not re.match(r"spotify:(?:track|playlist|album):", query, re.IGNORECASE)
+                and "spotify.com/" not in query.casefold()
+                and "music.apple.com/" not in query.casefold()
+                and not _alternative_track_matches_query(query, track)
+            ):
+                logger.warning(
+                    "[Playback] operation=alternative_track_identity_rejected correlation_id=%s "
+                    "provider=%s query=%r title=%r",
+                    correlation_id,
+                    provider,
+                    _safe_query_for_log(query),
+                    getattr(track, "title", ""),
+                )
+                track = None
+                AudioResolver.last_resolver_error = (
+                    "[NO_ORIGINAL_MATCH] The alternative provider returned a different song title. "
+                    "Try adding the singer/artist or provide a direct link."
+                )
 
             if not track:
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
