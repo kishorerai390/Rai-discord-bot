@@ -914,6 +914,7 @@ class MusicCog(commands.Cog, name="Music"):
         ephemeral: bool = False,
         correlation_id: Optional[str] = None,
         display_name: Optional[str] = None,
+        top: bool = False,
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition."""
         correlation_id = correlation_id or uuid.uuid4().hex[:8].upper()
@@ -1228,14 +1229,19 @@ class MusicCog(commands.Cog, name="Music"):
                 search_dur_ms = search_dur * 1000
 
                 if session.is_playing or session.is_paused or session.has_active_track:
-                    session.queue.append(track)
+                    if top:
+                        session.queue.insert(0, track)
+                    else:
+                        session.queue.append(track)
+                    queue_pos = 1 if top else len(session.queue)
                     logger.info(
                         "[Playback] operation=queued correlation_id=%s title=%r video_id=%s "
-                        "queue_position=%d",
+                        "queue_position=%d top=%s",
                         correlation_id,
                         track.title,
                         _video_id_from_url(track.url) or "unavailable",
-                        len(session.queue),
+                        queue_pos,
+                        top,
                     )
                     # Pre-resolve next track if queue was previously empty
                     if len(session.queue) == 1 and not track.stream_url:
@@ -1251,11 +1257,12 @@ class MusicCog(commands.Cog, name="Music"):
                         total_dur_ms,
                     )
 
+                    pos_text = f"`#{queue_pos}`" + (" (🚀 Next Up / Top of Queue!)" if top else "")
                     embed_queued = discord.Embed(
                         title=f"{EmojiManager.get('QUEUE', self.bot)} MusicMaid ✦ Track Queued",
                         description=f"### [{track.title}]({track.url})\n"
                                     f"👤 **Artist:** `{track.artist}` • ⏱️ **Duration:** `{format_duration(track.duration)}`\n"
-                                    f"📜 **Position in Queue:** `#{len(session.queue)}`",
+                                    f"📜 **Position in Queue:** {pos_text}",
                         color=COLOR_CYAN,
                     )
                     if track.thumbnail:
@@ -1353,12 +1360,15 @@ class MusicCog(commands.Cog, name="Music"):
     # --- 1. PLAYBACK & BASIC CONTROLS ---
 
     @music_group.command(name="play", description="Play a song or URL from YouTube")
-    @app_commands.describe(query="Song title, artist, or URL to play")
-    async def music_play(self, interaction: discord.Interaction, query: str) -> None:
+    @app_commands.describe(
+        query="Song title, artist, or URL to play",
+        top="Play next / insert at the top of the queue (JukeBot style)",
+    )
+    async def music_play(self, interaction: discord.Interaction, query: str, top: bool = False) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
         if not await self._check_permissions(interaction):
             return
-        await self._play_query(interaction, query)
+        await self._play_query(interaction, query, top=top)
 
     @music_play.autocomplete("query")
     async def music_play_autocomplete(
@@ -3198,10 +3208,13 @@ class MusicCog(commands.Cog, name="Music"):
     # =========================================================================
 
     @app_commands.command(name="play", description="Play a song or playlist (Shortcut for /music play)")
-    @app_commands.describe(query="Song title, artist, or URL")
-    async def alias_play(self, interaction: discord.Interaction, query: str) -> None:
+    @app_commands.describe(
+        query="Song title, artist, or URL",
+        top="Play next / insert at the top of the queue (JukeBot style)",
+    )
+    async def alias_play(self, interaction: discord.Interaction, query: str, top: bool = False) -> None:
         try:
-            await self.music_play.callback(self, interaction, query)
+            await self.music_play.callback(self, interaction, query, top=top)
         except Exception as e:
             if isinstance(e, discord.HTTPException) and e.code in (40060, 10062):
                 return
@@ -3370,6 +3383,30 @@ class MusicCog(commands.Cog, name="Music"):
         play_now: bool = False,
     ) -> None:
         await self.playlist_import(interaction, url, name, play_now)
+
+    @app_commands.command(name="radio", description="Launch a 24/7 radio station (JukeBot Radio Suite)")
+    @app_commands.describe(station="Choose a radio genre (lofi, jazz, synthwave, phonk, lounge, workout, etc.)")
+    async def alias_radio(self, interaction: discord.Interaction, station: str) -> None:
+        await self.ensure_deferred(interaction, ephemeral=False)
+        if not await self._check_permissions(interaction):
+            return
+        from music_bot.services.jukebot_service import JukeBotStreamRequest
+        url = JukeBotStreamRequest.get_random_radio_url(station)
+        if not url:
+            stations = ", ".join(f"`{s}`" for s in JukeBotStreamRequest.list_radio_stations())
+            await interaction.followup.send(f"❌ Unknown radio station `{station}`. Available stations: {stations}", ephemeral=True)
+            return
+        await self._play_query(interaction, url, display_name=f"📻 {station.capitalize()} Radio", top=True)
+
+    @alias_radio.autocomplete("station")
+    async def radio_station_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        from music_bot.services.jukebot_service import JukeBotStreamRequest
+        stations = JukeBotStreamRequest.list_radio_stations()
+        return [
+            app_commands.Choice(name=f"📻 {s.capitalize()}", value=s)
+            for s in stations
+            if current.lower() in s.lower()
+        ][:25]
 
     @property
     def alias_autodj(self):
