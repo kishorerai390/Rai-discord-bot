@@ -2211,6 +2211,11 @@ class AudioResolver:
                 cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
         intent = analyze_query_intent(cleaned_query)
+        # For a selected YouTube URL, preserve its human-readable track metadata
+        # so independent providers search for the song rather than the YouTube URL.
+        fallback_search_query = " ".join(
+            part.strip() for part in (title_hint, artist_hint) if part and part.strip()
+        ).strip() or cleaned_query
 
         def _apply_metadata_enhancements(t: Optional[QueuedTrack]) -> Optional[QueuedTrack]:
             if t and spotify_info:
@@ -2403,7 +2408,7 @@ class AudioResolver:
                     # Attempt multi-provider fallback (Audius / Jamendo) before failing
                     try:
                         from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
-                        audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
+                        audius_candidates = await AudiusProviderService.search(fallback_search_query, limit=3)
                         for cand in audius_candidates:
                             if is_alternative_provider_candidate(cand, intent):
                                 fb_track = QueuedTrack(
@@ -2423,7 +2428,7 @@ class AudioResolver:
                                 )
                                 return fb_track
 
-                        jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
+                        jamendo_candidates = await JamendoProviderService.search(fallback_search_query, limit=3)
                         for cand in jamendo_candidates:
                             if is_original_recording_candidate(cand, intent):
                                 fb_track = QueuedTrack(
@@ -2838,7 +2843,7 @@ class AudioResolver:
 
         # Stage 4: Intelligent Multi-Provider Fallback (Audius & Jamendo)
         # When YouTube times out or fails, search secondary permitted providers
-        if not is_direct_url and (cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "YOUTUBE_RATE_LIMITED", "ACCESS_RESTRICTION", "UNAVAILABLE_FORMAT"} or "timed out" in lower_failure_reason):
+        if (not is_direct_url or "youtube.com" in cleaned_query.lower() or "youtu.be" in cleaned_query.lower()) and (cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "YOUTUBE_RATE_LIMITED", "ACCESS_RESTRICTION", "UNAVAILABLE_FORMAT"} or "timed out" in lower_failure_reason):
             logger.info(
                 f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{cleaned_query[:40]}'"
             )
