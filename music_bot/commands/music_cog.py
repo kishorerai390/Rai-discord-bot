@@ -1097,10 +1097,26 @@ class MusicCog(commands.Cog, name="Music"):
                         correlation_id,
                         type(search_exc).__name__,
                     )
-                # MusicMaid now resolves the best-ranked candidate directly for normal
-                # text searches. Avoid the dropdown that interrupted playback flow.
-                # Explicit URLs remain pinned to their supplied identity.
-                
+                # Do not show a dropdown, but never auto-play an uncertain title match.
+                # A short, clear failure is safer than silently playing the wrong song.
+                if requires_candidate_confirmation(candidates):
+                    logger.warning(
+                        "[Playback] operation=ambiguous_search_rejected correlation_id=%s "
+                        "top_title=%r confidence=%s ratio=%s",
+                        correlation_id,
+                        candidates[0].get("title"),
+                        candidates[0].get("_title_match_confidence", "unknown"),
+                        candidates[0].get("_title_match_ratio", "unknown"),
+                    )
+                    await self.send_ephemeral_or_fallback(
+                        interaction,
+                        content=(
+                            "⚠️ I couldn't confidently identify that exact song, so I didn't play a near-match. "
+                            "Try adding the singer/artist or a few more words from the title."
+                        ),
+                    )
+                    return
+
             # Pin ordinary text searches to the best ranked candidate URL. Re-running
             # the original text inside the resolver performs a second search and can
             # silently swap a requested title (e.g. KALYANI) for a near-spelling match.
@@ -4081,9 +4097,24 @@ class MusicCog(commands.Cog, name="Music"):
                     correlation_id,
                     type(search_exc).__name__,
                 )
-        # Prefix play follows the same direct best-match flow; do not interrupt
-        # ordinary requests with the song-selection dropdown.
-        
+        # No dropdown: reject uncertain matches rather than playing the wrong song.
+        if requires_candidate_confirmation(candidates):
+            logger.warning(
+                "[Playback] operation=ambiguous_search_rejected correlation_id=%s "
+                "top_title=%r confidence=%s ratio=%s",
+                correlation_id,
+                candidates[0].get("title"),
+                candidates[0].get("_title_match_confidence", "unknown"),
+                candidates[0].get("_title_match_ratio", "unknown"),
+            )
+            await status_msg.edit(
+                content=(
+                    "⚠️ I couldn't confidently identify that exact song, so I didn't play a near-match. "
+                    "Try adding the singer/artist or more title words."
+                )
+            )
+            return
+
         # Use the top-ranked search result as an exact YouTube URL so the
         # resolver cannot perform a second title search and pick a near-match.
         resolve_query = query
