@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
+    buildCommand: (command -v deno >/dev/null 2>&1 || curl -fsSL https://deno.land/install.sh | sh) && export PATH="$HOME/.deno/bin:$PATH" && pip install -r requirements.txt && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
     startCommand: python main.py
     healthCheckPath: /api/health
     envVars:

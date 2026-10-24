@@ -978,9 +978,17 @@ def _detect_js_runtimes() -> Dict[str, Any]:
 
     deno_path = shutil.which("deno")
     if not deno_path:
-        deno_home = Path.home() / ".deno" / "bin" / "deno"
-        if deno_home.exists():
-            deno_path = str(deno_home)
+        for candidate in [
+            Path.home() / ".deno" / "bin" / "deno",
+            Path("/usr/local/bin/deno"),
+            Path("/usr/bin/deno"),
+            Path(".tools/bin/deno"),
+            Path("/root/.deno/bin/deno"),
+            Path("/opt/render/.deno/bin/deno"),
+        ]:
+            if candidate.exists():
+                deno_path = str(candidate)
+                break
 
     if deno_path:
         runtimes["deno"] = {"path": deno_path}
@@ -1280,6 +1288,9 @@ def _build_ytdl_options(
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
         "restrictfilenames": True,
         "noplaylist": True,
+        "nocheckcertificate": True,
+        "source_address": "0.0.0.0",
+        "cachedir": False,
         "ignoreerrors": False,
         "logtostderr": False,
         "quiet": True,
