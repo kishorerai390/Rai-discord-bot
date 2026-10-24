@@ -337,6 +337,28 @@ def _candidate_match_metrics(
     return title_hits / len(query_tokens), combined_hits / len(query_tokens), title_confidence
 
 
+def _has_exact_core_title_identity(
+    candidate: Dict[str, Any],
+    query_intent: Dict[str, Any],
+) -> bool:
+    """Reject near-spelling substitutions for meaningful query title words.
+
+    Fuzzy similarity is useful for ranking, but must not let 'Kalyan' stand in
+    for 'Kalyani' when choosing an actual playable recording.
+    """
+    core_tokens = [
+        token for token in re.findall(r"\w+", str(query_intent.get("core_title") or "").casefold())
+        if len(token) >= 4
+    ]
+    if not core_tokens:
+        return True
+    title_tokens = {
+        token for token in re.findall(r"\w+", str(candidate.get("title") or "").casefold())
+        if len(token) >= 4
+    }
+    return all(token in title_tokens for token in core_tokens)
+
+
 def score_candidate_detailed(
     candidate: Dict[str, Any],
     query_intent: Dict[str, Any],
@@ -662,6 +684,8 @@ def is_original_recording_candidate(
         candidate,
         query_intent,
     )
+    if not _has_exact_core_title_identity(candidate, query_intent):
+        return False
     if title_match_ratio < 0.5 or combined_match_ratio < 0.75:
         return False
 
@@ -735,6 +759,8 @@ def is_alternative_provider_candidate(
         return False
 
     title_match_ratio, combined_match_ratio, _ = _candidate_match_metrics(candidate, query_intent)
+    if not _has_exact_core_title_identity(candidate, query_intent):
+        return False
     return title_match_ratio >= 0.5 and combined_match_ratio >= 0.75
 
 
