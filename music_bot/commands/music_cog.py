@@ -1079,12 +1079,34 @@ class MusicCog(commands.Cog, name="Music"):
                 # text searches. Avoid the dropdown that interrupted playback flow.
                 # Explicit URLs remain pinned to their supplied identity.
                 
+            # Pin ordinary text searches to the best ranked candidate URL. Re-running
+            # the original text inside the resolver performs a second search and can
+            # silently swap a requested title (e.g. KALYANI) for a near-spelling match.
+            resolve_query = query
+            if (
+                not query.startswith(("http://", "https://"))
+                and not re.match(r"spotify:(?:track|playlist|album):", query, re.IGNORECASE)
+                and "spotify.com/" not in query.casefold()
+                and "music.apple.com/" not in query.casefold()
+                and candidates
+            ):
+                best_url = str(candidates[0].get("url") or "").strip()
+                if _video_id_from_url(best_url):
+                    resolve_query = best_url
+                    logger.info(
+                        "[Playback] operation=ranked_candidate_pinned correlation_id=%s "
+                        "video_id=%s title=%r",
+                        correlation_id,
+                        _video_id_from_url(best_url),
+                        candidates[0].get("title"),
+                    )
+
             search_start = time.time()
             is_timed_out = False
             try:
                 track = await asyncio.wait_for(
                     AudioResolver.resolve_track(
-                        query,
+                        resolve_query,
                         member.id,
                         str(member),
                         correlation_id=correlation_id,
@@ -4014,10 +4036,30 @@ class MusicCog(commands.Cog, name="Music"):
         # Prefix play follows the same direct best-match flow; do not interrupt
         # ordinary requests with the song-selection dropdown.
         
+        # Use the top-ranked search result as an exact YouTube URL so the
+        # resolver cannot perform a second title search and pick a near-match.
+        resolve_query = query
+        if (
+            not query.startswith(("http://", "https://"))
+            and "spotify.com/" not in query.casefold()
+            and "music.apple.com/" not in query.casefold()
+            and candidates
+        ):
+            best_url = str(candidates[0].get("url") or "").strip()
+            if _video_id_from_url(best_url):
+                resolve_query = best_url
+                logger.info(
+                    "[Playback] operation=ranked_candidate_pinned correlation_id=%s "
+                    "video_id=%s title=%r",
+                    correlation_id,
+                    _video_id_from_url(best_url),
+                    candidates[0].get("title"),
+                )
+
         try:
             track = await asyncio.wait_for(
                 AudioResolver.resolve_track(
-                    query,
+                    resolve_query,
                     ctx.author.id,
                     str(ctx.author),
                     correlation_id=correlation_id,
