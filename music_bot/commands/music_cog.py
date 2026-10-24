@@ -3103,7 +3103,9 @@ class MusicCog(commands.Cog, name="Music"):
     @app_commands.describe(query="Song title, artist, or URL")
     async def alias_play(self, interaction: discord.Interaction, query: str) -> None:
         try:
-            await self.ensure_deferred(interaction, ephemeral=False)
+            # Delegate acknowledgement to music_play exactly once. The shared
+            # handler already defers when needed, so pre-deferring here can
+            # trigger Discord 40060 when the callback handles the same interaction.
             await self.music_play.callback(self, interaction, query)
         except Exception as e:
             logger.error(f"[Playback] Uncaught error in alias_play (/play): {e}", exc_info=True)
