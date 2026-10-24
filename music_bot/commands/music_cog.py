@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import random
+import re
 import sys
 import time
 import uuid
@@ -1100,7 +1101,10 @@ class MusicCog(commands.Cog, name="Music"):
                             selected_interaction,
                             selected_url,
                             correlation_id=correlation_id,
-                            fallback_query=query,
+                            # A selected result is an explicit identity choice. Do not
+                            # retry the broad search query here: it can resolve to a
+                            # different song (e.g. KALYAM instead of KALYANI).
+                            fallback_query=None,
                         )
 
                     selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
