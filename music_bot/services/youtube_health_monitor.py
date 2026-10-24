@@ -131,3 +131,13 @@ def cooldown_status() -> Dict[str, Any]:
         remaining = max(0, int(_COOLDOWN_UNTIL - now_mono))
         return {"last_failure": _LAST_FAILURE, "last_failure_at": _LAST_FAILURE_AT or None,
                 "cooldown_active": remaining > 0, "cooldown_remaining_seconds": remaining}
+
+
+def reset_cooldown() -> None:
+    """Reset the failure cooldown and last recorded failure state."""
+    global _COOLDOWN_UNTIL, _LAST_FAILURE, _LAST_FAILURE_AT, _LAST_STATUS_LOGGED
+    with _LOCK:
+        _COOLDOWN_UNTIL = 0.0
+        _LAST_FAILURE = "none"
+        _LAST_FAILURE_AT = 0.0
+        _LAST_STATUS_LOGGED = None

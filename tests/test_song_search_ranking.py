@@ -736,6 +736,7 @@ class TestSongSearchRanking(unittest.TestCase):
                 )
 
             AudioResolver.last_resolver_error = None
+            AudioResolver.clear_caches()
             mock_ydl.extract_info.side_effect = None
             mock_ydl.extract_info.return_value = {"entries": []}
             with patch("yt_dlp.YoutubeDL", return_value=mock_ydl), patch.object(
@@ -922,6 +923,37 @@ class TestSongSearchRanking(unittest.TestCase):
         self.assertGreater(s_live, s_studio, "Explicit live request must prioritize concert version")
         self.assertTrue(any("requested_live_boost" in r for r in r_live))
 
+    # =========================================================================
+    # 13. WEAK TITLE MATCH DOES NOT WIN DUE TO OFFICIAL CHANNEL BADGE
+    # =========================================================================
+    def test_13_weak_title_match_does_not_win_due_to_official_channel(self):
+        """
+        Verify that a weak title match (e.g. 'Mere Sapnon Ki Rani - Vibe Mix' from 'Kishore Kumar - Topic')
+        does not win over a direct title match for 'Vibe Mix kishore' merely due to official publisher status.
+        """
+        intent = analyze_query_intent("Vibe Mix kishore")
+        weak_topic_cand = {
+            "title": "Mere Sapnon Ki Rani - Vibe Mix",
+            "uploader": "Kishore Kumar - Topic",
+            "duration": 240,
+        }
+        direct_title_cand = {
+            "title": "Vibe Mix kishore",
+            "uploader": "Kishore",
+            "duration": 180,
+        }
+
+        s_weak, r_weak = score_candidate_detailed(weak_topic_cand, intent)
+        s_direct, r_direct = score_candidate_detailed(direct_title_cand, intent)
+
+        self.assertGreater(
+            s_direct,
+            s_weak,
+            "Direct title match must score higher than a weak title match from a topic channel",
+        )
+        self.assertTrue(any("publisher_bonus_suppressed" in r for r in r_weak))
+
 
 if __name__ == "__main__":
     unittest.main()
+
