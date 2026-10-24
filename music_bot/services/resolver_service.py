@@ -686,12 +686,12 @@ def _is_strong_fallback_title_match(candidate: Dict[str, Any], query_intent: Dic
     multi-word queries retain the existing broader ranking rules.
     """
     query_tokens = [
-        token for token in re.findall(r"\\w+", str(query_intent.get("core_title") or "").casefold())
+        token for token in re.findall(r"\w+", str(query_intent.get("core_title") or "").casefold())
         if len(token) > 1
     ]
     if len(query_tokens) != 1 or len(query_tokens[0]) < 4:
         return True
-    title_tokens = set(re.findall(r"\\w+", str(candidate.get("title") or "").casefold()))
+    title_tokens = set(re.findall(r"\w+", str(candidate.get("title") or "").casefold()))
     return query_tokens[0] in title_tokens
 
 
