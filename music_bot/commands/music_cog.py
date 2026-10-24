@@ -913,6 +913,7 @@ class MusicCog(commands.Cog, name="Music"):
         query: str,
         ephemeral: bool = False,
         correlation_id: Optional[str] = None,
+        display_name: Optional[str] = None,
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition."""
         correlation_id = correlation_id or uuid.uuid4().hex[:8].upper()
@@ -990,13 +991,20 @@ class MusicCog(commands.Cog, name="Music"):
                     return
 
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
+            if display_name:
+                resolving_desc = f"Searching: `{display_name[:100]}`...\n*Contacting audio resolver without delay...*"
+            elif query.startswith(("http://", "https://", "spotify:")):
+                resolving_desc = "Resolving audio track...\n*Contacting audio resolver without delay...*"
+            else:
+                resolving_desc = f"Searching: `{query[:100]}`...\n*Contacting audio resolver without delay...*"
+
             embed_loading = discord.Embed(
                 title=f"{EmojiManager.get('SEARCH', self.bot)} MusicMaid ✦ Resolving Track",
-                description=f"Searching: `{query[:100]}`...\n*Contacting audio resolver without delay...*",
+                description=resolving_desc,
                 color=COLOR_CYAN,
             )
             try:
-                await interaction.edit_original_response(embed=embed_loading)
+                await interaction.edit_original_response(content=None, embed=embed_loading, view=None)
             except Exception as load_err:
                 logger.debug(f"[Playback] Notice setting loading embed: {load_err}")
 
@@ -1029,11 +1037,12 @@ class MusicCog(commands.Cog, name="Music"):
                     ) -> None:
                         selected = candidates[selected_index]
                         selected_url = selected.get("url") or ""
+                        selected_title = selected.get("title") or ""
                         logger.info(
                             "[Playback] operation=candidate_selected correlation_id=%s "
                             "title=%r video_id=%s score=%s",
                             correlation_id,
-                            selected.get("title"),
+                            selected_title,
                             selected.get("id") or _video_id_from_url(selected_url) or "unavailable",
                             selected.get("_match_score", "unavailable"),
                         )
@@ -1041,6 +1050,7 @@ class MusicCog(commands.Cog, name="Music"):
                             selected_interaction,
                             selected_url,
                             correlation_id=correlation_id,
+                            display_name=selected_title,
                         )
 
                     selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
@@ -1128,12 +1138,16 @@ class MusicCog(commands.Cog, name="Music"):
                 )
 
             if not track:
+                display_query_for_user = display_name or query
+                if not display_name and display_query_for_user.startswith(("http://", "https://", "spotify:")):
+                    display_query_for_user = "selected track"
+
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
                 if is_timed_out:
                     embed_fail = discord.Embed(
                         title=f"{EmojiManager.get('LOADING', self.bot)} MusicMaid ✦ SEARCH TIMED OUT",
                         description=(
-                            f"The music search for `{_safe_query_for_log(query)}` exceeded the search deadline.\n\n"
+                            f"The music search for `{display_query_for_user[:100]}` exceeded the search deadline.\n\n"
                             f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting upstream providers.'}`\n"
                             f"• **Supported Sources:** YouTube, Audius, Jamendo, Spotify & Apple Music metadata, and direct audio URLs.\n"
                             f"• **Tip:** Try repeating your search or use a direct song/stream URL."
@@ -1145,7 +1159,7 @@ class MusicCog(commands.Cog, name="Music"):
                         title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ VIDEO UNAVAILABLE",
                         description=(
                             f"YouTube reports that this video is unavailable, removed, or private.\n"
-                            f"Query: `{_safe_query_for_log(query)}`\n\n"
+                            f"Track: `{display_query_for_user[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err}`\n"
                             f"• **Try:** Use a different public YouTube link, or search by song title and singer."
                         ),
@@ -1164,7 +1178,7 @@ class MusicCog(commands.Cog, name="Music"):
                     embed_fail = discord.Embed(
                         title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ No Audio Track Found",
                         description=(
-                            f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nQuery: `{_safe_query_for_log(query)}`\n\n"
+                            f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nTrack: `{display_query_for_user[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
                             f"• **Supported Sources:** YouTube, Audius, Jamendo, Spotify & Apple Music metadata, and direct audio URLs."
                             f"{cookie_hint}"
@@ -1378,7 +1392,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         async def on_select(inter: discord.Interaction, idx: int):
             chosen = candidates[idx]
-            await self._play_query(inter, chosen["url"])
+            await self._play_query(inter, chosen["url"], display_name=chosen.get("title"))
 
         view = TrackSelectView(candidates, interaction.user.id, on_select)
         await interaction.followup.send("🐱 **Select a track to play:**", view=view)
@@ -1867,7 +1881,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         async def on_select(inter: discord.Interaction, idx: int):
             chosen = candidates[idx]
-            await self._play_query(inter, chosen["url"])
+            await self._play_query(inter, chosen["url"], display_name=chosen.get("title"))
 
         view = TrackSelectView(candidates, interaction.user.id, on_select)
         await interaction.followup.send(f"🎧 **Neko Recommendations ({mode.name}):**", view=view)
@@ -2037,7 +2051,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         # Queue first track immediately
         first = favs[0]
-        await self._play_query(interaction, first.url)
+        await self._play_query(interaction, first.url, display_name=getattr(first, "title", None))
         # Queue remainder in background
         for f in favs[1:]:
             try:
@@ -2155,7 +2169,7 @@ class MusicCog(commands.Cog, name="Music"):
             return
 
         first = pl.tracks[0]
-        await self._play_query(interaction, first.url)
+        await self._play_query(interaction, first.url, display_name=getattr(first, "title", None))
         for t in pl.tracks[1:]:
             try:
                 resolved = await AudioResolver.resolve_track(t.url, interaction.user.id, str(interaction.user))
@@ -3951,7 +3965,11 @@ class MusicCog(commands.Cog, name="Music"):
             _safe_query_for_log(query),
             _safe_query_for_log(" ".join(query.split())),
         )
-        status_msg = await ctx.reply(f"🔍 Searching for `{query[:60]}`... 🐾", mention_author=False)
+        if query.startswith(("http://", "https://", "spotify:")):
+            search_prefix = "Resolving audio track... 🐾"
+        else:
+            search_prefix = f"🔍 Searching for `{query[:60]}`... 🐾"
+        status_msg = await ctx.reply(search_prefix, mention_author=False)
         candidates = []
         if not query.startswith(("http://", "https://")):
             try:
@@ -3974,11 +3992,12 @@ class MusicCog(commands.Cog, name="Music"):
             ) -> None:
                 selected = candidates[selected_index]
                 selected_url = selected.get("url") or ""
+                selected_title = selected.get("title") or ""
                 logger.info(
                     "[Playback] operation=candidate_selected correlation_id=%s "
                     "title=%r video_id=%s score=%s",
                     correlation_id,
-                    selected.get("title"),
+                    selected_title,
                     selected.get("id") or _video_id_from_url(selected_url) or "unavailable",
                     selected.get("_match_score", "unavailable"),
                 )
@@ -3986,6 +4005,7 @@ class MusicCog(commands.Cog, name="Music"):
                     selected_interaction,
                     selected_url,
                     correlation_id=correlation_id,
+                    display_name=selected_title,
                 )
 
             selection_view = TrackSelectView(candidates, ctx.author.id, on_candidate_select)

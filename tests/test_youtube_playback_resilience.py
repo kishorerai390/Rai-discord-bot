@@ -22,6 +22,7 @@ from __future__ import annotations
 import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
+import discord
 import pytest
 
 from music_bot.database.models import QueuedTrack
@@ -351,3 +352,81 @@ def test_no_secrets_in_cookie_diagnostics(tmp_path):
         assert secret_token not in diag_repr
         assert diag["present"] is True
         assert diag["is_valid"] is True
+
+
+# ---------------------------------------------------------------------------
+# 13. Resolving Embed Hides Raw URLs
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_resolving_embed_hides_raw_url_and_clears_view():
+    """Verify loading and resolving embeds do not display raw URLs and dismiss views."""
+    from music_bot.commands.music_cog import MusicCog
+
+    mock_bot = MagicMock()
+    mock_bot.db = AsyncMock()
+    cog = MusicCog(mock_bot)
+
+    mock_interaction = MagicMock()
+    mock_interaction.response.is_done.return_value = True
+    mock_interaction.guild_id = 9999
+    mock_guild = MagicMock(spec=discord.Guild)
+    mock_guild.id = 9999
+    mock_interaction.guild = mock_guild
+    mock_member = MagicMock(spec=discord.Member)
+    mock_member.id = 12345
+    mock_member.guild_permissions.administrator = True
+    mock_interaction.user = mock_member
+    mock_channel = MagicMock(spec=discord.TextChannel)
+    mock_interaction.channel = mock_channel
+    mock_interaction.edit_original_response = AsyncMock()
+    mock_interaction.followup.send = AsyncMock()
+
+    # Case A: URL with display_name (e.g. chosen from candidate dropdown)
+    with patch.object(AudioResolver, "resolve_track", new_callable=AsyncMock, return_value=None), \
+         patch.object(cog.session_manager, "get_session", new_callable=AsyncMock) as mock_get_sess, \
+         patch("music_bot.services.voice_service.VoiceManager.join_voice_channel", new_callable=AsyncMock, return_value=MagicMock()):
+        mock_sess = MagicMock()
+        mock_sess.lock = asyncio.Lock()
+        mock_get_sess.return_value = mock_sess
+
+        await cog._play_query(
+            mock_interaction,
+            "https://www.youtube.com/watch?v=jR3rWCBeO6M",
+            display_name="Raadhima (Official Video)",
+        )
+
+        # Inspect call args to edit_original_response for the loading embed
+        calls = mock_interaction.edit_original_response.call_args_list
+        assert len(calls) >= 1
+        loading_call = calls[0]
+        embed = loading_call.kwargs.get("embed")
+        assert embed is not None
+        assert "https://" not in embed.description
+        assert "youtube.com" not in embed.description
+        assert "Raadhima (Official Video)" in embed.description
+        assert loading_call.kwargs.get("content") is None
+        assert loading_call.kwargs.get("view") is None
+
+    # Case B: Direct URL without display_name
+    mock_interaction.reset_mock()
+    with patch.object(AudioResolver, "resolve_track", new_callable=AsyncMock, return_value=None), \
+         patch.object(cog.session_manager, "get_session", new_callable=AsyncMock) as mock_get_sess, \
+         patch("music_bot.services.voice_service.VoiceManager.join_voice_channel", new_callable=AsyncMock, return_value=MagicMock()):
+        mock_sess = MagicMock()
+        mock_sess.lock = asyncio.Lock()
+        mock_get_sess.return_value = mock_sess
+
+        await cog._play_query(
+            mock_interaction,
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        )
+
+        calls = mock_interaction.edit_original_response.call_args_list
+        assert len(calls) >= 1
+        loading_call = calls[0]
+        embed = loading_call.kwargs.get("embed")
+        assert embed is not None
+        assert "https://" not in embed.description
+        assert "youtube.com" not in embed.description
+        assert "Resolving audio track" in embed.description
+
