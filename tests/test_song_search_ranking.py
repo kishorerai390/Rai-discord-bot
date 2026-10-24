@@ -465,11 +465,11 @@ class TestSongSearchRanking(unittest.TestCase):
             def youtube_dl(options):
                 options_used.append(options)
                 ydl = MagicMock()
-                is_cookie_android_vr = (
+                is_cookie_compatible_client = (
                     bool(options.get("cookiefile"))
-                    and options["extractor_args"]["youtube"].get("player_client") == ["android_vr"]
+                    and options["extractor_args"]["youtube"].get("player_client") == ["web"]
                 )
-                if is_cookie_android_vr:
+                if is_cookie_compatible_client:
                     ydl.extract_info.return_value = {
                         "title": "Kalyani - Official Music Video",
                         "webpage_url": "https://www.youtube.com/watch?v=original1234",
@@ -498,6 +498,11 @@ class TestSongSearchRanking(unittest.TestCase):
             self.assertIsNotNone(track)
             self.assertTrue(track.stream_url)
             self.assertTrue(any(
+                options.get("cookiefile")
+                and options["extractor_args"]["youtube"].get("player_client") == ["web"]
+                for options in options_used
+            ))
+            self.assertFalse(any(
                 options.get("cookiefile")
                 and options["extractor_args"]["youtube"].get("player_client") == ["android_vr"]
                 for options in options_used
@@ -769,7 +774,17 @@ class TestSongSearchRanking(unittest.TestCase):
                 AudioResolver,
                 "search",
                 new=AsyncMock(return_value=[]),
+            ), patch(
+                "music_bot.services.resolver_service.youtube_cooldown_status",
+                return_value={
+                    "cooldown_active": False,
+                    "cooldown_remaining_seconds": 0,
+                    "last_failure": "none",
+                    "last_failure_at": None,
+                },
             ):
+                # The prior timeout scenario deliberately activates a process-local
+                # cooldown. Isolate this no-results scenario from that shared state.
                 track = await AudioResolver._execute_resolution_pipeline(
                     "no results regression query",
                     123,

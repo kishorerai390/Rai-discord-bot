@@ -48,14 +48,14 @@ class MusicDatabase:
             return None
         backup_dir = self.db_path.parent / "backups" / "db"
         backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
         backup_file = backup_dir / f"music_{timestamp}_{reason}.db"
         try:
-            shutil.copy2(str(self.db_path), str(backup_file))
+            shutil.copyfile(str(self.db_path), str(backup_file))
             logger.info(f"[Database] Created database backup: {backup_file.name}")
 
             # Retention pruning: keep only max_backups most recent
-            existing = sorted(backup_dir.glob("music_*.db"), key=lambda p: p.stat().st_mtime)
+            existing = sorted(backup_dir.glob("music_*.db"), key=lambda p: (p.stat().st_mtime_ns, p.name))
             if len(existing) > max_backups:
                 for old in existing[:-max_backups]:
                     try:

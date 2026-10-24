@@ -2,7 +2,11 @@
 
 import pytest
 
-from music_bot.services.resolver_service import _is_youtube_access_challenge
+from music_bot.services.resolver_service import (
+    _build_ytdl_options,
+    _is_youtube_access_challenge,
+    _should_attempt_cookie_fallback,
+)
 
 
 @pytest.mark.parametrize(
@@ -33,3 +37,59 @@ def test_detects_explicit_youtube_access_challenges(message):
 )
 def test_does_not_misclassify_other_resolver_errors(message):
     assert _is_youtube_access_challenge(message) is False
+
+
+
+def test_cookie_fallback_is_allowed_after_public_access_challenge():
+    # A sign-in/bot challenge should trigger the configured authenticated tier.
+    assert _should_attempt_cookie_fallback(
+        ["https://www.youtube.com/watch?v=example"],
+        "/tmp/verified-cookies.txt",
+        youtube_rate_limited=False,
+        youtube_access_blocked=True,
+        youtube_timed_out=False,
+    ) is True
+
+
+def test_cookie_fallback_stays_disabled_without_verified_cookies_or_after_rate_limit():
+    candidate = ["https://www.youtube.com/watch?v=example"]
+    assert _should_attempt_cookie_fallback(
+        candidate, None, False, True, False
+    ) is False
+    assert _should_attempt_cookie_fallback(
+        candidate, "/tmp/verified-cookies.txt", True, False, False
+    ) is False
+    assert _should_attempt_cookie_fallback(
+        candidate, "/tmp/verified-cookies.txt", False, False, True
+    ) is False
+
+def test_bgutil_provider_url_is_passed_to_ytdlp(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_POT_PROVIDER_URL", "https://pot.example.test/")
+    options = _build_ytdl_options(player_clients=["web"])
+    assert options["extractor_args"]["youtubepot-bgutilhttp"] == {
+        "base_url": "https://pot.example.test",
+    }
+
+
+def test_bgutil_provider_is_not_hardcoded_when_unconfigured(monkeypatch):
+    monkeypatch.delenv("YOUTUBE_POT_PROVIDER_URL", raising=False)
+    options = _build_ytdl_options(player_clients=["web"])
+    assert "youtubepot-bgutilhttp" not in options["extractor_args"]
+
+def test_automatic_provider_takes_precedence_over_static_po_token(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_POT_PROVIDER_URL", "https://pot.example.test")
+    monkeypatch.setenv("PO_TOKEN", "static-token")
+    options = _build_ytdl_options(player_clients=["web"])
+    assert "po_token" not in options["extractor_args"]["youtube"]
+    assert options["extractor_args"]["youtubepot-bgutilhttp"]["base_url"] == "https://pot.example.test"
+
+
+def test_manual_po_token_uses_yt_dlp_gvs_syntax_without_provider(monkeypatch):
+    monkeypatch.delenv("YOUTUBE_POT_PROVIDER_URL", raising=False)
+    monkeypatch.setenv("PO_TOKEN", "static-token")
+    options = _build_ytdl_options(player_clients=["web"])
+    assert options["extractor_args"]["youtube"]["po_token"] == [
+        "web.gvs+static-token",
+        "mweb.gvs+static-token",
+    ]
+

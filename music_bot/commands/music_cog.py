@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import random
+import re
 import sys
 import time
 import uuid
@@ -70,6 +71,7 @@ from music_bot.services.resolver_service import (
     AudioResolver,
     _safe_query_for_log,
     _video_id_from_url,
+    analyze_query_intent,
     requires_candidate_confirmation,
 )
 from music_bot.services.session_service import (
@@ -84,6 +86,27 @@ if TYPE_CHECKING:
     from music_bot.bot import RaiMusicBot
 
 logger = logging.getLogger("NekoSongs.Commands")
+
+
+def _alternative_track_matches_query(query: str, track: Any) -> bool:
+    """Reject alternative-provider fallbacks whose title changes the requested song identity."""
+    intent = analyze_query_intent(query)
+    core_tokens = [
+        token for token in re.findall(r"\w+", str(intent.get("core_title") or "").casefold())
+        if len(token) >= 4
+    ]
+    if not core_tokens:
+        return True
+    identity_tokens = set(
+        re.findall(
+            r"\w+",
+            " ".join(
+                str(getattr(track, field, "") or "")
+                for field in ("title", "artist")
+            ).casefold(),
+        )
+    )
+    return all(token in identity_tokens for token in core_tokens)
 
 
 # =============================================================================
@@ -957,6 +980,97 @@ class MusicCog(commands.Cog, name="Music"):
                     await self.send_ephemeral_or_fallback(interaction, embed=embed_conn_err)
                     return
 
+            # Spotify playlists/albums are metadata collections, not playable audio URLs.
+            # Convert the collection into ordered queue entries; the player resolves each
+            # Spotify track URL to a supported playable provider only when it reaches playback.
+            spotify_collection_url = bool(
+                re.search(
+                    r"(?:open\.)?spotify\.com/(?:intl-[a-z]{2}/)?(?:playlist|album)/[A-Za-z0-9]+",
+                    query,
+                    re.IGNORECASE,
+                )
+                or re.match(r"spotify:(?:playlist|album):[A-Za-z0-9]+", query, re.IGNORECASE)
+            )
+            if spotify_collection_url:
+                try:
+                    from music_bot.services.importer_service import PlaylistImporterService
+
+                    playlist_title, playlist_tracks, _platform = await PlaylistImporterService.extract_tracks_from_url(
+                        query,
+                        requester_id=member.id,
+                        requester_name=str(member),
+                        limit=100,
+                    )
+                except Exception as collection_exc:
+                    playlist_tracks = []
+                    logger.warning(
+                        "[Playback] operation=spotify_collection correlation_id=%s outcome=failed error_type=%s",
+                        correlation_id,
+                        type(collection_exc).__name__,
+                    )
+
+                if not playlist_tracks:
+                    await self.send_ephemeral_or_fallback(
+                        interaction,
+                        content=(
+                            "❌ I couldn't load tracks from that Spotify playlist or album. "
+                            "Check that the link is public and Spotify metadata credentials are configured."
+                        ),
+                    )
+                    return
+
+                if playlist_tracks:
+                    # De-duplicate Spotify IDs/URLs both within the imported list and
+                    # against the current queue. Do not resolve every track up front:
+                    # that would multiply provider timeouts for large playlists.
+                    seen_urls = {
+                        str(getattr(item, "url", "")).strip().casefold()
+                        for item in list(session.queue) + ([session.current_track] if session.current_track else [])
+                        if getattr(item, "url", "")
+                    }
+                    unique_tracks = []
+                    for item in playlist_tracks:
+                        item_url = str(getattr(item, "url", "")).strip()
+                        if not item_url or item_url.casefold() in seen_urls:
+                            continue
+                        seen_urls.add(item_url.casefold())
+                        unique_tracks.append(item)
+
+                    if not unique_tracks:
+                        await self.send_ephemeral_or_fallback(
+                            interaction,
+                            content="ℹ️ Those Spotify tracks are already in the queue (or the collection had no new tracks).",
+                        )
+                        return
+
+                    async with session.lock:
+                        for item in unique_tracks:
+                            session.queue.append(item)
+                        started = False
+                        if not session.has_active_track and not session.is_playing and not session.is_paused and session.queue:
+                            first_track = session.queue.popleft()
+                            session._play_request_correlation_id = correlation_id
+                            started = await MusicPlayerService.start_playback(self.bot, session, first_track)
+
+                    queued_count = len(unique_tracks)
+                    embed_collection = discord.Embed(
+                        title="🎧 MusicMaid ✦ Spotify Autoplay",
+                        description=(
+                            f"**{playlist_title or 'Spotify collection'}**\n"
+                            f"Added **{queued_count}** track(s) in Spotify order.\n\n"
+                            "Tracks are matched to playable audio sources as they reach playback; "
+                            "Spotify itself does not provide the bot with a full audio stream."
+                        ),
+                        color=COLOR_CYAN,
+                    )
+                    if started and session.current_track and session.current_track.thumbnail:
+                        embed_collection.set_thumbnail(url=session.current_track.thumbnail)
+                    try:
+                        await interaction.edit_original_response(content=None, embed=embed_collection, view=None)
+                    except Exception:
+                        await interaction.followup.send(embed=embed_collection)
+                    return
+
             # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
             embed_loading = discord.Embed(
                 title=f"{EmojiManager.get('SEARCH', self.bot)} MusicMaid ✦ Resolving Track",
@@ -983,49 +1097,54 @@ class MusicCog(commands.Cog, name="Music"):
                         correlation_id,
                         type(search_exc).__name__,
                     )
+                # Do not show a dropdown, but never auto-play an uncertain title match.
+                # A short, clear failure is safer than silently playing the wrong song.
                 if requires_candidate_confirmation(candidates):
-                    logger.info(
-                        "[Playback] operation=candidate_confirmation correlation_id=%s "
-                        "candidate_count=%d outcome=required",
+                    logger.warning(
+                        "[Playback] operation=ambiguous_search_rejected correlation_id=%s "
+                        "top_title=%r confidence=%s ratio=%s",
                         correlation_id,
-                        len(candidates),
+                        candidates[0].get("title"),
+                        candidates[0].get("_title_match_confidence", "unknown"),
+                        candidates[0].get("_title_match_ratio", "unknown"),
                     )
-
-                    async def on_candidate_select(
-                        selected_interaction: discord.Interaction,
-                        selected_index: int,
-                    ) -> None:
-                        selected = candidates[selected_index]
-                        selected_url = selected.get("url") or ""
-                        logger.info(
-                            "[Playback] operation=candidate_selected correlation_id=%s "
-                            "title=%r video_id=%s score=%s",
-                            correlation_id,
-                            selected.get("title"),
-                            selected.get("id") or _video_id_from_url(selected_url) or "unavailable",
-                            selected.get("_match_score", "unavailable"),
-                        )
-                        await self._play_query(
-                            selected_interaction,
-                            selected_url,
-                            correlation_id=correlation_id,
-                            fallback_query=query,
-                        )
-
-                    selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
-                    await interaction.edit_original_response(
-                        content="Several results are plausible, or the best match is uncertain. Choose the intended track:",
-                        embed=None,
-                        view=selection_view,
+                    await self.send_ephemeral_or_fallback(
+                        interaction,
+                        content=(
+                            "⚠️ I couldn't confidently identify that exact song, so I didn't play a near-match. "
+                            "Try adding the singer/artist or a few more words from the title."
+                        ),
                     )
                     return
+
+            # Pin ordinary text searches to the best ranked candidate URL. Re-running
+            # the original text inside the resolver performs a second search and can
+            # silently swap a requested title (e.g. KALYANI) for a near-spelling match.
+            resolve_query = query
+            if (
+                not query.startswith(("http://", "https://"))
+                and not re.match(r"spotify:(?:track|playlist|album):", query, re.IGNORECASE)
+                and "spotify.com/" not in query.casefold()
+                and "music.apple.com/" not in query.casefold()
+                and candidates
+            ):
+                best_url = str(candidates[0].get("url") or "").strip()
+                if _video_id_from_url(best_url):
+                    resolve_query = best_url
+                    logger.info(
+                        "[Playback] operation=ranked_candidate_pinned correlation_id=%s "
+                        "video_id=%s title=%r",
+                        correlation_id,
+                        _video_id_from_url(best_url),
+                        candidates[0].get("title"),
+                    )
 
             search_start = time.time()
             is_timed_out = False
             try:
                 track = await asyncio.wait_for(
                     AudioResolver.resolve_track(
-                        query,
+                        resolve_query,
                         member.id,
                         str(member),
                         correlation_id=correlation_id,
@@ -1099,6 +1218,32 @@ class MusicCog(commands.Cog, name="Music"):
                         correlation_id,
                         type(fallback_exc).__name__,
                     )
+
+            # Keep Audius/Jamendo fallback, but never silently substitute a
+            # near-spelling title (e.g. Kalyan for a Kalyani request).
+            provider = str(getattr(track, "provider", "") or "").casefold() if track else ""
+            if (
+                track
+                and provider in {"audius", "jamendo"}
+                and not query.startswith(("http://", "https://"))
+                and not re.match(r"spotify:(?:track|playlist|album):", query, re.IGNORECASE)
+                and "spotify.com/" not in query.casefold()
+                and "music.apple.com/" not in query.casefold()
+                and not _alternative_track_matches_query(query, track)
+            ):
+                logger.warning(
+                    "[Playback] operation=alternative_track_identity_rejected correlation_id=%s "
+                    "provider=%s query=%r title=%r",
+                    correlation_id,
+                    provider,
+                    _safe_query_for_log(query),
+                    getattr(track, "title", ""),
+                )
+                track = None
+                AudioResolver.last_resolver_error = (
+                    "[NO_ORIGINAL_MATCH] The alternative provider returned a different song title. "
+                    "Try adding the singer/artist or provide a direct link."
+                )
 
             if not track:
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
@@ -3952,38 +4097,48 @@ class MusicCog(commands.Cog, name="Music"):
                     correlation_id,
                     type(search_exc).__name__,
                 )
+        # No dropdown: reject uncertain matches rather than playing the wrong song.
         if requires_candidate_confirmation(candidates):
-            async def on_candidate_select(
-                selected_interaction: discord.Interaction,
-                selected_index: int,
-            ) -> None:
-                selected = candidates[selected_index]
-                selected_url = selected.get("url") or ""
-                logger.info(
-                    "[Playback] operation=candidate_selected correlation_id=%s "
-                    "title=%r video_id=%s score=%s",
-                    correlation_id,
-                    selected.get("title"),
-                    selected.get("id") or _video_id_from_url(selected_url) or "unavailable",
-                    selected.get("_match_score", "unavailable"),
-                )
-                await self._play_query(
-                    selected_interaction,
-                    selected_url,
-                    correlation_id=correlation_id,
-                )
-
-            selection_view = TrackSelectView(candidates, ctx.author.id, on_candidate_select)
+            logger.warning(
+                "[Playback] operation=ambiguous_search_rejected correlation_id=%s "
+                "top_title=%r confidence=%s ratio=%s",
+                correlation_id,
+                candidates[0].get("title"),
+                candidates[0].get("_title_match_confidence", "unknown"),
+                candidates[0].get("_title_match_ratio", "unknown"),
+            )
             await status_msg.edit(
-                content="Several results are plausible, or the best match is uncertain. Choose the intended track:",
-                view=selection_view,
+                content=(
+                    "⚠️ I couldn't confidently identify that exact song, so I didn't play a near-match. "
+                    "Try adding the singer/artist or more title words."
+                )
             )
             return
+
+        # Use the top-ranked search result as an exact YouTube URL so the
+        # resolver cannot perform a second title search and pick a near-match.
+        resolve_query = query
+        if (
+            not query.startswith(("http://", "https://"))
+            and "spotify.com/" not in query.casefold()
+            and "music.apple.com/" not in query.casefold()
+            and candidates
+        ):
+            best_url = str(candidates[0].get("url") or "").strip()
+            if _video_id_from_url(best_url):
+                resolve_query = best_url
+                logger.info(
+                    "[Playback] operation=ranked_candidate_pinned correlation_id=%s "
+                    "video_id=%s title=%r",
+                    correlation_id,
+                    _video_id_from_url(best_url),
+                    candidates[0].get("title"),
+                )
 
         try:
             track = await asyncio.wait_for(
                 AudioResolver.resolve_track(
-                    query,
+                    resolve_query,
                     ctx.author.id,
                     str(ctx.author),
                     correlation_id=correlation_id,

@@ -1,3 +1,4 @@
+import os
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
@@ -58,6 +59,10 @@ async def test_cors_headers_preserved_on_unauthenticated_post():
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    os.getenv("RUN_LIVE_YOUTUBE_TESTS") != "1",
+    reason="Live YouTube extraction is an opt-in integration test; CI must not depend on external auth/rate limits.",
+)
 async def test_resolver_alla_bolo_query():
     track = await AudioResolver.resolve_track(
         "Ala Bolelo Jailer 2",

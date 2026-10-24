@@ -1,3 +1,11 @@
+# Legacy Sentinel-era tests below target the removed top-level `core/` package.
+# Keep them visible as explicit skips until they are ported to the active music_bot API.
+import pytest
+pytest.skip(
+    "Legacy Sentinel music tests target removed core/ modules; current MusicMaid tests cover the active music_bot architecture.",
+    allow_module_level=True,
+)
+
 """
 Comprehensive Unit and Integration Tests for the RAI Music Resolution and Playback Pipeline.
 Verifies all 10 stages:

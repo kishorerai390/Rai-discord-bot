@@ -53,6 +53,26 @@ def _is_youtube_access_challenge(error_message: str) -> bool:
     return any(marker in message for marker in YOUTUBE_ACCESS_CHALLENGE_MARKERS)
 
 
+def _should_attempt_cookie_fallback(
+    candidate_urls: List[str],
+    cookie_file: Optional[str],
+    youtube_rate_limited: bool,
+    youtube_access_blocked: bool,
+    youtube_timed_out: bool,
+) -> bool:
+    """Use configured authenticated cookies after a public access challenge.
+
+    A challenge is a reason to try the explicitly configured cookie fallback,
+    not a reason to skip it. Rate limits and timeouts still suppress retries.
+    """
+    return bool(
+        candidate_urls
+        and cookie_file
+        and not youtube_rate_limited
+        and not youtube_timed_out
+    )
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
 
@@ -663,16 +683,11 @@ def is_original_recording_candidate(
         or bool(re.search(r"\b(?:official|record(?:s| label)?|label)\b", uploader))
     )
     if not title_has_official_marker and not uploader_has_official_marker:
-        # For short, single-word searches, official-upload metadata is often absent
-        # from valid regional tracks. Accept only a strong title match in that case;
-        # keep the stricter official-upload requirement for longer ambiguous queries.
-        query_tokens = re.findall(r"\w+", str(query_intent.get("clean_query") or "").lower())
-        title_match_ratio, combined_match_ratio, title_confidence = _candidate_match_metrics(
-            candidate,
-            query_intent,
-        )
-        if len(query_tokens) != 1 or title_match_ratio < 0.75 or combined_match_ratio < 0.75 or title_confidence < 0.75:
-            return False
+        # Exact title similarity alone is not enough to verify a recording: short
+        # regional-song queries can match unrelated uploads or covers. Without
+        # source evidence, reject this candidate and let the user choose another
+        # result or rely on an alternative catalog provider.
+        return False
 
     return True
 
@@ -749,8 +764,18 @@ def apply_resolved_track(track: QueuedTrack, resolved: QueuedTrack) -> bool:
     resolved_url = urllib.parse.urlsplit(resolved.url) if resolved.url else None
     expected_is_url = bool(expected_url and expected_url.scheme in {"http", "https"})
     resolved_is_url = bool(resolved_url and resolved_url.scheme in {"http", "https"})
+    expected_host = (expected_url.hostname or "").casefold() if expected_url else ""
+    expected_is_spotify = expected_host == "spotify.com" or expected_host.endswith(".spotify.com")
     if expected_id:
         if expected_id != resolved_id:
+            return False
+    elif expected_is_spotify:
+        # Spotify URLs identify catalog metadata, while the playable URL must come
+        # from another supported provider. Permit that provider change only when the
+        # matched title is strong and the artist also agrees (or title is near-exact).
+        title_ratio = SequenceMatcher(None, track.title.casefold(), resolved.title.casefold()).ratio()
+        artist_ratio = SequenceMatcher(None, (track.artist or "").casefold(), (resolved.artist or "").casefold()).ratio()
+        if title_ratio < 0.78 or (title_ratio < 0.94 and artist_ratio < 0.45):
             return False
     elif expected_is_url and resolved_is_url:
         if (expected_url.hostname, expected_url.path) != (resolved_url.hostname, resolved_url.path):
@@ -1344,12 +1369,27 @@ def _build_ytdl_options(
     if js_runtimes:
         opts["js_runtimes"] = js_runtimes
 
-    # Inject PO-Token if configured
+    # Prefer an automatic PO-token provider for per-video GVS tokens.
+    # The provider service is separate from this bot process and is configured
+    # through YOUTUBE_POT_PROVIDER_URL; do not hardcode a public third-party host.
+    pot_provider_url = os.environ.get("YOUTUBE_POT_PROVIDER_URL", "").strip().rstrip("/")
+    if pot_provider_url:
+        opts["extractor_args"]["youtubepot-bgutilhttp"] = {
+            "base_url": pot_provider_url,
+        }
+
+    # Backward-compatible manual token support. yt-dlp expects an explicit
+    # client/context pair (GVS); a generic "web+token" value is not valid syntax.
     token_data = _load_po_tokens_and_cookies()
     po_token = os.environ.get("PO_TOKEN") or token_data.get("active_po_token")
     visitor_data = os.environ.get("VISITOR_DATA") or token_data.get("visitor_data")
-    if po_token:
-        opts["extractor_args"]["youtube"]["po_token"] = [f"web+{po_token}", f"mweb+{po_token}"]
+    if po_token and not pot_provider_url:
+        # Use manually configured tokens only when the automatic provider is
+        # absent; provider-generated tokens are video/context-specific.
+        opts["extractor_args"]["youtube"]["po_token"] = [
+            f"web.gvs+{po_token}",
+            f"mweb.gvs+{po_token}",
+        ]
     if visitor_data:
         opts["extractor_args"]["youtube"]["visitor_data"] = [visitor_data]
 
@@ -2390,7 +2430,7 @@ class AudioResolver:
  
                 if not search_entries:
                     dur = time.time() - start_t
-                    if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
+                    if search_error and ("timeouterror" in search_error.lower() or "timeout" in search_error.lower() or "timed out" in search_error.lower()):
                         cat = "TIMEOUT"
                         reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
                     elif search_error:
@@ -2723,12 +2763,13 @@ class AudioResolver:
 
         # Stage 4: Optional Cookie Fallback (Only if public extraction failed AND verified cookies exist).
         # Use cookies for ordinary extraction failures, but never amplify an explicit HTTP 429.
-        if (
-            candidate_urls
-            and get_active_cookie_file()
-            and not youtube_rate_limited
-            and not youtube_access_blocked
-            and not youtube_timed_out
+        active_cookie_file = get_active_cookie_file()
+        if _should_attempt_cookie_fallback(
+            candidate_urls,
+            active_cookie_file,
+            youtube_rate_limited,
+            youtube_access_blocked,
+            youtube_timed_out,
         ):
             failed_stage = "cookie_fallback"
             top_target = candidate_urls[0]
@@ -2823,7 +2864,7 @@ class AudioResolver:
         elif youtube_rate_limited or "429" in lower_failure_reason or "too many requests" in lower_failure_reason:
             cat = "YOUTUBE_RATE_LIMITED"
             reason = "YouTube is temporarily limiting requests from this server. Wait before retrying, or try the song title instead of a video link."
-        elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
+        elif "timeouterror" in lower_failure_reason or "timeout" in lower_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
         elif "access_denied" in lower_failure_reason or "access restriction" in lower_failure_reason or any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age", "forbidden")):

@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt && curl -fsSL https://deno.land/install.sh | DENO_INSTALL="$PWD/.deno" sh -s v2.1.4 && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
+    buildCommand: pip install -r requirements.txt && curl -fsSL https://deno.land/install.sh | DENO_INSTALL="$PWD/.deno" sh -s v2.9.4 && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
     startCommand: export DENO_INSTALL="$PWD/.deno" && export PATH="$DENO_INSTALL/bin:$PATH" && python main.py
     healthCheckPath: /api/health
     envVars:
@@ -58,7 +58,11 @@ services:
         value: data/bot.db
 
       # ── YouTube / Audio ──────────────────────────────────────────────────────
-      # Paste Netscape-format cookies here to bypass YouTube datacenter blocks
+      # Optional self-hosted BgUtils PO-token provider service URL (e.g. https://your-provider.onrender.com)
+      - key: YOUTUBE_POT_PROVIDER_URL
+        sync: false
+
+      # Paste Netscape-format cookies here only when required for authorized access
       - key: YOUTUBE_COOKIES
         sync: false
 

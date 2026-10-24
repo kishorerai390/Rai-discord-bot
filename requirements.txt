@@ -14,3 +14,4 @@ mutagen>=1.47.0
 prometheus-client
 redis>=5.0.0
 stripe>=16.0.0
+bgutil-ytdlp-pot-provider>=2.0.2

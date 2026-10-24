@@ -305,6 +305,7 @@ class TestPrefixMusicCommands:
 
         with patch.object(cog.session_manager, "get_session", new_callable=AsyncMock) as mock_get_s, \
              patch("music_bot.services.voice_service.VoiceManager.join_voice_channel", new_callable=AsyncMock) as mock_join, \
+             patch("music_bot.services.resolver_service.AudioResolver.search", new_callable=AsyncMock, return_value=[]), \
              patch("music_bot.services.resolver_service.AudioResolver.resolve_track", new_callable=AsyncMock) as mock_resolve:
             mock_get_s.return_value = mock_session
             mock_join.return_value = mock_session.voice_client

@@ -49,9 +49,9 @@ def _ensure_ytdlp_javascript_runtime() -> None:
         install_dir.mkdir(parents=True, exist_ok=True)
         env = os.environ.copy()
         env["DENO_INSTALL"] = str(install_dir)
-        print("[Runtime] Deno not found; attempting pinned Deno 2.1.4 install for yt-dlp EJS.", flush=True)
+        print("[Runtime] Deno not found; attempting Deno 2.9.4 install (JukeBot-aligned) for yt-dlp EJS.", flush=True)
         result = subprocess.run(
-            ["bash", "-lc", "curl -fsSL https://deno.land/install.sh | sh -s v2.1.4"],
+            ["bash", "-lc", "curl -fsSL https://deno.land/install.sh | sh -s v2.9.4"],
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
