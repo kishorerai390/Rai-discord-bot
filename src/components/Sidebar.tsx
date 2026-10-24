@@ -61,8 +61,6 @@ export function Sidebar({
     { href: "/autodj", label: "Smart Auto-DJ", icon: Bot },
     { href: "/library", label: "Playlists & Library", icon: Library },
     { href: "/audio", label: "Equalizer & DSP", icon: Sliders },
-    { href: "/settings", label: "Server Settings", icon: Settings },
-    { href: "/stats", label: "Telemetry & Health", icon: BarChart3 },
   ];
 
   const isOwner = currentUser?.is_owner;
@@ -184,18 +182,60 @@ export function Sidebar({
         })}
 
         {isOwner && (
-          <Link
-            href="/owner"
-            onClick={onCloseMobile}
-            className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black transition-all ${
-              pathname === "/owner"
-                ? "bg-linear-to-r from-amber-500/30 to-orange-500/30 text-amber-300 border border-amber-400/60 shadow-lg shadow-amber-500/20"
-                : "text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 hover:text-white"
-            }`}
-          >
-            <Crown className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Control Room</span>
-          </Link>
+          <>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 px-2 mt-3 flex items-center gap-1.5">
+              <Crown className="w-3 h-3 text-amber-400" />
+              <span>SERVER (OWNER ONLY)</span>
+            </div>
+            <Link
+              href="/servers"
+              onClick={onCloseMobile}
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                pathname === "/servers"
+                  ? "bg-linear-to-r from-amber-500/25 to-purple-600/25 text-white border border-amber-500/40 shadow-md"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Radio className="w-4 h-4 shrink-0 text-cyan-400" />
+              <span>Servers</span>
+            </Link>
+            <Link
+              href="/settings"
+              onClick={onCloseMobile}
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                pathname === "/settings"
+                  ? "bg-linear-to-r from-amber-500/25 to-purple-600/25 text-white border border-amber-500/40 shadow-md"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <Settings className="w-4 h-4 shrink-0 text-purple-400" />
+              <span>Server Settings</span>
+            </Link>
+            <Link
+              href="/stats"
+              onClick={onCloseMobile}
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                pathname === "/stats"
+                  ? "bg-linear-to-r from-amber-500/25 to-purple-600/25 text-white border border-amber-500/40 shadow-md"
+                  : "text-slate-400 hover:text-white hover:bg-white/5"
+              }`}
+            >
+              <BarChart3 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>Listening Analytics</span>
+            </Link>
+            <Link
+              href="/owner"
+              onClick={onCloseMobile}
+              className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-black transition-all ${
+                pathname === "/owner"
+                  ? "bg-linear-to-r from-amber-500/30 to-orange-500/30 text-amber-300 border border-amber-400/60 shadow-lg shadow-amber-500/20"
+                  : "text-amber-300 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 hover:text-white"
+              }`}
+            >
+              <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Creator Control Room</span>
+            </Link>
+          </>
         )}
       </nav>
 

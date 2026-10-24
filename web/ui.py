@@ -3150,9 +3150,9 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & Audio</a></li>
       </ul>
 
-      <!-- SERVER (Visible to Admins / Managers) -->
-      <span class="nav-group-title" style="margin-top:0.6rem;" id="nav-group-server-title">SERVER</span>
-      <ul class="nav-list" id="nav-group-server-list">
+      <!-- SERVER (Visible only to Bot Owner) -->
+      <span class="nav-group-title" style="margin-top:0.6rem; display:none;" id="nav-group-server-title">SERVER</span>
+      <ul class="nav-list" id="nav-group-server-list" style="display:none;">
         <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Listening Analytics</a></li>
         <li><a class="nav-link" id="nav-guilds" onclick="navigate('/guilds')"><span class="nav-icon">🏠</span> Servers</a></li>
         <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
@@ -4131,9 +4131,18 @@ UI_HTML = r"""<!DOCTYPE html>
 
     function renderAuthBox(user) {
       const el = document.getElementById('auth-box-sidebar');
+      const serverNavTitle = document.getElementById('nav-group-server-title');
+      const serverNavList = document.getElementById('nav-group-server-list');
       const ownerNavLi = document.getElementById('nav-owner-li');
       const systemNavLi = document.getElementById('nav-system')?.parentElement;
-      const isOwnerUser = Boolean(user && (user.is_owner || user.is_admin));
+      const isOwnerUser = Boolean(user && user.is_owner);
+
+      if (serverNavTitle) {
+        serverNavTitle.style.display = isOwnerUser ? 'block' : 'none';
+      }
+      if (serverNavList) {
+        serverNavList.style.display = isOwnerUser ? 'block' : 'none';
+      }
       if (ownerNavLi) {
         ownerNavLi.style.display = isOwnerUser ? 'block' : 'none';
       }
@@ -4850,6 +4859,16 @@ UI_HTML = r"""<!DOCTYPE html>
     function handleRoute() {
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+
+      // Server management section routes are restricted exclusively to the bot owner
+      const isServerSectionRoute = ['/analytics', '/stats', '/settings', '/system', '/health-ui', '/guilds', '/dashboard/guilds', '/owner', '/creator'].includes(path);
+      if (isServerSectionRoute && (!currentUser || !currentUser.is_owner)) {
+        showToast("🔒 The SERVER management section is restricted to the bot owner.", "warning");
+        window.history.replaceState({}, '', '/dashboard');
+        document.getElementById('nav-dashboard')?.classList.add('active');
+        renderDashboard();
+        return;
+      }
 
       const isLoginPage = (path === '/' || path === '/login');
       document.body.classList.toggle('page-login-mode', isLoginPage);
