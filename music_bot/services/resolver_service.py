@@ -2210,12 +2210,14 @@ class AudioResolver:
             else:
                 cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
-        intent = analyze_query_intent(cleaned_query)
         # For a selected YouTube URL, preserve its human-readable track metadata
         # so independent providers search for the song rather than the YouTube URL.
         fallback_search_query = " ".join(
             part.strip() for part in (title_hint, artist_hint) if part and part.strip()
         ).strip() or cleaned_query
+        intent = analyze_query_intent(
+            fallback_search_query if ("youtube.com" in cleaned_query.lower() or "youtu.be" in cleaned_query.lower()) else cleaned_query
+        )
 
         def _apply_metadata_enhancements(t: Optional[QueuedTrack]) -> Optional[QueuedTrack]:
             if t and spotify_info:
