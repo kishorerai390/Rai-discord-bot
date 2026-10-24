@@ -97,10 +97,16 @@ def _alternative_track_matches_query(query: str, track: Any) -> bool:
     ]
     if not core_tokens:
         return True
-    title_tokens = set(
-        re.findall(r"\w+", str(getattr(track, "title", "") or "").casefold())
+    identity_tokens = set(
+        re.findall(
+            r"\\w+",
+            " ".join(
+                str(getattr(track, field, "") or "")
+                for field in ("title", "artist")
+            ).casefold(),
+        )
     )
-    return all(token in title_tokens for token in core_tokens)
+    return all(token in identity_tokens for token in core_tokens)
 
 
 # =============================================================================
