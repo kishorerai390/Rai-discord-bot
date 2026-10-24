@@ -99,7 +99,7 @@ def _alternative_track_matches_query(query: str, track: Any) -> bool:
         return True
     identity_tokens = set(
         re.findall(
-            r"\\w+",
+            r"\w+",
             " ".join(
                 str(getattr(track, field, "") or "")
                 for field in ("title", "artist")
