@@ -32,6 +32,7 @@ export function DashboardView({
   const totalDuration = currentTrack?.duration || 0;
   const progressPercent = totalDuration > 0 ? Math.min(100, (playbackSeconds / totalDuration) * 100) : 0;
   const [searchQuery, setSearchQuery] = useState("");
+  const [recPageIndex, setRecPageIndex] = useState(0);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,32 +42,62 @@ export function DashboardView({
     setSearchQuery("");
   };
 
-  const recCards = [
-    {
-      title: "Lofi Chill Beats",
-      artist: "Chilled Cow • Study Session",
-      image: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400",
-      query: "Lofi Chill Hip Hop Study Beats",
-    },
-    {
-      title: "Synthwave Night",
-      artist: "Neon Horizon • Retro 80s",
-      image: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400",
-      query: "Synthwave Retro 80s Cyberpunk Night Drive",
-    },
-    {
-      title: "Anime J-Rock Hits",
-      artist: "Tokyo Sound • Shonen Anthem",
-      image: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400",
-      query: "Top Anime Openings J-Rock Hits",
-    },
-    {
-      title: "Electronic Bass",
-      artist: "Noctyra Studio • High Voltage",
-      image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400",
-      query: "Electronic High Energy Gaming Bass Boost",
-    },
+  const recCardPages = [
+    [
+      {
+        title: "Lofi Chill Beats",
+        artist: "Chilled Cow • Study Session",
+        image: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400",
+        query: "Lofi Chill Hip Hop Study Beats",
+      },
+      {
+        title: "Synthwave Night",
+        artist: "Neon Horizon • Retro 80s",
+        image: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400",
+        query: "Synthwave Retro 80s Cyberpunk Night Drive",
+      },
+      {
+        title: "Anime J-Rock Hits",
+        artist: "Tokyo Sound • Shonen Anthem",
+        image: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400",
+        query: "Top Anime Openings J-Rock Hits",
+      },
+      {
+        title: "Electronic Bass",
+        artist: "Noctyra Studio • High Voltage",
+        image: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400",
+        query: "Electronic High Energy Gaming Bass Boost",
+      },
+    ],
+    [
+      {
+        title: "Desi Chill & Bollywood",
+        artist: "Arijit Singh • Midnight Acoustic",
+        image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400",
+        query: "Best of Bollywood Acoustic Lo-Fi Hindi Hits",
+      },
+      {
+        title: "Cyberpunk Drift Phonk",
+        artist: "KSLV • High Octane",
+        image: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400",
+        query: "Aggressive Drift Phonk Bass Gaming 2026",
+      },
+      {
+        title: "Coffeehouse Acoustic",
+        artist: "Indie Warmth • Rainy Day",
+        image: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=400",
+        query: "Acoustic Fingerstyle Guitar Relaxing Coffeehouse",
+      },
+      {
+        title: "Tamil & Telugu Vibes",
+        artist: "Anirudh Ravichander • Hype Anthems",
+        image: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=400",
+        query: "Anirudh Ravichander viral soundtrack hits",
+      },
+    ],
   ];
+
+  const currentRecCards = recCardPages[recPageIndex] || recCardPages[0];
 
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -91,8 +122,9 @@ export function DashboardView({
         <div className="flex items-center gap-3">
           {user ? (
             <div
-              onClick={() => onNavigate("/profile")}
+              onClick={() => onNavigate("/settings")}
               className="flex items-center gap-2.5 py-1 px-3 rounded-full bg-white/[0.05] border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+              title="Settings & Profile"
             >
               <img
                 src={user.avatar_url || "https://cdn.discordapp.com/embed/avatars/0.png"}
@@ -138,17 +170,27 @@ export function DashboardView({
             <div className="flex items-center justify-between mb-3.5">
               <h3 className="text-xl font-black text-white tracking-tight">Recommended For You</h3>
               <div className="flex items-center gap-1.5">
-                <button className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white">
+                <button
+                  type="button"
+                  onClick={() => setRecPageIndex((prev) => (prev > 0 ? prev - 1 : recCardPages.length - 1))}
+                  className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Previous recommendations"
+                >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <button className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white">
+                <button
+                  type="button"
+                  onClick={() => setRecPageIndex((prev) => (prev < recCardPages.length - 1 ? prev + 1 : 0))}
+                  className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Next recommendations"
+                >
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {recCards.map((rec, i) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 animate-in fade-in duration-200" key={recPageIndex}>
+              {currentRecCards.map((rec, i) => (
                 <div
                   key={i}
                   onClick={() => onControl("PLAY", { query: rec.query })}
@@ -161,6 +203,11 @@ export function DashboardView({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onControl("PLAY", { query: rec.query });
+                      }}
                       className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-xl opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-purple-500 hover:text-white transition-all"
                       title="Play"
                     >

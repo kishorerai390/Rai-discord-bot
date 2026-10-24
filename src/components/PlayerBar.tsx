@@ -25,9 +25,10 @@ import { MusicSession } from "@/types/music";
 interface PlayerBarProps {
   session: MusicSession | null;
   onDispatchControl: (action: string, payload?: any) => Promise<void>;
+  onToggleFavorite?: () => void;
 }
 
-export function PlayerBar({ session, onDispatchControl }: PlayerBarProps) {
+export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: PlayerBarProps) {
   const [volume, setVolume] = useState<number>(session?.volume ?? 80);
   const [isMuted, setIsMuted] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -125,7 +126,10 @@ export function PlayerBar({ session, onDispatchControl }: PlayerBarProps) {
           </div>
 
           <button
-            onClick={() => setIsFavorited(!isFavorited)}
+            onClick={() => {
+              setIsFavorited(!isFavorited);
+              onToggleFavorite?.();
+            }}
             className={`p-2 rounded-full transition-transform hover:scale-110 ${
               isFavorited ? "text-pink-500" : "text-slate-400 hover:text-pink-400"
             }`}
