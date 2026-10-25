@@ -675,7 +675,7 @@ class MusicPlayerService:
                 vc_ch = session.voice_client.channel
                 if hasattr(vc_ch, "set_status"):
                     try:
-                        asyncio.create_task(vc_ch.set_status(f"▶ {track.title[:50]}", reason="MusicMaid Now Playing"))
+                        asyncio.create_task(vc_ch.set_status(f"▶ {track.title[:50]}", reason="Rem Now Playing"))
                     except Exception:
                         pass
 
@@ -1011,7 +1011,7 @@ class MusicPlayerService:
                                 continue
 
                             resolved = await AudioResolver.resolve_track(
-                                c["url"], 0, "MusicMaid 24/7 Radio"
+                                c["url"], 0, "Rem 24/7 Radio"
                             )
                             if resolved:
                                 setattr(resolved, "_auto_dj_candidate", True)
@@ -1050,11 +1050,11 @@ class MusicPlayerService:
 
     @classmethod
     def build_now_playing_embed(cls, session: GuildMusicSession) -> discord.Embed:
-        """Construct reference-grade MusicMaid Now Playing embed with header badges and accurate voice state."""
+        """Construct reference-grade Rem Now Playing embed with header badges and accurate voice state."""
         track = session.current_track
         if not track:
             embed = discord.Embed(
-                title=f"{EmojiManager.get('LOGO')} MusicMaid ✦ Master Player",
+                title=f"{EmojiManager.get('LOGO')} Rem 🎧💜 ✦ Master Player",
                 description=(
                     f"`{EmojiManager.get('STOP')} IDLE`  `{EmojiManager.get('QUEUE')} Queue: 0`  `{EmojiManager.get('EQUALIZER')} EQ: Balanced`  `{EmojiManager.get('RADIO')} 24/7`\n\n"
                     "### Ready to play music 🐾\n"
@@ -1062,7 +1062,7 @@ class MusicPlayerService:
                 ),
                 color=COLOR_MIDNIGHT,
             )
-            embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  MusicMaid  ✦  Lossless Audio Engine")
+            embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  Rem 🎧💜  ✦  Your Anime Music Companion")
             return embed
 
         elapsed = session.elapsed_seconds
@@ -1170,7 +1170,7 @@ class MusicPlayerService:
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
 
-        embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  MusicMaid  ✦  Lossless Audio Engine")
+        embed.set_footer(text="ılıılı.ll.ılı.ll.ılı.ll  Rem 🎧💜  ✦  Your Anime Music Companion")
         return embed
 
     @classmethod
@@ -1179,7 +1179,7 @@ class MusicPlayerService:
         tracks = list(session.queue)
         q_icon = EmojiManager.get("QUEUE")
         embed = discord.Embed(
-            title=f"{q_icon} MusicMaid ✦ Queue ({len(tracks)} tracks)",
+            title=f"{q_icon} Rem 🎧💜 ✦ Queue ({len(tracks)} tracks)",
             color=COLOR_CYAN,
         )
         if session.current_track:
@@ -1207,7 +1207,7 @@ class MusicPlayerService:
         preset_name = session.eq_preset if session.eq_preset else "Flat / Normal"
         eq_icon = EmojiManager.get("EQUALIZER")
         embed = discord.Embed(
-            title=f"{eq_icon} MusicMaid ✦ Audio Settings & DSP Filters",
+            title=f"{eq_icon} Rem 🎧💜 ✦ Audio Settings & DSP Filters",
             color=COLOR_PRIMARY,
             description=(
                 f"• **Master Volume:** `{session.volume}%`\n"
@@ -1217,7 +1217,7 @@ class MusicPlayerService:
                 f"Select a volume preset or DSP equalizer filter below to apply in real-time."
             ),
         )
-        embed.set_footer(text="MusicMaid ✦ Studio DSP Audio Engine")
+        embed.set_footer(text="Rem 🎧💜 ✦ Studio DSP Audio Engine")
         return embed
 
     @classmethod
@@ -1228,7 +1228,7 @@ class MusicPlayerService:
         mode_str = getattr(session, "dj_mode", "Energy Match")
         dj_icon = EmojiManager.get("AUTODJ")
         embed = discord.Embed(
-            title=f"{dj_icon} MusicMaid ✦ Auto-DJ Controls",
+            title=f"{dj_icon} Rem 🎧💜 ✦ Auto-DJ Controls",
             color=COLOR_CYAN,
             description=(
                 f"• **Auto-DJ Status:** {status_str}\n"
@@ -1240,7 +1240,7 @@ class MusicPlayerService:
                 f"4. Skipping an Auto-DJ track keeps Auto-DJ enabled."
             ),
         )
-        embed.set_footer(text="MusicMaid ✦ Smart Dynamic Recommendation Engine")
+        embed.set_footer(text="Rem 🎧💜 ✦ Smart Dynamic Recommendation Engine")
         return embed
 
     @classmethod
@@ -1250,7 +1250,7 @@ class MusicPlayerService:
         loop_str = session.loop_mode.value.title()
         set_icon = EmojiManager.get("SETTINGS")
         embed = discord.Embed(
-            title=f"{set_icon} MusicMaid ✦ Settings & Diagnostics",
+            title=f"{set_icon} Rem 🎧💜 ✦ Settings & Diagnostics",
             color=COLOR_INFO,
             description=(
                 f"• **24/7 Voice Persistence:** `{is_247}`\n"
@@ -1261,7 +1261,7 @@ class MusicPlayerService:
                 f"Use the buttons below to toggle 24/7 mode or run full diagnostics."
             ),
         )
-        embed.set_footer(text="MusicMaid ✦ System Diagnostics & Persistence")
+        embed.set_footer(text="Rem 🎧💜 ✦ System Diagnostics & Persistence")
         return embed
 
 
@@ -1989,10 +1989,10 @@ class MusicPlayerService:
                         if getattr(perms, "send_messages", False):
                             try:
                                 await fallback_ch.send(
-                                    f"⚠️ **MusicMaid Permission Alert:**\n"
+                                    f"⚠️ **Rem Permission Alert:**\n"
                                     f"I cannot display the Now Playing player in {fallback_ch.mention} because I am missing required permissions:\n"
                                     f"• **{perm_err}**\n\n"
-                                    f"💡 *How to fix:* Right-click/tap this channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Embed Links** permission!"
+                                    f"💡 *How to fix:* Right-click/tap this channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **Rem** the **Embed Links** permission!"
                                 )
                             except Exception:
                                 pass
@@ -2043,9 +2043,9 @@ class MusicPlayerService:
                 perms = channel.permissions_for(channel.guild.me)
                 if not perms.embed_links:
                     warning_text = (
-                        f"⚠️ **MusicMaid Permission Alert:**\n"
+                        f"⚠️ **Rem Permission Alert:**\n"
                         f"I need the **Embed Links** permission in {channel.mention} to display the Now Playing player!\n"
-                        f"Please ask a server administrator to grant **Embed Links** to MusicMaid."
+                        f"Please ask a server administrator to grant **Embed Links** to Rem."
                     )
                     logger.error(f"[PlayerPanel] Missing Embed Links permission in #{channel.name} ({channel.id})")
                     if perms.send_messages:
@@ -2550,7 +2550,7 @@ class SettingsSubView(discord.ui.View):
         from music_bot.services.diagnostics_service import HealthDoctorService
         report = await HealthDoctorService.run_full_system_diagnostic(interaction.client)
         embed = discord.Embed(
-            title=f"🩺 MusicMaid Diagnostics (Score: {report['health_score']}/100)",
+            title=f"🩺 Rem Diagnostics (Score: {report['health_score']}/100)",
             color=0x00E5FF if report["is_healthy"] else 0xFEE75C,
             description=f"Status: `{report['status_summary']}`\n\n• Database WAL: `{report['database']['status']}`\n• Audio Resolver: `{report['audio_engine']['status']}`\n• Memory Usage: `{report['system_resources'].get('bot_process_memory_mb', 0)}MB`",
         )
@@ -2595,7 +2595,7 @@ class SettingsSubView(discord.ui.View):
 # Reference-Grade 4-Row Master Control Panel View & Modals
 # -------------------------------------------------------------
 
-class VolumeModal(discord.ui.Modal, title="🔊 MusicMaid Volume Control"):
+class VolumeModal(discord.ui.Modal, title="🔊 Rem Volume Control"):
     volume_input = discord.ui.TextInput(
         label="Volume Percentage (1 - 150%)",
         placeholder="Enter volume number (e.g. 80)",
@@ -2641,7 +2641,7 @@ class VolumeModal(discord.ui.Modal, title="🔊 MusicMaid Volume Control"):
 
 
 class NowPlayingControlView(discord.ui.View):
-    """Reference-grade 4-Row Master Control Panel for MusicMaid (13 Buttons)."""
+    """Reference-grade 4-Row Master Control Panel for Rem (13 Buttons)."""
 
     def __init__(self, session: Optional[GuildMusicSession] = None, bot: Optional[discord.Client] = None):
         super().__init__(timeout=None)
@@ -3120,7 +3120,7 @@ class NowPlayingControlView(discord.ui.View):
         )
         if track.thumbnail:
             embed.set_thumbnail(url=track.thumbnail)
-        embed.set_footer(text=f"Artist: {track.artist or 'Unknown'} • MusicMaid Lyrics")
+        embed.set_footer(text=f"Artist: {track.artist or 'Unknown'} • Rem Lyrics 🎧💜")
         try:
             await interaction.followup.send(embed=embed, ephemeral=True)
         except Exception:

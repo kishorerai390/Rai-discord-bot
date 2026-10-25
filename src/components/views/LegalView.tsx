@@ -78,14 +78,14 @@ export function LegalView({ initialTab = "terms" }: LegalViewProps) {
             <div>
               <h3 className="text-base font-bold text-white mb-2">1. Agreement to Terms</h3>
               <p>
-                By adding MusicMaid (&quot;the Bot&quot;) to your Discord guild, accessing the web dashboard, or interacting with our services, you agree to comply with and be bound by these Terms of Service.
+                By adding Rem (&quot;the Bot&quot;) to your Discord guild, accessing the web dashboard, or interacting with our services, you agree to comply with and be bound by these Terms of Service.
               </p>
             </div>
 
             <div>
               <h3 className="text-base font-bold text-white mb-2">2. Description of Service</h3>
               <p>
-                MusicMaid is an automated 24/7 Discord music bot providing lossless audio streaming, DSP filters, synchronized playback, and web control panels. We do not host or store copyrighted audio content; the service resolves publicly accessible streams requested by users.
+                Rem is an automated 24/7 Discord anime music companion providing lossless audio streaming, DSP filters, synchronized playback, and web control panels. We do not host or store copyrighted audio content; the service resolves publicly accessible streams requested by users.
               </p>
             </div>
 
@@ -123,7 +123,7 @@ export function LegalView({ initialTab = "terms" }: LegalViewProps) {
             <div>
               <h3 className="text-base font-bold text-white mb-2">2. Voice Privacy</h3>
               <p>
-                MusicMaid does NOT record, eavesdrop on, or transcribe voice communications. Audio streaming is strictly unidirectional (bot to voice channel).
+                Rem does NOT record, eavesdrop on, or transcribe voice communications. Audio streaming is strictly unidirectional (bot to voice channel).
               </p>
             </div>
 
@@ -147,7 +147,7 @@ export function LegalView({ initialTab = "terms" }: LegalViewProps) {
             <div>
               <h3 className="text-base font-bold text-white mb-2">1. 7-Day Refund Window</h3>
               <p>
-                If you encounter technical issues with MusicMaid Pro within 7 days of purchase that our team cannot resolve, you are entitled to a full refund.
+                If you encounter technical issues with Rem Pro within 7 days of purchase that our team cannot resolve, you are entitled to a full refund.
               </p>
             </div>
 
@@ -200,10 +200,10 @@ export function LegalView({ initialTab = "terms" }: LegalViewProps) {
                   </p>
                 </div>
                 <a
-                  href="mailto:support@musicmaid.bot"
+                  href="mailto:support@rai-bot.com"
                   className="btn btn-secondary btn-sm mt-4 text-xs flex items-center justify-center gap-2 hover:border-cyan-500/40"
                 >
-                  support@musicmaid.bot ✉
+                  support@rai-bot.com ✉
                 </a>
               </div>
             </div>

@@ -120,7 +120,11 @@ class PlayerPlaceholder:
     
     @ensure_track
     def track_color(self, track: Track) -> int:
-        return int(Config().get_source_config(track.source, "color"), 16)
+        try:
+            color = Config().get_source_config(track.source, "color")
+            return int(color, 16) if color else Config().embed_color
+        except Exception:
+            return Config().embed_color
     
     @ensure_track
     def track_source_name(self, track: Track) -> str:
@@ -141,12 +145,14 @@ class PlayerPlaceholder:
     
     def dj(self) -> str:
         if not self.player:
-            return self.bot.user.mention
+            return self.bot.user.mention if self.bot and self.bot.user else "DJ"
         
         if dj_id := self.player.settings.get("dj"):
             return f"<@&{dj_id}>"
         
-        return self.player.dj.mention
+        if hasattr(self.player, "dj") and self.player.dj:
+            return self.player.dj.mention
+        return self.bot.user.mention if self.bot and self.bot.user else "DJ"
 
     def volume(self) -> int:
         return self.player.volume if self.player else 0
@@ -203,39 +209,68 @@ class PlayerPlaceholder:
     @classmethod
     def build_embed(cls, embed_form: dict[str, dict], placeholder: PlayerPlaceholder) -> discord.Embed:
         embed = discord.Embed()
+        if not embed_form or not isinstance(embed_form, dict):
+            return embed
+
         try:
-            rv = {key: func() if callable(func) else func for key, func in placeholder.variables.items()}
+            rv = {}
+            if placeholder and hasattr(placeholder, "variables"):
+                for key, func in placeholder.variables.items():
+                    try:
+                        rv[key] = func() if callable(func) else func
+                    except Exception:
+                        rv[key] = ""
+
             if author := embed_form.get("author"):
-                embed.set_author(
-                    name = placeholder.replace(author.get("name"), rv),
-                    url = placeholder.replace(author.get("url"), rv),
-                    icon_url = placeholder.replace(author.get("icon_url"), rv)
-                )
+                name = placeholder.replace(author.get("name"), rv) if author.get("name") else None
+                url = placeholder.replace(author.get("url"), rv) if author.get("url") else None
+                icon_url = placeholder.replace(author.get("icon_url"), rv) if author.get("icon_url") else None
+                if name:
+                    embed.set_author(name=name, url=url, icon_url=icon_url)
             
             if title := embed_form.get("title"):
-                embed.title = placeholder.replace(title.get("name"), rv)
-                embed.url = placeholder.replace(title.get("url"), rv)
+                name = placeholder.replace(title.get("name"), rv) if title.get("name") else None
+                url = placeholder.replace(title.get("url"), rv) if title.get("url") else None
+                if name:
+                    embed.title = name
+                    embed.url = url
 
             if fields := embed_form.get("fields", []):
                 for f in fields:
-                    embed.add_field(name=placeholder.replace(f.get("name"), rv), value=placeholder.replace(f.get("value", ""), rv), inline=f.get("inline", False))
+                    f_name = placeholder.replace(f.get("name"), rv) if f.get("name") else None
+                    f_val = placeholder.replace(f.get("value", ""), rv) if f.get("value") else None
+                    if f_name and f_val:
+                        embed.add_field(name=f_name, value=f_val, inline=f.get("inline", False))
 
             if footer := embed_form.get("footer"):
-                embed.set_footer(
-                    text = placeholder.replace(footer.get("text"), rv),
-                    icon_url = placeholder.replace(footer.get("icon_url"), rv)
-                ) 
+                f_text = placeholder.replace(footer.get("text"), rv) if footer.get("text") else None
+                f_icon = placeholder.replace(footer.get("icon_url"), rv) if footer.get("icon_url") else None
+                if f_text:
+                    embed.set_footer(text=f_text, icon_url=f_icon) 
 
             if thumbnail := embed_form.get("thumbnail"):
-                embed.set_thumbnail(url = placeholder.replace(thumbnail, rv))
+                t_url = placeholder.replace(thumbnail, rv)
+                if t_url:
+                    embed.set_thumbnail(url=t_url)
             
             if image := embed_form.get("image"):
-                embed.set_image(url = placeholder.replace(image, rv))
+                i_url = placeholder.replace(image, rv)
+                if i_url:
+                    embed.set_image(url=i_url)
 
-            embed.description = placeholder.replace(embed_form.get("description"), rv)
-            embed.color = int(placeholder.replace(embed_form.get("color"), rv))
+            if desc := embed_form.get("description"):
+                embed.description = placeholder.replace(desc, rv)
 
-        except:
+            if color_val := embed_form.get("color"):
+                parsed_color = placeholder.replace(str(color_val), rv)
+                try:
+                    embed.color = int(parsed_color)
+                except (ValueError, TypeError):
+                    embed.color = Config().embed_color
+            else:
+                embed.color = Config().embed_color
+
+        except Exception:
             pass
 
         return embed

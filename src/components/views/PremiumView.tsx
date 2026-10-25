@@ -127,7 +127,7 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
           key: keyId,
           amount: order.amount,
           currency: order.currency || "INR",
-          name: "MusicMaid Pro VIP",
+          name: "Rem Pro VIP",
           description: `${planId.toUpperCase()} Subscription Grant`,
           order_id: order.id || order.order_id,
           prefill: {
@@ -186,7 +186,7 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
               </span>
               <h2 className="text-2xl font-black text-white">Full Platform Master Access Granted</h2>
               <p className="text-xs text-amber-100/80 mt-1">
-                You are recognized as the developer of MusicMaid. All 320kbps lossless features, 24/7 staying, DSP audio presets, and 150% volume boost are permanently active.
+                You are recognized as the developer of Rem. All 320kbps lossless features, 24/7 staying, DSP audio presets, and 150% volume boost are permanently active.
               </p>
             </div>
           </div>
@@ -202,7 +202,7 @@ export function PremiumView({ user, onShowToast, onRefreshUser }: PremiumViewPro
             </div>
             <div>
               <span className="text-xs font-bold uppercase text-purple-300">Active Membership</span>
-              <h3 className="text-xl font-bold text-white">MusicMaid Pro Active</h3>
+              <h3 className="text-xl font-bold text-white">Rem Pro Active</h3>
               <p className="text-xs text-(--text-muted)">
                 Enjoy lossless 320kbps streaming, DSP filters, and unlimited queue slots.
               </p>

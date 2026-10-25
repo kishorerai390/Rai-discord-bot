@@ -30,7 +30,7 @@ const DEFAULT_PRESENCE: BotPresence = {
   mode: "dynamic",
   status: "online",
   activity_type: "listening",
-  activity_text: "MusicMaid | /play",
+  activity_text: "Rem 🎧💜 | /play",
   idle_text: "24/7 high-fidelity lossless music player.",
   signature_symbol: "vr_headset",
 };

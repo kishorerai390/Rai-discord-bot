@@ -137,7 +137,7 @@ class OwnerApiRouter:
                 "bot_status": "ONLINE" if bot_ready else "STARTING",
                 "configured_status": pres_state.get("configured_status", "online"),
                 "discord_presence": pres_state.get("discord_presence", "online"),
-                "cluster_name": "MusicMaid-Core-01",
+                "cluster_name": "Rem-Core-01",
                 "uptime_seconds": uptime_seconds,
                 "gateway_latency_ms": latency_ms,
                 "active_guilds": guilds_count,
@@ -419,7 +419,7 @@ class OwnerApiRouter:
                     if d_user:
                         is_vip = "vip" in tier.lower() or "creator" in tier.lower()
                         badge_symbol = "👑" if is_vip else "💎"
-                        plan_title = "MusicMaid Creator VIP Pass" if is_vip else "MusicMaid Premium VIP"
+                        plan_title = "Rem Creator VIP Pass" if is_vip else "Rem Premium VIP"
                         accent_color = 0xFFD700 if is_vip else 0x9333EA
                         exp_unix = int((now + datetime.timedelta(days=days)).timestamp())
 

@@ -552,7 +552,7 @@ class AuthManager:
                 "tier": "creator_vip",
                 "is_premium": True,
                 "source": "developer_pass",
-                "plan_name": "MusicMaid Creator VIP Pass",
+                "plan_name": "Rem Creator VIP Pass",
                 "features": [
                     "247_mode",
                     "volume_boost_150",
@@ -586,7 +586,7 @@ class AuthManager:
                 "tier": sub.get("plan", "premium"),
                 "is_premium": True,
                 "source": "subscription",
-                "plan_name": f"MusicMaid {sub.get('plan', 'Premium').capitalize()}",
+                "plan_name": f"Rem {sub.get('plan', 'Premium').capitalize()}",
                 "expires_at": sub.get("current_period_end"),
                 "features": [
                     "247_mode",

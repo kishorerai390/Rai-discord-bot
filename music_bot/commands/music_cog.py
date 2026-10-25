@@ -165,7 +165,7 @@ class TrackSelectView(discord.ui.View):
             )
 
         select = discord.ui.Select(
-            placeholder="Select a song for MusicMaid to play...",
+            placeholder="Select a song for Rem to play...",
             min_values=1,
             max_values=1,
             options=options,
@@ -193,20 +193,20 @@ class TrackSelectView(discord.ui.View):
 
 
 def get_public_web_url() -> Optional[str]:
-    """Return the configured and validated public MusicMaid web dashboard URL."""
-    from music_bot.config import get_musicmaid_website_url
+    """Return the configured and validated public Rem web dashboard URL."""
+    from music_bot.config import get_rem_website_url as get_musicmaid_website_url
     return get_musicmaid_website_url()
 
 
 def get_premium_plans_url() -> Optional[str]:
-    """Return the configured and validated public MusicMaid premium plans URL if one exists."""
+    """Return the configured and validated public Rem premium plans URL if one exists."""
     from music_bot.config import get_premium_plans_url as _get_plans
     return _get_plans()
 
 
 
 class PremiumLinkView(discord.ui.View):
-    """Interactive link button view to the public MusicMaid web platform."""
+    """Interactive link button view to the public Rem web platform."""
 
     def __init__(self, web_url: Optional[str] = None, plans_url: Optional[str] = None):
         super().__init__(timeout=None)
@@ -222,7 +222,7 @@ class PremiumLinkView(discord.ui.View):
         if resolved_web_url and is_valid_public_https_url(resolved_web_url):
             self.add_item(
                 discord.ui.Button(
-                    label="Open MusicMaid Website",
+                    label="Open Rem Website",
                     url=resolved_web_url,
                     style=discord.ButtonStyle.link,
                     emoji="🌐",
@@ -452,7 +452,7 @@ class MusicControlSelect(discord.ui.Select):
 
 
 class MusicControlPanelView(discord.ui.View):
-    """Interactive master control panel and feature guide for MusicMaid (/c)."""
+    """Interactive master control panel and feature guide for Rem (/c)."""
 
     def __init__(self, bot: RaiMusicBot, guild: discord.Guild, session: GuildMusicSession):
         super().__init__(timeout=300)
@@ -475,10 +475,10 @@ class MusicControlPanelView(discord.ui.View):
         # Row 2: Invite Bot link button
         bot_user_id = bot.user.id if bot.user else 1556676516274905218
         invite_url = f"https://discord.com/oauth2/authorize?client_id={bot_user_id}&permissions=36768832&integration_type=0&scope=bot+applications.commands"
-        self.add_item(discord.ui.Button(label="Invite MusicMaid", style=discord.ButtonStyle.link, url=invite_url, emoji="📩", row=2))
+        self.add_item(discord.ui.Button(label="Invite Rem", style=discord.ButtonStyle.link, url=invite_url, emoji="📩", row=2))
 
     def build_embed(self) -> discord.Embed:
-        bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        bot_name = self.bot.user.name if self.bot.user else "Rem"
         is_247 = self.session.twenty_four_seven
         vc_connected = self.session.voice_client and self.session.voice_client.is_connected()
         vc_name = self.session.voice_client.channel.name if vc_connected else "Not Connected"
@@ -692,13 +692,13 @@ class MusicControlPanelView(discord.ui.View):
                         err = self.session.last_error or "Could not connect to your voice channel."
                         await interaction.response.send_message(
                             f"❌ **{err}**\n\n"
-                            f"💡 **How to fix:** Please grant **MusicMaid** the **Connect** and **Speak** permissions in this channel.",
+                            f"💡 **How to fix:** Please grant **Rem** the **Connect** and **Speak** permissions in this channel.",
                             ephemeral=True,
                         )
                         return
             else:
                 await interaction.response.send_message(
-                    "⚠️ **Please join a voice channel first** so MusicMaid knows which channel to stay in 24/7!",
+                    "⚠️ **Please join a voice channel first** so Rem knows which channel to stay in 24/7!",
                     ephemeral=True,
                 )
                 return
@@ -1000,7 +1000,7 @@ class MusicCog(commands.Cog, name="Music"):
                             desc = (
                                 f"Could not connect to **{ch_name}**.\n"
                                 f"• **Reason:** {err_detail}\n\n"
-                                f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **MusicMaid** the **Connect** & **Speak** permissions!"
+                                f"💡 *How to fix:* Right-click/tap the voice channel ➔ **Edit Channel** ➔ **Permissions** ➔ grant **Rem** the **Connect** & **Speak** permissions!"
                             )
                         elif "Voice connection failed:" in err_detail:
                             desc = f"Could not connect to **{ch_name}**.\n\n{err_detail}"
@@ -1069,7 +1069,7 @@ class MusicCog(commands.Cog, name="Music"):
                     f"If a source fails, show the actual error and fallback status."
                 )
                 return discord.Embed(
-                    title="✦ MUSICMAID • RESOLVING TRACK",
+                    title="✦ REM 🎧💜 • RESOLVING TRACK",
                     description=desc,
                     color=COLOR_PREMIUM,
                 )
@@ -1333,7 +1333,7 @@ class MusicCog(commands.Cog, name="Music"):
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
                 if is_timed_out:
                     embed_fail = discord.Embed(
-                        title=f"{EmojiManager.get('LOADING', self.bot)} MusicMaid ✦ SEARCH TIMED OUT",
+                        title=f"{EmojiManager.get('LOADING', self.bot)} Rem ✦ SEARCH TIMED OUT",
                         description=(
                             f"The music search for `{display_query_for_user[:100]}` exceeded the search deadline.\n\n"
                             f"• **Diagnostic:** `{res_err or 'Network or resolution timed out while contacting upstream providers.'}`\n"
@@ -1344,7 +1344,7 @@ class MusicCog(commands.Cog, name="Music"):
                     )
                 elif res_err and "[VIDEO_UNAVAILABLE]" in res_err:
                     embed_fail = discord.Embed(
-                        title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ VIDEO UNAVAILABLE",
+                        title=f"{EmojiManager.get('ERROR', self.bot)} Rem ✦ VIDEO UNAVAILABLE",
                         description=(
                             f"YouTube reports that this video is unavailable, removed, or private.\n"
                             f"Track: `{display_query_for_user[:100]}`\n\n"
@@ -1364,7 +1364,7 @@ class MusicCog(commands.Cog, name="Music"):
                     )
 
                     embed_fail = discord.Embed(
-                        title=f"{EmojiManager.get('ERROR', self.bot)} MusicMaid ✦ No Audio Track Found",
+                        title=f"{EmojiManager.get('ERROR', self.bot)} Rem ✦ No Audio Track Found",
                         description=(
                             f"{original_match_notice}{DIALOGUE_NOTHING_PLAYABLE}\nTrack: `{display_query_for_user[:100]}`\n\n"
                             f"• **Diagnostic:** `{res_err or 'No playable streams returned'}`\n"
@@ -1393,7 +1393,7 @@ class MusicCog(commands.Cog, name="Music"):
             # Feature 113: Audio Track Duration Ceiling Limiter (> 3 hours rejected for non-admins)
             if track.duration > 10800 and not getattr(member.guild_permissions, "administrator", False):
                 embed_dur = discord.Embed(
-                    title=f"{EmojiManager.get('WARNING', self.bot)} MusicMaid ✦ Track Duration Exceeded",
+                    title=f"{EmojiManager.get('WARNING', self.bot)} Rem ✦ Track Duration Exceeded",
                     description=f"Tracks longer than **3 hours** (`{format_duration(track.duration)}`) cannot be queued to protect audio stability. 🐾",
                     color=COLOR_WARNING,
                 )
@@ -1450,7 +1450,7 @@ class MusicCog(commands.Cog, name="Music"):
 
                     pos_text = f"`#{queue_pos}`" + (" (🚀 Next Up / Top of Queue!)" if top else "")
                     embed_queued = discord.Embed(
-                        title=f"{EmojiManager.get('QUEUE', self.bot)} MusicMaid ✦ Track Queued",
+                        title=f"{EmojiManager.get('QUEUE', self.bot)} Rem 🎧💜 ✦ Track Queued",
                         description=f"### [{track.title}]({track.url})\n"
                                     f"👤 **Artist:** `{track.artist}` • ⏱️ **Duration:** `{format_duration(track.duration)}`\n"
                                     f"📜 **Position in Queue:** {pos_text}",
@@ -2905,7 +2905,7 @@ class MusicCog(commands.Cog, name="Music"):
                 ),
                 color=COLOR_ELECTRIC_CYAN if not has_update else 0xFEE75C,
             )
-            embed.set_footer(text="MusicMaid Autonomous Self-Healing & Extractor Supervisor")
+            embed.set_footer(text="Rem Autonomous Self-Healing & Extractor Supervisor")
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="reload", description="Zero-downtime hot reload: update bot modules while music keeps playing")
@@ -3698,11 +3698,11 @@ class MusicCog(commands.Cog, name="Music"):
         except Exception as e:
             logger.error(f"Natural request error: {e}")
 
-    @app_commands.command(name="invite", description="Get official invite link for MusicMaid")
+    @app_commands.command(name="invite", description="Get official invite link for Rem")
     async def invite(self, interaction: discord.Interaction) -> None:
-        """Provide official invite links for MusicMaid with interactive buttons."""
+        """Provide official invite links for Rem with interactive buttons."""
         await self.ensure_deferred(interaction, ephemeral=False)
-        bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        bot_name = self.bot.user.name if self.bot.user else "Rem"
         client_id = self.bot.user.id if self.bot.user else 1554626865958887444
         invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=2268449856&scope=bot%20applications.commands"
         view = discord.ui.View()
@@ -3727,8 +3727,8 @@ class MusicCog(commands.Cog, name="Music"):
 
     @commands.command(name="invite")
     async def pfx_invite(self, ctx: commands.Context) -> None:
-        """Get official invite link for MusicMaid via text command."""
-        bot_name = self.bot.user.name if self.bot.user else "MusicMaid"
+        """Get official invite link for Rem via text command."""
+        bot_name = self.bot.user.name if self.bot.user else "Rem"
         client_id = self.bot.user.id if self.bot.user else 1554626865958887444
         invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&permissions=2268449856&scope=bot%20applications.commands"
         view = discord.ui.View()
@@ -3754,7 +3754,7 @@ class MusicCog(commands.Cog, name="Music"):
     # PREMIUM MANAGEMENT SUITE
     # =========================================================================
 
-    @app_commands.command(name="premium", description="Explore MusicMaid Premium perks, status, and website")
+    @app_commands.command(name="premium", description="Explore Rem Premium perks, status, and website")
     @app_commands.describe(
         action="Choose an action or leave blank to explore perks & website",
         key="Secret activation key (required when action is activate)",
@@ -3772,7 +3772,7 @@ class MusicCog(commands.Cog, name="Music"):
         action: Optional[app_commands.Choice[str]] = None,
         key: Optional[str] = None,
     ) -> None:
-        """Authoritative MusicMaid Premium Suite."""
+        """Authoritative Rem Premium Suite."""
         act = action.value if action else "overview"
 
         if act == "status":
@@ -3787,7 +3787,7 @@ class MusicCog(commands.Cog, name="Music"):
         await self._execute_premium_overview(interaction)
 
     async def _execute_premium_overview(self, interaction: discord.Interaction) -> None:
-        """Render the official MusicMaid Premium embed with website link button."""
+        """Render the official Rem Premium embed with website link button."""
         await self.ensure_deferred(interaction, ephemeral=False)
         prem_icon = EmojiManager.get("PREMIUM", self.bot)
         web_url = get_public_web_url()
@@ -3803,10 +3803,10 @@ class MusicCog(commands.Cog, name="Music"):
             )
 
         embed = discord.Embed(
-            title=f"{prem_icon} MusicMaid Premium{' ✦ 👑 Developer VIP' if is_owner else ''}",
+            title=f"{prem_icon} Rem Premium{' ✦ 👑 Developer VIP' if is_owner else ''}",
             description=(
                 f"{vip_banner}"
-                "Unlock the MusicMaid experience and explore available plans and features on our website.\n\n"
+                "Unlock the Rem experience and explore available plans and features on our website.\n\n"
                 "🌐 Visit the website to learn more and manage your account.\n\n"
                 "### 🌟 Premium Features Currently Available:\n"
                 "• 🔊 **150% Boosted Master Volume Cap** — Enhanced audio headroom beyond the standard 100% ceiling\n"
@@ -3824,10 +3824,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not web_url:
             embed.description += (
                 "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
-                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+                "Set `REM_WEBSITE_URL` (or `MUSICMAID_WEBSITE_URL`) to your production HTTPS domain to enable web link buttons."
             )
 
-        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        embed.set_footer(text="Rem 🎧💜 ✦ Your Anime Music Companion")
         view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
         if view and len(view.children) == 0:
             view = None
@@ -3853,7 +3853,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         owner_line = "\n• **Developer License:** `👑 Bot Creator & Developer VIP Pass (Lifetime Unlocked)`" if is_owner else ""
         embed = discord.Embed(
-            title=f"{prem_icon} MusicMaid ✦ Premium Status",
+            title=f"{prem_icon} Rem ✦ Premium Status",
             description=(
                 f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
                 f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
@@ -3872,10 +3872,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not web_url:
             embed.description += (
                 "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
-                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+                "Set `REM_WEBSITE_URL` (or `MUSICMAID_WEBSITE_URL`) to your production HTTPS domain to enable web link buttons."
             )
 
-        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        embed.set_footer(text="Rem 🎧💜 ✦ Your Anime Music Companion")
         view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
         if view and len(view.children) == 0:
             view = None
@@ -3896,7 +3896,7 @@ class MusicCog(commands.Cog, name="Music"):
                 await interaction.response.send_message(msg, ephemeral=True)
             return
 
-        secret_key = os.getenv("PREMIUM_KEY", "musicmaid_premium")
+        secret_key = os.getenv("PREMIUM_KEY", "rem_premium")
         if key.strip() != secret_key:
             msg = "❌ **Invalid activation key.** Please verify your key and try again."
             if interaction.response.is_done():
@@ -3960,7 +3960,7 @@ class MusicCog(commands.Cog, name="Music"):
     # Prefix Commands for Premium
     @commands.group(name="premium", aliases=["vip"], invoke_without_command=True)
     async def prefix_premium(self, ctx: commands.Context, *, arg: Optional[str] = None) -> None:
-        """MusicMaid Premium Tier Perks & Web Portal."""
+        """Rem Premium Tier Perks & Web Portal."""
         if arg and arg.lower().strip() == "status":
             await self._prefix_premium_status(ctx)
             return
@@ -3970,9 +3970,9 @@ class MusicCog(commands.Cog, name="Music"):
         plans_url = get_premium_plans_url()
 
         embed = discord.Embed(
-            title=f"{prem_icon} MusicMaid Premium",
+            title=f"{prem_icon} Rem Premium",
             description=(
-                "Unlock the MusicMaid experience and explore available plans and features on our website.\n\n"
+                "Unlock the Rem experience and explore available plans and features on our website.\n\n"
                 "🌐 Visit the website to learn more and manage your account.\n\n"
                 "### 🌟 Premium Features Currently Available:\n"
                 "• 🔊 **150% Boosted Master Volume Cap** — Enhanced audio headroom beyond the standard 100% ceiling\n"
@@ -3990,10 +3990,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not web_url:
             embed.description += (
                 "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
-                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+                "Set `REM_WEBSITE_URL` (or `MUSICMAID_WEBSITE_URL`) to your production HTTPS domain to enable web link buttons."
             )
 
-        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        embed.set_footer(text="Rem 🎧💜 ✦ Your Anime Music Companion")
         view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
         if view and len(view.children) == 0:
             view = None
@@ -4018,7 +4018,7 @@ class MusicCog(commands.Cog, name="Music"):
 
         owner_line = "\n• **Developer License:** `👑 Bot Owner VIP Pass (Lifetime Unlocked)`" if is_owner else ""
         embed = discord.Embed(
-            title=f"{prem_icon} MusicMaid ✦ Premium Status",
+            title=f"{prem_icon} Rem ✦ Premium Status",
             description=(
                 f"**Overall Status:** `{'✨ ACTIVE (UNLOCKED)' if is_active else 'STANDARD (FREE TIER)'}`\n\n"
                 f"• **Server Premium:** `{'✅ Active' if guild_prem else '❌ Inactive'}`\n"
@@ -4037,10 +4037,10 @@ class MusicCog(commands.Cog, name="Music"):
         if not web_url:
             embed.description += (
                 "\n\n⚠️ **Configuration Warning:** Public website URL is not configured or is set to localhost. "
-                "Set `MUSICMAID_WEBSITE_URL` to your production HTTPS domain to enable web link buttons."
+                "Set `REM_WEBSITE_URL` (or `MUSICMAID_WEBSITE_URL`) to your production HTTPS domain to enable web link buttons."
             )
 
-        embed.set_footer(text="MusicMaid ✦ Lossless Anime Audio Platform")
+        embed.set_footer(text="Rem 🎧💜 ✦ Your Anime Music Companion")
         view = PremiumLinkView(web_url, plans_url) if (web_url or plans_url) else None
         if view and len(view.children) == 0:
             view = None
@@ -4049,7 +4049,7 @@ class MusicCog(commands.Cog, name="Music"):
 
     @prefix_premium.command(name="activate")
     async def prefix_premium_activate(self, ctx: commands.Context, key: str) -> None:
-        secret_key = os.getenv("PREMIUM_KEY", "musicmaid_premium")
+        secret_key = os.getenv("PREMIUM_KEY", "rem_premium")
         if key.strip() != secret_key:
             await ctx.send("❌ **Invalid activation key.** Please verify your key and try again.")
             return
@@ -4115,7 +4115,7 @@ class MusicCog(commands.Cog, name="Music"):
                 ),
                 color=COLOR_NEON_BLUE,
             )
-            embed.set_footer(text=f"You can also mention the bot: @MusicMaid help")
+            embed.set_footer(text=f"You can also mention the bot: @Rem help")
             await interaction.edit_original_response(embed=embed)
             return
 
@@ -4205,7 +4205,7 @@ class MusicCog(commands.Cog, name="Music"):
                 if "Voice connection failed:" in err:
                     reply_text = f"❌ {err}"
                 elif "permission" in err.lower():
-                    reply_text = f"❌ {err}\n💡 Please check voice channel permissions for MusicMaid."
+                    reply_text = f"❌ {err}\n💡 Please check voice channel permissions for Rem."
                 else:
                     reply_text = f"❌ {err}"
                 await ctx.reply(reply_text, mention_author=False)
@@ -4540,13 +4540,13 @@ class MusicCog(commands.Cog, name="Music"):
                     vc = await VoiceManager.join_voice_channel(ctx.author, ctx.channel, session)  # type: ignore
                     if not vc:
                         err = getattr(session, "last_error", None) or "Could not connect to voice channel."
-                        await ctx.reply(f"❌ {err}\n💡 Please check voice channel permissions for MusicMaid.", mention_author=False)
+                        await ctx.reply(f"❌ {err}\n💡 Please check voice channel permissions for Rem.", mention_author=False)
                         return
             else:
                 settings.twenty_four_seven_enabled = False
                 session.twenty_four_seven = False
                 await self.bot.db.update_guild_settings(settings)
-                await ctx.reply("⚠️ Please join a voice channel first so MusicMaid knows where to stay!", mention_author=False)
+                await ctx.reply("⚠️ Please join a voice channel first so Rem knows where to stay!", mention_author=False)
                 return
 
             if target_vc:
@@ -4557,7 +4557,7 @@ class MusicCog(commands.Cog, name="Music"):
                 session.auto_leave_task.cancel()
                 session.auto_leave_task = None
             await self.bot.db.update_guild_settings(settings)
-            await ctx.reply(f"📻 **24/7 Mode ACTIVATED** in **{target_vc.name if target_vc else 'voice'}**! MusicMaid will stay connected indefinitely.", mention_author=False)
+            await ctx.reply(f"📻 **24/7 Mode ACTIVATED** in **{target_vc.name if target_vc else 'voice'}**! Rem will stay connected indefinitely.", mention_author=False)
         else:
             settings.twenty_four_seven_channel_id = None
             session.is_intentional_disconnect = True
@@ -4898,7 +4898,7 @@ class MusicCog(commands.Cog, name="Music"):
             return
         pref = await self.bot.get_guild_prefix(ctx.guild.id)
         embed = discord.Embed(
-            title=f"{EmojiManager.get('LOGO', self.bot)} MusicMaid ✦ Commands & Features Guide",
+            title=f"{EmojiManager.get('LOGO', self.bot)} Rem 🎧💜 ✦ Commands & Features Guide",
             description=(
                 f"**Current Server Prefix:** `{pref}` *(Configurable!)*\n"
                 f"Use Discord **Slash Commands** (`/`) or text prefixes for all controls.\n\n"
@@ -4911,7 +4911,7 @@ class MusicCog(commands.Cog, name="Music"):
             ),
             color=COLOR_PRIMARY,
         )
-        embed.set_footer(text=f"MusicMaid ✦ Lossless Anime Audio Platform • {pref}prefix <symbol>")
+        embed.set_footer(text=f"Rem 🎧💜 ✦ Your Anime Music Companion • {pref}prefix <symbol>")
         view = PremiumLinkView(get_public_web_url())
         await ctx.reply(embed=embed, view=view, mention_author=False)
 
@@ -5292,12 +5292,12 @@ class MusicCog(commands.Cog, name="Music"):
         embed.set_footer(text="Neko Music Wrapped • Powered by Rai Analytics")
         await interaction.edit_original_response(embed=embed)
 
-    @app_commands.command(name="support", description="Official Support Server for MusicMaid and Rai bots (MRL GAMING)")
+    @app_commands.command(name="support", description="Official Support Server for Rem and Rai bots (MRL GAMING)")
     async def music_support(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=True)
         from config import SUPPORT_INVITE_URL
         embed = discord.Embed(
-            title="💬 MusicMaid Official Support Server",
+            title="💬 Rem Official Support Server",
             description=(
                 "Need help, have feature suggestions, or want to report an issue?\n\n"
                 f"👉 **[Click Here to Join MRL GAMING Support Server]({SUPPORT_INVITE_URL})**\n\n"
@@ -5353,7 +5353,7 @@ class MusicCog(commands.Cog, name="Music"):
             ),
             inline=False,
         )
-        embed.set_footer(text=f"MusicMaid Audio Diagnostics • ID: DBG-{corr_id}")
+        embed.set_footer(text=f"Rem Audio Diagnostics • ID: DBG-{corr_id}")
         return embed
 
     def _build_debug_error_embed(self, error: Exception, corr_id: str) -> discord.Embed:
@@ -5369,7 +5369,7 @@ class MusicCog(commands.Cog, name="Music"):
             ),
             color=0xED4245,
         )
-        embed.set_footer(text=f"MusicMaid Audio Diagnostics • ID: DBG-{corr_id}")
+        embed.set_footer(text=f"Rem Audio Diagnostics • ID: DBG-{corr_id}")
         return embed
 
     async def _run_pipeline_diagnostics(self, query: str, guild: Optional[discord.Guild], corr_id: Optional[str] = None) -> discord.Embed:
@@ -5557,7 +5557,7 @@ class MusicCog(commands.Cog, name="Music"):
         overall_ok = search_results and track and track.stream_url and ffmpeg_ok
         embed.color = 0x57F287 if overall_ok else 0xED4245
         footer_id = f"DBG-{corr_id}" if corr_id else "Run with /debug or m!debug"
-        embed.set_footer(text=f"MusicMaid Audio Diagnostics • ID: {footer_id}")
+        embed.set_footer(text=f"Rem Audio Diagnostics • ID: {footer_id}")
         return embed
 
     @app_commands.command(name="debug", description="Run audio pipeline diagnostics: yt-dlp, FFmpeg, cookies, and resolution")
@@ -5624,7 +5624,7 @@ class MusicCog(commands.Cog, name="Music"):
     def _build_music_status_embed(self, guild: Optional[discord.Guild], user: Optional[discord.Member | discord.User]) -> discord.Embed:
         """Constructs a comprehensive, safe status embed displaying voice connectivity, gateway latency, and session health."""
         embed = discord.Embed(
-            title="📡 MusicMaid Voice & System Status",
+            title="📡 Rem Voice & System Status",
             color=0x5865F2,
             timestamp=discord.utils.utcnow(),
         )
@@ -5703,7 +5703,7 @@ class MusicCog(commands.Cog, name="Music"):
                 inline=False,
             )
 
-        embed.set_footer(text="MusicMaid Voice Diagnostics • Run /musicstatus or !musicstatus")
+        embed.set_footer(text="Rem Voice Diagnostics • Run /musicstatus or !musicstatus")
         return embed
 
     @app_commands.command(name="musicstatus", description="Display voice connection health, gateway latency, and playback status")
@@ -6021,7 +6021,7 @@ class MusicCog(commands.Cog, name="Music"):
         from discord.opus import is_loaded as opus_is_loaded
 
         embed = discord.Embed(
-            title=f"{EmojiManager.get('DOCTOR', self.bot)} MusicMaid ✦ Dependency & Update Audit",
+            title=f"{EmojiManager.get('DOCTOR', self.bot)} Rem ✦ Dependency & Update Audit",
             description="Read-only runtime check comparing installed components against verified baseline requirements.",
             color=COLOR_CYAN,
         )
@@ -6053,7 +6053,7 @@ class MusicCog(commands.Cog, name="Music"):
             value=f"• **yt-dlp:** `v{ytdl_ver}`\n• **Integrity:** `Verified 🟢`",
             inline=False,
         )
-        embed.set_footer(text="MusicMaid Safe Updates • No live code modified during check")
+        embed.set_footer(text="Rem Safe Updates • No live code modified during check")
         return embed
 
     @app_commands.command(name="backupstatus", description="Inspect database integrity, WAL size, and backup history")
@@ -6081,7 +6081,7 @@ class MusicCog(commands.Cog, name="Music"):
         backup_files = list(backups_dir.glob("*.db")) if backups_dir.exists() else []
 
         embed = discord.Embed(
-            title="💾 MusicMaid • Database & Backup Status",
+            title="💾 Rem • Database & Backup Status",
             description="Sanitized storage audit showing SQLite WAL journal and backup retention.",
             color=0x00E5FF,
         )
@@ -6095,7 +6095,7 @@ class MusicCog(commands.Cog, name="Music"):
             value=f"• **Saved Backups:** `{len(backup_files)}`\n• **Status:** `Healthy 🟢`",
             inline=True,
         )
-        embed.set_footer(text="MusicMaid Database Integrity • SQLite WAL Mode")
+        embed.set_footer(text="Rem Database Integrity • SQLite WAL Mode")
         return embed
 
 

@@ -103,7 +103,7 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
       });
       const data = await res.json();
       if (data.success) {
-        onShowToast(`MusicMaid signature symbol updated to ${newSymbol.replace('_', ' ').toUpperCase()}! ✦`, "success");
+        onShowToast(`Rem signature symbol updated to ${newSymbol.replace('_', ' ').toUpperCase()}! ✦`, "success");
       } else {
         onShowToast(data.error?.message || "Failed to update symbol", "danger");
       }
@@ -455,7 +455,7 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
                 )}
               </div>
               <p className="text-[11px] text-(--text-dim) mt-2 font-mono">
-                {overview?.cluster_name || "MusicMaid-Core-01"}
+                {overview?.cluster_name || "Rem-Core-01"}
               </p>
             </div>
 
@@ -724,8 +724,8 @@ export function OwnerView({ onShowToast }: OwnerViewProps) {
                         onChange={(e: any) => setGrantTier(e.target.value)}
                         className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-400"
                       >
-                        <option value="premium" className="bg-slate-900">MusicMaid Premium (150% Boost)</option>
-                        <option value="vip" className="bg-slate-900">MusicMaid VIP (24/7 Voice + Lossless)</option>
+                        <option value="premium" className="bg-slate-900">Rem Premium (150% Boost)</option>
+                        <option value="vip" className="bg-slate-900">Rem VIP (24/7 Voice + Lossless)</option>
                         <option value="studio" className="bg-slate-900">Creator Studio VIP (Unlimited)</option>
                       </select>
                     </div>

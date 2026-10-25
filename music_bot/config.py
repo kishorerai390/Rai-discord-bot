@@ -26,12 +26,12 @@ else:
 # checkout buttons are disabled with friendly guidance, and no real transactions are processed.
 PAYMENTS_ENABLED: bool = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"
 
-# MusicMaid Brand Identity
-BOT_NAME: str = os.getenv("BOT_NAME", "MusicMaid")
-STUDIO_BRAND_NAME: str = "MusicMaid Studios"
-BOT_BRAND_TAG: str = "MUSICMAID"
-BOT_ABOUT_ME: str = "24/7 high-fidelity lossless music player."
-BOT_TAGLINE: str = "24/7 high-fidelity lossless music player."
+# Rem Brand Identity
+BOT_NAME: str = os.getenv("BOT_NAME", "Rem")
+STUDIO_BRAND_NAME: str = "Rem Studio • Rai Ecosystem"
+BOT_BRAND_TAG: str = "REM"
+BOT_ABOUT_ME: str = "Rem 🎧💜 — Your Anime Music Companion. Adorable, friendly AI DJ with lossless audio streaming."
+BOT_TAGLINE: str = "Your Anime Music Companion 🎧💜"
 MUSIC_BOT_VERSION: str = "2.7.0"
 
 # Import Theme & Emoji Tokens
@@ -56,7 +56,7 @@ COLOR_WHITE: int = 0xFFFFFF
 COLOR_VIOLET_ACCENT: int = COLOR_PRIMARY
 
 # Personality Dialogues
-DIALOGUE_JOIN: str = "MusicMaid connected to voice channel."
+DIALOGUE_JOIN: str = "Rem connected to voice channel. 🎧💜"
 DIALOGUE_START: str = "Playback started."
 DIALOGUE_EMPTY_QUEUE: str = "Queue is empty."
 DIALOGUE_UNPLAYABLE: str = "Could not resolve a playable audio source."
@@ -162,7 +162,8 @@ MUSIC_RATE_LIMIT_COUNT: int = int(os.getenv("MUSIC_RATE_LIMIT_COUNT", "6"))
 MUSIC_RATE_LIMIT_WINDOW_SECONDS: float = float(os.getenv("MUSIC_RATE_LIMIT_WINDOW", "30.0"))
 
 # Public Website and Web Platform URLs
-MUSICMAID_DEFAULT_URL: str = "https://rai-discord-bot.onrender.com"
+REM_DEFAULT_URL: str = "https://rai-discord-bot.onrender.com"
+MUSICMAID_DEFAULT_URL: str = REM_DEFAULT_URL
 
 
 def is_valid_public_https_url(url: Optional[str]) -> bool:
@@ -191,25 +192,27 @@ def is_valid_public_https_url(url: Optional[str]) -> bool:
         return False
 
 
-def get_musicmaid_website_url() -> Optional[str]:
+def get_rem_website_url() -> Optional[str]:
     """
-    Resolve and validate the authoritative public MusicMaid website URL.
+    Resolve and validate the authoritative public Rem website URL.
     Prioritizes:
     1. PUBLIC_BASE_URL
-    2. MUSICMAID_WEBSITE_URL
-    3. RENDER_EXTERNAL_URL
-    4. PUBLIC_URL
-    5. WEB_BASE_URL
-    6. Fallback production default: https://rai-discord-bot.onrender.com
+    2. REM_WEBSITE_URL
+    3. MUSICMAID_WEBSITE_URL (legacy alias)
+    4. RENDER_EXTERNAL_URL
+    5. PUBLIC_URL
+    6. WEB_BASE_URL
+    7. Fallback production default: https://rai-discord-bot.onrender.com
     Returns None if no valid public URL is configured or if only localhost is provided.
     """
     candidates = [
         os.getenv("PUBLIC_BASE_URL", "").strip(),
+        os.getenv("REM_WEBSITE_URL", "").strip(),
         os.getenv("MUSICMAID_WEBSITE_URL", "").strip(),
         os.getenv("RENDER_EXTERNAL_URL", "").strip(),
         os.getenv("PUBLIC_URL", "").strip(),
         os.getenv("WEB_BASE_URL", "").strip(),
-        MUSICMAID_DEFAULT_URL,
+        REM_DEFAULT_URL,
     ]
     for cand in candidates:
         if cand and is_valid_public_https_url(cand):
@@ -218,16 +221,17 @@ def get_musicmaid_website_url() -> Optional[str]:
 
 
 # Function aliases for website URL resolution
-get_website_url = get_musicmaid_website_url
-get_public_web_url = get_musicmaid_website_url
+get_musicmaid_website_url = get_rem_website_url
+get_website_url = get_rem_website_url
+get_public_web_url = get_rem_website_url
 
 
 def get_premium_plans_url() -> Optional[str]:
     """
-    Resolve and validate the optional MusicMaid premium plans URL if one exists.
+    Resolve and validate the optional Rem premium plans URL if one exists.
     Returns None if not configured, nonexistent, or invalid.
     """
-    for key in ("MUSICMAID_PREMIUM_URL", "PREMIUM_PLANS_URL"):
+    for key in ("REM_PREMIUM_URL", "MUSICMAID_PREMIUM_URL", "PREMIUM_PLANS_URL"):
         cand = os.getenv(key, "").strip()
         if cand and is_valid_public_https_url(cand):
             return cand.rstrip("/")

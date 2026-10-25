@@ -107,13 +107,13 @@ class TestNekoSongsBotSuite(unittest.IsolatedAsyncioTestCase):
 
     def test_brand_identity_and_color_palette(self):
         """Validates Neko Songs brand aesthetics, theme colors, and dialogue presets."""
-        self.assertIn(BOT_NAME, ("MusicMaid", "Neko Songs"))
+        self.assertIn(BOT_NAME, ("Rem", "MusicMaid", "Neko Songs"))
         self.assertEqual(COLOR_MIDNIGHT_BLACK, 0x0B0E14)
         self.assertEqual(COLOR_NEON_BLUE, 0x00B0FF)
         self.assertEqual(COLOR_ELECTRIC_CYAN, 0x00E5FF)
         self.assertEqual(COLOR_WHITE, 0xFFFFFF)
 
-        self.assertTrue(any(x in DIALOGUE_JOIN for x in ("Neko has entered", "MusicMaid connected", "entered the listening room")))
+        self.assertTrue(any(x in DIALOGUE_JOIN for x in ("Rem connected", "Neko has entered", "MusicMaid connected", "entered the listening room")))
         self.assertTrue(any(x in DIALOGUE_START for x in ("Found it!", "Playback started")))
         self.assertTrue(any(x in DIALOGUE_EMPTY_QUEUE for x in ("The queue is empty", "Queue is empty")))
         self.assertTrue(any(x in DIALOGUE_UNPLAYABLE for x in ("couldn't resolve a playable audio source", "Could not resolve a playable audio source")))

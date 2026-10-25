@@ -135,9 +135,9 @@ class RaiCommunityOSServer:
 
         return web.json_response({
             "status": "healthy",
-            "bot_name": "MusicMaid",
+            "bot_name": "Rem",
             "bot_status": music_status,
-            "platform": "MusicMaid Web Player & Platform",
+            "platform": "Rem Web Player & Platform",
             "timestamp": int(time.time()),
             "commit": git_commit[:8] if git_commit else "unknown",
             "git_commit": git_commit,

@@ -1,7 +1,7 @@
 {
-  "name": "musicmaid",
+  "name": "rem-music-bot",
   "version": "2.2.0",
-  "description": "MusicMaid — 24/7 Lossless Discord Music Bot & Web Platform",
+  "description": "Rem — Your Anime Music Companion (Rai Discord Bot Ecosystem)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,7 +12,7 @@
     "test:bot": "python -m pytest",
     "typecheck": "tsc --noEmit"
   },
-  "author": "MusicMaid Team",
+  "author": "Rem Team & Kishore",
   "license": "ISC",
   "dependencies": {
     "better-sqlite3": "^13.0.3",

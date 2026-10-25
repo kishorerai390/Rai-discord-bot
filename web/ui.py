@@ -1,5 +1,5 @@
 """
-MusicMaid — Discord Music Bot Master Control Panel & Web Platform UI.
+Rem — Discord Music Bot Master Control Panel & Web Platform UI.
 Dedicated 24/7 Hi-Fi Lossless Music Engine with Smart Auto-DJ, DSP Equalizer,
 Queue Synchronization, Multi-Lingual Search, and Discord OAuth2 Integration.
 """
@@ -14,9 +14,9 @@ UI_HTML = r"""<!DOCTYPE html>
   <meta name="theme-color" content="#07090e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>MusicMaid — 24/7 Lossless Discord Music Player</title>
+  <title>Rem — 24/7 Lossless Discord Music Player | Your Anime Music Companion</title>
   <meta name="author" content="Kishore (Noctyra Studio / KishoreRai390)">
-  <meta name="keywords" content="MusicMaid, Noctyra Premium, Discord Music Bot, 320kbps Opus, 24/7 Voice, Kishore">
+  <meta name="keywords" content="Rem, MusicMaid, Rai Discord Bot, Anime Music Bot, 320kbps Opus, 24/7 Voice, Kishore">
   <meta name="description" content="Fast, reliable 320kbps Discord music bot with instant skip, zero-delay queue, and automatic session recovery. Built for real music listeners without corporate paywalls.">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" href="/icon.png">
@@ -384,7 +384,7 @@ UI_HTML = r"""<!DOCTYPE html>
       color: #ffffff !important;
     }
 
-    /* MUSICMAID SIGNATURE SYMBOLS & BRANDING */
+    /* REM SIGNATURE SYMBOLS & BRANDING */
     .signature-symbol-wrap {
       display: inline-flex;
       align-items: center;
@@ -3064,14 +3064,14 @@ UI_HTML = r"""<!DOCTYPE html>
     <!-- DESKTOP / MOBILE SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header-row">
-        <a class="brand-box" onclick="navigate('/'); showToast('🎧 MusicMaid: Handcrafted with Python & 💜 for Discord!');" title="MusicMaid — Handcrafted Discord Music Player">
+        <a class="brand-box" onclick="navigate('/'); showToast('🎧 Rem 💜: Handcrafted with Python & 💜 for Discord!');" title="Rem — Your Anime Music Companion">
           <div class="brand-avatar" style="position:relative; overflow:hidden; border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(147,51,234,0.45); border:1px solid rgba(168,85,247,0.4); width:42px; height:42px; flex-shrink:0;">
-            <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
+            <img src="/public/musicmaid_avatar.jpg" alt="Rem" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
           </div>
           <div class="brand-title-wrap">
             <div style="display:flex; align-items:center; gap:0.4rem;">
-              <h1>MusicMaid</h1>
-              <span id="sidebar-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature VR Emblem" style="cursor:pointer;" onclick="event.stopPropagation(); navigate('/control-room');"></span>
+              <h1>Rem 🎧💜</h1>
+              <span id="sidebar-brand-symbol" class="signature-symbol-wrap" title="Rem Signature VR Emblem" style="cursor:pointer;" onclick="event.stopPropagation(); navigate('/control-room');"></span>
             </div>
             <p>Handmade Player</p>
           </div>
@@ -3117,7 +3117,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
       <!-- DIRECT DISCORD BOT INVITE & COMMUNITY LINKS -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.4rem; margin:0.4rem 0 0.65rem 0;">
-        <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.25), rgba(88,101,242,0.1)); border:1px solid rgba(88,101,242,0.5); color:#fff; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Add MusicMaid to your server">
+        <a href="https://discord.com/api/oauth2/authorize?client_id=1556676516274905218&permissions=8&scope=bot%20applications.commands" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(88,101,242,0.25), rgba(88,101,242,0.1)); border:1px solid rgba(88,101,242,0.5); color:#fff; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Add Rem to your server">
           <span>➕ Add Bot</span>
         </a>
         <a href="https://discord.gg/d7T8cJK3XF" id="sidebar-community-link" target="_blank" rel="noopener" style="display:flex; align-items:center; justify-content:center; gap:0.35rem; padding:0.55rem 0.6rem; border-radius:var(--radius-md); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.15); color:#cbd5e1; font-size:0.75rem; font-weight:700; text-decoration:none; transition:all 0.2s ease;" title="Join Discord Support Server">
@@ -3167,17 +3167,17 @@ UI_HTML = r"""<!DOCTYPE html>
       </div>
 
       <!-- COMPACT OPTIONAL VIP CHIP -->
-      <div class="sidebar-vip-compact" onclick="navigate('/premium')" id="sidebar-premium-card" title="MusicMaid VIP">
+      <div class="sidebar-vip-compact" onclick="navigate('/premium')" id="sidebar-premium-card" title="Rem VIP">
         <div style="display:flex; align-items:center; gap:0.45rem;">
           <span>💎</span>
-          <span style="font-weight:700; font-size:0.75rem; color:#fff;">MusicMaid VIP</span>
+          <span style="font-weight:700; font-size:0.75rem; color:#fff;">Rem VIP 💜</span>
         </div>
         <span class="chip-pill" style="color:var(--pink); background:rgba(236,72,153,0.15); font-size:0.65rem; padding:0.15rem 0.45rem; border:1px solid rgba(236,72,153,0.3);">Upgrade ⚡</span>
       </div>
 
       <!-- SIDEBAR FOOTER -->
       <div class="sidebar-footer">
-        <div class="voice-badge-card" id="sidebar-voice-pill" onclick="quickConnectVoice()" title="Click to summon / connect MusicMaid to your voice channel" style="cursor:pointer;">
+        <div class="voice-badge-card" id="sidebar-voice-pill" onclick="quickConnectVoice()" title="Click to summon / connect Rem to your voice channel" style="cursor:pointer;">
           <span>🔊</span> <span id="sidebar-vc-text">320kbps Online (Ready)</span>
         </div>
         <div id="nav-owner-li" style="display:none; margin: 0.2rem 0;">
@@ -3191,7 +3191,7 @@ UI_HTML = r"""<!DOCTYPE html>
           </a>
         </div>
         <div style="font-size:0.68rem; color:var(--text-dim); text-align:center; padding:0.4rem 0 0.1rem 0; line-height:1.4;">
-          MusicMaid is an independent open-source music bot. Not affiliated with or endorsed by Discord, Inc.<br>
+          Rem is an independent open-source anime music companion (Rai ecosystem). Not affiliated with or endorsed by Discord, Inc.<br>
           Handcrafted by <a href="https://github.com/kishorerai390" target="_blank" rel="noopener" style="color:#a78bfa; text-decoration:none; font-weight:600;">Kishore</a>
           <div style="display:flex; justify-content:center; gap:0.6rem; font-size:0.72rem; margin-top:0.35rem;">
             <a href="/terms" onclick="event.preventDefault(); navigate('/terms')" style="color:var(--text-muted); text-decoration:none;">Terms</a>
@@ -3209,8 +3209,8 @@ UI_HTML = r"""<!DOCTYPE html>
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
           <img src="/public/musicmaid_avatar.jpg" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.style.display='none';">
-          <span style="font-weight:800; font-size:1.1rem; color:#fff;">MusicMaid</span>
-          <span id="mobile-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
+          <span style="font-weight:800; font-size:1.1rem; color:#fff;">Rem 🎧💜</span>
+          <span id="mobile-brand-symbol" class="signature-symbol-wrap" title="Rem Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
         </div>
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="btn btn-sm btn-primary" style="padding:0.3rem 0.65rem; font-size:0.75rem; border-radius:20px; font-weight:800;" onclick="navigate('/premium')">💎 Premium</button>
@@ -3236,7 +3236,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="bar-meta-stack">
             <div style="display:flex; align-items:center; gap:0.4rem;">
               <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
-              <span id="bar-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
+              <span id="bar-brand-symbol" class="signature-symbol-wrap" title="Rem Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
             </div>
             <span class="bar-artist" id="bar-artist">Artist name · Current server</span>
             <span class="bar-idle-state" id="bar-idle-state">Idle state: Search for music to get started</span>
@@ -3320,7 +3320,7 @@ UI_HTML = r"""<!DOCTYPE html>
   <div class="modal-backdrop" id="commands-modal">
     <div class="modal-content" style="max-width:560px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <div class="section-title" style="font-size:1.25rem;"><span>📖</span> MusicMaid Slash Commands</div>
+        <div class="section-title" style="font-size:1.25rem;"><span>📖</span> Rem Slash Commands</div>
         <button class="btn btn-secondary btn-sm" onclick="closeCommandsModal()">✕</button>
       </div>
       <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1rem;">
@@ -3340,7 +3340,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
         </div>
         <div class="queue-row" onclick="copyCommand('/music 247')" style="cursor:pointer;" title="Click to copy">
-          <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music 247</code><div style="font-size:0.75rem; color:var(--text-muted);">Keep MusicMaid in voice channel 24/7 without leaving</div></div>
+          <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music 247</code><div style="font-size:0.75rem; color:var(--text-muted);">Keep Rem in voice channel 24/7 without leaving</div></div>
           <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
         </div>
         <div class="queue-row" onclick="copyCommand('/music queue')" style="cursor:pointer;" title="Click to copy">
@@ -3388,7 +3388,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <button class="btn btn-secondary btn-sm" onclick="closeSleepTimerModal()">✕</button>
       </div>
       <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1.2rem;">
-        Automatically fade out volume and disconnect MusicMaid so you can fall asleep peacefully:
+        Automatically fade out volume and disconnect Rem so you can fall asleep peacefully:
       </p>
       <div class="eq-grid" style="grid-template-columns:repeat(2, 1fr); gap:0.6rem; margin-bottom:1.2rem;">
         <div class="eq-chip" onclick="setWebSleepTimer(15)">⏱️ 15 Minutes</div>
@@ -3430,7 +3430,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <button class="btn btn-secondary btn-sm" onclick="closeShortcutsModal()" aria-label="Close shortcuts dialog">✕</button>
       </div>
       <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1.2rem;">
-        Control MusicMaid directly from your keyboard for ultra-fast, hands-free operation:
+        Control Rem directly from your keyboard for ultra-fast, hands-free operation:
       </p>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.4rem;">
         <div style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 0.8rem; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-sm);">
@@ -3696,7 +3696,11 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     // MUSICMAID SIGNATURE SYMBOLS (VR HEADSET, SOUNDWAVE, ENERGY CORE, ETC.)
     // =========================================================================
-    const MUSICMAID_SIGNATURE_SYMBOLS = {
+    const REM_SIGNATURE_SYMBOLS = {
+  // Backward compatibility alias
+};
+const MUSICMAID_SIGNATURE_SYMBOLS = REM_SIGNATURE_SYMBOLS;
+const _UNUSED_DEF = {
       vr_headset: {
         name: "VR Headset",
         subtitle: "Signature Cyber-VR Audio",
@@ -3779,7 +3783,7 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     };
 
-    let activeSignatureSymbol = localStorage.getItem('musicmaid_signature_symbol') || 'vr_headset';
+    let activeSignatureSymbol = localStorage.getItem('rem_signature_symbol') || localStorage.getItem('musicmaid_signature_symbol') || 'vr_headset';
 
     function getSignatureSymbolSvg(symbolKey, size=24) {
       const sym = MUSICMAID_SIGNATURE_SYMBOLS[symbolKey] || MUSICMAID_SIGNATURE_SYMBOLS.vr_headset;
@@ -3789,7 +3793,7 @@ UI_HTML = r"""<!DOCTYPE html>
     function updateSignatureSymbolBranding(symbolKey) {
       if (!MUSICMAID_SIGNATURE_SYMBOLS[symbolKey]) symbolKey = 'vr_headset';
       activeSignatureSymbol = symbolKey;
-      localStorage.setItem('musicmaid_signature_symbol', symbolKey);
+      localStorage.setItem('rem_signature_symbol', symbolKey); localStorage.setItem('musicmaid_signature_symbol', symbolKey);
 
       // Update sidebar branding badge
       const sidebarIcon = document.getElementById('sidebar-brand-symbol');
@@ -4266,7 +4270,7 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     function renderGuildDropdown() {
-      const active = activeGuilds.find(g => g.id === currentGuildId) || { name: "MusicMaid Server", id: currentGuildId };
+      const active = activeGuilds.find(g => g.id === currentGuildId) || { name: "Rem Server", id: currentGuildId };
       document.getElementById('active-server-name').innerText = active.name;
       document.getElementById('server-icon-badge').innerText = active.name.charAt(0);
 
@@ -4310,7 +4314,7 @@ UI_HTML = r"""<!DOCTYPE html>
         return;
       }
       if (target && target.bot_in_guild === false) {
-        showToast("MusicMaid is not in this server. Invite the bot first!", "danger");
+        showToast("Rem is not in this server. Invite the bot first!", "danger");
         return;
       }
       currentGuildId = guildId;
@@ -4437,7 +4441,7 @@ UI_HTML = r"""<!DOCTYPE html>
         artEl.onerror = () => { artEl.src = DEFAULT_ARTWORK; };
       } else {
         titleEl.innerText = "No Track Playing";
-        artistEl.innerText = `MusicMaid · ${vName ? '#' + vName : serverName}`;
+        artistEl.innerText = `Rem 🎧💜 · ${vName ? '#' + vName : serverName}`;
         if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music to get started";
         artEl.src = DEFAULT_ARTWORK;
       }
@@ -4650,7 +4654,7 @@ UI_HTML = r"""<!DOCTYPE html>
         showToast("Please select a Discord server first", "warning");
         return;
       }
-      showToast("Summoning MusicMaid to voice channel... 🔊", "info");
+      showToast("Summoning Rem to voice channel... 🔊", "info");
       await dispatchCmd('CONNECT_VOICE');
     }
 
@@ -4962,7 +4966,7 @@ UI_HTML = r"""<!DOCTYPE html>
       const heroTotal = document.getElementById('hero-time-total');
       const queueList = document.getElementById('dash-queue-list');
 
-      if (titleEl) titleEl.innerText = t ? t.title : 'MusicMaid Master Player';
+      if (titleEl) titleEl.innerText = t ? t.title : 'Rem 🎧💜 Master Player';
       if (artistEl) artistEl.innerText = t ? (t.artist || 'Unknown Artist') : 'Ready for songs — search any track or select a playlist';
       if (artEl) {
         artEl.src = t?.thumbnail || DEFAULT_ARTWORK;
@@ -5075,10 +5079,10 @@ UI_HTML = r"""<!DOCTYPE html>
                 <!-- Brand Badge -->
                 <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1.5rem;">
                   <div style="width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(168,85,247,0.4);">
-                    <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
+                    <img src="/public/musicmaid_avatar.jpg" alt="Rem" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
                   </div>
                   <div>
-                    <span style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.02em;">MusicMaid</span>
+                    <span style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.02em;">Rem 🎧💜</span>
                     <span style="font-size:0.7rem; color:var(--primary); font-weight:700; margin-left:0.35rem; text-transform:uppercase;">Lossless</span>
                   </div>
                 </div>
@@ -5092,7 +5096,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <!-- Title & Subtitle -->
                 <h1 class="login-title-h1">Hello there.</h1>
                 <div class="login-subhead">
-                  <span style="font-weight:700; color:#fff;">Welcome to MusicMaid Studio</span><br>
+                  <span style="font-weight:700; color:#fff;">Welcome to Rem Studio</span><br>
                   Dedicated 24/7 Lossless 320kbps Discord audio player with cyber-analog controls, real-time sync, and social Aux sharing.
                 </div>
 
@@ -5151,7 +5155,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- Legal & Compliance Footer -->
               <div class="login-legal-footer">
-                <div>© 2026 MusicMaid. All Rights Reserved.</div>
+                <div>© 2026 Rem • Rai Discord Bot Ecosystem. All Rights Reserved.</div>
                 <div style="display:flex; gap:0.75rem; align-items:center;">
                   <a href="/terms" onclick="event.preventDefault(); navigate('/terms');">Terms</a>
                   <span>•</span>
@@ -5166,8 +5170,8 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <!-- RIGHT PANE: ATMOSPHERIC HEADPHONE VISUAL & FLOATING BADGE (REFERENCE IMAGE 1) -->
             <div class="login-right-pane">
-              <img src="/public/musicmaid_headphone_hero.jpg" alt="MusicMaid Lossless Audio Experience" class="login-hero-img" onerror="this.onerror=null; this.src='/public/musicmaid_banner.jpg';">
-              <div class="login-floating-badge" title="MusicMaid Hi-Fi Lossless Engine">
+              <img src="/public/musicmaid_headphone_hero.jpg" alt="Rem Lossless Audio Experience" class="login-hero-img" onerror="this.onerror=null; this.src='/public/musicmaid_banner.jpg';">
+              <div class="login-floating-badge" title="Rem Hi-Fi Lossless Engine">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0b0914" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
                   <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
@@ -5181,7 +5185,7 @@ UI_HTML = r"""<!DOCTYPE html>
             </div>
           </div>
 
-          <!-- FEATURES TRIO: WHY MUSICMAID -->
+          <!-- FEATURES TRIO: WHY REM -->
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1.2rem; width:100%;">
             <div class="glass-card" style="padding:1.6rem; cursor:pointer;" onclick="navigate('/dashboard')">
               <div style="font-size:2rem; margin-bottom:0.6rem;">🎛️</div>
@@ -5786,7 +5790,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
           <div id="control-room-body" style="display:flex; flex-direction:column; gap:1.6rem;">
             <div class="glass-card" style="text-align:center; padding:3rem; color:var(--text-muted);">
-              ⏳ Connecting to live MusicMaid cluster...
+              ⏳ Connecting to live Rem cluster...
             </div>
           </div>
         </div>
@@ -5961,12 +5965,12 @@ UI_HTML = r"""<!DOCTYPE html>
                     ${presence.gateway_connected ? '🟢' : '🔴'}
                   </span>
                   <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                    <span id="presence-symbol-preview" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="padding:0.4rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
+                    <span id="presence-symbol-preview" class="signature-symbol-wrap" title="Rem Signature Emblem" style="padding:0.4rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
                       ${getSignatureSymbolSvg(presence.signature_symbol || activeSignatureSymbol || 'vr_headset', 28)}
                     </span>
                     <div>
                       <div id="owner-pres-live-act" style="font-weight:700; color:#fff; font-size:1.05rem;">
-                        ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'MusicMaid Lossless Audio')}
+                        ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'Rem Lossless Audio')}
                       </div>
                       <div id="owner-pres-live-sub" style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
                         Configured: ${presence.configured_status || presence.status || 'online'} • Mode: ${presence.mode}
@@ -6066,7 +6070,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   </div>
                   <div>
                     <label style="font-size:0.75rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block; margin-bottom:0.35rem;">Manual Activity Text</label>
-                    <input type="text" id="owner-pres-act-text" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="e.g. MusicMaid | /play" value="${(presence.activity_text || '').replace(/"/g, '&quot;')}">
+                    <input type="text" id="owner-pres-act-text" class="search-input" style="width:100%; padding:0.5rem 0.75rem; font-size:0.85rem;" placeholder="e.g. Rem | /play" value="${(presence.activity_text || '').replace(/"/g, '&quot;')}">
                   </div>
                 </div>
 
@@ -6074,7 +6078,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="background:rgba(147,51,234,0.06); border:1px solid rgba(168,85,247,0.25); border-radius:var(--radius-sm); padding:0.85rem; display:flex; flex-direction:column; gap:0.6rem;">
                   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.4rem;">
                     <div>
-                      <span style="font-size:0.75rem; text-transform:uppercase; color:var(--cyan); font-family:'JetBrains Mono',monospace; font-weight:700;">MusicMaid Signature Symbol</span>
+                      <span style="font-size:0.75rem; text-transform:uppercase; color:var(--cyan); font-family:'JetBrains Mono',monospace; font-weight:700;">Rem Signature Symbol</span>
                       <div style="font-size:0.7rem; color:var(--text-dim); margin-top:0.15rem;">Brand emblem across dashboard, bottom player & bot identity preview</div>
                     </div>
                     <button class="btn btn-secondary btn-sm" style="padding:0.25rem 0.6rem; font-size:0.72rem;" onclick="resetSignatureSymbolToDefault()" title="Reset to VR Headset default">🔄 Reset Symbol</button>
@@ -6397,7 +6401,7 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       } else if (hiddenInputId === 'owner-pres-act-type') {
         const actEl = document.getElementById('owner-pres-live-act');
-        const txt = document.getElementById('owner-pres-act-text')?.value || 'MusicMaid';
+        const txt = document.getElementById('owner-pres-act-text')?.value || 'Rem';
         if (actEl) actEl.innerText = `${label}: ${txt}`;
       }
     }
@@ -6553,13 +6557,13 @@ UI_HTML = r"""<!DOCTYPE html>
               <label style="font-size:0.85rem; font-weight:700; color:#fff; display:block; margin-bottom:0.35rem;">Default Playback Volume (${s.default_volume}%)</label>
               <input type="range" class="slider-track" id="g-vol-slider" min="1" max="150" value="${s.default_volume || 80}" oninput="document.getElementById('g-vol-val').innerText = this.value + '%'" style="max-width:320px;">
               <span id="g-vol-val" style="font-family:'JetBrains Mono',monospace; color:var(--cyan); font-size:0.85rem; margin-left:0.5rem;">${s.default_volume || 80}%</span>
-              <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Volumes > 100% require MusicMaid VIP</span>
+              <span style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:0.25rem;">Volumes > 100% require Rem VIP</span>
             </div>
 
             <div style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.25); padding:1rem; border-radius:var(--radius-sm);">
               <div>
                 <span style="font-weight:700; color:#fff; font-size:0.95rem;">24/7 Voice Channel Mode</span>
-                <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Keeps MusicMaid in your voice room even when idle</span>
+                <span style="font-size:0.75rem; color:var(--text-muted); display:block;">Keeps Rem in your voice room even when idle</span>
               </div>
               <input type="checkbox" id="g-247-check" ${s.twenty_four_seven_enabled ? 'checked' : ''} style="width:20px; height:20px;">
             </div>
@@ -7678,7 +7682,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div class="glass-card" style="padding:1.2rem; background:rgba(255,255,255,0.03);">
                   <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">BOT STATUS</span>
                   <div style="font-size:1.4rem; font-weight:800; color:var(--emerald); margin-top:0.3rem;">${s.status || 'ONLINE'}</div>
-                  <span style="font-size:0.75rem; color:var(--text-muted);">${s.bot_name || 'MusicMaid'}</span>
+                  <span style="font-size:0.75rem; color:var(--text-muted);">${s.bot_name || 'Rem'}</span>
                 </div>
                 <div class="glass-card" style="padding:1.2rem; background:rgba(255,255,255,0.03);">
                   <span style="font-size:0.75rem; color:var(--text-dim); font-weight:700;">ACTIVE AUDIO SESSIONS</span>
@@ -7712,7 +7716,7 @@ UI_HTML = r"""<!DOCTYPE html>
       container.innerHTML = `
         <div style="text-align:center; padding:3rem 1rem;">
           <div class="pulse-dot" style="margin:0 auto 1rem auto; width:14px; height:14px; background:var(--pink);"></div>
-          <p style="color:var(--text-muted);">Loading MusicMaid Premium Plans & Features...</p>
+          <p style="color:var(--text-muted);">Loading Rem Premium Plans & Features...</p>
         </div>
       `;
 
@@ -7746,12 +7750,12 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <!-- HERO HEADER -->
             <div class="pricing-hero">
-              <span class="pricing-hero-badge">💎 MUSICMAID VIP PREMIUM</span>
+              <span class="pricing-hero-badge">💎 REM VIP PREMIUM</span>
               <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
                 Supercharge Your Discord Audio & <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Support the Bot</span>
               </h1>
               <p style="max-width:680px; font-size:1.05rem; color:var(--text-muted); line-height:1.5;">
-                MusicMaid is free for everyone to listen with friends. Upgrading to VIP unlocks 150% volume boost, 24/7 persistent voice stay, and custom soundboard effects while helping us cover streaming server costs.
+                Rem is free for everyone to listen with friends. Upgrading to VIP unlocks 150% volume boost, 24/7 persistent voice stay, and custom soundboard effects while helping us cover streaming server costs.
               </p>
 
               ${isOwner ? `
@@ -7785,7 +7789,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- PLAN 1: FREE -->
               <div class="pricing-card">
-                <div class="pricing-title">MusicMaid Free</div>
+                <div class="pricing-title">Rem Free</div>
                 <div class="pricing-desc">Everything you need for casual listening with friends in Discord.</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">$0</span>
@@ -7808,7 +7812,7 @@ UI_HTML = r"""<!DOCTYPE html>
 
               <!-- PLAN 2: MONTHLY -->
               <div class="pricing-card">
-                <div class="pricing-title">MusicMaid VIP Monthly</div>
+                <div class="pricing-title">Rem VIP Monthly</div>
                 <div class="pricing-desc">Full access with flexible monthly billing. Cancel anytime.</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">${monthlyPrice}</span>
@@ -7840,7 +7844,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <!-- PLAN 3: YEARLY (FEATURED) -->
               <div class="pricing-card featured">
                 <span class="pricing-badge-corner">★ 2 MONTHS FREE</span>
-                <div class="pricing-title" style="color:#a78bfa;">MusicMaid VIP Annual</div>
+                <div class="pricing-title" style="color:#a78bfa;">Rem VIP Annual</div>
                 <div class="pricing-desc">Maximum value for serious listeners & servers. Save over 16% annually!</div>
                 <div class="pricing-price-wrap">
                   <span class="pricing-price">${yearlyPrice}</span>
@@ -7878,8 +7882,8 @@ UI_HTML = r"""<!DOCTYPE html>
                   <thead>
                     <tr>
                       <th style="width:50%;">Feature</th>
-                      <th style="width:25%;" class="center">MusicMaid Free</th>
-                      <th style="width:25%;" class="center" style="color:var(--pink);">MusicMaid Premium</th>
+                      <th style="width:25%;" class="center">Rem Free</th>
+                      <th style="width:25%;" class="center" style="color:var(--pink);">Rem Premium</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -8005,7 +8009,7 @@ UI_HTML = r"""<!DOCTYPE html>
               key: json.data.key_id,
               amount: json.data.amount,
               currency: json.data.currency || "INR",
-              name: "NyxTune / MusicMaid",
+              name: "NyxTune / Rem",
               description: json.data.plan_name || "Premium Subscription",
               order_id: json.data.order_id,
               prefill: {
@@ -8121,7 +8125,7 @@ UI_HTML = r"""<!DOCTYPE html>
             # Add to your Render Environment Variables:<br>
             STRIPE_SECRET_KEY=sk_test_...<br>
             STRIPE_WEBHOOK_SECRET=whsec_...<br>
-            PUBLIC_BASE_URL=https://musicmaid.onrender.com
+            PUBLIC_BASE_URL=https://rai-discord-bot.onrender.com
           </div>
           <button class="btn btn-secondary" onclick="navigate('/premium')">Back to Pricing</button>
         </div>
@@ -8185,7 +8189,7 @@ UI_HTML = r"""<!DOCTYPE html>
           container.innerHTML = `
             <div style="max-width:620px; margin:3rem auto; text-align:center; padding:2.5rem; border:2px solid #10b981;" class="glass-card">
               <div style="font-size:3.5rem; margin-bottom:0.6rem;">🎉</div>
-              <h2 style="color:#fff; font-weight:900; font-size:1.85rem;">WELCOME TO MUSICMAID PREMIUM!</h2>
+              <h2 style="color:#fff; font-weight:900; font-size:1.85rem;">WELCOME TO REM PREMIUM!</h2>
               <p style="color:#34d399; font-weight:700; margin-top:0.4rem;">Payment Cryptographically Verified & Activated ✅</p>
               <p style="color:var(--text-muted); margin:0.8rem 0 1.8rem 0; font-size:0.95rem;">
                 Your Discord account now has unrestricted access to all studio music perks across all servers.
@@ -8195,7 +8199,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-md); padding:1.2rem; text-align:left; display:flex; flex-direction:column; gap:0.6rem; font-size:0.88rem; margin-bottom:1.8rem;">
                 <div style="display:flex; justify-content:space-between;">
                   <span style="color:var(--text-muted);">Subscription Plan:</span>
-                  <span style="font-weight:700; color:#fff;">MusicMaid Premium (${v.plan.toUpperCase()})</span>
+                  <span style="font-weight:700; color:#fff;">Rem Premium (${v.plan.toUpperCase()})</span>
                 </div>
                 <div style="display:flex; justify-content:space-between;">
                   <span style="color:var(--text-muted);">Amount Paid:</span>
@@ -8256,7 +8260,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div style="font-size:3.5rem; margin-bottom:0.6rem;">👋</div>
           <h2 style="color:#fff; font-weight:800;">Checkout Cancelled</h2>
           <p style="color:var(--text-muted); margin:0.8rem 0 1.8rem 0; line-height:1.5;">
-            No charges were made to your account. You can upgrade to MusicMaid Premium anytime whenever you're ready.
+            No charges were made to your account. You can upgrade to Rem Premium anytime whenever you're ready.
           </p>
           <div style="display:flex; gap:1rem; justify-content:center;">
             <button class="btn btn-primary" onclick="navigate('/premium')">View Plans</button>
@@ -8303,7 +8307,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <div style="font-size:3.5rem; margin-bottom:0.6rem;">🎧</div>
               <h2 style="color:#fff; font-weight:800;">No Active Subscription</h2>
               <p style="color:var(--text-muted); margin:0.8rem 0 1.8rem 0; line-height:1.5;">
-                You are currently enjoying MusicMaid on the Free Plan. Upgrade to Premium to unlock 150% volume, 24/7 mode, and AI Maid Voice DJ.
+                You are currently enjoying Rem on the Free Plan. Upgrade to Premium to unlock 150% volume, 24/7 mode, and Rem Anime AI DJ.
               </p>
               <button class="btn btn-primary" onclick="navigate('/premium')">💎 Upgrade to Premium</button>
             </div>
@@ -8318,7 +8322,7 @@ UI_HTML = r"""<!DOCTYPE html>
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
               <div>
                 <h2 style="color:#fff; font-weight:800;">Subscription & Plan Management</h2>
-                <p style="color:var(--text-muted); font-size:0.9rem;">Manage your active MusicMaid Premium plan and renewals.</p>
+                <p style="color:var(--text-muted); font-size:0.9rem;">Manage your active Rem Premium plan and renewals.</p>
               </div>
               <button class="btn btn-secondary btn-sm" onclick="navigate('/premium')">View All Plans</button>
             </div>
@@ -8328,7 +8332,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
                 <div>
                   <span class="user-badge-sub premium" style="font-size:0.75rem;">💎 ${ent.plan.toUpperCase()} PLAN</span>
-                  <h3 style="font-size:1.5rem; font-weight:800; color:#fff; margin-top:0.4rem;">MusicMaid Premium</h3>
+                  <h3 style="font-size:1.5rem; font-weight:800; color:#fff; margin-top:0.4rem;">Rem Premium</h3>
                 </div>
                 <div style="text-align:right;">
                   <span style="font-size:0.8rem; color:var(--text-muted);">Status</span>
@@ -8383,7 +8387,7 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function cancelSubscription(btnEl) {
-      if (!confirm("Are you sure you want to cancel your MusicMaid Premium subscription? Your benefits will stay active until the end of your billing cycle.")) {
+      if (!confirm("Are you sure you want to cancel your Rem Premium subscription? Your benefits will stay active until the end of your billing cycle.")) {
         return;
       }
 
@@ -8684,7 +8688,7 @@ UI_HTML = r"""<!DOCTYPE html>
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; padding-bottom:1.2rem; border-bottom:1px solid rgba(255,255,255,0.06);">
               <div>
                 <div style="font-weight:700; color:#fff; font-size:1rem;">24/7 Voice Channel Persistence</div>
-                <div style="font-size:0.78rem; color:var(--text-muted);">Keep MusicMaid locked in your server voice channel indefinitely without auto-disconnect.</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">Keep Rem locked in your server voice channel indefinitely without auto-disconnect.</div>
               </div>
               <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('247_TOGGLE')">
                 <span>🔄 Toggle 24/7 Mode</span>
@@ -8733,7 +8737,7 @@ UI_HTML = r"""<!DOCTYPE html>
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
               <div>
                 <div style="font-weight:700; color:#fff; font-size:1rem;">Interface Visual Identity</div>
-                <div style="font-size:0.78rem; color:var(--text-muted);">MusicMaid 2.0 Anime-Neon Palette (Matte Black & Restrained Violet).</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">Rem Anime-Neon Palette (Matte Black & Lavender Accent).</div>
               </div>
               <span class="chip-pill" style="color:var(--primary); background:rgba(168,85,247,0.18);">💜 Neon Violet Active</span>
             </div>
@@ -9096,7 +9100,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <span>🌐</span> Discord Server Selection
               </h1>
               <p style="font-size:0.88rem; color:var(--text-muted); margin-top:0.2rem;">
-                Choose an eligible server to listen to, control live music playback, or invite MusicMaid.
+                Choose an eligible server to listen to, control live music playback, or invite Rem.
               </p>
             </div>
             <div style="display:flex; gap:0.6rem;">
@@ -9122,7 +9126,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">You must have 'Manage Server' or Administrator permissions in Discord to add the bot.</div>
             </div>
             <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
-              ➕ Add MusicMaid to New Server
+              ➕ Add Rem to New Server
             </a>
           </div>
 
@@ -9215,7 +9219,7 @@ UI_HTML = r"""<!DOCTYPE html>
               <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
                 <span>📜</span> Terms of Service
               </h1>
-              <p style="font-size:0.86rem; color:var(--text-muted); margin-top:0.2rem;">Last updated: October 2026 • MusicMaid Discord Audio Platform</p>
+              <p style="font-size:0.86rem; color:var(--text-muted); margin-top:0.2rem;">Last updated: October 2026 • Rem Discord Audio Platform</p>
             </div>
             <a href="/terms" target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;">Raw Terms Page ↗</a>
           </div>
@@ -9223,11 +9227,11 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="glass-card" style="padding:2rem; line-height:1.7; font-size:0.9rem; color:#cbd5e1; display:flex; flex-direction:column; gap:1.2rem;">
             <div>
               <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">1. Acceptance of Terms</h3>
-              <p>By inviting MusicMaid to your Discord server or using the web player, you agree to comply with Discord Terms of Service, YouTube Terms of Service, and applicable laws.</p>
+              <p>By inviting Rem to your Discord server or using the web player, you agree to comply with Discord Terms of Service, YouTube Terms of Service, and applicable laws.</p>
             </div>
             <div>
               <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">2. Acceptable Audio Use</h3>
-              <p>MusicMaid streams authorized audio content to Discord voice channels. Users agree not to abuse playback loops, send automated denial-of-service requests, or stream unlawful material.</p>
+              <p>Rem streams authorized audio content to Discord voice channels. Users agree not to abuse playback loops, send automated denial-of-service requests, or stream unlawful material.</p>
             </div>
             <div>
               <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">3. VIP & Subscription Services</h3>
@@ -9255,7 +9259,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div class="glass-card" style="padding:2rem; line-height:1.7; font-size:0.9rem; color:#cbd5e1; display:flex; flex-direction:column; gap:1.2rem;">
             <div>
               <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">1. Data Collection</h3>
-              <p>MusicMaid collects only necessary identifiers to operate playback: your Discord User ID, active server ID, voice channel ID, and saved playlist preferences. We never record, store, or eavesdrop on your voice audio.</p>
+              <p>Rem collects only necessary identifiers to operate playback: your Discord User ID, active server ID, voice channel ID, and saved playlist preferences. We never record, store, or eavesdrop on your voice audio.</p>
             </div>
             <div>
               <h3 style="color:#fff; font-size:1.15rem; font-weight:700; margin-bottom:0.4rem;">2. Cookie & Session Security</h3>
@@ -9280,7 +9284,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <div style="font-size:3.5rem; margin-bottom:0.2rem;">📻</div>
           <h1 style="font-size:2.4rem; font-weight:900; color:#fff; line-height:1.2;">404 — Station Not Found</h1>
           <p style="font-size:1rem; color:var(--text-muted); max-width:480px; line-height:1.5;">
-            The frequency or page you tuned into does not exist in MusicMaid Studio.
+            The frequency or page you tuned into does not exist in Rem Studio.
           </p>
           <div style="display:flex; gap:0.8rem; margin-top:0.8rem; flex-wrap:wrap; justify-content:center;">
             <button class="btn btn-primary" onclick="navigate('/login')">🔑 Welcome & Login</button>

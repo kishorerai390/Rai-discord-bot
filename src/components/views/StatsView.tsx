@@ -199,7 +199,7 @@ export function StatsView({ onShowToast }: StatsViewProps) {
         </div>
 
         <p className="text-xs text-[var(--text-muted)] mb-5 leading-relaxed">
-          MusicMaid employs an autonomous self-healing solver that decrypts YouTube player signature challenges in a Node.js sandbox. This prevents HTTP 403 Forbidden throttling and maintains unblocked audio streaming.
+          Rem employs an autonomous self-healing solver that decrypts YouTube player signature challenges in a Node.js sandbox. This prevents HTTP 403 Forbidden throttling and maintains unblocked audio streaming.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">

@@ -1,4 +1,4 @@
-# Production container for MusicMaid (Discord Music Bot) on Render
+# Production container for Rem (Discord Anime Music Companion) on Render
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \

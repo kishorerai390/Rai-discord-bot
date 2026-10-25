@@ -1,7 +1,7 @@
 {
-  "name": "MusicMaid — 24/7 Lossless Discord Music Player",
-  "short_name": "MusicMaid",
-  "description": "High-fidelity 320kbps Lossless Discord Music Bot Control Panel, Auto-DJ & Realtime DSP Equalizer",
+  "name": "Rem — Your Anime Music Companion",
+  "short_name": "Rem",
+  "description": "Adorable, friendly anime AI DJ & Discord music companion with Lavalink v4 lossless streaming, 24/7 playback, and DSP audio filters.",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

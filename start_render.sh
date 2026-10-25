@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Starting MusicMaid on Render ==="
+echo "=== Starting Rem (Your Anime Music Companion) on Render ==="
 
 # 1. Update settings.json from environment variables or defaults
 python -c "
@@ -46,12 +46,12 @@ s['embed_color'] = '0xa855f7'
 s['activity'] = [
     {
         'type': 'listening',
-        'name': '/play | MusicMaid 🎧',
+        'name': '/play | Rem 🎧💜',
         'status': 'online'
     },
     {
         'type': 'listening',
-        'name': '/help | Crystal Clear Audio 💜',
+        'name': '/help | Your Anime Music Companion 💜',
         'status': 'online'
     },
     {
@@ -72,19 +72,19 @@ if not s.get('default_controller'):
                 'description': '### [@@track_name@@](@@track_url@@)\n> 👤 **Artist:** `@@track_author@@`\n> 🎧 **Requester:** @@track_requester_mention@@\n> 🎚️ **Volume:** `@@volume@@%` • 🔁 **Loop:** `@@loop_mode@@`',
                 'thumbnail': '@@track_thumbnail@@',
                 'footer': {
-                    'text': 'Queue Length: @@queue_length@@ • Duration: @@track_duration@@ • MusicMaid Audio',
+                    'text': 'Queue: @@queue_length@@ tracks • Rem 🎧💜',
                     'icon_url': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg'
                 }
             },
             'inactive': {
                 'title': {
-                    'name': '💜 MusicMaid High-Fidelity Audio System',
+                    'name': '💜 Rem — Your Anime Music Companion',
                     'url': 'https://rai-discord-bot.onrender.com'
                 },
-                'description': '### No track currently playing\nJoin a voice channel and type `/play <song name or link>` to start streaming!',
+                'description': '### Ready for music! (•ᴗ•) 🌸\nJoin a voice channel and type `/play <song name or link>` to stream with Rem!',
                 'thumbnail': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg',
                 'footer': {
-                    'text': 'MusicMaid • 24/7 Zero Latency Audio',
+                    'text': 'Rem 🎧💜 • Your Anime Music Companion',
                     'icon_url': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg'
                 }
             }

@@ -1,6 +1,6 @@
 """
-MusicMaid Official Web Platform & Luxury Landing Page.
-Provides a modern, high-conversion, cyberpunk-themed interface for Discord users.
+Rem Official Web Platform & Luxury Landing Page.
+Provides an anime-inspired, high-conversion, obsidian and neon lavender interface for Discord users.
 """
 
 LANDING_PAGE_HTML = """<!DOCTYPE html>
@@ -8,10 +8,10 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MusicMaid — Crystal-Clear Discord Music Bot</title>
-  <meta name="description" content="MusicMaid is a high-performance Discord music bot with Lavalink v4 audio streaming, custom playlists, equalizer effects, and zero-lag 24/7 voice playback.">
-  <meta property="og:title" content="MusicMaid — The Ultimate Discord Audio Bot">
-  <meta property="og:description" content="Crystal-clear audio, 24/7 low-latency playback, custom playlists, and multi-source streaming (Spotify, YouTube, SoundCloud).">
+  <title>Rem — Your Anime Music Companion | Rai Discord Bot</title>
+  <meta name="description" content="Rem is an adorable, friendly anime-inspired AI DJ and music companion for Discord with Lavalink v4 audio streaming, custom playlists, equalizer effects, and zero-lag 24/7 voice playback.">
+  <meta property="og:title" content="Rem 🎧💜 — Your Anime Music Companion">
+  <meta property="og:description" content="Crystal-clear audio, 24/7 low-latency playback, custom playlists, and multi-source streaming with Rem, your anime music companion.">
   <meta property="og:image" content="/public/musicmaid_avatar.jpg">
   <meta property="theme-color" content="#8a2be2">
   <link rel="icon" type="image/png" href="/public/icon.png">
@@ -563,8 +563,8 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
   <!-- Navigation -->
   <nav>
     <a href="/" class="brand">
-      <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid Logo" class="brand-img" onerror="this.src='/public/icon.png'">
-      <span class="brand-name">MusicMaid</span>
+      <img src="/public/musicmaid_avatar.jpg" alt="Rem Logo" class="brand-img" onerror="this.src='/public/icon.png'">
+      <span class="brand-name">Rem 🎧💜</span>
     </a>
     <div class="nav-links">
       <a href="#features">Features</a>
@@ -585,14 +585,14 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
     <div>
       <div class="hero-badge">
         <span class="pulse-dot"></span>
-        <span>Lavalink v4 High-Fidelity Audio Active</span>
+        <span>🌸 Cute & Powerful Anime Audio Companion Active</span>
       </div>
-      <h1 class="hero-title">Elevate Your Discord with <span class="gradient-text">MusicMaid</span></h1>
-      <p class="hero-sub">The state-of-the-art music bot designed for flawless audio clarity, rich interactive controllers, multi-source streaming, and 24/7 uptime.</p>
+      <h1 class="hero-title">Elevate Your Discord with <span class="gradient-text">Rem</span> 🎧💜</h1>
+      <p class="hero-sub">Your adorable, friendly anime-inspired AI DJ and music companion. Designed for crystal audio clarity, interactive controllers, multi-source streaming, and 24/7 music magic.</p>
       
       <div class="hero-cta">
         <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=8&integration_type=0&scope=bot+applications.commands" target="_blank" class="btn btn-primary">
-          <span>Add MusicMaid Now</span>
+          <span>Add Rem Now</span>
           <span>⚡</span>
         </a>
         <a href="https://discord.gg/wRCgB7vBQv" target="_blank" class="btn btn-secondary">
@@ -697,7 +697,7 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
       <div class="feature-card">
         <span class="feature-icon">💬</span>
         <h3>Auto-Request Channels</h3>
-        <p>Set up <code>#musicmaid-song-requests</code> with <code>/settings setupchannel</code>. Members can post song names directly without prefix commands.</p>
+        <p>Set up <code>#rem-song-requests</code> with <code>/settings setupchannel</code>. Members can post song names directly without prefix commands.</p>
       </div>
 
       <div class="feature-card">
@@ -773,7 +773,7 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
       <a href="https://github.com/kishorerai390/Rai-discord-bot" target="_blank">GitHub Repository</a>
       <a href="/api/logs" target="_blank">System Logs</a>
     </div>
-    <p class="copyright">© 2026 MusicMaid. Built with 💜 by Kishore. Powered by Lavalink v4 & Discord.py.</p>
+    <p class="copyright">© 2026 Rem • Rai Discord Bot Ecosystem. Built with 💜 by Kishore. Powered by Lavalink v4 & Discord.py.</p>
   </footer>
 
 </body>

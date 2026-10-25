@@ -37,7 +37,9 @@ def _start_immediate_health_server():
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.end_headers()
-                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "musicmaid.log")
+                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "rem.log")
+                if not os.path.exists(log_file):
+                    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "musicmaid.log")
                 if os.path.exists(log_file):
                     try:
                         with open(log_file, "r", encoding="utf-8", errors="replace") as f:
@@ -113,7 +115,7 @@ def _start_immediate_health_server():
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain")
                 self.end_headers()
-                self.wfile.write(f"MusicMaid Gateway Active (Render Port {port})".encode("utf-8"))
+                self.wfile.write(f"Rem Gateway Active (Render Port {port})".encode("utf-8"))
         def log_message(self, *args):
             pass
     try:
@@ -166,7 +168,7 @@ class Translator(discord.app_commands.Translator):
 
         return None
 
-class MusicMaid(commands.Bot):
+class Rem(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -260,7 +262,7 @@ class MusicMaid(commands.Bot):
         func.logger.info(f"Logging As {self.user}")
         func.logger.info(f"Bot ID: {self.user.id}")
         func.logger.info("------------------")
-        func.logger.info(f"MusicMaid Engine Version: {update.__version__}")
+        func.logger.info(f"Rem Engine Version: {update.__version__}")
         func.logger.info(f"Discord Version: {discord.__version__}")
         func.logger.info(f"Python Version: {sys.version}")
         func.logger.info("------------------")
@@ -300,6 +302,9 @@ class MusicMaid(commands.Bot):
         except:
             pass
 
+# Backward compatibility alias
+MusicMaid = Rem
+
 class CommandCheck(discord.app_commands.CommandTree):
     async def interaction_check(self, interaction: discord.Interaction, /) -> bool:
         if interaction.type == discord.InteractionType.application_command:
@@ -329,7 +334,7 @@ if (LOG_FILE := LOG_SETTINGS.get("file", {})).get("enable", True):
     if not os.path.exists(log_path):
         os.makedirs(log_path)
 
-    file_handler = TimedRotatingFileHandler(filename=f'{log_path}/musicmaid.log', encoding="utf-8", backupCount=LOG_SETTINGS.get("max_history", 30), when="d")
+    file_handler = TimedRotatingFileHandler(filename=f'{log_path}/rem.log', encoding="utf-8", backupCount=LOG_SETTINGS.get("max_history", 30), when="d")
     file_handler.namer = lambda name: name.replace(".log", "") + ".log"
     file_handler.setFormatter(logging.Formatter('{asctime} [{levelname:<8}] {name}: {message}', '%Y-%m-%d %H:%M:%S', style='{'))
     logging.getLogger().addHandler(file_handler)
@@ -345,7 +350,7 @@ intents.members = bot_config.ipc_client.get("enable", False)
 intents.voice_states = True
 intents.presences = False
 
-bot = MusicMaid(
+bot = Rem(
     command_prefix=get_prefix,
     help_command=None,
     tree_cls=CommandCheck,

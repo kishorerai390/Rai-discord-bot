@@ -1,6 +1,6 @@
 """
-MusicMaid — Dedicated Bot Role & Permission Management Service.
-Automatically provisions and maintains the dedicated 'MusicMaid' bot role
+Rem — Dedicated Bot Role & Permission Management Service.
+Automatically provisions and maintains the dedicated 'Rem' bot role
 with minimal required voice and text permissions across all connected guilds.
 Strictly respects Discord's permission hierarchy and never grants Administrator.
 """
@@ -13,13 +13,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import discord
 
-logger = logging.getLogger("MusicMaid.RoleService")
+logger = logging.getLogger("Rem.RoleService")
 
 # Canonical dedicated bot role name
-BOT_ROLE_NAME: str = "MusicMaid"
+BOT_ROLE_NAME: str = "Rem"
 
-# Role Accent Color (Vibrant Royal Purple matching MusicMaid brand)
-BOT_ROLE_COLOR = discord.Colour.from_rgb(147, 51, 234)
+# Role Accent Color (Vibrant Lavender Purple matching Rem brand)
+BOT_ROLE_COLOR = discord.Colour.from_rgb(168, 85, 247)
 
 # Explicitly Approved Minimum Music Permissions
 REQUIRED_PERMISSIONS_DICT: Dict[str, bool] = {
@@ -113,10 +113,10 @@ class BotRoleService:
             except Exception as db_err:
                 logger.debug(f"[RoleSetup] Stored role ID lookup notice in guild {guild.id}: {db_err}")
 
-        # 2. If not found by ID, look up by canonical role name
+        # 2. If not found by ID, look up by canonical role name (or legacy MusicMaid role)
         if not existing_role:
             for role in guild.roles:
-                if role.name.strip().lower() == BOT_ROLE_NAME.lower():
+                if role.name.strip().lower() in (BOT_ROLE_NAME.lower(), "musicmaid"):
                     existing_role = role
                     break
 
@@ -157,7 +157,7 @@ class BotRoleService:
                         updated_perms.administrator = False  # Strict guarantee
                         await existing_role.edit(
                             permissions=updated_perms,
-                            reason=f"MusicMaid permission repair for missing permissions: {', '.join(missing_perms)}",
+                            reason=f"Rem permission repair for missing permissions: {', '.join(missing_perms)}",
                         )
                         logger.info(
                             f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Successfully repaired permissions for role '{existing_role.name}'."
@@ -186,8 +186,8 @@ class BotRoleService:
             diagnostic = (
                 f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Missing 'Manage Roles' permission. "
                 f"Cannot automatically create dedicated '{BOT_ROLE_NAME}' role. "
-                f"MusicMaid will continue running with its existing guild permissions. "
-                f"Manual fix: In Server Settings > Roles, grant 'Manage Roles' to MusicMaid or create a role named '{BOT_ROLE_NAME}'."
+                f"Rem will continue running with its existing guild permissions. "
+                f"Manual fix: In Server Settings > Roles, grant 'Manage Roles' to Rem or create a role named '{BOT_ROLE_NAME}'."
             )
             logger.warning(diagnostic)
             return False, None, diagnostic
@@ -200,7 +200,7 @@ class BotRoleService:
                 colour=BOT_ROLE_COLOR,
                 hoist=False,
                 mentionable=False,
-                reason="MusicMaid automated bot role setup with approved music playback permissions",
+                reason="Rem automated bot role setup with approved music playback permissions",
             )
             logger.info(
                 f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Created dedicated '{BOT_ROLE_NAME}' role (ID: {created_role.id})."
@@ -260,13 +260,13 @@ class BotRoleService:
             logger.warning(
                 f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Role hierarchy prevents assigning '{role.name}' "
                 f"(Role pos {role_pos} >= Bot top role '{getattr(me.top_role, 'name', 'None')}' pos {me_pos}). "
-                f"Manual fix: Move MusicMaid's bot integration role above '{role.name}' in Server Settings > Roles."
+                f"Manual fix: Move Rem's bot integration role above '{role.name}' in Server Settings > Roles."
             )
             return False
 
         try:
-            await me.add_roles(role, reason="MusicMaid dedicated bot role assignment")
-            logger.info(f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Successfully assigned '{role.name}' to MusicMaid.")
+            await me.add_roles(role, reason="Rem dedicated bot role assignment")
+            logger.info(f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Successfully assigned '{role.name}' to Rem.")
             return True
         except discord.Forbidden:
             logger.warning(

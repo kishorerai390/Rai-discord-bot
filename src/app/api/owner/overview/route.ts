@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       success: true,
       data: {
         bot_status: "ONLINE",
-        cluster_name: "MusicMaid-Core-01",
+        cluster_name: "Rem-Core-01",
         uptime_seconds: Math.floor(process.uptime()),
         gateway_latency_ms: null, // Truthful: not measured locally
         active_guilds: activeGuilds,

@@ -1,5 +1,5 @@
 """
-REST API Router for MusicMaid Premium Subscription & Payment System.
+REST API Router for Rem Premium Subscription & Payment System.
 Handles plan discovery, authenticated checkout creation, payment verification,
 subscription cancellation, and cryptographic Stripe webhook ingestion.
 """
@@ -21,7 +21,7 @@ from music_bot.services.payment_service import PaymentService
 from music_bot.services.razorpay_service import RazorpayService
 from music_bot.services.entitlement_service import EntitlementService
 
-logger = logging.getLogger("MusicMaid.PaymentAPI")
+logger = logging.getLogger("Rem.PaymentAPI")
 
 
 def json_success(data: Any = None, message: str = "OK", status: int = 200) -> web.Response:
@@ -70,7 +70,7 @@ class PaymentApiRouter:
             {"name": "AI Anime Maid Voice DJ (All 5 Personalities)", "free": False, "premium": True},
             {"name": "Hardware-Accelerated DSP Studio & Equalizer", "free": False, "premium": True},
             {"name": "Cross-Platform Playlist Importer (Spotify/YT/Apple)", "free": False, "premium": True},
-            {"name": "MusicMaid Friend Blend & Taste Compatibility", "free": False, "premium": True},
+            {"name": "Rem Friend Blend & Taste Compatibility", "free": False, "premium": True},
             {"name": "Zero-Downtime Session Checkpoint Recovery", "free": False, "premium": True},
             {"name": "Interactive Web Master Control Panel", "free": True, "premium": True},
             {"name": "Stage Neon Visualizer & Drag-and-Drop Queue", "free": True, "premium": True},
@@ -78,7 +78,7 @@ class PaymentApiRouter:
 
         faqs = [
             {
-                "q": "What happens after I subscribe to MusicMaid Premium?",
+                "q": "What happens after I subscribe to Rem Premium?",
                 "a": "All premium features (150% volume cap, 24/7 staying mode, AI Maid Voice DJ, and cross-platform playlist importing) unlock immediately for your Discord account across every server you use."
             },
             {
