@@ -348,7 +348,7 @@ def ensure_lavalink():
     if java_cmd and os.path.exists(jar_path):
         func.logger.info(f"Starting Lavalink process using {java_cmd}...")
         try:
-            subprocess.Popen([java_cmd, "-jar", "Lavalink.jar"], cwd=lavalink_dir)
+            subprocess.Popen([java_cmd, "-Xmx192m", "-Xms64m", "-jar", "Lavalink.jar"], cwd=lavalink_dir)
             for _ in range(45):
                 if check_lavalink_running(timeout=1):
                     func.logger.info("Lavalink started and ready!")

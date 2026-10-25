@@ -20,6 +20,20 @@ s['mongodb_url'] = os.getenv('MONGODB_URL') or s.get('mongodb_url', 'mongodb+srv
 s['mongodb_name'] = os.getenv('MONGODB_NAME') or s.get('mongodb_name', 'MusicMaid')
 
 s['nodes'] = {
+    'SERENETIA_V4': {
+        'host': 'lavalinkv4.serenetia.com',
+        'port': 443,
+        'password': 'https://seretia.link/discord',
+        'secure': True,
+        'identifier': 'SERENETIA_V4'
+    },
+    'MILLOHOST_V4': {
+        'host': 'lava-v4.millohost.my.id',
+        'port': 443,
+        'password': 'https://discord.gg/mjS5J2K3ep',
+        'secure': True,
+        'identifier': 'MILLOHOST_V4'
+    },
     'LOCAL_LAVALINK': {
         'host': '127.0.0.1',
         'port': 2333,
@@ -49,10 +63,10 @@ if [ -d "jre/bin" ]; then
 fi
 echo "Using Java: $($JAVA_CMD -version 2>&1 | head -n 1)"
 
-# 4. Start Lavalink in background
+# 4. Start Lavalink in background with capped heap
 echo "Starting Lavalink server..."
 cd lavalink
-$JAVA_CMD -jar Lavalink.jar &
+$JAVA_CMD -Xmx192m -Xms64m -jar Lavalink.jar &
 LAVALINK_PID=$!
 cd ..
 

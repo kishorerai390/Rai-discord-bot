@@ -87,16 +87,31 @@ def ensure_settings() -> dict:
         s["mongodb_name"] = mongodb_name
         changed = True
 
-    if "nodes" not in s or "LOCAL_LAVALINK" not in s.get("nodes", {}):
-        s["nodes"] = {
-            "LOCAL_LAVALINK": {
-                "host": "127.0.0.1",
-                "port": 2333,
-                "password": "youshallnotpass",
-                "secure": False,
-                "identifier": "LOCAL_LAVALINK"
-            }
+    desired_nodes = {
+        "SERENETIA_V4": {
+            "host": "lavalinkv4.serenetia.com",
+            "port": 443,
+            "password": "https://seretia.link/discord",
+            "secure": True,
+            "identifier": "SERENETIA_V4"
+        },
+        "MILLOHOST_V4": {
+            "host": "lava-v4.millohost.my.id",
+            "port": 443,
+            "password": "https://discord.gg/mjS5J2K3ep",
+            "secure": True,
+            "identifier": "MILLOHOST_V4"
+        },
+        "LOCAL_LAVALINK": {
+            "host": "127.0.0.1",
+            "port": 2333,
+            "password": "youshallnotpass",
+            "secure": False,
+            "identifier": "LOCAL_LAVALINK"
         }
+    }
+    if s.get("nodes") != desired_nodes:
+        s["nodes"] = desired_nodes
         changed = True
 
     defaults = {
