@@ -61,7 +61,7 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
                 🎧
               </div>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-sm font-black text-white tracking-wide">MusicMaid</span>
+                <span className="text-sm font-black text-white tracking-wide">Rem 🎧💜</span>
                 <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider">Lossless</span>
               </div>
             </div>
@@ -81,7 +81,7 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
               Hello there.
             </h1>
             <div className="text-xs sm:text-sm text-[var(--text-muted)] leading-relaxed mb-6">
-              <span className="font-bold text-white">Welcome to MusicMaid Studio</span>
+              <span className="font-bold text-white">Welcome to Rem Studio</span>
               <br />
               Dedicated 24/7 Lossless 320kbps Discord audio streaming with cyber-analog controls and social Aux sharing.
             </div>
@@ -189,7 +189,7 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
 
           {/* LEGAL & COMPLIANCE FOOTER */}
           <div className="mt-8 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-[11px] text-[var(--text-muted)]">
-            <div>© 2026 MusicMaid. All Rights Reserved.</div>
+            <div>© 2026 Rem • Rai Discord Bot Ecosystem. All Rights Reserved.</div>
             <div className="flex items-center gap-2">
               <Link href="/terms" className="hover:text-purple-300 transition-colors">Terms</Link>
               <span>•</span>
@@ -206,14 +206,14 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
         <div className="lg:col-span-5 relative bg-black min-h-[300px] lg:min-h-full overflow-hidden flex items-center justify-center">
           <img
             src="/musicmaid_headphone_hero.jpg"
-            alt="MusicMaid Lossless Audio Experience"
+            alt="Rem Lossless Audio Experience"
             className="w-full h-full object-cover object-center scale-[1.01] hover:scale-105 transition-transform duration-700 ease-out"
           />
 
           {/* FLOATING TOP-RIGHT BADGE */}
           <div
             className="absolute top-5 right-5 w-12 h-12 rounded-2xl bg-white/95 shadow-2xl shadow-black flex items-center justify-center z-10 text-[#0b0914]"
-            title="MusicMaid Lossless Audio Engine"
+            title="Rem Lossless Audio Engine"
           >
             <Headphones className="w-6 h-6 stroke-[2.2]" />
           </div>

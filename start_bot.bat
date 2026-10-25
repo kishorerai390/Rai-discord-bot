@@ -1,5 +1,5 @@
 @echo off
-title MusicMaid Launcher
+title Rem Launcher 🎧💜
 echo ========================================================
 echo        Starting Lavalink v4.2.2 Audio Server...
 echo ========================================================
@@ -9,7 +9,7 @@ echo Waiting for Lavalink to initialize...
 timeout /t 5 /nobreak >nul
 
 echo ========================================================
-echo        Starting MusicMaid Bot...
+echo        Starting Rem Bot (Anime Music Companion)...
 echo ========================================================
 python main.py
 pause

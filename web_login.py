@@ -1,6 +1,6 @@
 """
-MusicMaid Official Login & Web Authentication Interface.
-Provides a luxury, cyberpunk glassmorphism sign-in portal for Discord guild owners and audiophiles.
+Rem Official Login & Web Authentication Interface.
+Provides an anime-inspired glassmorphism sign-in portal for Discord guild owners and audiophiles.
 """
 
 LOGIN_PAGE_HTML = """<!DOCTYPE html>
@@ -8,8 +8,8 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login — MusicMaid Web Portal</title>
-  <meta name="description" content="Sign in to your MusicMaid dashboard to control server playback, manage playlists, and customize audio settings.">
+  <title>Login — Rem Web Portal | Your Anime Music Companion</title>
+  <meta name="description" content="Sign in to your Rem dashboard to control server playback, manage playlists, and customize audio settings.">
   <link rel="icon" type="image/png" href="/public/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -457,15 +457,15 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
     
     <!-- Visual Left Panel -->
     <div class="login-visual">
-      <img src="/public/login_hero.jpg" alt="MusicMaid Aesthetic" class="visual-bg-img" onerror="this.src='/public/musicmaid_headphone_hero.jpg'">
+      <img src="/public/login_hero.jpg" alt="Rem Aesthetic" class="visual-bg-img" onerror="this.src='/public/musicmaid_headphone_hero.jpg'">
       
       <div class="visual-content">
         <div class="brand-badge">
-          <img src="/public/musicmaid_avatar.jpg" alt="MusicMaid Logo" class="brand-logo" onerror="this.src='/public/icon.png'">
-          <span class="brand-title">MusicMaid</span>
+          <img src="/public/musicmaid_avatar.jpg" alt="Rem Logo" class="brand-logo" onerror="this.src='/public/icon.png'">
+          <span class="brand-title">Rem 🎧💜</span>
         </div>
 
-        <h1 class="visual-headline">Your Dedicated Discord Music Portal.</h1>
+        <h1 class="visual-headline">Your Anime Music Companion.</h1>
         <p class="visual-desc">Access real-time web playback controls, synchronized lyrics, cloud playlists, and audio equalizer filters across all your servers.</p>
 
         <div class="feature-highlights">
@@ -493,7 +493,7 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
     <!-- Form Right Panel -->
     <div class="login-form-panel">
       <div class="panel-header">
-        <h2>Sign in to MusicMaid</h2>
+        <h2>Sign in to Rem</h2>
         <p>Choose your preferred sign-in method to continue</p>
       </div>
 
@@ -547,7 +547,7 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
     function handlePasskeySubmit(e) {
       e.preventDefault();
       const btn = document.getElementById('submit-btn');
-      btn.innerText = 'Connecting to MusicMaid Dashboard...';
+      btn.innerText = 'Connecting to Rem Dashboard...';
       btn.style.opacity = '0.75';
       setTimeout(() => {
         window.location.href = '/dashboard';

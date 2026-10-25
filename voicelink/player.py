@@ -98,19 +98,19 @@ DEFAULT_CONTROLLER = {
             "description": "### [@@track_name@@](@@track_url@@)\n> 👤 **Artist:** `@@track_author@@`\n> 🎧 **Requester:** @@track_requester_mention@@\n> 🎚️ **Volume:** `@@volume@@%` • 🔁 **Loop:** `@@loop_mode@@`",
             "thumbnail": "@@track_thumbnail@@",
             "footer": {
-                "text": "Queue: @@queue_length@@ tracks • Duration: @@track_duration@@ • MusicMaid Audio",
+                "text": "Queue: @@queue_length@@ tracks • Rem 🎧💜",
                 "icon_url": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg"
             }
         },
         "inactive": {
             "title": {
-                "name": "💜 MusicMaid High-Fidelity Audio System",
+                "name": "💜 Rem — Your Anime Music Companion",
                 "url": "https://rai-discord-bot.onrender.com"
             },
-            "description": "### No track currently playing\nJoin a voice channel and type `/play <song name or link>` to start streaming!",
+            "description": "### Ready for music! (•ᴗ•) 🌸\nJoin a voice channel and type `/play <song name or link>` to stream with Rem!",
             "thumbnail": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg",
             "footer": {
-                "text": "MusicMaid • 24/7 Zero Latency Audio",
+                "text": "Rem 🎧💜 • Your Anime Music Companion",
                 "icon_url": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg"
             }
         }
@@ -356,8 +356,8 @@ class Player(VoiceProtocol):
                 embed.title = f"🎵 Now Playing: {current_track.title[:100]}"
                 embed.description = f"**Artist:** `{current_track.author}` • **Duration:** `{current_track.formatted_length}`"
             else:
-                embed.title = "💜 MusicMaid Audio System"
-                embed.description = "Ready to play! Connect to a voice channel and use `/play`."
+                embed.title = "💜 Rem — Your Anime Music Companion"
+                embed.description = "Ready to play! (•ᴗ•) Connect to a voice channel and use `/play`."
         if not embed.color:
             embed.color = Config().embed_color
         return embed

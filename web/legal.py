@@ -1,5 +1,5 @@
 """
-MusicMaid — Legal Compliance Documents (Terms of Service & Privacy Policy).
+Rem — Legal Compliance Documents (Terms of Service & Privacy Policy).
 Complies with Discord Developer Terms, GDPR guidelines, and data minimization standards.
 """
 
@@ -8,7 +8,7 @@ TERMS_OF_SERVICE_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms of Service — MusicMaid Discord Bot</title>
+    <title>Terms of Service — Rem Discord Bot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -122,20 +122,20 @@ TERMS_OF_SERVICE_HTML = """<!DOCTYPE html>
         </div>
 
         <h2>1. Acceptance of Terms</h2>
-        <p>By inviting, adding, or using <strong>MusicMaid</strong> ("the Bot", "we", "our") in your Discord server or accessing its associated Web Platform, you ("the User") agree to be bound by these Terms of Service. If you do not agree to these terms, please remove the Bot from your Discord server and discontinue use.</p>
+        <p>By inviting, adding, or using <strong>Rem</strong> ("the Bot", "we", "our") in your Discord server or accessing its associated Web Platform, you ("the User") agree to be bound by these Terms of Service. If you do not agree to these terms, please remove the Bot from your Discord server and discontinue use.</p>
 
         <h2>2. Discord Terms & Community Guidelines</h2>
-        <p>MusicMaid operates on the Discord platform. You must comply with all <a href="https://discord.com/terms" target="_blank" rel="noopener">Discord Terms of Service</a> and <a href="https://discord.com/guidelines" target="_blank" rel="noopener">Discord Community Guidelines</a> at all times while using the Bot.</p>
+        <p>Rem operates on the Discord platform. You must comply with all <a href="https://discord.com/terms" target="_blank" rel="noopener">Discord Terms of Service</a> and <a href="https://discord.com/guidelines" target="_blank" rel="noopener">Discord Community Guidelines</a> at all times while using the Bot.</p>
 
         <h2>3. Use of Service & Music Playback</h2>
         <ul>
-            <li><strong>Audio Streaming:</strong> MusicMaid provides high-fidelity audio playback by searching, resolving, and streaming publicly accessible audio from third-party media platforms (including YouTube and SoundCloud).</li>
-            <li><strong>Third-Party Compliance:</strong> MusicMaid does not store, host, or distribute pirated or copyrighted audio files. We strictly honor all digital rights management and stream protocols provided by upstream platforms.</li>
+            <li><strong>Audio Streaming:</strong> Rem provides high-fidelity audio playback by searching, resolving, and streaming publicly accessible audio from third-party media platforms (including YouTube and SoundCloud).</li>
+            <li><strong>Third-Party Compliance:</strong> Rem does not store, host, or distribute pirated or copyrighted audio files. We strictly honor all digital rights management and stream protocols provided by upstream platforms.</li>
             <li><strong>Spotify Integration:</strong> All Spotify link resolutions utilize official open metadata APIs to identify song titles and artists; no audio is ripped or downloaded from Spotify servers.</li>
         </ul>
 
         <h2>4. Prohibited Activities</h2>
-        <p>When using MusicMaid, you agree NOT to:</p>
+        <p>When using Rem, you agree NOT to:</p>
         <ul>
             <li>Spam, flood, or abuse commands in an attempt to disrupt voice service stability or cause denial-of-service.</li>
             <li>Attempt to reverse-engineer, exploit, or bypass rate limits, DSP equalizers, or platform controls.</li>
@@ -143,7 +143,7 @@ TERMS_OF_SERVICE_HTML = """<!DOCTYPE html>
         </ul>
 
         <h2>5. Availability and Service Limits</h2>
-        <p>MusicMaid is provided on an "as is" and "as available" basis. While we strive for 24/7 continuous uptime, we cannot guarantee uninterrupted service due to potential network delays, third-party platform API changes, or server maintenance. We reserve the right to temporarily pause, update, or modify features without prior notice.</p>
+        <p>Rem is provided on an "as is" and "as available" basis. While we strive for 24/7 continuous uptime, we cannot guarantee uninterrupted service due to potential network delays, third-party platform API changes, or server maintenance. We reserve the right to temporarily pause, update, or modify features without prior notice.</p>
 
         <h2>6. Termination of Access</h2>
         <p>We reserve the right to block access or restrict command permissions for any Discord server or user that engages in malicious activity, severe abuse, or attempts to disrupt service for other users.</p>
@@ -152,7 +152,7 @@ TERMS_OF_SERVICE_HTML = """<!DOCTYPE html>
         <p>If you have questions regarding these Terms of Service, please join our official support community or contact the bot development team directly through Discord.</p>
 
         <footer>
-            <div>MusicMaid • 24/7 Hi-Fi Discord Music Bot</div>
+            <div>Rem • 24/7 Hi-Fi Discord Music Bot</div>
             <div><a href="/privacy">Privacy Policy</a></div>
         </footer>
     </div>
@@ -165,7 +165,7 @@ PRIVACY_POLICY_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy — MusicMaid Discord Bot</title>
+    <title>Privacy Policy — Rem Discord Bot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -286,10 +286,10 @@ PRIVACY_POLICY_HTML = """<!DOCTYPE html>
             <div class="effective-date">Last Updated: October 14, 2026 • Compliant with Discord Developer Policy</div>
         </div>
 
-        <p>This Privacy Policy explains how <strong>MusicMaid</strong> ("we", "our", or "the Bot") collects, uses, stores, and protects user and server data when you use our Discord bot application and associated web interfaces.</p>
+        <p>This Privacy Policy explains how <strong>Rem</strong> ("we", "our", or "the Bot") collects, uses, stores, and protects user and server data when you use our Discord bot application and associated web interfaces.</p>
 
         <h2>1. Data Minimization Commitment</h2>
-        <p>We believe in strict data minimization. MusicMaid only processes the minimum data strictly required to deliver music playback, manage server song queues, and remember audio equalizer preferences.</p>
+        <p>We believe in strict data minimization. Rem only processes the minimum data strictly required to deliver music playback, manage server song queues, and remember audio equalizer preferences.</p>
 
         <h2>2. Information We Collect</h2>
         <table class="data-table">
@@ -333,7 +333,7 @@ PRIVACY_POLICY_HTML = """<!DOCTYPE html>
         </ul>
 
         <h2>4. Third-Party Services</h2>
-        <p>To resolve requested music streams, MusicMaid communicates with third-party service APIs:</p>
+        <p>To resolve requested music streams, Rem communicates with third-party service APIs:</p>
         <ul>
             <li><strong>Discord API:</strong> Voice gateway signaling and slash command delivery.</li>
             <li><strong>YouTube / SoundCloud:</strong> Resolving public audio streams requested by users.</li>
@@ -343,7 +343,7 @@ PRIVACY_POLICY_HTML = """<!DOCTYPE html>
         <h2>5. Data Deletion & User Rights</h2>
         <p>You have full ownership of your data:</p>
         <ul>
-            <li><strong>Automatic Deletion:</strong> Kicking or removing MusicMaid from your Discord server permanently cleans all stored server session states.</li>
+            <li><strong>Automatic Deletion:</strong> Kicking or removing Rem from your Discord server permanently cleans all stored server session states.</li>
             <li><strong>Manual Deletion:</strong> Server administrators can clear all stored queue history at any time using <code>/playlist clear</code> or <code>/settings reset</code>.</li>
             <li><strong>Direct Request:</strong> To request immediate deletion of any associated data, please contact the developer via Discord.</li>
         </ul>
@@ -352,7 +352,7 @@ PRIVACY_POLICY_HTML = """<!DOCTYPE html>
         <p>We may periodically update this Privacy Policy to reflect feature additions or Discord API requirements. Any changes will be published here with an updated "Last Updated" timestamp.</p>
 
         <footer>
-            <div>MusicMaid • Safe & Transparent Audio Engine</div>
+            <div>Rem • Safe & Transparent Audio Engine</div>
             <div><a href="/terms">Terms of Service</a> • <a href="/refund">Refund Policy</a> • <a href="/contact">Contact Us</a></div>
         </footer>
     </div>
@@ -482,7 +482,7 @@ REFUND_POLICY_HTML = """<!DOCTYPE html>
         </ul>
 
         <h2>2. Refund Eligibility</h2>
-        <p>Because MusicMaid Premium is a digital service delivered immediately upon payment verification, refunds are granted under the following circumstances:</p>
+        <p>Because Rem Premium is a digital service delivered immediately upon payment verification, refunds are granted under the following circumstances:</p>
         <ul>
             <li><strong>Technical Non-Delivery:</strong> If your payment was captured but your Premium perks failed to activate within 24 hours and our support team is unable to resolve the issue.</li>
             <li><strong>Duplicate Charges:</strong> If you were accidentally charged more than once for the same billing cycle due to a gateway or network anomaly.</li>
@@ -512,7 +512,7 @@ REFUND_POLICY_HTML = """<!DOCTYPE html>
         </ul>
 
         <footer>
-            <div>MusicMaid • Safe & Transparent Audio Engine</div>
+            <div>Rem • Safe & Transparent Audio Engine</div>
             <div><a href="/terms">Terms</a> • <a href="/privacy">Privacy</a> • <a href="/contact">Contact</a></div>
         </footer>
     </div>
@@ -525,7 +525,7 @@ CONTACT_US_HTML = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Us — MusicMaid / Noctyra Studio</title>
+    <title>Contact Us — Rem / Noctyra Studio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -685,7 +685,7 @@ CONTACT_US_HTML = """<!DOCTYPE html>
         </ul>
 
         <footer>
-            <div>MusicMaid • Safe & Transparent Audio Engine</div>
+            <div>Rem • Safe & Transparent Audio Engine</div>
             <div><a href="/terms">Terms</a> • <a href="/privacy">Privacy</a> • <a href="/refund">Refund Policy</a></div>
         </footer>
     </div>

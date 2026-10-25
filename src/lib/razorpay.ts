@@ -11,7 +11,7 @@ export const PAYMENTS_ENABLED =
 export const PRICING_PLANS = {
   monthly: {
     id: "monthly",
-    name: "MusicMaid Monthly VIP",
+    name: "Rem Monthly VIP",
     amount: 199,
     amount_paise: 19900,
     interval: "monthly" as const,
@@ -27,7 +27,7 @@ export const PRICING_PLANS = {
   },
   yearly: {
     id: "yearly",
-    name: "MusicMaid Annual Pro",
+    name: "Rem Annual Pro",
     amount: 1499,
     amount_paise: 149900,
     interval: "yearly" as const,
@@ -44,7 +44,7 @@ export const PRICING_PLANS = {
   },
   lifetime: {
     id: "lifetime",
-    name: "MusicMaid Lifetime VIP",
+    name: "Rem Lifetime VIP",
     amount: 3999,
     amount_paise: 399900,
     interval: "lifetime" as const,
@@ -127,7 +127,7 @@ export async function createRazorpayOrder(
         user_id: userId,
         guild_id: guildId || "global",
         plan_id: planId,
-        platform: "MusicMaid_Web",
+        platform: "Rem_Web",
       },
     }),
   });

@@ -96,7 +96,7 @@ class TestBotRoleService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Created new dedicated role", msg)
         self.mock_guild.create_role.assert_awaited_once()
         self.mock_me.add_roles.assert_awaited_once_with(
-            created_role, reason="MusicMaid dedicated bot role assignment"
+            created_role, reason="Rem dedicated bot role assignment"
         )
         self.mock_db.set_bot_role_id.assert_awaited_once_with(self.mock_guild.id, created_role.id)
 

@@ -68,7 +68,7 @@ async def nowplay(ctx: commands.Context, player: voicelink.Player):
         pbar_str = f"{status_icon} `{pbar}` **[{format_ms(player.position)} / {track.formatted_length}]**"
 
     embed.add_field(name="\u2800", value=pbar_str, inline=False)
-    embed.set_footer(text="MusicMaid • High-Fidelity Audio", icon_url=ctx.bot.user.display_avatar.url if ctx.bot.user else None)
+    embed.set_footer(text="Rem 🎧💜 • Your Anime Music Companion", icon_url=ctx.bot.user.display_avatar.url if ctx.bot.user else None)
 
     return await dispatch_message(ctx, embed, view=LinkView(texts[2].format(track.source.title()), track.emoji, track.uri))
 
@@ -864,7 +864,7 @@ class Basic(commands.Cog):
     @app_commands.autocomplete(category=help_autocomplete)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def help(self, ctx: commands.Context, category: str = "News") -> None:
-        "Lists all the commands in MusicMaid."
+        "Lists all the commands in Rem (Your Anime Music Companion)."
         if category not in self.bot.cogs:
             category = "News"
         view = HelpView(self.bot, ctx.author)

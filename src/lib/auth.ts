@@ -14,6 +14,7 @@ export const SESSION_COOKIE_NAMES = ["session_id", "rai_session"] as const;
 
 export function getPublicBaseUrl(req?: NextRequest): string {
   if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
+  if (process.env.REM_WEBSITE_URL) return process.env.REM_WEBSITE_URL.replace(/\/$/, "");
   if (process.env.MUSICMAID_WEBSITE_URL) return process.env.MUSICMAID_WEBSITE_URL.replace(/\/$/, "");
   if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "");
   if (req) {

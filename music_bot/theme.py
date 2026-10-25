@@ -31,9 +31,9 @@ COLOR_VIOLET: int = 0x8A2BE2       # Deep Blue Violet
 COLOR_PLATINUM: int = 0xE2E8F0     # Platinum Silver Accent
 COLOR_OBSIDIAN: int = 0x0A0A0F     # Deep Obsidian Midnight
 
-BRAND_NAME: str = "MusicMaid"
+BRAND_NAME: str = "Rem"
 STUDIO_BRAND: str = "Noctyra Studio"
-DEFAULT_FOOTER: str = "MusicMaid ✦ Noctyra Studio Lossless Audio Engine"
+DEFAULT_FOOTER: str = "Rem 🎧💜 • Your Anime Music Companion | Rai Discord Bot"
 
 
 def create_branded_embed(

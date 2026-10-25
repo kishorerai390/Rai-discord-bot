@@ -21,12 +21,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "MusicMaid - Discord Music Engine & Master Control Panel",
+  title: "Rem 🎧💜 - Your Anime Music Companion & Discord Player",
   description:
     "Dedicated 24/7 Lossless 320kbps Discord Music Bot Control Panel. Control queues, DSP equalizer, Smart Auto-DJ, and synchronized playback.",
   keywords: [
     "Discord music bot",
-    "MusicMaid",
+    "Rem", "MusicMaid",
     "320kbps Lossless audio",
     "Auto-DJ",
     "Equalizer DSP",

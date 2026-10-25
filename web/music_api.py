@@ -1551,14 +1551,14 @@ class MusicApiRouter:
         if "default_volume" in body:
             vol = max(1, min(150, int(body["default_volume"])))
             if vol > 100 and not is_premium:
-                return json_error("PREMIUM_REQUIRED", "Volumes above 100% require an active MusicMaid VIP subscription", 403)
+                return json_error("PREMIUM_REQUIRED", "Volumes above 100% require an active Rem VIP subscription", 403)
             settings.default_volume = vol
 
         # 24/7 Mode check (requires premium)
         if "twenty_four_seven_enabled" in body:
             tfs = bool(body["twenty_four_seven_enabled"])
             if tfs and not is_premium:
-                return json_error("PREMIUM_REQUIRED", "24/7 Voice Channel mode requires an active MusicMaid VIP subscription", 403)
+                return json_error("PREMIUM_REQUIRED", "24/7 Voice Channel mode requires an active Rem VIP subscription", 403)
             settings.twenty_four_seven_enabled = tfs
             if "twenty_four_seven_channel_id" in body and body["twenty_four_seven_channel_id"]:
                 settings.twenty_four_seven_channel_id = int(body["twenty_four_seven_channel_id"])

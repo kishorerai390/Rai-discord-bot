@@ -117,7 +117,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
                 {track?.title || "No Track Playing"}
               </Link>
               <p className="text-xs text-purple-200/80 truncate">
-                {track?.author || track?.artist || "MusicMaid"} · {voiceName ? `#${voiceName}` : "Current server"}
+                {track?.author || track?.artist || "Rem 🎧💜"} · {voiceName ? `#${voiceName}` : "Current server"}
               </p>
               <p className="text-[11px] text-slate-400 truncate hidden sm:block">
                 {track ? (session?.is_paused ? "Paused · Press play to resume" : "Lossless Audio · 320kbps Studio Output") : "Idle state: Search for music to get started"}
