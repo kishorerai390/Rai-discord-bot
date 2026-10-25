@@ -2111,6 +2111,11 @@ class AudioResolver:
         def _on_done(f: asyncio.Future):
             if cls._pending_tasks.get(cache_key) is f:
                 cls._pending_tasks.pop(cache_key, None)
+            # A caller deadline may cancel the shared resolution task. A cancelled
+            # Future raises CancelledError (a BaseException) from result(); handle it
+            # explicitly so asyncio does not emit an unhandled callback traceback.
+            if f.cancelled():
+                return
             try:
                 res = f.result()
                 if res:
@@ -2513,9 +2518,9 @@ class AudioResolver:
             artist: Optional[str] = None,
         ) -> Tuple[Optional[QueuedTrack], Dict[str, str]]:
             """Keep Audius/Jamendo fallback responsive when an upstream catalog stalls."""
-            timeout_s = 8.0
+            timeout_s = 4.0
             try:
-                timeout_s = max(2.0, min(float(os.getenv("ALTERNATIVE_PROVIDER_TIMEOUT", "8")), 15.0))
+                timeout_s = max(2.0, min(float(os.getenv("ALTERNATIVE_PROVIDER_TIMEOUT", "4")), 4.0))
                 return await asyncio.wait_for(
                     cls.resolve_alternative_fallback(
                         title=title,
@@ -2803,6 +2808,7 @@ class AudioResolver:
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
+        alternative_fallback_attempted = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
             # Tier 1: Primary Profile (android_vr/web when cookies present, otherwise ios/android) - 14.0s timeout
             try:
@@ -2812,7 +2818,7 @@ class AudioResolver:
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
-                    timeout=14.0,
+                    timeout=12.0,
                     operation="stream_extract_tier1",
                     correlation_id=corr_id,
                     retry_count=cand_idx - 1,
@@ -2852,6 +2858,7 @@ class AudioResolver:
                 if any(marker in t1_msg.casefold() for marker in restricted_markers):
                     fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
                     if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        alternative_fallback_attempted = True
                         fb_track, fb_diag = await _bounded_alternative_fallback(
                             fallback_title,
                             artist_hint,
@@ -2866,6 +2873,14 @@ class AudioResolver:
                                 fb_track.title,
                             )
                             return fb_track
+
+                    # If the public extractor timed out, do not spend another 10 seconds
+                    # on a second extractor before the configured cookie/fallback paths.
+                    # The outer /play deadline is 30 seconds, so serial long tiers starve
+                    # Audius/Jamendo and cancel their result before they can be returned.
+                    if any(marker in t1_msg.casefold() for marker in ("timeout", "timed out")):
+                        last_failure_reason = t1_msg
+                        break
 
                     # Try JukeBot StreamRequest directly before abandoning public extraction
                     try:
@@ -3047,10 +3062,13 @@ class AudioResolver:
                 "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback outcome=started",
                 corr_id,
             )
+            # android_vr does not support yt-dlp cookies (confirmed in Render logs),
+            # and the forced format 18/best returned image-only formats. Try cookie-
+            # compatible clients and generic audio formats first, with short per-tier
+            # deadlines so alternative providers are not starved by /play's deadline.
             for cookie_clients, cookie_format in (
-                (["android_vr"], "18/best"),
-                (["web"], "18/22/best"),
-                (None, "bestaudio/18/22/b/best"),
+                (["web"], "bestaudio/best"),
+                (None, "bestaudio/best"),
             ):
                 try:
                     tier3_opts = _build_ytdl_options(cookie_clients, use_cookies=True)
@@ -3058,7 +3076,7 @@ class AudioResolver:
                     tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                     data = await _run_ytdlp(
                         functools.partial(tier3_ydl.extract_info, top_target, download=False),
-                        timeout=8.0,
+                        timeout=4.0,
                         operation="stream_extract_cookie_fallback",
                         correlation_id=corr_id,
                         retry_count=1,
@@ -3131,6 +3149,7 @@ class AudioResolver:
         if (
             os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true"
             and effective_fallback_query
+            and not alternative_fallback_attempted
             and (
                 cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "ACCESS_RESTRICTION", "UNAVAILABLE_FORMAT", "YOUTUBE_RATE_LIMITED"}
                 or "timed out" in lower_failure_reason

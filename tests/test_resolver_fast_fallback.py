@@ -59,6 +59,51 @@ async def test_youtube_access_block_uses_alternative_provider_without_retrying_c
 
 
 @pytest.mark.asyncio
+async def test_primary_extraction_timeout_uses_alternative_without_spending_jukebot_budget():
+    """A slow YouTube extractor must not starve a verified Audius/Jamendo fallback."""
+    candidate = {
+        "id": "xvT1jH8B9AM",
+        "title": "KALYANI (with Shreya Ghoshal) Official Music Video",
+        "url": "https://www.youtube.com/watch?v=xvT1jH8B9AM",
+        "duration": 288,
+        "artist": "ARJN",
+        "uploader": "MONEY VERSE RECORDS and ARJN",
+        "channel_is_verified": True,
+    }
+    alternative = QueuedTrack(
+        title="Kalyani",
+        url="https://audius.co/test/kalyani",
+        stream_url="https://creatornode.audius.co/tracks/stream/test",
+        duration=180,
+        requester_id=123,
+        requester_name="Tester",
+        artist="ARJN",
+    )
+    setattr(alternative, "provider", "audius")
+
+    with (
+        patch.object(AudioResolver, "search", new_callable=AsyncMock, return_value=[candidate]),
+        patch("music_bot.services.resolver_service._run_ytdlp", new_callable=AsyncMock,
+              side_effect=TimeoutError("YouTube stream extraction timed out")) as extract,
+        patch.object(AudioResolver, "resolve_alternative_fallback", new_callable=AsyncMock,
+                     return_value=(alternative, {})) as fallback,
+    ):
+        track = await AudioResolver.resolve_track(
+            "Kalyani",
+            123,
+            "Tester",
+            title_hint="Kalyani",
+            artist_hint="ARJN",
+        )
+
+    assert track is not None
+    assert track.title == "Kalyani"
+    assert getattr(track, "provider", "") == "audius"
+    assert fallback.await_count == 1
+    assert extract.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_unavailable_youtube_format_uses_alternative_before_profile_retries():
     """The production failure should skip slow format-profile retries when fallback works."""
     candidate = {
