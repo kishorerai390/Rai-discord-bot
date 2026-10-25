@@ -1032,6 +1032,7 @@ class MusicCog(commands.Cog, name="Music"):
                     f"🔘 **{current_stage}**\n"
                     f"Elapsed: {elapsed_str} · Source: {source_str}\n\n"
                     f"{bar}\n\n"
+                    f"ılıılı.♫.ılılı  [Lossless 320kbps Audio Engine]\n"
                     f"Next: {next_step_str}\n"
                     f"If a source fails, show the actual error and fallback status."
                 )
@@ -1067,13 +1068,13 @@ class MusicCog(commands.Cog, name="Music"):
 
             async def _refresh_resolving_status() -> None:
                 while progress_state["active"]:
-                    await asyncio.sleep(4)
+                    await asyncio.sleep(3)
                     if not progress_state["active"]:
                         break
                     elapsed = max(0, int(time.monotonic() - progress_state["started"]))
                     minutes, seconds = divmod(elapsed, 60)
                     elapsed_text = f"{minutes:02d}:{seconds:02d}"
-                    time_boost = min(0.18, (elapsed // 4) * 0.03)
+                    time_boost = min(0.18, (elapsed // 3) * 0.03)
                     dynamic_ratio = min(0.92, progress_state["ratio"] + time_boost)
                     filled_blocks = max(1, min(16, int(round(dynamic_ratio * 16))))
                     bar_str = "▰" * filled_blocks + "▱" * (16 - filled_blocks)
@@ -1083,6 +1084,7 @@ class MusicCog(commands.Cog, name="Music"):
                         f"🔘 **{progress_state['stage']}**\n"
                         f"Elapsed: {elapsed_text} · Source: {progress_state['source']}\n\n"
                         f"{bar_str}\n\n"
+                        f"ılıılı.♫.ılılı  [Lossless 320kbps Audio Engine]\n"
                         f"Next: {progress_state['next']}\n"
                         f"If a source fails, show the actual error and fallback status."
                     )
@@ -1251,7 +1253,12 @@ class MusicCog(commands.Cog, name="Music"):
                     type(e).__name__,
                 )
 
-            await _stop_resolving_status()
+            if track:
+                progress_state["stage"] = "Connecting audio pipeline & buffering stream..."
+                progress_state["next"] = "buffer audio cushion → start live voice playback"
+                progress_state["ratio"] = 0.88
+            else:
+                await _stop_resolving_status()
 
             # Keep Audius/Jamendo fallback, but never silently substitute a
             # near-spelling title (e.g. Kalyan for a Kalyani request).
@@ -1280,6 +1287,7 @@ class MusicCog(commands.Cog, name="Music"):
                 )
 
             if not track:
+                await _stop_resolving_status()
                 display_query_for_user = display_name or query
                 if not display_name and display_query_for_user.startswith(("http://", "https://", "spotify:")):
                     display_query_for_user = "selected track"
@@ -1327,7 +1335,10 @@ class MusicCog(commands.Cog, name="Music"):
                         ),
                         color=COLOR_ERROR,
                     )
-                await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
+                try:
+                    await interaction.edit_original_response(content=None, embed=embed_fail, view=None)
+                except Exception:
+                    await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
                 return
 
             search_dur = time.time() - search_start
@@ -1409,6 +1420,7 @@ class MusicCog(commands.Cog, name="Music"):
                     if track.thumbnail:
                         embed_queued.set_thumbnail(url=track.thumbnail)
                     embed_queued.set_footer(text=f"Requested by {member.display_name}")
+                    await _stop_resolving_status()
                     try:
                         await interaction.edit_original_response(embed=embed_queued, content=None, view=None)
                     except Exception:
@@ -1424,6 +1436,7 @@ class MusicCog(commands.Cog, name="Music"):
                         success = False
                         session.last_error = str(play_exc)
 
+                    await _stop_resolving_status()
                     play_dur = time.time() - play_start
                     play_dur_ms = play_dur * 1000
                     total_dur_ms = (time.time() - start_t) * 1000
@@ -1475,7 +1488,10 @@ class MusicCog(commands.Cog, name="Music"):
                             ),
                             color=0xED4245,
                         )
-                        await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
+                        try:
+                            await interaction.edit_original_response(content=None, embed=embed_fail, view=None)
+                        except Exception:
+                            await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
         except Exception as top_err:
             if "progress_task" in locals():
                 try:

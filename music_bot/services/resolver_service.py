@@ -1393,6 +1393,10 @@ def build_ffmpeg_options(
         ua = track.http_headers.get("User-Agent") or track.http_headers.get("user-agent")
         if ua:
             user_agent = ua
+    elif track and track.stream_url and "c=ANDROID" in track.stream_url:
+        user_agent = "com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip"
+    elif track and track.stream_url and "c=IOS" in track.stream_url:
+        user_agent = "com.google.ios.youtube/19.29.1 (iPhone14,3; U; CPU iOS 16_5 like Mac OS X)"
 
     before = []
     if start_seconds > 0:
@@ -2016,6 +2020,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=cached_track.artist,
                     thumbnail=cached_track.thumbnail,
+                    http_headers=cached_track.http_headers,
                 )
                 setattr(cached, "_correlation_id", correlation_id)
                 return cached
@@ -2036,6 +2041,7 @@ class AudioResolver:
                         requester_name=requester_name,
                         artist=data.get("artist", "Unknown Artist"),
                         thumbnail=data.get("thumbnail"),
+                        http_headers=data.get("http_headers"),
                     )
                     cls._track_cache[cache_key] = (restored_track, now)
                     setattr(restored_track, "_correlation_id", correlation_id)
@@ -2066,6 +2072,7 @@ class AudioResolver:
                         requester_name=requester_name,
                         artist=res.artist,
                         thumbnail=res.thumbnail,
+                        http_headers=res.http_headers,
                     )
                     setattr(duplicate, "_correlation_id", correlation_id)
                     return duplicate
@@ -2103,6 +2110,7 @@ class AudioResolver:
                                     "duration": t.duration,
                                     "artist": t.artist,
                                     "thumbnail": t.thumbnail,
+                                    "http_headers": t.http_headers,
                                 })
                                 await redis_c.setex(f"mm:track:{k}", CACHE_TTL, payload)
                             except Exception:
@@ -2123,6 +2131,7 @@ class AudioResolver:
                 requester_name=requester_name,
                 artist=resolved.artist,
                 thumbnail=resolved.thumbnail,
+                http_headers=resolved.http_headers,
             )
             setattr(out_track, "_correlation_id", correlation_id)
             if hasattr(resolved, "provider"):
@@ -2847,6 +2856,7 @@ class AudioResolver:
                                     requester_name=requester_name,
                                     artist=juke_data.get("uploader", "Unknown Artist"),
                                     thumbnail=juke_data.get("thumbnail"),
+                                    http_headers=juke_data.get("http_headers"),
                                 )
                                 track = _apply_metadata_enhancements(track)
                                 setattr(track, "provider", "youtube")
@@ -2969,6 +2979,7 @@ class AudioResolver:
                             requester_name=requester_name,
                             artist=juke_data.get("uploader", "Unknown Artist"),
                             thumbnail=juke_data.get("thumbnail"),
+                            http_headers=juke_data.get("http_headers"),
                         )
                         track = _apply_metadata_enhancements(track)
                         setattr(track, "provider", "youtube")

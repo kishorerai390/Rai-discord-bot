@@ -344,13 +344,13 @@ class MusicPlayerService:
                 audio_source, volume=norm_vol
             )
 
-            # Validate that audio source actually produces valid PCM audio frames (with 15.0s buffering timeout)
+            # Validate that audio source actually produces valid PCM audio frames (responsive 4.0s buffering timeout)
             loop = asyncio.get_running_loop()
             first_frame: Optional[bytes] = None
             try:
                 first_frame = await asyncio.wait_for(
                     loop.run_in_executor(None, volume_transformer.read),
-                    timeout=15.0,
+                    timeout=4.0,
                 )
             except Exception as read_err:
                 logger.warning(f"Initial frame read failed for '{track.title}': {read_err}")
@@ -394,7 +394,7 @@ class MusicPlayerService:
                             volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                             first_frame = await asyncio.wait_for(
                                 loop.run_in_executor(None, volume_transformer.read),
-                                timeout=10.0,
+                                timeout=3.5,
                             )
                         except Exception as re_read_err:
                             logger.warning(f"Secondary YouTube frame read failed for '{track.title}': {re_read_err}")
@@ -407,7 +407,6 @@ class MusicPlayerService:
                             _video_id_from_url(track.url) or "unavailable",
                             _video_id_from_url(fresh.url) or "unavailable",
                         )
-
                 # 4. If YouTube stream still fails or is 403-restricted, attempt secondary fallback (Audius & Jamendo)
                 if not first_frame:
                     logger.info(
@@ -438,7 +437,7 @@ class MusicPlayerService:
                             volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                             first_frame = await asyncio.wait_for(
                                 loop.run_in_executor(None, volume_transformer.read),
-                                timeout=10.0,
+                                timeout=4.0,
                             )
                         except Exception as fb_read_err:
                             logger.warning(f"Fallback frame read failed for '{track.title}': {fb_read_err}")
