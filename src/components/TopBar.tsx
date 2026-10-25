@@ -14,7 +14,7 @@ export function TopBar({
   voiceStatusText = "320kbps Lossless Online",
 }: TopBarProps) {
   return (
-    <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[var(--bg-sidebar)] border-b border-[var(--border-subtle)] backdrop-blur-xl sticky top-0 z-40">
+    <header className="md:hidden flex items-center justify-between px-4 py-3 bg-(--bg-sidebar) border-b border-(--border-subtle) backdrop-blur-xl sticky top-0 z-40">
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleMobile}
@@ -28,7 +28,7 @@ export function TopBar({
       <div className="flex items-center gap-2">
         <Link
           href="/premium"
-          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 text-white text-xs font-bold shadow-md shadow-pink-500/20"
+          className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-linear-to-r from-pink-500 to-purple-600 text-white text-xs font-bold shadow-md shadow-pink-500/20"
         >
           <Sparkles className="w-3 h-3" />
           <span>💎 Premium</span>

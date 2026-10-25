@@ -63,10 +63,10 @@ export function PlaylistModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
-      <div className="glass-card relative w-full max-w-md rounded-2xl border border-[var(--card-border)] bg-[var(--bg-surface)] p-6 shadow-2xl">
+      <div className="glass-card relative w-full max-w-md rounded-2xl border border-(--card-border) bg-(--bg-surface) p-6 shadow-2xl">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-[var(--text-muted)] hover:text-white transition-colors"
+          className="absolute top-4 right-4 text-(--text-muted) hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -77,11 +77,11 @@ export function PlaylistModal({
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">Save Current Queue</h3>
-            <p className="text-xs text-[var(--text-muted)]">Snapshot {queue.length} tracks to server library</p>
+            <p className="text-xs text-(--text-muted)">Snapshot {queue.length} tracks to server library</p>
           </div>
         </div>
 
-        <p className="text-xs text-[var(--text-muted)] my-4 leading-relaxed">
+        <p className="text-xs text-(--text-muted) my-4 leading-relaxed">
           Enter a memorable name for this playlist. Anyone with access to this guild can reload it anytime.
         </p>
 
@@ -91,7 +91,7 @@ export function PlaylistModal({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSave()}
           placeholder="e.g. Midnight Chill Vibes 2026"
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-[var(--text-dim)] focus:outline-none focus:border-[var(--primary)] mb-5"
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-(--text-dim) focus:outline-none focus:border-(--primary) mb-5"
           autoFocus
         />
 

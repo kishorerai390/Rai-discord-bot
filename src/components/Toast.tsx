@@ -42,7 +42,7 @@ export function ToastContainer({ toasts, onDismiss }: ToastContainerProps) {
             </div>
             <button
               onClick={() => onDismiss(toast.id)}
-              className="text-[var(--text-dim)] hover:text-white transition-colors ml-2"
+              className="text-(--text-dim) hover:text-white transition-colors ml-2"
             >
               <X className="w-3.5 h-3.5" />
             </button>
