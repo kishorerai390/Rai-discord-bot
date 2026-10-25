@@ -89,7 +89,7 @@ async def test_unavailable_youtube_format_uses_alternative_before_profile_retrie
                      return_value=(alternative, {})) as fallback,
     ):
         track = await AudioResolver.resolve_track(
-            "https://www.youtube.com/watch?v=xvT1jH8B9AM",
+            "Kalyani",
             123,
             "Tester",
             title_hint="Kalyani",
