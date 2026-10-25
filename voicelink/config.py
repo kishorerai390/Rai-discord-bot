@@ -80,7 +80,14 @@ class Config:
             except Exception:
                 settings = {}
         
-        self.token: str = settings.get("token") or os.getenv("TOKEN")
+        token_val = settings.get("token")
+        if not token_val or not str(token_val).strip():
+            for k in ["MUSIC_BOT_TOKEN", "DISCORD_TOKEN", "NEKO_SONGS_BOT_TOKEN", "BOT_TOKEN", "TOKEN", "DISCORD_BOT_TOKEN", "MAIN_RAI_BOT_TOKEN"]:
+                cand = os.getenv(k, "").strip().strip('"').strip("'")
+                if len(cand) > 20:
+                    token_val = cand
+                    break
+        self.token: str = token_val or ""
         cid = settings.get("client_id") or os.getenv("CLIENT_ID") or 0
         try:
             self.client_id: int = int(cid)

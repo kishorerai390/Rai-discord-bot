@@ -24,6 +24,31 @@ SOFTWARE.
 import discord
 import sys
 import os
+
+# Start immediate health check HTTP server on $PORT for Render
+def _start_immediate_health_server():
+    port = os.getenv("PORT")
+    if not port:
+        return
+    import http.server, threading
+    class _H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+        def log_message(self, *args):
+            pass
+    try:
+        s = http.server.HTTPServer(("0.0.0.0", int(port)), _H)
+        t = threading.Thread(target=s.serve_forever, daemon=True)
+        t.start()
+        print(f"[HEALTH] Immediate HTTP health check server started on port {port}")
+    except Exception as e:
+        print(f"[HEALTH] Could not bind immediate health server on port {port}: {e}")
+
+_start_immediate_health_server()
+
 import aiohttp
 import update
 import logging
@@ -334,4 +359,7 @@ def ensure_lavalink():
 if __name__ == "__main__":
     ensure_lavalink()
     update.check_version(with_msg=True)
-    bot.run(bot_config.token, root_logger=True)
+    token = bot_config.token or func.resolve_token()
+    if not token:
+        print(f"[ERROR] No Discord bot token found! Checked MUSIC_BOT_TOKEN, DISCORD_TOKEN, TOKEN. Env keys: {[k for k in os.environ.keys() if 'TOKEN' in k]}")
+    bot.run(token, root_logger=True)

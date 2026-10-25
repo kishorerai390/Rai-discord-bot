@@ -27,11 +27,31 @@ import logging
 import voicelink
 
 from discord.ext import commands
-from typing import Optional
+from typing import Optional, Any
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 logger: logging.Logger = logging.getLogger("vocard")
+
+def _clean_str(val: Any) -> str:
+    if not val:
+        return ""
+    v = str(val).strip()
+    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+        v = v[1:-1].strip()
+    return v
+
+def resolve_token() -> str:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except Exception:
+        pass
+    for key in ["MUSIC_BOT_TOKEN", "DISCORD_TOKEN", "NEKO_SONGS_BOT_TOKEN", "BOT_TOKEN", "TOKEN", "DISCORD_BOT_TOKEN", "MAIN_RAI_BOT_TOKEN"]:
+        t = _clean_str(os.getenv(key))
+        if len(t) > 20:
+            return t
+    return ""
 
 def ensure_settings() -> dict:
     settings_file = os.path.join(ROOT_DIR, "settings.json")
@@ -44,7 +64,7 @@ def ensure_settings() -> dict:
             s = {}
 
     changed = False
-    token = os.getenv("MUSIC_BOT_TOKEN") or os.getenv("TOKEN") or s.get("token") or ""
+    token = resolve_token() or _clean_str(s.get("token"))
     if token and s.get("token") != token:
         s["token"] = token
         changed = True
