@@ -430,3 +430,131 @@ async def test_resolving_embed_hides_raw_url_and_clears_view():
         assert "youtube.com" not in embed.description
         assert "Resolving audio track" in embed.description
 
+
+# ---------------------------------------------------------------------------
+# 13. FFmpeg HTTP 403 Stream Recovery & Provider Fallback
+# ---------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_ffmpeg_403_stream_recovery_to_audius_fallback():
+    """Verify that when FFmpeg receives 0 bytes from a YouTube stream (HTTP 403),
+    PlayerService evicts cache, retries YouTube, and falls back to a verified Audius track."""
+    from music_bot.services.player_service import PlayerService
+    from music_bot.services.session_service import GuildMusicSession, PlaybackState
+
+    bot = MagicMock()
+    session = GuildMusicSession(guild_id=123)
+    mock_vc = MagicMock()
+    mock_vc.is_playing.return_value = False
+    mock_vc.is_paused.return_value = False
+    mock_vc.is_connected.return_value = True
+    session.voice_client = mock_vc
+
+    track = QueuedTrack(
+        title="Kalyani",
+        url="https://www.youtube.com/watch?v=xvT1jH8B9AM",
+        stream_url="https://rr1---sn-4g5ednks.googlevideo.com/videoplayback?expire=123",
+        duration=240,
+        requester_id=1,
+        requester_name="Tester",
+        artist="Shreya Ghoshal",
+        http_headers={"User-Agent": "Mozilla/5.0"},
+    )
+
+    audius_track = QueuedTrack(
+        title="Kalyani",
+        url="https://audius.co/shreya/kalyani",
+        stream_url="https://audius-discovery-1.audius.co/v1/tracks/kalyani/stream",
+        duration=240,
+        requester_id=1,
+        requester_name="Tester",
+        artist="Shreya Ghoshal",
+    )
+    setattr(audius_track, "provider", "audius")
+
+    # Mock FFmpegPCMAudio and PCMVolumeTransformer
+    with patch("discord.FFmpegPCMAudio") as mock_ffmpeg, \
+         patch("discord.PCMVolumeTransformer") as mock_transformer, \
+         patch.object(AudioResolver, "evict_track", new_callable=AsyncMock) as mock_evict, \
+         patch.object(AudioResolver, "resolve_track", new_callable=AsyncMock, return_value=None), \
+         patch.object(AudioResolver, "resolve_alternative_fallback", new_callable=AsyncMock, return_value=(audius_track, None)) as mock_fb:
+
+        # First read (initial YouTube attempt) returns empty bytes (403 block)
+        # Second read (fallback Audius attempt) returns valid audio bytes
+        mock_reader = MagicMock()
+        mock_reader.read.side_effect = [b"", b"\x01\x02" * 50]
+        mock_transformer.return_value = mock_reader
+
+        result = await PlayerService.start_playback(bot, session, track)
+        assert result is True
+        assert mock_evict.called
+        assert mock_fb.called
+        assert track.stream_url == audius_track.stream_url
+        assert getattr(track, "provider", None) == "audius"
+
+
+@pytest.mark.asyncio
+async def test_ffmpeg_403_stream_all_sources_exhausted_diagnostic():
+    """Verify that when YouTube fails and alternative providers find no valid match,
+    PlayerService stops safely and records a comprehensive diagnostic."""
+    from music_bot.services.player_service import PlayerService
+    from music_bot.services.session_service import GuildMusicSession, PlaybackState
+
+    bot = MagicMock()
+    session = GuildMusicSession(guild_id=123)
+    mock_vc = MagicMock()
+    mock_vc.is_playing.return_value = False
+    mock_vc.is_paused.return_value = False
+    mock_vc.is_connected.return_value = True
+    session.voice_client = mock_vc
+
+    track = QueuedTrack(
+        title="Rare Unreleased Track",
+        url="https://www.youtube.com/watch?v=unreleased1",
+        stream_url="https://googlevideo.com/videoplayback?expire=123",
+        duration=200,
+        requester_id=1,
+        requester_name="Tester",
+        artist="Unknown",
+    )
+
+    with patch("discord.FFmpegPCMAudio"), \
+         patch("discord.PCMVolumeTransformer") as mock_transformer, \
+         patch.object(AudioResolver, "evict_track", new_callable=AsyncMock), \
+         patch.object(AudioResolver, "resolve_track", new_callable=AsyncMock, return_value=None), \
+         patch.object(AudioResolver, "resolve_alternative_fallback", new_callable=AsyncMock, return_value=(None, "No matching verified tracks found on Audius or Jamendo")):
+
+        mock_reader = MagicMock()
+        mock_reader.read.return_value = b""
+        mock_transformer.return_value = mock_reader
+
+        result = await PlayerService.start_playback(bot, session, track)
+        assert result is False
+        assert session.state == PlaybackState.ERROR
+        assert "HTTP 403 / datacenter IP restriction" in session.last_error
+        assert "Secondary fallback (Audius / Jamendo)" in session.last_error
+
+
+@pytest.mark.asyncio
+async def test_build_ffmpeg_options_includes_custom_user_agent_and_cookies():
+    """Verify build_ffmpeg_options injects User-Agent and Cookies into before_options."""
+    from music_bot.services.resolver_service import build_ffmpeg_options
+
+    track = QueuedTrack(
+        title="Test Song",
+        url="https://www.youtube.com/watch?v=123",
+        stream_url="https://googlevideo.com/videoplayback",
+        duration=180,
+        requester_id=1,
+        requester_name="Tester",
+        http_headers={"User-Agent": "Custom-Android-Client/1.0"},
+    )
+
+    with patch("music_bot.services.resolver_service.get_active_cookie_file", return_value="dummy_cookies.txt"), \
+         patch("music_bot.services.resolver_service._extract_cookie_header_from_file", return_value="SID=12345; HSID=67890"):
+        opts = build_ffmpeg_options(track, start_seconds=15)
+        before = opts.get("before_options", "")
+        assert "-ss 15" in before
+        assert "-user_agent \"Custom-Android-Client/1.0\"" in before
+        assert "-headers \"Cookie: SID=12345; HSID=67890\\r\\n\"" in before
+
+

@@ -271,7 +271,7 @@ def _candidate_match_metrics(
 ) -> Tuple[float, float, float]:
     query_tokens = [
         token for token in re.findall(r"\w+", query_intent.get("core_title", "").lower())
-        if len(token) > 1
+        if len(token) > 1 and token not in {"https", "http", "www", "youtube", "com", "watch", "youtu", "be"}
     ]
     if not query_tokens:
         return 0.0, 0.0, 0.0
@@ -655,7 +655,8 @@ def is_original_recording_candidate(
         or any(label in uploader for label in MAJOR_RECORD_LABELS)
         or bool(re.search(r"\b(?:official|record(?:s| label)?|label)\b", uploader))
     )
-    if not title_has_official_marker and not uploader_has_official_marker:
+    is_authorized_platform_provider = candidate.get("provider") in ("audius", "jamendo")
+    if not title_has_official_marker and not uploader_has_official_marker and not is_authorized_platform_provider:
         return False
 
     return True
@@ -731,6 +732,8 @@ def apply_resolved_track(track: QueuedTrack, resolved: QueuedTrack) -> bool:
     track.stream_url = resolved.stream_url
     track.artist = resolved.artist or track.artist
     track.thumbnail = resolved.thumbnail or track.thumbnail
+    if getattr(resolved, "http_headers", None):
+        track.http_headers = resolved.http_headers
     return True
 
 
@@ -1332,6 +1335,79 @@ def _build_ytdl_options(
     return opts
 
 
+def _extract_cookie_header_from_file(cookie_path: str) -> Optional[str]:
+    """Parse Netscape cookie file into a single Cookie: header string for FFmpeg HTTP requests."""
+    try:
+        p = Path(cookie_path)
+        if not p.exists() or p.stat().st_size == 0:
+            return None
+        cookies = []
+        for line in p.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 7:
+                domain = parts[0].strip().lower()
+                name = parts[5].strip()
+                val = parts[6].strip()
+                if name and val and ("youtube.com" in domain or "googlevideo.com" in domain):
+                    cookies.append(f"{name}={val}")
+        return "; ".join(cookies) if cookies else None
+    except Exception:
+        return None
+
+
+def build_ffmpeg_options(
+    track: Optional[QueuedTrack] = None,
+    audio_filter: Optional[str] = None,
+    start_seconds: int = 0,
+) -> Dict[str, Any]:
+    """
+    Construct FFmpeg audio source options with:
+    - Dedicated executable resolution.
+    - Matching User-Agent from extracted track headers (avoids CDN user-agent mismatch 403).
+    - Cookie header injection when verified cookies are available.
+    - Optional seeking and audio filter support.
+    """
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    if track and getattr(track, "http_headers", None):
+        ua = track.http_headers.get("User-Agent") or track.http_headers.get("user-agent")
+        if ua:
+            user_agent = ua
+
+    before = []
+    if start_seconds > 0:
+        before.append(f"-ss {start_seconds}")
+
+    before.extend([
+        "-nostdin",
+        "-reconnect 1",
+        "-reconnect_streamed 1",
+        "-reconnect_delay_max 5",
+        "-analyzeduration 1000000",
+        "-probesize 1000000",
+        "-loglevel warning",
+        f'-user_agent "{user_agent}"',
+    ])
+
+    cookie_path = get_active_cookie_file()
+    if cookie_path and track and ("googlevideo.com" in (track.stream_url or "") or "youtube.com" in (track.url or "")):
+        cookie_header = _extract_cookie_header_from_file(cookie_path)
+        if cookie_header:
+            before.append(f'-headers "Cookie: {cookie_header}\\r\\n"')
+
+    options = "-vn -bufsize 4096k"
+    if audio_filter:
+        options = f"-vn {audio_filter}"
+
+    return {
+        "executable": get_ffmpeg_executable(),
+        "before_options": " ".join(before),
+        "options": options,
+    }
+
+
 FFMPEG_OPTIONS = {
     "executable": get_ffmpeg_executable(),
     "before_options": (
@@ -1514,18 +1590,21 @@ class AudioResolver:
         if not entry:
             return None
 
-        stream_url = entry.get("url")
+        selected_fmt = None
+        stream_url = entry.get("url") if entry else None
         if not stream_url and "formats" in entry:
             # 1. Best audio non-DRM format
             for fmt in entry["formats"]:
                 if fmt.get("acodec") != "none" and fmt.get("url") and not fmt.get("has_drm"):
                     stream_url = fmt["url"]
+                    selected_fmt = fmt
                     break
             # 2. Any playable non-DRM format
             if not stream_url:
                 for fmt in entry["formats"]:
                     if fmt.get("url") and not fmt.get("has_drm"):
                         stream_url = fmt["url"]
+                        selected_fmt = fmt
                         break
 
         if not stream_url:
@@ -1538,6 +1617,8 @@ class AudioResolver:
             if "youtube" in extractor or "youtu" in source_url:
                 track_url = f"https://www.youtube.com/watch?v={entry['id']}"
 
+        http_headers = (selected_fmt or {}).get("http_headers") or entry.get("http_headers")
+
         return QueuedTrack(
             title=entry.get("title", "Unknown Title"),
             url=track_url or entry.get("url", ""),
@@ -1547,6 +1628,7 @@ class AudioResolver:
             requester_name=requester_name,
             artist=entry.get("uploader") or entry.get("channel", "Unknown Artist"),
             thumbnail=entry.get("thumbnail"),
+            http_headers=http_headers,
         )
 
     @classmethod
@@ -2039,6 +2121,135 @@ class AudioResolver:
         return None
 
     @classmethod
+    async def evict_track(cls, query_or_url: str) -> None:
+        """
+        Evict a specific query or URL from in-memory track cache and Redis.
+        Ensures that when an audio stream URL fails in FFmpeg, re-resolution does
+        not return the stale, unplayable stream from cache.
+        """
+        if not query_or_url:
+            return
+        key = query_or_url.strip().lower()
+        cache_key = f"original-v4:{key}"
+        cls._track_cache.pop(cache_key, None)
+        cls._pending_tasks.pop(cache_key, None)
+        try:
+            redis_c = await get_redis_client()
+            if redis_c:
+                await redis_c.delete(f"mm:track:{cache_key}")
+        except Exception:
+            pass
+        logger.info(f"[Resolver] Evicted cached track for key: {cache_key}")
+
+    @classmethod
+    async def resolve_alternative_fallback(
+        cls,
+        title: str,
+        artist: Optional[str] = None,
+        requester_id: int = 0,
+        requester_name: str = "Unknown",
+        correlation_id: Optional[str] = None,
+    ) -> Tuple[Optional[QueuedTrack], Dict[str, str]]:
+        """
+        Query alternative legal catalogs (Audius & Jamendo) for an exact/original
+        match of the specified title and artist.
+        Returns (track, diagnostics_dict).
+        Strictly rejects unrelated songs (never plays wrong songs).
+        """
+        corr_id = correlation_id or uuid.uuid4().hex[:8].upper()
+        diagnostics: Dict[str, str] = {}
+
+        if not title or not title.strip():
+            return None, {"error": "No title available for alternative provider search"}
+
+        clean_title = re.sub(r"[\(\[\{].*?[\)\]\}]", " ", title)
+        clean_title = re.sub(
+            r"\b(?:8d|audio|video|official|use\s+headphones|full\s+song|remastered|hd|4k)\b",
+            " ",
+            clean_title,
+            flags=re.IGNORECASE,
+        )
+        if " - " in clean_title:
+            clean_title = clean_title.split(" - ")[0]
+        search_query = " ".join(clean_title.split()).strip()
+        if not search_query:
+            search_query = title.strip()
+
+        intent = analyze_query_intent(search_query)
+
+        # 1. Audius Search & Match
+        try:
+            from music_bot.services.alternative_providers import AudiusProviderService
+            audius_cands = await AudiusProviderService.search(search_query, limit=5)
+            if not audius_cands and artist and artist != "Unknown Artist":
+                audius_cands = await AudiusProviderService.search(f"{search_query} {artist}", limit=5)
+
+            matched_audius = None
+            for cand in audius_cands:
+                if is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                    matched_audius = cand
+                    break
+
+            if matched_audius:
+                track = QueuedTrack(
+                    title=matched_audius["title"],
+                    url=matched_audius["url"],
+                    stream_url=matched_audius["stream_url"],
+                    duration=matched_audius.get("duration", 0),
+                    requester_id=requester_id,
+                    requester_name=requester_name,
+                    artist=matched_audius.get("artist", "Unknown Artist"),
+                    thumbnail=matched_audius.get("thumbnail"),
+                )
+                setattr(track, "provider", "audius")
+                setattr(track, "_correlation_id", corr_id)
+                logger.info(
+                    f"[Resolver] [Ref: MM-{corr_id}] Audius alternative fallback matched '{search_query}' -> '{track.title}'"
+                )
+                return track, diagnostics
+            else:
+                diagnostics["audius"] = f"Searched catalog for '{search_query}', 0 matching recordings verified"
+        except Exception as aud_err:
+            diagnostics["audius"] = f"Search error: {_format_error(aud_err)}"
+
+        # 2. Jamendo Search & Match
+        try:
+            from music_bot.services.alternative_providers import JamendoProviderService
+            jamendo_cands = await JamendoProviderService.search(search_query, limit=5)
+            if not jamendo_cands and artist and artist != "Unknown Artist":
+                jamendo_cands = await JamendoProviderService.search(f"{search_query} {artist}", limit=5)
+
+            matched_jamendo = None
+            for cand in jamendo_cands:
+                if is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                    matched_jamendo = cand
+                    break
+
+            if matched_jamendo:
+                track = QueuedTrack(
+                    title=matched_jamendo["title"],
+                    url=matched_jamendo["url"],
+                    stream_url=matched_jamendo["stream_url"],
+                    duration=matched_jamendo.get("duration", 0),
+                    requester_id=requester_id,
+                    requester_name=requester_name,
+                    artist=matched_jamendo.get("artist", "Jamendo Artist"),
+                    thumbnail=matched_jamendo.get("thumbnail"),
+                )
+                setattr(track, "provider", "jamendo")
+                setattr(track, "_correlation_id", corr_id)
+                logger.info(
+                    f"[Resolver] [Ref: MM-{corr_id}] Jamendo alternative fallback matched '{search_query}' -> '{track.title}'"
+                )
+                return track, diagnostics
+            else:
+                diagnostics["jamendo"] = f"Searched catalog for '{search_query}', 0 matching recordings verified"
+        except Exception as jam_err:
+            diagnostics["jamendo"] = f"Search error: {_format_error(jam_err)}"
+
+        return None, diagnostics
+
+    @classmethod
     def clear_caches(cls) -> None:
         """Clear all in-memory track resolution and search caches and reset YouTube health monitor cooldown."""
         cls._track_cache.clear()
@@ -2298,7 +2509,7 @@ class AudioResolver:
 
         # Check YouTube health monitor cooldown status to avoid repeatedly hitting restricted YouTube
         yt_cd_status = youtube_health_monitor.cooldown_status()
-        if yt_cd_status.get("cooldown_active") and not is_direct_url:
+        if yt_cd_status.get("cooldown_active") and (not is_direct_url or "youtube.com" in cleaned_query or "youtu.be" in cleaned_query):
             last_fail = yt_cd_status.get("last_failure", "access_denied")
             rem_sec = yt_cd_status.get("cooldown_remaining_seconds", 0)
             logger.warning(
@@ -2307,49 +2518,24 @@ class AudioResolver:
             )
             # Try alternative providers fallback directly during active YouTube cooldown
             if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
-                try:
-                    from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
-                    audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
-                    for cand in audius_candidates:
-                        if is_original_recording_candidate(cand, intent):
-                            fb_track = QueuedTrack(
-                                title=cand["title"],
-                                url=cand["url"],
-                                stream_url=cand["stream_url"],
-                                duration=cand["duration"],
-                                requester_id=requester_id,
-                                requester_name=requester_name,
-                                artist=cand["artist"],
-                                thumbnail=cand.get("thumbnail"),
-                            )
-                            fb_track = _apply_metadata_enhancements(fb_track)
-                            setattr(fb_track, "provider", "audius")
-                            logger.info(
-                                f"[Resolver] [Ref: MM-{corr_id}] Audius fallback resolved '{cleaned_query[:40]}' -> '{fb_track.title}' during YouTube cooldown"
-                            )
-                            return fb_track
-
-                    jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
-                    for cand in jamendo_candidates:
-                        if is_original_recording_candidate(cand, intent):
-                            fb_track = QueuedTrack(
-                                title=cand["title"],
-                                url=cand["url"],
-                                stream_url=cand["stream_url"],
-                                duration=cand["duration"],
-                                requester_id=requester_id,
-                                requester_name=requester_name,
-                                artist=cand["artist"],
-                                thumbnail=cand.get("thumbnail"),
-                            )
-                            fb_track = _apply_metadata_enhancements(fb_track)
-                            setattr(fb_track, "provider", "jamendo")
-                            logger.info(
-                                f"[Resolver] [Ref: MM-{corr_id}] Jamendo fallback resolved '{cleaned_query[:40]}' -> '{fb_track.title}' during YouTube cooldown"
-                            )
-                            return fb_track
-                except Exception as cd_fb_err:
-                    logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Cooldown fallback error: {cd_fb_err}")
+                search_q = title_hint or cleaned_query
+                if is_direct_url and (not search_q or search_q.startswith("http")):
+                    search_q = title_hint or ""
+                if search_q and not search_q.startswith("http"):
+                    fb_track, _ = await cls.resolve_alternative_fallback(
+                        title=search_q,
+                        artist=artist_hint,
+                        requester_id=requester_id,
+                        requester_name=requester_name,
+                        correlation_id=corr_id,
+                    )
+                    if fb_track:
+                        fb_track = _apply_metadata_enhancements(fb_track)
+                        logger.info(
+                            f"[Resolver] [Ref: MM-{corr_id}] Fallback provider {getattr(fb_track, 'provider', 'alternative')} resolved "
+                            f"'{search_q[:40]}' -> '{fb_track.title}' during YouTube cooldown"
+                        )
+                        return fb_track
 
             cls.last_resolver_error = (
                 f"[ACCESS_RESTRICTION] (Ref: MM-{corr_id}) YouTube {last_fail} cooldown active "
@@ -2455,49 +2641,18 @@ class AudioResolver:
 
                     # Attempt multi-provider fallback (Audius / Jamendo) if enabled
                     if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
-                        try:
-                            from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
-                            audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
-                            for cand in audius_candidates:
-                                if is_original_recording_candidate(cand, intent):
-                                    fb_track = QueuedTrack(
-                                        title=cand["title"],
-                                        url=cand["url"],
-                                        stream_url=cand["stream_url"],
-                                        duration=cand["duration"],
-                                        requester_id=requester_id,
-                                        requester_name=requester_name,
-                                        artist=cand["artist"],
-                                        thumbnail=cand.get("thumbnail"),
-                                    )
-                                    fb_track = _apply_metadata_enhancements(fb_track)
-                                    setattr(fb_track, "provider", "audius")
-                                    logger.info(
-                                        f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Audius resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
-                                    )
-                                    return fb_track
-
-                            jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
-                            for cand in jamendo_candidates:
-                                if is_original_recording_candidate(cand, intent):
-                                    fb_track = QueuedTrack(
-                                        title=cand["title"],
-                                        url=cand["url"],
-                                        stream_url=cand["stream_url"],
-                                        duration=cand["duration"],
-                                        requester_id=requester_id,
-                                        requester_name=requester_name,
-                                        artist=cand["artist"],
-                                        thumbnail=cand.get("thumbnail"),
-                                    )
-                                    fb_track = _apply_metadata_enhancements(fb_track)
-                                    setattr(fb_track, "provider", "jamendo")
-                                    logger.info(
-                                        f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Jamendo resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
-                                    )
-                                    return fb_track
-                        except Exception as fb_exc:
-                            logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Pre-search fallback error: {fb_exc}")
+                        search_q = title_hint or cleaned_query
+                        if search_q and not search_q.startswith("http"):
+                            fb_track, _ = await cls.resolve_alternative_fallback(
+                                title=search_q,
+                                artist=artist_hint,
+                                requester_id=requester_id,
+                                requester_name=requester_name,
+                                correlation_id=corr_id,
+                            )
+                            if fb_track:
+                                fb_track = _apply_metadata_enhancements(fb_track)
+                                return fb_track
 
                     cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
                     logger.warning(
@@ -2576,7 +2731,7 @@ class AudioResolver:
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
             # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
             try:
-                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=False)
+                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=bool(get_active_cookie_file()))
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
@@ -2620,7 +2775,7 @@ class AudioResolver:
                         (["android_vr"], "best"),
                     ):
                         try:
-                            fb_opts = _build_ytdl_options(fallback_clients, use_cookies=False)
+                            fb_opts = _build_ytdl_options(fallback_clients, use_cookies=bool(get_active_cookie_file()))
                             fb_opts["format"] = fallback_format
                             fb_ydl = yt_dlp.YoutubeDL(fb_opts)
                             fb_data = await _run_ytdlp(
@@ -2664,7 +2819,7 @@ class AudioResolver:
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=False)
+                tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=bool(get_active_cookie_file()))
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier2_ydl.extract_info, target_url, download=False),
@@ -2814,10 +2969,11 @@ class AudioResolver:
 
         # Stage 4: Intelligent Multi-Provider Fallback (Audius & Jamendo)
         # When YouTube times out or fails (including access challenges or format blocks on datacenter IPs),
-        # search secondary permitted providers for ordinary queries if enabled.
+        # search secondary permitted providers if enabled.
+        effective_fallback_query = title_hint if (is_direct_url and title_hint) else (cleaned_query if not is_direct_url else None)
         if (
             os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true"
-            and not is_direct_url
+            and effective_fallback_query
             and (
                 cat in {"TIMEOUT", "RESOLUTION_EXHAUSTED", "ACCESS_RESTRICTION", "UNAVAILABLE_FORMAT", "YOUTUBE_RATE_LIMITED"}
                 or "timed out" in lower_failure_reason
@@ -2825,58 +2981,17 @@ class AudioResolver:
                 or "bot" in lower_failure_reason
             )
         ):
-            logger.info(
-                f"[Resolver] [Ref: MM-{corr_id}] Engaging multi-provider fallback (Audius/Jamendo) for '{cleaned_query[:40]}'"
+            fb_track, fb_diag = await cls.resolve_alternative_fallback(
+                title=effective_fallback_query,
+                artist=artist_hint,
+                requester_id=requester_id,
+                requester_name=requester_name,
+                correlation_id=corr_id,
             )
-            # Try Audius
-            try:
-                from music_bot.services.alternative_providers import AudiusProviderService, JamendoProviderService
-                audius_candidates = await AudiusProviderService.search(cleaned_query, limit=3)
-                for cand in audius_candidates:
-                    if is_original_recording_candidate(cand, intent):
-                        fb_track = QueuedTrack(
-                            title=cand["title"],
-                            url=cand["url"],
-                            stream_url=cand["stream_url"],
-                            duration=cand["duration"],
-                            requester_id=requester_id,
-                            requester_name=requester_name,
-                            artist=cand["artist"],
-                            thumbnail=cand.get("thumbnail"),
-                        )
-                        fb_track = _apply_metadata_enhancements(fb_track)
-                        setattr(fb_track, "provider", "audius")
-                        logger.info(
-                            f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Audius resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
-                        )
-                        return fb_track
-            except Exception as audius_exc:
-                logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Audius fallback error: {audius_exc}")
-
-            # Try Jamendo
-            try:
-                from music_bot.services.alternative_providers import JamendoProviderService
-                jamendo_candidates = await JamendoProviderService.search(cleaned_query, limit=3)
-                for cand in jamendo_candidates:
-                    if is_original_recording_candidate(cand, intent):
-                        fb_track = QueuedTrack(
-                            title=cand["title"],
-                            url=cand["url"],
-                            stream_url=cand["stream_url"],
-                            duration=cand["duration"],
-                            requester_id=requester_id,
-                            requester_name=requester_name,
-                            artist=cand["artist"],
-                            thumbnail=cand.get("thumbnail"),
-                        )
-                        fb_track = _apply_metadata_enhancements(fb_track)
-                        setattr(fb_track, "provider", "jamendo")
-                        logger.info(
-                            f"[Resolver] [Ref: MM-{corr_id}] Fallback provider Jamendo resolved '{cleaned_query[:40]}' -> '{fb_track.title}'"
-                        )
-                        return fb_track
-            except Exception as jam_exc:
-                logger.debug(f"[Resolver] [Ref: MM-{corr_id}] Jamendo fallback error: {jam_exc}")
+            if fb_track:
+                return fb_track
+            if fb_diag:
+                last_failure_reason = f"{last_failure_reason} | {fb_diag}"
 
         cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
         logger.warning(

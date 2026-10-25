@@ -1086,12 +1086,16 @@ class MusicCog(commands.Cog, name="Music"):
 
             search_start = time.time()
             is_timed_out = False
+            title_hint_val = display_name or (candidates[0].get("title") if candidates else None)
+            artist_hint_val = candidates[0].get("artist") if candidates else None
             try:
                 track = await asyncio.wait_for(
                     AudioResolver.resolve_track(
                         resolve_query,
                         member.id,
                         str(member),
+                        title_hint=title_hint_val,
+                        artist_hint=artist_hint_val,
                         correlation_id=correlation_id,
                     ),
                     timeout=90.0,
@@ -4072,12 +4076,16 @@ class MusicCog(commands.Cog, name="Music"):
                     candidates[0].get("title"),
                 )
 
+        prefix_title_hint = candidates[0].get("title") if candidates else None
+        prefix_artist_hint = candidates[0].get("artist") if candidates else None
         try:
             track = await asyncio.wait_for(
                 AudioResolver.resolve_track(
                     resolve_query,
                     ctx.author.id,
                     str(ctx.author),
+                    title_hint=prefix_title_hint,
+                    artist_hint=prefix_artist_hint,
                     correlation_id=correlation_id,
                 ),
                 timeout=90.0,
