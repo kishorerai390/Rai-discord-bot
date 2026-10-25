@@ -1057,6 +1057,57 @@ class MusicCog(commands.Cog, name="Music"):
             except Exception as load_err:
                 logger.debug(f"[Playback] Notice setting loading embed: {load_err}")
 
+            # Update this same Discord response while real work is still running.
+            # Keep elapsed time factual; source/retry counts are not fabricated.
+            progress_state = {
+                "started": time.monotonic(),
+                "stage": action_label,
+                "active": True,
+            }
+
+            async def _refresh_resolving_status() -> None:
+                while progress_state["active"]:
+                    await asyncio.sleep(4)
+                    if not progress_state["active"]:
+                        break
+                    elapsed = max(0, int(time.monotonic() - progress_state["started"]))
+                    minutes, seconds = divmod(elapsed, 60)
+                    elapsed_text = f"{minutes:02d}:{seconds:02d}"
+                    embed_loading.description = (
+                        f"**♫ REQUESTED TRACK**\n> `{safe_request_label}`\n\n"
+                        f"**◈ CURRENT STAGE**\n> 🟣 {progress_state['stage']}\n"
+                        f"> ⏱ Elapsed: `{elapsed_text}`\n\n"
+                        "*Playback has not started. MusicMaid will validate the selected result before queueing it.*"
+                    )
+                    try:
+                        await interaction.edit_original_response(
+                            content=None, embed=embed_loading, view=None
+                        )
+                    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as status_err:
+                        logger.debug(
+                            "[Playback] operation=progress_update correlation_id=%s "
+                            "exception_type=%s outcome=stopped",
+                            correlation_id,
+                            type(status_err).__name__,
+                        )
+                        break
+                    except Exception as status_err:
+                        logger.debug(
+                            "[Playback] progress update skipped: %s",
+                            type(status_err).__name__,
+                        )
+
+            progress_task = asyncio.create_task(_refresh_resolving_status())
+
+            async def _stop_resolving_status() -> None:
+                progress_state["active"] = False
+                if not progress_task.done():
+                    progress_task.cancel()
+                try:
+                    await progress_task
+                except asyncio.CancelledError:
+                    pass
+
             if not query.startswith(("http://", "https://")):
                 try:
                     candidates = await AudioResolver.search(
