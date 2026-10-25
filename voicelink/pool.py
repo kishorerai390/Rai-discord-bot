@@ -132,9 +132,8 @@ class Node:
     
     @property
     def is_connected(self) -> bool:
-        """"Property which returns whether this node is connected or not"""
-        return self._websocket is not None and not self._websocket.closed
-
+        """"Property which returns whether this node is connected and ready"""
+        return self._websocket is not None and not self._websocket.closed and self._session_id is not None
 
     @property
     def stats(self) -> NodeStats:
@@ -172,24 +171,30 @@ class Node:
         if not data:
             return
 
-        if data["t"] == "VOICE_SERVER_UPDATE":
+        if data.get("t") == "VOICE_SERVER_UPDATE":
             guild_id = int(data["d"]["guild_id"])
-            try:
-                player = self._players[guild_id]
+            player = self._players.get(guild_id)
+            if not player:
+                guild = self._bot.get_guild(guild_id)
+                if guild and guild.voice_client:
+                    player = guild.voice_client
+                    self._players[guild_id] = player
+            if player:
                 await player.on_voice_server_update(data["d"])
-            except KeyError:
-                return
 
-        elif data["t"] == "VOICE_STATE_UPDATE":
+        elif data.get("t") == "VOICE_STATE_UPDATE":
             if int(data["d"]["user_id"]) != self._bot.user.id:
                 return
 
             guild_id = int(data["d"]["guild_id"])
-            try:
-                player = self._players[guild_id]
+            player = self._players.get(guild_id)
+            if not player:
+                guild = self._bot.get_guild(guild_id)
+                if guild and guild.voice_client:
+                    player = guild.voice_client
+                    self._players[guild_id] = player
+            if player:
                 await player.on_voice_state_update(data["d"])
-            except KeyError:
-                return
             
     async def _listen(self) -> None:
         backoff = ExponentialBackoff(base=7)
@@ -261,7 +266,10 @@ class Node:
             json=data
         ) as resp:
             if resp.status >= 300:
-                raise NodeException(f"Getting errors from Lavalink REST api")
+                err_text = await resp.text()
+                if self._logger:
+                    self._logger.error(f"Lavalink REST error on {method.value} {uri}: {resp.status} - {err_text}")
+                raise NodeException(f"Getting errors from Lavalink REST api: HTTP {resp.status} - {err_text}")
             
             if method == RequestMethod.DELETE:
                 return await resp.json(content_type=None)

@@ -342,42 +342,42 @@ class Player(VoiceProtocol):
 
     async def _dispatch_voice_update(self, voice_data: Dict[str, Any] = None):
         """Dispatches a voice update to the node."""
-        if {"sessionId", "event"} != self._voice_state.keys():
-            self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) dispatched voice update failed {voice_data}")
+        state = voice_data or self._voice_state
+        session_id = state.get("sessionId")
+        event = state.get("event")
+        if not session_id or not event:
             return
 
-        state = voice_data or self._voice_state
+        token = event.get("token")
+        endpoint = event.get("endpoint")
+        if not token or not endpoint:
+            return
 
         data = {
-            "token": state['event']['token'],
-            "endpoint": state['event']['endpoint'],
-            "sessionId": state['sessionId'],
-            "channelId": str(self.channel.id),
+            "token": token,
+            "endpoint": endpoint,
+            "sessionId": session_id,
         }
         
         await self.send(method=RequestMethod.PATCH, data={"voice": data})
-        self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) dispatched voice update to {state['event']['endpoint']} with data {data}")
+        self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) dispatched voice update to {endpoint}")
 
     async def on_voice_server_update(self, data: dict):
         """Handles a voice server update event."""
-        self._voice_state.update({"event": data})
-        await self._dispatch_voice_update(self._voice_state)
+        self._voice_state["event"] = data
+        await self._dispatch_voice_update()
 
     async def on_voice_state_update(self, data: dict):
         """Handles a voice state update event."""
-        self._voice_state.update({"sessionId": data.get("session_id")})
-
         if not (channel_id := data.get("channel_id")):
             await self.teardown()
             self._voice_state.clear()
             return
 
         self.channel = self.guild.get_channel(int(channel_id))
-
-        if not data.get("token"):
-            return
-
-        await self._dispatch_voice_update({**self._voice_state, "event": data})
+        if session_id := data.get("session_id"):
+            self._voice_state["sessionId"] = session_id
+        await self._dispatch_voice_update()
 
     async def _dispatch_event(self, data: dict):
         """Dispatches an event based on the type of event data received."""
@@ -552,9 +552,9 @@ class Player(VoiceProtocol):
 
     async def connect(self, *, timeout: float, reconnect: bool, self_deaf: bool = True, self_mute: bool = False):
         """Connects the player to a voice channel."""
-        await self.guild.change_voice_state(channel=self.channel, self_deaf=True, self_mute=self_mute)
         self._node._players[self.guild.id] = self
         self._is_connected = True
+        await self.guild.change_voice_state(channel=self.channel, self_deaf=True, self_mute=self_mute)
 
         if self.channel:
             self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) has been connected to {self.channel.name}({self.channel.id}).")
@@ -585,7 +585,7 @@ class Player(VoiceProtocol):
             # assume we're already disconnected and cleaned up
             assert self.channel is None and not self.is_connected
         
-        self._node._players.pop(self.guild.id)
+        self._node._players.pop(self.guild.id, None)
         await self.send(method=RequestMethod.DELETE)
     
     async def play(
@@ -602,11 +602,20 @@ class Player(VoiceProtocol):
 
         data = {
             "encodedTrack": track.track_id,
-            "position": str(start or 0)
+            "position": int(start or 0)
         }
 
         if end or track.end_time:
-            data["endTime"] = str(end or track.end_time)
+            data["endTime"] = int(end or track.end_time)
+
+        if self._voice_state.get("sessionId") and self._voice_state.get("event"):
+            evt = self._voice_state["event"]
+            if evt.get("token") and evt.get("endpoint"):
+                data["voice"] = {
+                    "token": evt["token"],
+                    "endpoint": evt["endpoint"],
+                    "sessionId": self._voice_state["sessionId"],
+                }
         
         await self.send(method=RequestMethod.PATCH, query=f"noReplace={ignore_if_playing}", data=data)
         if self._node.yt_ratelimit:

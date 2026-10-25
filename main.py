@@ -33,6 +33,21 @@ def _start_immediate_health_server():
     import http.server, threading
     class _H(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
+            if self.path == "/api/logs":
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "vocard.log")
+                if os.path.exists(log_file):
+                    try:
+                        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                            lines = f.readlines()
+                            self.wfile.write("".join(lines[-150:]).encode("utf-8"))
+                    except Exception as err:
+                        self.wfile.write(f"Error reading log: {err}".encode("utf-8"))
+                else:
+                    self.wfile.write(b"No vocard.log file found yet.")
+                return
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
