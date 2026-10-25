@@ -991,71 +991,64 @@ class MusicCog(commands.Cog, name="Music"):
                     await self.send_ephemeral_or_fallback(interaction, embed=embed_conn_err)
                     return
 
-            # 2. Resolve query: premium neon status card with honest diagnostics.
+            # 2. Resolve query: sleek neon resolving card matching Image 2 design
             if display_name:
                 request_label = display_name
-                request_kind = "Song title search"
-                action_label = "Searching candidates and validating the match"
+                source_label = "YouTube search"
+                stage_label = "Searching for matching tracks..."
+                next_label = "verify title → resolve audio → prepare playback"
             elif query.startswith(("http://", "https://", "spotify:")):
                 request_label = "Resolving audio track"
-                request_kind = "Direct link / metadata lookup"
-                action_label = "Resolving audio track"
+                if "spotify" in query:
+                    source_label = "Spotify metadata"
+                elif "youtu" in query:
+                    source_label = "YouTube link"
+                else:
+                    source_label = "Direct audio URL"
+                stage_label = "Resolving requested link..."
+                next_label = "validate metadata → resolve audio → prepare playback"
             else:
                 request_label = query
-                request_kind = "Song title search"
-                action_label = "Searching candidates and validating the match"
+                source_label = "YouTube search"
+                stage_label = "Searching for matching tracks..."
+                next_label = "verify title → resolve audio → prepare playback"
 
             safe_request_label = str(request_label or "Unknown track").replace("`", "'")[:100]
-            embed_loading = discord.Embed(
-                title="✦  MUSICMAID  •  RESOLVING AUDIO",
-                description=(
-                    f"**♫ REQUESTED TRACK**\n> `{safe_request_label}`\n\n"
-                    f"**◈ CURRENT STAGE**\n> 🟣 {action_label}\n> ⚪ Preparing a playable audio stream\n\n"
-                    "*Playback has not started. MusicMaid will validate the selected result before queueing it.*"
-                ),
-                color=COLOR_PREMIUM,
+
+            def _build_resolving_card(
+                track_name: str,
+                current_stage: str,
+                elapsed_str: str,
+                source_str: str,
+                next_step_str: str,
+                progress_ratio: float = 0.25,
+            ) -> discord.Embed:
+                total_blocks = 16
+                filled = max(1, min(total_blocks, int(round(progress_ratio * total_blocks))))
+                bar = "▰" * filled + "▱" * (total_blocks - filled)
+                desc = (
+                    f"♫ {track_name}\n\n"
+                    f"──────────────────────────────────────────\n"
+                    f"🔘 **{current_stage}**\n"
+                    f"Elapsed: {elapsed_str} · Source: {source_str}\n\n"
+                    f"{bar}\n\n"
+                    f"Next: {next_step_str}\n"
+                    f"If a source fails, show the actual error and fallback status."
+                )
+                return discord.Embed(
+                    title="✦ MUSICMAID • RESOLVING TRACK",
+                    description=desc,
+                    color=COLOR_PREMIUM,
+                )
+
+            embed_loading = _build_resolving_card(
+                safe_request_label,
+                stage_label,
+                "00:00",
+                source_label,
+                next_label,
+                progress_ratio=0.25,
             )
-            pipeline_value = (
-                "🟣 **Resolve requested link** — in progress\n"
-                "⚪ **Validate track metadata** — next\n"
-                "⚪ **Resolve stream URL** — pending\n"
-                "⚪ **Prepare FFmpeg playback** — pending"
-                if query.startswith(("http://", "https://", "spotify:"))
-                else
-                "🟣 **Search candidates** — in progress\n"
-                "⚪ **Validate title / artist / video ID** — next\n"
-                "⚪ **Resolve stream URL** — pending\n"
-                "⚪ **Prepare FFmpeg playback** — pending"
-            )
-            embed_loading.add_field(
-                name="⌁ RESOLUTION PIPELINE",
-                value=pipeline_value,
-                inline=False,
-            )
-            embed_loading.add_field(
-                name="◈ SUPPORTED SOURCES",
-                value="YouTube · Audius · Jamendo\nSpotify / Apple Music metadata · Direct audio URLs",
-                inline=True,
-            )
-            embed_loading.add_field(
-                name="⌘ TRACE DETAILS",
-                value=(
-                    f"**Request type:** `{request_kind}`\n"
-                    f"**Trace ID:** `{str(correlation_id)[:32]}`\n"
-                    "**Retry count:** `not reported yet`\n"
-                    "**Last error:** `none reported yet`"
-                ),
-                inline=True,
-            )
-            embed_loading.add_field(
-                name="↻ RETRIES & FALLBACKS",
-                value=(
-                    "Resolver-managed retry and fallback logic remains in control. "
-                    "If a source fails, the final diagnostic appears in the result/error message and bot logs."
-                ),
-                inline=False,
-            )
-            embed_loading.set_footer(text="RAI MUSIC SYSTEM  •  RESOLUTION STATUS  •  NOT YET PLAYING")
             try:
                 await interaction.edit_original_response(content=None, embed=embed_loading, view=None)
             except Exception as load_err:
@@ -1065,7 +1058,10 @@ class MusicCog(commands.Cog, name="Music"):
             # Keep elapsed time factual; source/retry counts are not fabricated.
             progress_state = {
                 "started": time.monotonic(),
-                "stage": action_label,
+                "stage": stage_label,
+                "source": source_label,
+                "next": next_label,
+                "ratio": 0.25,
                 "active": True,
             }
 
@@ -1077,11 +1073,18 @@ class MusicCog(commands.Cog, name="Music"):
                     elapsed = max(0, int(time.monotonic() - progress_state["started"]))
                     minutes, seconds = divmod(elapsed, 60)
                     elapsed_text = f"{minutes:02d}:{seconds:02d}"
+                    time_boost = min(0.18, (elapsed // 4) * 0.03)
+                    dynamic_ratio = min(0.92, progress_state["ratio"] + time_boost)
+                    filled_blocks = max(1, min(16, int(round(dynamic_ratio * 16))))
+                    bar_str = "▰" * filled_blocks + "▱" * (16 - filled_blocks)
                     embed_loading.description = (
-                        f"**♫ REQUESTED TRACK**\n> `{safe_request_label}`\n\n"
-                        f"**◈ CURRENT STAGE**\n> 🟣 {progress_state['stage']}\n"
-                        f"> ⏱ Elapsed: `{elapsed_text}`\n\n"
-                        "*Playback has not started. MusicMaid will validate the selected result before queueing it.*"
+                        f"♫ {safe_request_label}\n\n"
+                        f"──────────────────────────────────────────\n"
+                        f"🔘 **{progress_state['stage']}**\n"
+                        f"Elapsed: {elapsed_text} · Source: {progress_state['source']}\n\n"
+                        f"{bar_str}\n\n"
+                        f"Next: {progress_state['next']}\n"
+                        f"If a source fails, show the actual error and fallback status."
                     )
                     try:
                         await interaction.edit_original_response(
@@ -1189,27 +1192,23 @@ class MusicCog(commands.Cog, name="Music"):
                         candidates[0].get("title"),
                     )
 
-            progress_state["stage"] = "Resolving stream URL and validating audio"
+            progress_state["stage"] = "Resolving stream URL and validating audio..."
+            progress_state["next"] = "resolve audio → prepare playback"
+            progress_state["ratio"] = 0.65
             elapsed = max(0, int(time.monotonic() - progress_state["started"]))
             minutes, seconds = divmod(elapsed, 60)
+            elapsed_text = f"{minutes:02d}:{seconds:02d}"
+            filled_blocks = max(1, min(16, int(round(progress_state["ratio"] * 16))))
+            bar_str = "▰" * filled_blocks + "▱" * (16 - filled_blocks)
             embed_loading.description = (
-                f"**♫ REQUESTED TRACK**\n> `{safe_request_label}`\n\n"
-                f"**◈ CURRENT STAGE**\n> 🟣 {progress_state['stage']}\n"
-                f"> ⏱ Elapsed: `{minutes:02d}:{seconds:02d}`\n\n"
-                "*Playback has not started. MusicMaid will validate the selected result before queueing it.*"
+                f"♫ {safe_request_label}\n\n"
+                f"──────────────────────────────────────────\n"
+                f"🔘 **{progress_state['stage']}**\n"
+                f"Elapsed: {elapsed_text} · Source: {progress_state['source']}\n\n"
+                f"{bar_str}\n\n"
+                f"Next: {progress_state['next']}\n"
+                f"If a source fails, show the actual error and fallback status."
             )
-            if embed_loading.fields:
-                embed_loading.set_field_at(
-                    0,
-                    name="⌁ RESOLUTION PIPELINE",
-                    value=(
-                        "✅ **Search candidates** — completed\n"
-                        "🟣 **Resolve stream URL** — in progress\n"
-                        "⚪ **Validate playable audio** — next\n"
-                        "⚪ **Prepare FFmpeg playback** — pending"
-                    ),
-                    inline=False,
-                )
             try:
                 await interaction.edit_original_response(
                     content=None, embed=embed_loading, view=None
