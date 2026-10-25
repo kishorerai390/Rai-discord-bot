@@ -2809,60 +2809,10 @@ class AudioResolver:
                     cand_idx,
                     type(t1_err).__name__,
                 )
-                if "format is not available" in t1_msg.lower():
-                    for fallback_clients, fallback_format in (
-                        (None, "bestaudio/best"),
-                        (["android", "ios", "web"], "bestaudio/best"),
-                        (["web"], "best"),
-                        (["android_vr"], "best"),
-                    ):
-                        try:
-                            fb_opts = _build_ytdl_options(fallback_clients, use_cookies=bool(get_active_cookie_file()))
-                            fb_opts["format"] = fallback_format
-                            fb_ydl = yt_dlp.YoutubeDL(fb_opts)
-                            fb_data = await _run_ytdlp(
-                                functools.partial(fb_ydl.extract_info, target_url, download=False),
-                                timeout=8.0,
-                                operation="stream_extract_format_fallback",
-                                correlation_id=corr_id,
-                                retry_count=cand_idx,
-                            )
-                            if fb_data:
-                                track = cls._parse_entry(fb_data, requester_id, requester_name)
-                                if (
-                                    track
-                                    and track.stream_url
-                                    and _entry_matches_selected_video(
-                                        fb_data,
-                                        target_url,
-                                        "stream_extract_format_fallback",
-                                    )
-                                    and _entry_matches_original_policy(fb_data)
-                                ):
-                                    track = _apply_metadata_enhancements(track)
-                                    dur = time.time() - start_t
-                                    logger.info(
-                                        f"[Resolver] [Ref: MM-{corr_id}] Format fallback resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
-                                    )
-                                    return track
-                                if track:
-                                    verification_failed = True
-                                    last_failure_reason = "Original recording could not be verified from title and source metadata"
-                        except Exception as fb_err:
-                            last_failure_reason = _format_error(fb_err)
-                            logger.info(
-                                "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_format_fallback "
-                                "candidate=%d client_profile=%s exception_type=%s",
-                                corr_id,
-                                cand_idx,
-                                ",".join(fallback_clients) if fallback_clients else "yt-dlp default",
-                                type(fb_err).__name__,
-                            )
-
                 restricted_markers = (
                     "403", "forbidden", "sign in", "confirm you're not a bot",
                     "po-token", "access_denied", "too many requests", "429",
-                    "timeout", "timed out",
+                    "timeout", "timed out", "format is not available", "requested format",
                 )
                 if any(marker in t1_msg.casefold() for marker in restricted_markers):
                     fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
@@ -2913,6 +2863,57 @@ class AudioResolver:
                     # access block; continue to verified-cookie fallback if configured.
                     last_failure_reason = t1_msg
                     break
+
+                if "format is not available" in t1_msg.lower():
+                    for fallback_clients, fallback_format in (
+                        (None, "bestaudio/best"),
+                        (["android", "ios", "web"], "bestaudio/best"),
+                        (["web"], "best"),
+                        (["android_vr"], "best"),
+                    ):
+                        try:
+                            fb_opts = _build_ytdl_options(fallback_clients, use_cookies=bool(get_active_cookie_file()))
+                            fb_opts["format"] = fallback_format
+                            fb_ydl = yt_dlp.YoutubeDL(fb_opts)
+                            fb_data = await _run_ytdlp(
+                                functools.partial(fb_ydl.extract_info, target_url, download=False),
+                                timeout=8.0,
+                                operation="stream_extract_format_fallback",
+                                correlation_id=corr_id,
+                                retry_count=cand_idx,
+                            )
+                            if fb_data:
+                                track = cls._parse_entry(fb_data, requester_id, requester_name)
+                                if (
+                                    track
+                                    and track.stream_url
+                                    and _entry_matches_selected_video(
+                                        fb_data,
+                                        target_url,
+                                        "stream_extract_format_fallback",
+                                    )
+                                    and _entry_matches_original_policy(fb_data)
+                                ):
+                                    track = _apply_metadata_enhancements(track)
+                                    dur = time.time() - start_t
+                                    logger.info(
+                                        f"[Resolver] [Ref: MM-{corr_id}] Format fallback resolved candidate #{cand_idx} '{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                                    )
+                                    return track
+                                if track:
+                                    verification_failed = True
+                                    last_failure_reason = "Original recording could not be verified from title and source metadata"
+                        except Exception as fb_err:
+                            last_failure_reason = _format_error(fb_err)
+                            logger.info(
+                                "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_format_fallback "
+                                "candidate=%d client_profile=%s exception_type=%s",
+                                corr_id,
+                                cand_idx,
+                                ",".join(fallback_clients) if fallback_clients else "yt-dlp default",
+                                type(fb_err).__name__,
+                            )
+
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
