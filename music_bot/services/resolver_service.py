@@ -2684,9 +2684,9 @@ class AudioResolver:
             artist: Optional[str] = None,
         ) -> Tuple[Optional[QueuedTrack], Dict[str, str]]:
             """Keep Audius/Jamendo fallback responsive when an upstream catalog stalls."""
-            timeout_s = 4.0
+            timeout_s = 6.0
             try:
-                timeout_s = max(2.0, min(float(os.getenv("ALTERNATIVE_PROVIDER_TIMEOUT", "4")), 4.0))
+                timeout_s = max(2.0, min(float(os.getenv("ALTERNATIVE_PROVIDER_TIMEOUT", "6")), 8.0))
                 return await asyncio.wait_for(
                     cls.resolve_alternative_fallback(
                         title=title,
@@ -3018,7 +3018,7 @@ class AudioResolver:
             # Tier 1: Primary Profile (android_vr/web when cookies present, otherwise ios/android) - 14.0s timeout
             try:
                 has_cookies = bool(get_active_cookie_file())
-                tier1_clients = ["android_vr", "web"] if has_cookies else ["ios", "android"]
+                tier1_clients = ["android", "android_vr"] if not has_cookies else ["android", "android_vr", "web"]
                 tier1_opts = _build_ytdl_options(tier1_clients, use_cookies=has_cookies)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
@@ -3192,9 +3192,9 @@ class AudioResolver:
                             return early_track
 
 
-            # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
+            # Tier 2: Fallback Public Profile (android, android_vr, web) - 10.0s timeout
             try:
-                tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=bool(get_active_cookie_file()))
+                tier2_opts = _build_ytdl_options(["android", "android_vr", "web"], use_cookies=bool(get_active_cookie_file()))
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier2_ydl.extract_info, target_url, download=False),
