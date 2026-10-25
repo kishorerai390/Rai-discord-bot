@@ -1019,25 +1019,6 @@ class MusicApiRouter:
                 "provider": "youtube" if vid else "direct",
             }])
 
-        # Official Spotify catalog search (metadata only; audio is resolved from public sources).
-        try:
-            from music_bot.services.spotify_service import SpotifyService
-            spotify_tracks = await SpotifyService.search_tracks(q, limit=6)
-            if spotify_tracks:
-                return json_success([{
-                    "id": f"spotify_{track.id}",
-                    "title": track.title,
-                    "artist": track.artist,
-                    "album": track.album,
-                    "url": track.url,
-                    "duration": track.duration_seconds,
-                    "thumbnail": track.thumbnail_url,
-                    "provider": "spotify",
-                    "spotify_url": track.url,
-                } for track in spotify_tracks])
-        except Exception as sp_err:
-            logger.debug(f"Spotify catalog search note: {sp_err}")
-
         # 2. Primary Search via AudioResolver (fetches individual YouTube thumbnails)
         results = []
         try:
@@ -1248,6 +1229,34 @@ class MusicApiRouter:
             ],
             "message": "Extractor & Audio Decipherer running in optimal health. Zero playback breakages.",
         })
+
+    async def post_trigger_extractor_update(self, request: web.Request) -> web.Response:
+        """Trigger an immediate PyPI probe and upgrade of yt-dlp and EJS solver (Owner only)."""
+        user = await self._get_current_user(request)
+        is_owner = False
+        if user:
+            from music_bot.config import is_bot_owner
+            uid = user.get("user_id") or user.get("id") or 0
+            if is_bot_owner(uid) or user.get("is_owner"):
+                is_owner = True
+            elif self.bot and hasattr(self.bot, "is_owner"):
+                try:
+                    import discord
+                    if await self.bot.is_owner(discord.Object(id=int(uid))):
+                        is_owner = True
+                except Exception:
+                    pass
+
+        if not is_owner:
+            return json_error("FORBIDDEN", "Only the verified bot owner can trigger extractor updates.", 403)
+
+        try:
+            from music_bot.services.updater_service import MusicAutoUpdater
+            success, msg = await MusicAutoUpdater.update_ytdl(force=True, bot=self.bot)
+            return json_success({"updated": success, "message": msg})
+        except Exception as e:
+            logger.error(f"[MusicAPI] Extractor upgrade failed: {e}")
+            return json_error("UPGRADE_FAILED", f"Extractor update failed: {e}", 500)
 
     # ==========================================
     # 8. PLAYLISTS (SAVE / LOAD / DELETE / LIST)

@@ -104,7 +104,7 @@ export function DashboardView({
       {/* 1. TOP HEADER ROW (REFERENCE IMAGE 2) */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <form onSubmit={handleSearchSubmit} className="flex-1 max-w-xl">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-white/[0.05] border border-white/10 focus-within:border-purple-500/60 focus-within:bg-white/[0.08] transition-all">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-white/5 border border-white/10 focus-within:border-purple-500/60 focus-within:bg-white/8 transition-all">
             <Search className="w-4 h-4 text-white/50 shrink-0" />
             <input
               type="text"
@@ -123,7 +123,7 @@ export function DashboardView({
           {user ? (
             <div
               onClick={() => onNavigate("/settings")}
-              className="flex items-center gap-2.5 py-1 px-3 rounded-full bg-white/[0.05] border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+              className="flex items-center gap-2.5 py-1 px-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
               title="Settings & Profile"
             >
               <img
@@ -131,7 +131,7 @@ export function DashboardView({
                 alt="Avatar"
                 className="w-7 h-7 rounded-full object-cover"
               />
-              <span className="text-xs font-bold text-white truncate max-w-[120px]">
+              <span className="text-xs font-bold text-white truncate max-w-30">
                 {user.display_name || user.username}
               </span>
             </div>
@@ -146,14 +146,14 @@ export function DashboardView({
 
           <button
             onClick={() => onNavigate("/settings")}
-            className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title="Settings"
           >
             <Settings className="w-4 h-4" />
           </button>
           <button
             onClick={() => onNavigate("/queue")}
-            className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
             title="Queue"
           >
             <Bell className="w-4 h-4" />
@@ -194,7 +194,7 @@ export function DashboardView({
                 <div
                   key={i}
                   onClick={() => onControl("PLAY", { query: rec.query })}
-                  className="group relative p-3 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-purple-500/40 hover:bg-white/[0.06] transition-all cursor-pointer flex flex-col"
+                  className="group relative p-3 rounded-2xl bg-white/3 border border-white/5 hover:border-purple-500/40 hover:bg-white/6 transition-all cursor-pointer flex flex-col"
                 >
                   <div className="relative aspect-square w-full rounded-xl overflow-hidden mb-2.5 shadow-md">
                     <img
@@ -215,7 +215,7 @@ export function DashboardView({
                     </button>
                   </div>
                   <h4 className="text-xs font-bold text-white truncate">{rec.title}</h4>
-                  <p className="text-[11px] text-[var(--text-muted)] truncate">{rec.artist}</p>
+                  <p className="text-[11px] text-(--text-muted) truncate">{rec.artist}</p>
                 </div>
               ))}
             </div>
@@ -229,7 +229,7 @@ export function DashboardView({
                 <h3 className="text-base font-black text-white">TOP 50 / QUEUE</h3>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--text-muted)]">{queue.length} Tracks</span>
+                <span className="text-xs text-(--text-muted)">{queue.length} Tracks</span>
                 <button onClick={() => onNavigate("/queue")} className="btn btn-secondary btn-sm text-xs py-1 px-3">
                   Full View ↗
                 </button>
@@ -254,7 +254,7 @@ export function DashboardView({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0 ml-2">
-                    <span className="font-mono text-xs text-[var(--text-muted)]">
+                    <span className="font-mono text-xs text-(--text-muted)">
                       {formatDuration(totalDuration)}
                     </span>
                     <button
@@ -268,19 +268,19 @@ export function DashboardView({
               )}
 
               {queue.length === 0 && !currentTrack ? (
-                <div className="text-center py-12 text-[var(--text-muted)] text-sm">
+                <div className="text-center py-12 text-(--text-muted) text-sm">
                   <div className="text-2xl mb-1">🎵</div>
                   <p className="font-bold text-white">No tracks currently in queue</p>
-                  <p className="text-xs text-[var(--text-dim)] mt-1">Search above to choose a result, or click a recommendation to start playing.</p>
+                  <p className="text-xs text-(--text-dim) mt-1">Search above to choose a result, or click a recommendation to start playing.</p>
                 </div>
               ) : (
                 queue.slice(0, 10).map((track, idx) => (
                   <div
                     key={track.id || idx}
-                    className="flex items-center justify-between p-2 rounded-xl hover:bg-white/[0.04] transition-colors"
+                    className="flex items-center justify-between p-2 rounded-xl hover:bg-white/4 transition-colors"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="font-mono text-xs text-[var(--text-dim)] w-6 text-center">
+                      <span className="font-mono text-xs text-(--text-dim) w-6 text-center">
                         {(idx + 1).toString().padStart(2, "0")}
                       </span>
                       <img
@@ -290,16 +290,16 @@ export function DashboardView({
                       />
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-white truncate">{track.title}</p>
-                        <p className="text-[11px] text-[var(--text-muted)] truncate">{track.artist || "Unknown"}</p>
+                        <p className="text-[11px] text-(--text-muted) truncate">{track.artist || "Unknown"}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 shrink-0 ml-2">
-                      <span className="font-mono text-xs text-[var(--text-dim)]">
+                      <span className="font-mono text-xs text-(--text-dim)">
                         {formatDuration(track.duration)}
                       </span>
                       <button
                         onClick={() => onControl("REMOVE", { index: idx })}
-                        className="text-[var(--text-dim)] hover:text-white text-xs px-1.5"
+                        className="text-(--text-dim) hover:text-white text-xs px-1.5"
                       >
                         ✕
                       </button>
@@ -323,13 +323,13 @@ export function DashboardView({
                 View All
               </button>
             </div>
-            <p className="text-xs text-[var(--text-muted)]">
+            <p className="text-xs text-(--text-muted)">
               Quick access to your saved songs library. Click ♡ on any song to save it!
             </p>
           </div>
 
           {/* NOW PLAYING VINYL DECK */}
-          <div className="glass-card relative overflow-hidden rounded-2xl border border-purple-500/30 bg-[var(--bg-card)] p-5 backdrop-blur-xl flex flex-col items-center text-center">
+          <div className="glass-card relative overflow-hidden rounded-2xl border border-purple-500/30 bg-(--bg-card) p-5 backdrop-blur-xl flex flex-col items-center text-center">
             <div className="flex items-center justify-between w-full mb-3">
               <span className="chip-pill text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 text-[10px]">
                 ● 320kbps Lossless
@@ -341,7 +341,7 @@ export function DashboardView({
 
             {/* Vinyl Disc */}
             <div className="relative group shrink-0 my-2">
-              <div className="w-32 h-32 rounded-full p-2 bg-gradient-to-tr from-purple-900/60 via-black to-cyan-900/60 shadow-[0_0_25px_rgba(147,51,234,0.35)] flex items-center justify-center">
+              <div className="w-32 h-32 rounded-full p-2 bg-linear-to-tr from-purple-900/60 via-black to-cyan-900/60 shadow-[0_0_25px_rgba(147,51,234,0.35)] flex items-center justify-center">
                 <img
                   src={currentTrack?.thumbnail || DEFAULT_TRACK_ARTWORK}
                   alt="Vinyl Art"
@@ -363,11 +363,11 @@ export function DashboardView({
             {/* Scrubber */}
             <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden relative mb-1.5">
               <div
-                className="bg-gradient-to-r from-[var(--primary)] to-[var(--cyan)] h-full transition-all duration-300 rounded-full"
+                className="bg-linear-to-r from-(--primary) to-(--cyan) h-full transition-all duration-300 rounded-full"
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <div className="flex justify-between w-full font-mono text-[10px] text-[var(--text-muted)] mb-3">
+            <div className="flex justify-between w-full font-mono text-[10px] text-(--text-muted) mb-3">
               <span>{formatDuration(playbackSeconds)}</span>
               <span>{formatDuration(totalDuration)}</span>
             </div>

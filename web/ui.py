@@ -5698,6 +5698,44 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    async function triggerManualExtractorSync(btn) {
+      const isOwner = Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin));
+      if (!isOwner) {
+        showToast("🔒 Only the verified Bot Creator/Owner can trigger extractor sync.", "danger");
+        return;
+      }
+      const label = document.getElementById('txt-extractor-sync');
+      if (btn) btn.disabled = true;
+      if (label) label.innerHTML = '<span style="color:var(--cyan);">⏳ Checking PyPI & Syncing...</span>';
+      showToast("🔍 Probing PyPI for yt-dlp & EJS solver updates...");
+
+      try {
+        const res = await fetch('/api/music/extractor-update', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          credentials: 'include'
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          const msg = json.data?.message || "Extractors are up to date.";
+          showToast(`✓ ${msg}`);
+          if (label) label.innerHTML = '<span style="color:var(--emerald);">✓ Up to date (Synced)</span>';
+        } else {
+          const err = json.error?.message || "Sync failed";
+          showToast(`✕ ${err}`, "danger");
+          if (label) label.innerHTML = '<span style="color:#ef4444;">✕ Sync Failed</span>';
+        }
+      } catch (e) {
+        showToast(`✕ Update error: ${e.message}`, "danger");
+        if (label) label.innerHTML = '<span style="color:#ef4444;">✕ Network Error</span>';
+      } finally {
+        setTimeout(() => {
+          if (btn) btn.disabled = false;
+          if (label) label.innerHTML = '<span style="color:var(--emerald);">● Active (Check & Sync Now)</span>';
+        }, 5000);
+      }
+    }
+
     async function quickEnqueueMood(query) {
       showToast(`Adding '${query}' to queue...`);
       try {
@@ -8678,8 +8716,8 @@ UI_HTML = r"""<!DOCTYPE html>
                 <div style="font-weight:700; color:#fff; font-size:1rem;">Autonomous Extractor Hotfix Auto-Sync</div>
                 <div style="font-size:0.78rem; color:var(--text-muted);">Continuously checks PyPI for yt-dlp & EJS solver patches to prevent YouTube player deciphering breakages.</div>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="showToast('Autonomous Extractor Auto-Sync is locked ACTIVE by system daemon 🛡️')">
-                <span style="color:var(--emerald);">● Active (Every 6h)</span>
+              <button id="btn-extractor-sync" class="btn btn-secondary btn-sm" onclick="triggerManualExtractorSync(this)">
+                <span id="txt-extractor-sync" style="color:var(--emerald);">● Active (Check & Sync Now)</span>
               </button>
             </div>
 

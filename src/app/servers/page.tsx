@@ -11,10 +11,10 @@ export default function ServersPage() {
 
   if (currentUser && !currentUser.is_owner) {
     return (
-      <div className="glass-card rounded-2xl border border-rose-500/30 bg-[var(--bg-card)] p-8 max-w-lg mx-auto text-center flex flex-col items-center gap-3 my-12 backdrop-blur-xl">
+      <div className="glass-card rounded-2xl border border-rose-500/30 bg-(--bg-card) p-8 max-w-lg mx-auto text-center flex flex-col items-center gap-3 my-12 backdrop-blur-xl">
         <Radio className="w-12 h-12 text-rose-400" />
         <h2 className="text-xl font-bold text-white">Owner Access Restricted</h2>
-        <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+        <p className="text-xs text-(--text-muted) leading-relaxed">
           The SERVER management section is restricted exclusively to the bot owner.
         </p>
         <button onClick={() => router.push("/dashboard")} className="btn btn-secondary btn-sm mt-2">
@@ -32,13 +32,13 @@ export default function ServersPage() {
 
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full py-6">
-      <div className="glass-card rounded-2xl border border-[var(--card-border)] bg-[var(--bg-card)] p-6 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="glass-card rounded-2xl border border-(--card-border) bg-(--bg-card) p-6 backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-white flex items-center gap-2.5">
             <Radio className="w-6 h-6 text-purple-400" />
             <span>Select Active Discord Server</span>
           </h2>
-          <p className="text-xs text-[var(--text-muted)] mt-1">
+          <p className="text-xs text-(--text-muted) mt-1">
             Pick which server voice channel to listen to, control live queues for, or manage 24/7 settings.
           </p>
         </div>
@@ -62,11 +62,11 @@ export default function ServersPage() {
               className={`cursor-pointer rounded-2xl p-5 border transition-all flex items-center justify-between group ${
                 isSelected
                   ? "bg-purple-900/20 border-purple-500 ring-2 ring-purple-500/30 shadow-lg shadow-purple-900/20"
-                  : "bg-white/[0.03] border-white/10 hover:border-purple-500/40 hover:bg-white/[0.06]"
+                  : "bg-white/3 border-white/10 hover:border-purple-500/40 hover:bg-white/6"
               }`}
             >
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-lg font-black text-white shrink-0 shadow-md">
+                <div className="w-12 h-12 rounded-2xl bg-linear-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-lg font-black text-white shrink-0 shadow-md">
                   {g.icon ? (
                     <img src={g.icon} alt={g.name} className="w-full h-full rounded-2xl object-cover" />
                   ) : (
@@ -78,7 +78,7 @@ export default function ServersPage() {
                     {g.name}
                   </h4>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-[var(--text-dim)] font-mono">ID: {g.id}</span>
+                    <span className="text-[10px] text-(--text-dim) font-mono">ID: {g.id}</span>
                     {isSelected && (
                       <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
                         <CheckCircle2 className="w-3 h-3" /> Active Now
