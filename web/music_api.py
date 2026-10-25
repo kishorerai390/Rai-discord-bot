@@ -13,7 +13,7 @@ import json
 import logging
 from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 import urllib.parse
 import aiohttp
 from aiohttp import web
@@ -393,6 +393,7 @@ class MusicApiRouter:
                 "sleep_timer_seconds": max(0, int(session.sleep_timer_end - time.time())) if getattr(session, "sleep_timer_end", 0) > time.time() else None,
                 "last_error": getattr(session, "last_error", None),
                 "permissions": perms,
+                "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
             }
             data["session"] = {k: v for k, v in data.items() if k != "session"}
             return json_success(data)
@@ -432,6 +433,7 @@ class MusicApiRouter:
                     "voice_status": voice_status,
                     "last_error": None,
                     "permissions": perms,
+                    "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
                 }
                 return json_success(data)
         except Exception as e:
@@ -460,6 +462,7 @@ class MusicApiRouter:
             "voice_status": voice_status,
             "last_error": None,
             "permissions": perms,
+            "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
         }
         idle_data["session"] = {k: v for k, v in idle_data.items() if k != "session"}
         return json_success(idle_data)
@@ -1191,11 +1194,30 @@ class MusicApiRouter:
             "auto_updater_active": True,
             "self_healing_status": "Optimal",
             "last_heartbeat": heartbeat.last_heartbeat if heartbeat else None,
+            "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
         }
         return json_success(data)
 
     async def get_extractor_health(self, request: web.Request) -> web.Response:
-        """Detailed self-healing diagnostic on yt-dlp, JS solver, and PyPI release."""
+        """Detailed self-healing diagnostic on yt-dlp, JS solver, and PyPI release (Restricted to Bot Owner)."""
+        user = await self._get_current_user(request)
+        is_owner = False
+        if user:
+            from music_bot.config import is_bot_owner
+            uid = user.get("user_id") or user.get("id") or 0
+            if is_bot_owner(uid) or user.get("is_owner"):
+                is_owner = True
+            elif self.bot and hasattr(self.bot, "is_owner"):
+                try:
+                    import discord
+                    if await self.bot.is_owner(discord.Object(id=int(uid))):
+                        is_owner = True
+                except Exception:
+                    pass
+
+        if not is_owner:
+            return json_error("FORBIDDEN", "Only the verified bot owner can run extractor auto-updates and health probes.", 403)
+
         try:
             from music_bot.services.updater_service import MusicAutoUpdater
             info = await MusicAutoUpdater.check_ytdl_version()

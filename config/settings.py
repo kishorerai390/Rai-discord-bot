@@ -61,17 +61,37 @@ DISCORD_CLIENT_SECRET: str = os.getenv("DISCORD_CLIENT_SECRET", "").strip()
 DISCORD_REDIRECT_URI: str = os.getenv("DISCORD_REDIRECT_URI", "http://localhost:8080/api/auth/callback").strip()
 _raw_session_secret = os.getenv("SESSION_SECRET", "").strip()
 _is_prod = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL") or os.getenv("NODE_ENV") == "production")
+
+# Phase 2 fix: Never silently generate an ephemeral production secret.
+# An ephemeral secret causes every session to be invalidated on every process
+# restart / redeploy, producing cascading 401 errors for all users.
+#
+# REQUIRED Render environment variable:
+#   SESSION_SECRET  — a securely generated random string (min 32 chars)
+#   Generate with:  python -c "import secrets; print(secrets.token_urlsafe(48))"
+#
+# Rotation procedure:
+#   1. Generate a new value with the command above.
+#   2. Set it in Render Dashboard > Environment > SESSION_SECRET.
+#   3. Deploy — existing sessions will be invalidated (users must re-login).
+#   4. Never print or log the value itself.
+_INSECURE_PLACEHOLDER = "rai_production_secret_key_change_in_production"
 if not _raw_session_secret:
     if _is_prod:
-        import secrets as _sec
-        SESSION_SECRET: str = _sec.token_urlsafe(32)
-        logging.getLogger("config").warning("SESSION_SECRET was not configured in production; generated ephemeral instance secret.")
+        raise RuntimeError(
+            "[Config] FATAL: SESSION_SECRET environment variable is not set in production. "
+            "Generate a secure value with: python -c \"import secrets; print(secrets.token_urlsafe(48))\" "
+            "and add it to Render Dashboard > Environment > SESSION_SECRET. "
+            "Do NOT print or log the generated value."
+        )
     else:
-        SESSION_SECRET = "rai_development_secret_key_local_only"
-elif _raw_session_secret == "rai_production_secret_key_change_in_production" and _is_prod:
-    import secrets as _sec
-    SESSION_SECRET = _sec.token_urlsafe(32)
-    logging.getLogger("config").warning("Default insecure placeholder SESSION_SECRET detected in production; overridden with ephemeral instance secret.")
+        SESSION_SECRET: str = "rai_development_secret_key_local_only"
+elif _raw_session_secret == _INSECURE_PLACEHOLDER and _is_prod:
+    raise RuntimeError(
+        "[Config] FATAL: SESSION_SECRET is still set to the insecure default placeholder in production. "
+        "Generate a secure value with: python -c \"import secrets; print(secrets.token_urlsafe(48))\" "
+        "and update Render Dashboard > Environment > SESSION_SECRET."
+    )
 else:
     SESSION_SECRET = _raw_session_secret
 _comm_guild_raw = (os.getenv("COMMUNITY_GUILD_ID") or os.getenv("SUPPORT_SERVER_ID") or "1494692962041467005").strip()

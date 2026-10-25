@@ -418,10 +418,30 @@ UI_HTML = r"""<!DOCTYPE html>
       border-color: rgba(168, 85, 247, 0.5);
       transform: translateY(-1px);
     }
+    .symbol-choice-card:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 2px;
+      border-color: var(--cyan);
+    }
     .symbol-choice-card.selected {
       background: rgba(168, 85, 247, 0.2);
       border-color: var(--primary);
       box-shadow: 0 0 12px rgba(168, 85, 247, 0.35);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .signature-symbol-wrap,
+      .signature-symbol-svg,
+      .symbol-choice-card {
+        transition: none !important;
+        transform: none !important;
+        animation: none !important;
+      }
+      .signature-symbol-wrap:hover .signature-symbol-svg {
+        transform: none !important;
+      }
+      .symbol-choice-card:hover {
+        transform: none !important;
+      }
     }
 
     /* NAV LINKS LIST */
@@ -3130,13 +3150,13 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & Audio</a></li>
       </ul>
 
-      <!-- SERVER (Visible to Admins / Managers) -->
-      <span class="nav-group-title" style="margin-top:0.6rem;" id="nav-group-server-title">SERVER</span>
-      <ul class="nav-list" id="nav-group-server-list">
+      <!-- SERVER (Visible only to Bot Owner) -->
+      <span class="nav-group-title" style="margin-top:0.6rem; display:none;" id="nav-group-server-title">SERVER</span>
+      <ul class="nav-list" id="nav-group-server-list" style="display:none;">
         <li><a class="nav-link" id="nav-analytics" onclick="navigate('/analytics')"><span class="nav-icon">📊</span> Listening Analytics</a></li>
         <li><a class="nav-link" id="nav-guilds" onclick="navigate('/guilds')"><span class="nav-icon">🏠</span> Servers</a></li>
         <li id="nav-settings-li"><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Server Settings</a></li>
-        <li><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🩺</span> System Health</a></li>
+        <li id="nav-system-li" style="display:none;"><a class="nav-link" id="nav-system" onclick="navigate('/system')"><span class="nav-icon">🩺</span> System Health</a></li>
       </ul>
 
       <!-- UTILITY QUICK ACCESS -->
@@ -3189,6 +3209,7 @@ UI_HTML = r"""<!DOCTYPE html>
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
           <img src="/public/musicmaid_avatar.jpg" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.style.display='none';">
           <span style="font-weight:800; font-size:1.1rem; color:#fff;">MusicMaid</span>
+          <span id="mobile-brand-symbol" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
         </div>
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="btn btn-sm btn-primary" style="padding:0.3rem 0.65rem; font-size:0.75rem; border-radius:20px; font-weight:800;" onclick="navigate('/premium')">💎 Premium</button>
@@ -3781,6 +3802,12 @@ UI_HTML = r"""<!DOCTYPE html>
         barIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 16);
       }
 
+      // Update mobile top bar branding badge
+      const mobileIcon = document.getElementById('mobile-brand-symbol');
+      if (mobileIcon) {
+        mobileIcon.innerHTML = getSignatureSymbolSvg(symbolKey, 16);
+      }
+
       // Update presence live preview icon
       const presIcon = document.getElementById('presence-symbol-preview');
       if (presIcon) {
@@ -4104,9 +4131,23 @@ UI_HTML = r"""<!DOCTYPE html>
 
     function renderAuthBox(user) {
       const el = document.getElementById('auth-box-sidebar');
+      const serverNavTitle = document.getElementById('nav-group-server-title');
+      const serverNavList = document.getElementById('nav-group-server-list');
       const ownerNavLi = document.getElementById('nav-owner-li');
+      const systemNavLi = document.getElementById('nav-system')?.parentElement;
+      const isOwnerUser = Boolean(user && user.is_owner);
+
+      if (serverNavTitle) {
+        serverNavTitle.style.display = isOwnerUser ? 'block' : 'none';
+      }
+      if (serverNavList) {
+        serverNavList.style.display = isOwnerUser ? 'block' : 'none';
+      }
       if (ownerNavLi) {
-        ownerNavLi.style.display = (user && (user.is_owner || user.is_admin)) ? 'block' : 'none';
+        ownerNavLi.style.display = isOwnerUser ? 'block' : 'none';
+      }
+      if (systemNavLi) {
+        systemNavLi.style.display = isOwnerUser ? 'block' : 'none';
       }
 
       if (user) {
@@ -4317,6 +4358,11 @@ UI_HTML = r"""<!DOCTYPE html>
           trackDurationSeconds = currentSession.duration_seconds || 0;
           if (!isScrubbing) {
             playbackSeconds = currentSession.position_seconds || 0;
+          }
+          if (currentSession.signature_symbol && MUSICMAID_SIGNATURE_SYMBOLS[currentSession.signature_symbol]) {
+            if (activeSignatureSymbol !== currentSession.signature_symbol) {
+              updateSignatureSymbolBranding(currentSession.signature_symbol);
+            }
           }
           updatePlaybackBarUI();
         }
@@ -4813,6 +4859,16 @@ UI_HTML = r"""<!DOCTYPE html>
     function handleRoute() {
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+
+      // Server management section routes are restricted exclusively to the bot owner
+      const isServerSectionRoute = ['/analytics', '/stats', '/settings', '/system', '/health-ui', '/guilds', '/dashboard/guilds', '/owner', '/creator'].includes(path);
+      if (isServerSectionRoute && (!currentUser || !currentUser.is_owner)) {
+        showToast("🔒 The SERVER management section is restricted to the bot owner.", "warning");
+        window.history.replaceState({}, '', '/dashboard');
+        document.getElementById('nav-dashboard')?.classList.add('active');
+        renderDashboard();
+        return;
+      }
 
       const isLoginPage = (path === '/' || path === '/login');
       document.body.classList.toggle('page-login-mode', isLoginPage);
@@ -5551,7 +5607,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <div id="self-healing-logs"></div>
                 </div>
                 <button class="btn btn-secondary btn-sm" style="width:100%; justify-content:center; gap:0.4rem; font-size:0.78rem; font-weight:700;" id="btn-self-heal" onclick="triggerSelfHealingDoctor()">
-                  <span>🩺</span> Run Health Probe
+                  <span>${Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin)) ? '🩺' : '🔒'}</span> Run Health Probe ${Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin)) ? '' : '<span style="font-size:0.65rem; color:var(--text-dim);">(Owner Only)</span>'}
                 </button>
               </div>
 
@@ -5586,6 +5642,12 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function triggerSelfHealingDoctor() {
+      const isOwner = Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin));
+      if (!isOwner) {
+        showToast("🔒 Only the verified Bot Creator/Owner can run Extractor Health Probes.", "danger");
+        return;
+      }
+
       const btn = document.getElementById('btn-self-heal');
       const consoleEl = document.getElementById('self-healing-console');
       const logsEl = document.getElementById('self-healing-logs');
@@ -5595,8 +5657,21 @@ UI_HTML = r"""<!DOCTYPE html>
       if (logsEl) logsEl.innerHTML = `> Initiating Autonomous Extractor Self-Healing & PyPI Probe...<br>> [1/4] Probing YouTube n-sig & Node.js EJS challenge solver...`;
 
       try {
-        const res = await fetch('/api/music/extractor-health');
+        const res = await fetch('/api/music/extractor-health', {
+          headers: getAuthHeaders(),
+          credentials: 'include'
+        });
         const json = await res.json();
+        if (!res.ok || !json.success) {
+          const errMsg = json.error?.message || "Forbidden: Bot Owner privileges required";
+          if (logsEl) {
+            logsEl.innerHTML += `<br><span style="color:#ef4444; font-weight:700;">✕ Permission Denied: ${errMsg}</span>`;
+          }
+          if (btn) btn.disabled = false;
+          showToast(errMsg, "danger");
+          return;
+        }
+
         const d = json.data || {};
 
         setTimeout(() => {
@@ -5837,29 +5912,65 @@ UI_HTML = r"""<!DOCTYPE html>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1.2rem;">
               <!-- Current Live Presence Display -->
               <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:var(--radius-sm); padding:1rem; display:flex; flex-direction:column; gap:0.75rem;">
-                <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Live Discord Gateway State & Signature Symbol</span>
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.4rem;">
+                  <span style="font-size:0.75rem; text-transform:uppercase; color:var(--text-muted); font-family:'JetBrains Mono',monospace;">Live Discord Presence & Telemetry</span>
+                  <span style="font-size:0.7rem; color:var(--cyan); font-family:'JetBrains Mono',monospace;">Updated Live</span>
+                </div>
+                
                 <div style="display:flex; align-items:center; gap:0.8rem;">
-                  <span style="font-size:1.8rem;" title="Discord Gateway Status Indicator">
-                    ${presence.status === 'online' ? '🟢' : (presence.status === 'idle' ? '🟡' : (presence.status === 'dnd' ? '🔴' : '⚪'))}
+                  <span id="owner-pres-status-dot" style="font-size:1.8rem;" title="Discord Gateway Connection: ${presence.gateway_connected ? 'Connected' : 'Disconnected'}">
+                    ${presence.gateway_connected ? '🟢' : '🔴'}
                   </span>
-                  <div style="display:flex; align-items:center; gap:0.6rem;">
-                    <span id="presence-symbol-preview" class="signature-symbol-wrap" title="MusicMaid Signature VR Emblem" style="padding:0.4rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
+                  <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                    <span id="presence-symbol-preview" class="signature-symbol-wrap" title="MusicMaid Signature Emblem" style="padding:0.4rem; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); border-radius:10px;">
                       ${getSignatureSymbolSvg(presence.signature_symbol || activeSignatureSymbol || 'vr_headset', 28)}
                     </span>
                     <div>
                       <div id="owner-pres-live-act" style="font-weight:700; color:#fff; font-size:1.05rem;">
                         ${presence.live_activity_name ? `${presence.activity_type ? presence.activity_type.charAt(0).toUpperCase() + presence.activity_type.slice(1) + ': ' : ''}${presence.live_activity_name}` : (presence.activity_text || presence.idle_text || 'MusicMaid Lossless Audio')}
                       </div>
-                      <div style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
-                        Status: ${presence.live_status || presence.status || 'online'} • Mode: ${presence.mode}
+                      <div id="owner-pres-live-sub" style="font-size:0.78rem; color:var(--cyan); text-transform:capitalize; margin-top:0.2rem;">
+                        Configured: ${presence.configured_status || presence.status || 'online'} • Mode: ${presence.mode}
                       </div>
                     </div>
                   </div>
                 </div>
+
+                <!-- 4 INDEPENDENT TELEMETRY CHIPS -->
+                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.5rem; margin-top:0.3rem;">
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:0.45rem 0.6rem;">
+                    <span style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block;">Configured Status</span>
+                    <span id="tag-cfg-status" style="font-size:0.78rem; font-weight:700; color:#fff; display:inline-flex; align-items:center; gap:0.3rem; margin-top:0.15rem;">
+                      ${(presence.configured_status || presence.status) === 'invisible' ? '⚪ Invisible / Offline' : ((presence.configured_status || presence.status) === 'dnd' ? '🔴 Do Not Disturb' : ((presence.configured_status || presence.status) === 'idle' ? '🟡 Idle' : '🟢 Online'))}
+                    </span>
+                  </div>
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:0.45rem 0.6rem;">
+                    <span style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block;">Gateway Socket</span>
+                    <span id="tag-gateway-status" style="font-size:0.78rem; font-weight:700; color:${presence.gateway_connected ? 'var(--emerald)' : 'var(--danger)'}; display:inline-flex; align-items:center; gap:0.3rem; margin-top:0.15rem;">
+                      ● ${presence.gateway_connected ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:0.45rem 0.6rem;">
+                    <span style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block;">Voice Link</span>
+                    <span id="tag-voice-status" style="font-size:0.78rem; font-weight:700; color:${presence.voice_connected ? 'var(--cyan)' : 'var(--text-dim)'}; display:inline-flex; align-items:center; gap:0.3rem; margin-top:0.15rem;">
+                      ${presence.voice_connected ? `🔊 ${presence.voice_channel ? '#' + presence.voice_channel : 'Active'}` : '⚪ Standby'}
+                    </span>
+                  </div>
+                  <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); border-radius:8px; padding:0.45rem 0.6rem;">
+                    <span style="font-size:0.65rem; color:var(--text-muted); text-transform:uppercase; font-family:'JetBrains Mono',monospace; display:block;">Playback State</span>
+                    <span id="tag-playback-status" style="font-size:0.78rem; font-weight:700; color:${presence.playback_state === 'playing' ? 'var(--emerald)' : (presence.playback_state === 'paused' ? 'var(--amber)' : (presence.playback_state === 'recovering' ? '#ec4899' : 'var(--text-dim)'))}; display:inline-flex; align-items:center; gap:0.3rem; margin-top:0.15rem;">
+                      ${presence.playback_state === 'playing' ? '▶ Streaming' : (presence.playback_state === 'paused' ? '⏸ Paused' : (presence.playback_state === 'recovering' ? '🔄 Recovering' : (presence.playback_state === 'unavailable' ? '⚠ Unavailable' : '⚪ Idle')))}
+                    </span>
+                  </div>
+                </div>
+
                 <div style="font-size:0.75rem; color:var(--text-muted); line-height:1.45; border-top:1px solid rgba(255,255,255,0.06); padding-top:0.6rem;">
                   ${presence.mode === 'manual'
                     ? '🔒 <strong>Manual Mode Active:</strong> Bot activity and status are locked to your custom settings below. Dynamic track tracking is suspended.'
                     : '⚡ <strong>Dynamic Mode Active:</strong> Bot automatically reflects current track title & artist during playback, and displays your idle text when waiting.'}
+                  ${(presence.configured_status || presence.status) === 'invisible'
+                    ? '<div style="margin-top:0.35rem; color:var(--cyan);">ℹ <strong>Invisible Note:</strong> Discord displays your bot as Offline in member lists, but the Gateway connection remains 100% active to receive slash commands and stream music.</div>'
+                    : ''}
                 </div>
               </div>
 
@@ -5931,8 +6042,10 @@ UI_HTML = r"""<!DOCTYPE html>
                   </div>
 
                   <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:0.5rem; margin-top:0.2rem;" id="symbol-choices-grid">
-                    ${Object.entries(MUSICMAID_SIGNATURE_SYMBOLS).map(([key, item]) => `
-                      <div class="symbol-choice-card ${(presence.signature_symbol || activeSignatureSymbol || 'vr_headset') === key ? 'selected' : ''}" id="sym-card-${key}" onclick="selectSignatureSymbol('${key}')" role="button" tabindex="0" aria-label="${item.name}">
+                    ${Object.entries(MUSICMAID_SIGNATURE_SYMBOLS).map(([key, item]) => {
+                      const isSel = (presence.signature_symbol || activeSignatureSymbol || 'vr_headset') === key;
+                      return `
+                      <div class="symbol-choice-card ${isSel ? 'selected' : ''}" id="sym-card-${key}" onclick="selectSignatureSymbol('${key}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); selectSignatureSymbol('${key}');}" role="button" tabindex="0" aria-label="${item.name}: ${item.subtitle}" aria-pressed="${isSel ? 'true' : 'false'}">
                         <div style="display:flex; align-items:center; justify-content:center; width:28px; height:28px;">
                           ${item.svg(22, true)}
                         </div>
@@ -5941,7 +6054,7 @@ UI_HTML = r"""<!DOCTYPE html>
                           <div style="font-size:0.64rem; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.subtitle}</div>
                         </div>
                       </div>
-                    `).join('')}
+                    `}).join('')}
                   </div>
                   <input type="hidden" id="owner-pres-signature-symbol" value="${presence.signature_symbol || activeSignatureSymbol || 'vr_headset'}">
                 </div>
@@ -6232,6 +6345,21 @@ UI_HTML = r"""<!DOCTYPE html>
       if (hiddenInputId === 'owner-pres-mode') {
         const actInput = document.getElementById('owner-pres-act-text');
         if (val === 'manual' && actInput) actInput.focus();
+        const sub = document.getElementById('owner-pres-live-sub');
+        const st = document.getElementById('owner-pres-status')?.value || 'online';
+        if (sub) sub.innerText = `Configured: ${st} • Mode: ${val}`;
+      } else if (hiddenInputId === 'owner-pres-status') {
+        const sub = document.getElementById('owner-pres-live-sub');
+        const md = document.getElementById('owner-pres-mode')?.value || 'dynamic';
+        if (sub) sub.innerText = `Configured: ${val} • Mode: ${md}`;
+        const tagCfg = document.getElementById('tag-cfg-status');
+        if (tagCfg) {
+          tagCfg.innerText = val === 'invisible' ? '⚪ Invisible / Offline' : (val === 'dnd' ? '🔴 Do Not Disturb' : (val === 'idle' ? '🟡 Idle' : '🟢 Online'));
+        }
+      } else if (hiddenInputId === 'owner-pres-act-type') {
+        const actEl = document.getElementById('owner-pres-live-act');
+        const txt = document.getElementById('owner-pres-act-text')?.value || 'MusicMaid';
+        if (actEl) actEl.innerText = `${label}: ${txt}`;
       }
     }
 
@@ -6246,8 +6374,10 @@ UI_HTML = r"""<!DOCTYPE html>
         if (card) {
           if (k === symbolKey) {
             card.classList.add('selected');
+            card.setAttribute('aria-pressed', 'true');
           } else {
             card.classList.remove('selected');
+            card.setAttribute('aria-pressed', 'false');
           }
         }
       });
@@ -6263,20 +6393,12 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function saveBotPresenceSettings() {
-      let mode = document.getElementById('owner-pres-mode')?.value || 'dynamic';
+      const mode = document.getElementById('owner-pres-mode')?.value || 'dynamic';
       const status = document.getElementById('owner-pres-status')?.value || 'online';
       const actType = document.getElementById('owner-pres-act-type')?.value || 'listening';
       const actText = (document.getElementById('owner-pres-act-text')?.value || '').trim();
       const idleText = (document.getElementById('owner-pres-idle-text')?.value || '').trim();
       const sigSymbol = document.getElementById('owner-pres-signature-symbol')?.value || activeSignatureSymbol || 'vr_headset';
-
-      // Smart UX: If the creator has typed a manual activity text or selected a custom status,
-      // and hasn't explicitly set mode to dynamic, treat it as manual mode so it shows in Discord immediately!
-      if (actText && mode === 'dynamic') {
-        mode = 'manual';
-        const modeInput = document.getElementById('owner-pres-mode');
-        if (modeInput) modeInput.value = 'manual';
-      }
 
       showToast("Applying presence & branding changes to Discord Gateway...", "info");
       try {
@@ -6295,7 +6417,7 @@ UI_HTML = r"""<!DOCTYPE html>
         });
         const json = await res.json();
         if (json.success) {
-          showToast("Discord bot presence & signature symbol updated successfully!", "success");
+          showToast(json.message || "Discord bot presence & signature symbol updated successfully!", "success");
           if (json.data?.signature_symbol) {
             updateSignatureSymbolBranding(json.data.signature_symbol);
           }
@@ -8588,7 +8710,26 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     async function renderSystemHealth() {
       const container = document.getElementById('view-container');
-      const isOwner = Boolean(currentUser && currentUser.is_owner);
+      const isOwner = Boolean(currentUser && (currentUser.is_owner || currentUser.is_admin));
+
+      if (!isOwner) {
+        container.innerHTML = `
+          <div class="view-fade-in" style="max-width:650px; margin:3rem auto; text-align:center;">
+            <div class="glass-card" style="padding:2.5rem; border:1px solid rgba(239,68,68,0.4); border-radius:var(--radius-lg); box-shadow:0 0 30px rgba(239,68,68,0.15);">
+              <div style="font-size:3rem; margin-bottom:0.8rem;">🔒</div>
+              <h2 style="color:#fff; font-weight:800; font-size:1.45rem;">Creator Privileges Required</h2>
+              <p style="color:var(--text-muted); font-size:0.88rem; margin:0.8rem 0 1.6rem 0; line-height:1.5;">
+                System Health, low-level server telemetry, and diagnostic hotfix runners are strictly restricted to the verified Bot Owner.
+              </p>
+              <div style="display:flex; justify-content:center; gap:0.8rem;">
+                <button class="btn btn-secondary btn-sm" onclick="navigate('/dashboard')">← Return to Dashboard</button>
+                <a class="btn btn-primary btn-sm" href="/api/auth/login" onclick="startDiscordLogin(event)">🔑 Creator Sign-In</a>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
 
       container.innerHTML = `
         <div class="view-fade-in" style="max-width:1120px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem; width:100%;">
@@ -8600,7 +8741,7 @@ UI_HTML = r"""<!DOCTYPE html>
                 <span>←</span> Back to App
               </a>
               <span class="chip-pill" style="color:#a855f7; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); font-weight:800; font-size:0.75rem;">
-                🛡️ Admin & Core Observability
+                🛡️ Creator Observability
               </span>
             </div>
 

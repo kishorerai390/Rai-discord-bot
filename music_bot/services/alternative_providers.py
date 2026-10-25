@@ -79,8 +79,12 @@ class AudiusProviderService:
             return []
 
         tracks: List[Dict[str, Any]] = []
-        for item in res["data"][:limit]:
+        for item in res["data"]:
+            if len(tracks) >= limit:
+                break
             if not item:
+                continue
+            if item.get("is_streamable") is False or item.get("is_stream_gated") is True:
                 continue
             track_id = item.get("id")
             if not track_id:

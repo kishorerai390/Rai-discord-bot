@@ -46,9 +46,10 @@ class QueuedTrack:
     stream_url: str = ""
     artist: str = "Unknown Artist"
     thumbnail: Optional[str] = None
+    http_headers: Optional[Dict[str, str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "title": self.title,
             "url": self.url,
             "stream_url": self.stream_url,
@@ -58,6 +59,9 @@ class QueuedTrack:
             "artist": self.artist,
             "thumbnail": self.thumbnail,
         }
+        if self.http_headers:
+            d["http_headers"] = self.http_headers
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> QueuedTrack:
@@ -70,6 +74,7 @@ class QueuedTrack:
             requester_name=data.get("requester_name", "Unknown"),
             artist=data.get("artist", "Unknown Artist"),
             thumbnail=data.get("thumbnail"),
+            http_headers=data.get("http_headers"),
         )
 
 

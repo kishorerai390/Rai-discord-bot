@@ -128,10 +128,15 @@ class OwnerApiRouter:
 
         git_commit = os.getenv("RENDER_GIT_COMMIT") or os.getenv("GIT_COMMIT") or "staging"
 
+        from music_bot.services.presence_service import DynamicPresenceService
+        pres_state = DynamicPresenceService.get_state(self.bot)
+
         return web.json_response({
             "success": True,
             "data": {
                 "bot_status": "ONLINE" if bot_ready else "STARTING",
+                "configured_status": pres_state.get("configured_status", "online"),
+                "discord_presence": pres_state.get("discord_presence", "online"),
                 "cluster_name": "MusicMaid-Core-01",
                 "uptime_seconds": uptime_seconds,
                 "gateway_latency_ms": latency_ms,
@@ -606,7 +611,7 @@ class OwnerApiRouter:
         return web.json_response({"success": True, "data": data})
 
     async def update_presence(self, request: web.Request) -> web.Response:
-        """Update bot presence control settings (Mode, Status, Activity)."""
+        """Update bot presence control settings (Mode, Status, Activity) with strict validation."""
         session = await self.auth.require_owner(request)
         actor_id = session.get("discord_user_id", BOT_OWNER_ID)
 
@@ -615,22 +620,63 @@ class OwnerApiRouter:
         except Exception:
             return web.json_response({"success": False, "error": {"message": "Invalid JSON body"}}, status=400)
 
+        ALLOWED_STATUSES = {"online", "idle", "dnd", "invisible"}
+        ALLOWED_MODES = {"dynamic", "manual"}
+        ALLOWED_ACTIVITY_TYPES = {"listening", "playing", "watching", "competing", "custom"}
+
+        status = body.get("status")
+        if status is not None and status not in ALLOWED_STATUSES:
+            return web.json_response({
+                "success": False,
+                "error": {
+                    "message": f"Unsupported presence status '{status}'. Discord supports: {', '.join(sorted(ALLOWED_STATUSES))}. Preserving last valid configuration."
+                }
+            }, status=400)
+
+        mode = body.get("mode")
+        if mode is not None and mode not in ALLOWED_MODES:
+            return web.json_response({
+                "success": False,
+                "error": {"message": f"Unsupported presence mode '{mode}'. Supported modes: dynamic, manual."}
+            }, status=400)
+
+        act_type = body.get("activity_type")
+        if act_type is not None and act_type not in ALLOWED_ACTIVITY_TYPES:
+            return web.json_response({
+                "success": False,
+                "error": {"message": f"Unsupported activity type '{act_type}'."}
+            }, status=400)
+
         from music_bot.services.presence_service import DynamicPresenceService
         res = await DynamicPresenceService.update_state(
             bot=self.bot,
-            mode=body.get("mode"),
-            status=body.get("status"),
-            activity_type=body.get("activity_type"),
+            mode=mode,
+            status=status,
+            activity_type=act_type,
             activity_text=body.get("activity_text"),
             idle_text=body.get("idle_text"),
             signature_symbol=body.get("signature_symbol"),
         )
 
+        update_applied = res.get("update_applied", False)
+        gateway_connected = res.get("gateway_connected", False)
+
+        if not gateway_connected:
+            notice = "Saved configuration to disk. Bot gateway is currently disconnected or in standby; updates will synchronize upon connection."
+        elif update_applied:
+            notice = "Bot presence synchronized with Discord Gateway successfully."
+        else:
+            notice = "Saved configuration to disk. Gateway presence rate-limit active; updates queued."
+
         log_incident(
             "presence",
             "info",
             f"Bot presence updated by {actor_id}",
-            details=f"Mode: {res.get('mode')}, Status: {res.get('status')}, Activity: {res.get('activity_type')} '{res.get('activity_text') or res.get('idle_text')}'",
+            details=f"Mode: {res.get('mode')}, Status: {res.get('status')}, Gateway: {'Connected' if gateway_connected else 'Disconnected'}",
         )
 
-        return web.json_response({"success": True, "data": res})
+        return web.json_response({
+            "success": True,
+            "message": notice,
+            "data": res,
+        })

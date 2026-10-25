@@ -167,8 +167,36 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     }
   }, [showToast]);
 
+  const toggleFavorite = useCallback(async (trackOverride?: any) => {
+    const t = trackOverride || session?.current_track;
+    if (!t) return;
+    try {
+      const res = await fetch("/api/music/favorites/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: t.title,
+          url: t.url,
+          duration: t.duration,
+          artist: t.artist || t.author,
+          thumbnail: t.thumbnail,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || (data.favorited ? "Added to favorites ❤️" : "Removed from favorites"), "success");
+      }
+    } catch (e: any) {
+      showToast(`Favorite error: ${e.message}`, "danger");
+    }
+  }, [session?.current_track, showToast]);
+
   const dispatchControl = useCallback(
     async (action: string, payload: any = {}) => {
+      if (action === "FAVORITE_TOGGLE") {
+        await toggleFavorite(payload);
+        return;
+      }
       try {
         const res = await fetch("/api/music/control", {
           method: "POST",
@@ -199,7 +227,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
         showToast(`Action failed: ${e.message}`, "danger");
       }
     },
-    [activeGuildId, showToast, syncPlayback]
+    [activeGuildId, showToast, syncPlayback, toggleFavorite]
   );
 
   const enqueueTrack = useCallback(
@@ -225,30 +253,6 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     },
     [activeGuildId, syncPlayback]
   );
-
-  const toggleFavorite = useCallback(async () => {
-    const t = session?.current_track;
-    if (!t) return;
-    try {
-      const res = await fetch("/api/music/favorites/toggle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: t.title,
-          url: t.url,
-          duration: t.duration,
-          artist: t.artist,
-          thumbnail: t.thumbnail,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message || (data.favorited ? "Added to favorites ❤️" : "Removed from favorites"), "success");
-      }
-    } catch (e: any) {
-      showToast(`Favorite error: ${e.message}`, "danger");
-    }
-  }, [session?.current_track, showToast]);
 
   return (
     <MusicContext.Provider

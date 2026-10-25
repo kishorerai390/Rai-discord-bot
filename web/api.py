@@ -669,13 +669,47 @@ class ApiRouter:
             }, status=201)
 
     async def realtime_stream(self, request: web.Request) -> web.StreamResponse:
-        """Centralized Server-Sent Events (SSE) real-time stream (requires authentication)."""
-        await self.auth.require_auth(request)
+        """Centralized Server-Sent Events (SSE) real-time stream.
+
+        Unauthenticated callers receive a 401 JSON response immediately
+        instead of being held in an open stream — preventing reconnect loops.
+        """
+        session = await self.auth.get_session_from_request(request)
+        if not session:
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in with Discord required to access the realtime stream. "
+                                   "Visit /login to authenticate.",
+                    },
+                },
+                status=401,
+            )
         return await self.realtime.handle_sse(request)
 
     async def realtime_ws(self, request: web.Request) -> web.WebSocketResponse:
-        """Full-duplex WebSocket real-time event bus (requires authentication)."""
-        await self.auth.require_auth(request)
+        """Full-duplex WebSocket real-time event bus.
+
+        Unauthenticated callers receive a 401 JSON response (HTTP, before the
+        WebSocket upgrade is accepted) to prevent infinite browser reconnect loops.
+        WebSocket close code 4401 signals 'Unauthorized' to frontend handlers.
+        """
+        session = await self.auth.get_session_from_request(request)
+        if not session:
+            # Reject before WebSocket upgrade — browser will not reconnect on 401
+            return web.json_response(
+                {
+                    "success": False,
+                    "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Sign in with Discord required for realtime events. "
+                                   "Visit /login to authenticate.",
+                    },
+                },
+                status=401,
+            )
         return await self.realtime.handle_ws(request)
 
     async def get_realtime_diagnostics(self, request: web.Request) -> web.Response:

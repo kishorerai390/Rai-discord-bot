@@ -16,7 +16,13 @@ import discord
 
 from music_bot.database.models import QueuedTrack
 from music_bot.emojis import EmojiManager
-from music_bot.services.resolver_service import FFMPEG_OPTIONS, AudioResolver, get_ffmpeg_executable
+from music_bot.services.resolver_service import (
+    FFMPEG_OPTIONS,
+    AudioResolver,
+    build_ffmpeg_options,
+    get_ffmpeg_executable,
+    youtube_health_monitor,
+)
 from music_bot.services.session_service import GuildMusicSession, LoopMode, PlaybackState, SessionManager
 from music_bot.theme import (
     COLOR_PRIMARY,
@@ -308,11 +314,8 @@ class MusicPlayerService:
 
             # Feature 106: Smart Loudness Normalization & Volume Clamping
             norm_vol = max(0.05, min(1.0, session.volume / 100.0))
-            # Create FFmpeg audio source with explicit executable resolution
-            ffmpeg_opts = dict(FFMPEG_OPTIONS)
-            ffmpeg_opts["executable"] = get_ffmpeg_executable()
-            if session.audio_filter:
-                ffmpeg_opts["options"] = f"-vn {session.audio_filter}"
+            # Create FFmpeg audio source with dynamic headers (User-Agent & Cookies)
+            ffmpeg_opts = build_ffmpeg_options(track, audio_filter=session.audio_filter)
 
             try:
                 audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
@@ -343,7 +346,7 @@ class MusicPlayerService:
                 audio_source, volume=norm_vol
             )
 
-            # Validate that audio source actually produces valid PCM audio frames (with 8.0s buffering timeout)
+            # Validate that audio source actually produces valid PCM audio frames (with 15.0s buffering timeout)
             loop = asyncio.get_running_loop()
             first_frame: Optional[bytes] = None
             try:
@@ -365,17 +368,31 @@ class MusicPlayerService:
                 except Exception:
                     pass
 
-                # YouTube stream re-resolution recovery with profile rotation
+                # 1. Evict stale/blocked URLs from track cache to ensure a fresh extraction attempt
+                if track.url:
+                    await AudioResolver.evict_track(track.url)
+                if track.title:
+                    await AudioResolver.evict_track(track.title)
+
+                # 2. Record failure to health monitor and rotate client profile
+                youtube_health_monitor.record_failure("HTTP 403 stream blocked or empty frames")
+                AudioResolver.rotate_client_profile()
+
+                # 3. YouTube stream re-resolution recovery with profile rotation
+                corr_id = getattr(track, "_correlation_id", "recovery")
                 fresh = await AudioResolver.resolve_track(
                     track.url or track.title,
                     track.requester_id,
                     track.requester_name,
-                    correlation_id=getattr(track, "_correlation_id", "unavailable"),
+                    title_hint=track.title,
+                    artist_hint=track.artist,
+                    correlation_id=corr_id,
                 )
                 if fresh and fresh.stream_url:
                     if apply_resolved_track(track, fresh):
                         try:
-                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                            fresh_ffmpeg_opts = build_ffmpeg_options(track, audio_filter=session.audio_filter)
+                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **fresh_ffmpeg_opts)
                             volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                             first_frame = await asyncio.wait_for(
                                 loop.run_in_executor(None, volume_transformer.read),
@@ -388,10 +405,46 @@ class MusicPlayerService:
                         logger.error(
                             "[Playback] operation=stream_recovery correlation_id=%s outcome=identity_mismatch "
                             "queued_video_id=%s resolved_video_id=%s",
-                            getattr(track, "_correlation_id", "unavailable"),
+                            corr_id,
                             _video_id_from_url(track.url) or "unavailable",
                             _video_id_from_url(fresh.url) or "unavailable",
                         )
+
+                # 4. If YouTube stream still fails or is 403-restricted, attempt secondary fallback (Audius & Jamendo)
+                if not first_frame:
+                    logger.info(
+                        f"[Playback] Attempting secondary provider fallback (Audius/Jamendo) for '{track.title}'..."
+                    )
+                    fb_track, fb_diag = await AudioResolver.resolve_alternative_fallback(
+                        title=track.title,
+                        artist=track.artist,
+                        requester_id=track.requester_id,
+                        requester_name=track.requester_name,
+                        correlation_id=corr_id,
+                    )
+                    if fb_track and fb_track.stream_url:
+                        logger.info(
+                            f"[Playback] Fallback provider '{getattr(fb_track, 'provider', 'unknown')}' "
+                            f"succeeded for '{track.title}' -> playing '{fb_track.title}'"
+                        )
+                        track.stream_url = fb_track.stream_url
+                        track.title = fb_track.title
+                        track.artist = fb_track.artist
+                        track.duration = fb_track.duration
+                        track.url = fb_track.url
+                        setattr(track, "provider", getattr(fb_track, "provider", "alternative"))
+                        track.http_headers = fb_track.http_headers
+                        try:
+                            fb_ffmpeg_opts = build_ffmpeg_options(track, audio_filter=session.audio_filter)
+                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **fb_ffmpeg_opts)
+                            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                            first_frame = await asyncio.wait_for(
+                                loop.run_in_executor(None, volume_transformer.read),
+                                timeout=10.0,
+                            )
+                        except Exception as fb_read_err:
+                            logger.warning(f"Fallback frame read failed for '{track.title}': {fb_read_err}")
+                            first_frame = b""
 
                 if not first_frame:
                     try:
@@ -402,7 +455,7 @@ class MusicPlayerService:
                     session.last_error = (
                         f"FFmpeg received no audio data for '{track.title}'. "
                         f"The audio stream is restricted or blocked on YouTube (HTTP 403 / datacenter IP restriction). "
-                        f"No supported alternative playback source is available."
+                        f"Secondary fallback (Audius / Jamendo): {fb_diag if 'fb_diag' in locals() and fb_diag else 'No matching verified tracks found'}."
                     )
 
                     if session.text_channel:
@@ -412,8 +465,8 @@ class MusicPlayerService:
                                     title="❌ NO AUDIO STREAM",
                                     description=(
                                         f"FFmpeg received no audio data for **{track.title}** (stream blocked or unavailable).\n\n"
-                                        f"• **Diagnostic:** {session.last_error}\n"
-                                        f"• Try requesting another track or provide a direct YouTube URL."
+                                        f"• **Diagnostic:** {session.last_error}\n\n"
+                                        f"• **Fix:** Configure `YOUTUBE_COOKIES` in your environment or use a Lavalink node to bypass datacenter IP restrictions."
                                     ),
                                     color=0xED4245,
                                 )
@@ -693,15 +746,11 @@ class MusicPlayerService:
                 await cls.handle_track_finished(bot, session)
                 return False
 
-            base_before = FFMPEG_OPTIONS.get("before_options", "")
-            resume_before = f"-ss {start_seconds} {base_before}" if start_seconds > 0 else base_before
-            ffmpeg_opts = {
-                "executable": get_ffmpeg_executable(),
-                "before_options": resume_before,
-                "options": "-vn",
-            }
-            if session.audio_filter:
-                ffmpeg_opts["options"] = f"-vn {session.audio_filter}"
+            ffmpeg_opts = build_ffmpeg_options(
+                track,
+                audio_filter=session.audio_filter,
+                start_seconds=start_seconds,
+            )
 
             norm_vol = max(0.05, min(1.0, session.volume / 100.0))
             loop = asyncio.get_running_loop()
@@ -720,10 +769,14 @@ class MusicPlayerService:
 
             if not first_frame:
                 logger.info(f"Stream URL may be expired during resume for '{track.title}'. Re-resolving...")
+                if track.url:
+                    await AudioResolver.evict_track(track.url)
                 fresh_track = await AudioResolver.resolve_track(
                     track.url or track.title,
                     track.requester_id,
                     track.requester_name,
+                    title_hint=track.title,
+                    artist_hint=track.artist,
                     correlation_id=getattr(track, "_correlation_id", "unavailable"),
                 )
                 if fresh_track and fresh_track.stream_url:
@@ -732,7 +785,12 @@ class MusicPlayerService:
                         # yields EOF (or an upstream CDN rejects the ranged request).
                         # Retry the refreshed stream from its beginning before giving up.
                         try:
-                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **ffmpeg_opts)
+                            fresh_resume_opts = build_ffmpeg_options(
+                                track,
+                                audio_filter=session.audio_filter,
+                                start_seconds=start_seconds,
+                            )
+                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **fresh_resume_opts)
                             volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
                             first_frame = await asyncio.wait_for(
                                 loop.run_in_executor(None, volume_transformer.read),
@@ -3112,3 +3170,6 @@ build_queue_embed = MusicPlayerService.build_queue_embed
 build_audio_embed = MusicPlayerService.build_audio_embed
 build_autodj_embed = MusicPlayerService.build_autodj_embed
 build_settings_embed = MusicPlayerService.build_settings_embed
+
+# Alias for compatibility
+PlayerService = MusicPlayerService

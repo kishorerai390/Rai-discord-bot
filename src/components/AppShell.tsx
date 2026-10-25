@@ -19,6 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     toasts,
     dismissToast,
     dispatchControl,
+    toggleFavorite,
     showToast,
     isPlaylistModalOpen,
     setIsPlaylistModalOpen,
@@ -63,6 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <PlayerBar
         session={session}
         onDispatchControl={dispatchControl}
+        onToggleFavorite={toggleFavorite}
       />
 
       {/* SAVE PLAYLIST MODAL */}

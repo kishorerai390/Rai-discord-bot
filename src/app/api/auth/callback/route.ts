@@ -91,15 +91,19 @@ export async function GET(req: NextRequest) {
       console.warn("web_sessions insert notice:", dbErr);
     }
 
-    // 4. Redirect with Cookie
+    // 4. Redirect with Cookie — set BOTH cookie names so both auth systems accept the session:
+    // - "session_id" is read by Next.js API routes (src/lib/auth.ts)
+    // - "rai_session" is read by Python backend routes (/api/realtime/ws, /api/owner/*, etc.)
     const res = NextResponse.redirect(`${baseUrl}/?auth_success=1`);
-    res.cookies.set("session_id", sessionId, {
+    const cookieOpts = {
       httpOnly: true,
       secure: baseUrl.startsWith("https"),
-      sameSite: "lax",
+      sameSite: "lax" as const,
       maxAge: expiresIn,
       path: "/",
-    });
+    };
+    res.cookies.set("session_id", sessionId, cookieOpts);
+    res.cookies.set("rai_session", sessionId, cookieOpts);
 
     return res;
   } catch (err: any) {

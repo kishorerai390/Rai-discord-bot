@@ -7,6 +7,11 @@ export const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || "";
 export const DISCORD_REDIRECT_URI =
   process.env.DISCORD_REDIRECT_URI || "http://localhost:8080/api/auth/callback";
 
+// Cookie names used by the two auth flows.
+// Python backend sets "rai_session"; Next.js callback sets "session_id".
+// We must accept both so that users logged in via either flow are authenticated.
+export const SESSION_COOKIE_NAMES = ["session_id", "rai_session"] as const;
+
 export function getPublicBaseUrl(req?: NextRequest): string {
   if (process.env.PUBLIC_BASE_URL) return process.env.PUBLIC_BASE_URL.replace(/\/$/, "");
   if (process.env.MUSICMAID_WEBSITE_URL) return process.env.MUSICMAID_WEBSITE_URL.replace(/\/$/, "");
@@ -28,14 +33,33 @@ export function getDiscordAuthUrl(baseUrl: string): string {
 }
 
 export async function getCurrentUser(req: NextRequest): Promise<DiscordUser | null> {
-  const token =
-    req.cookies.get("session_id")?.value ||
-    req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  // Accept both cookie names: session_id (Next.js flow) and rai_session (Python flow)
+  let token: string | undefined;
+  for (const name of SESSION_COOKIE_NAMES) {
+    token = req.cookies.get(name)?.value;
+    if (token) break;
+  }
+  // Also accept Authorization: Bearer <token> header
+  if (!token) {
+    token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  }
 
   if (!token) return null;
 
   const session = getWebSessionByToken(token);
   if (!session) return null;
+
+  // Reject expired sessions (expiry stored as ISO string)
+  if (session.expires_at) {
+    try {
+      const expiry = new Date(session.expires_at);
+      if (!isNaN(expiry.getTime()) && expiry < new Date()) {
+        return null;
+      }
+    } catch {
+      // Malformed expiry — treat as valid to avoid breaking existing sessions
+    }
+  }
 
   const userId = String(session.user_id || session.discord_user_id);
   const configuredOwners = (

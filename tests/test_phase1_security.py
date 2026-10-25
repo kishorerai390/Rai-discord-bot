@@ -173,6 +173,7 @@ class TestPhase1SecurityHardening(unittest.IsolatedAsyncioTestCase):
             "/api/owner/guilds",
             "/api/owner/feature-flags",
             "/api/owner/presence",
+            "/api/music/extractor-health",
         ]
         for ep in owner_endpoints:
             resp = await self.client.get(ep, cookies=self.ordinary_cookies)
@@ -181,6 +182,8 @@ class TestPhase1SecurityHardening(unittest.IsolatedAsyncioTestCase):
         # Verify Bot Owner DOES get 200 OK
         resp_owner = await self.client.get("/api/owner/overview", cookies=self.owner_cookies)
         self.assertEqual(resp_owner.status, 200, "Bot Owner must receive 200 OK on /api/owner/overview")
+        resp_ext = await self.client.get("/api/music/extractor-health", cookies=self.owner_cookies)
+        self.assertEqual(resp_ext.status, 200, "Bot Owner must receive 200 OK on /api/music/extractor-health")
 
     # =========================================================================
     # 6. OAUTH STATE VALIDATION, SESSION EXPIRY, AND LOGOUT
