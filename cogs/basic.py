@@ -118,7 +118,6 @@ class Basic(commands.Cog):
         start="Specify a time you would like to start, e.g. 1:00",
         end="Specify a time you would like to end, e.g. 4:00"
     )
-    @app_commands.autocomplete(query=play_autocomplete)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def play(self, ctx: commands.Context, *, query: str, start: str = "0", end: str = "0") -> None:
         "Loads your input into the queue."
@@ -261,7 +260,6 @@ class Basic(commands.Cog):
         start="Specify a time you would like to start, e.g. 1:00",
         end="Specify a time you would like to end, e.g. 4:00"
     )
-    @app_commands.autocomplete(query=play_autocomplete)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def playtop(self, ctx: commands.Context, *, query: str, start: str = "0", end: str = "0"):
         "Adds a song with the given url or query on the top of the queue."
