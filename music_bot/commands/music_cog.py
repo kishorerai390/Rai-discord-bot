@@ -3388,9 +3388,9 @@ class MusicCog(commands.Cog, name="Music"):
     ) -> None:
         await self.playlist_import(interaction, url, name, play_now)
 
-    @app_commands.command(name="radio", description="Launch a 24/7 radio station (JukeBot Radio Suite)")
+    @app_commands.command(name="station", description="Launch a 24/7 radio station (JukeBot Radio Suite)")
     @app_commands.describe(station="Choose a radio genre (lofi, jazz, synthwave, phonk, lounge, workout, etc.)")
-    async def alias_radio(self, interaction: discord.Interaction, station: str) -> None:
+    async def alias_station(self, interaction: discord.Interaction, station: str) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
         if not await self._check_permissions(interaction):
             return
@@ -3402,7 +3402,7 @@ class MusicCog(commands.Cog, name="Music"):
             return
         await self._play_query(interaction, url, display_name=f"📻 {station.capitalize()} Radio", top=True)
 
-    @alias_radio.autocomplete("station")
+    @alias_station.autocomplete("station")
     async def radio_station_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
         from music_bot.services.jukebot_service import JukeBotStreamRequest
         stations = JukeBotStreamRequest.list_radio_stations()
