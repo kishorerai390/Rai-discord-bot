@@ -1153,6 +1153,7 @@ class MusicCog(commands.Cog, name="Music"):
                             display_name=selected_title,
                         )
 
+                    await _stop_resolving_status()
                     selection_view = TrackSelectView(candidates, member.id, on_candidate_select)
                     await interaction.edit_original_response(
                         content="Several results are plausible, or the best match is uncertain. Choose the intended track:",
@@ -1182,6 +1183,37 @@ class MusicCog(commands.Cog, name="Music"):
                         _video_id_from_url(best_url),
                         candidates[0].get("title"),
                     )
+
+            progress_state["stage"] = "Resolving stream URL and validating audio"
+            elapsed = max(0, int(time.monotonic() - progress_state["started"]))
+            minutes, seconds = divmod(elapsed, 60)
+            embed_loading.description = (
+                f"**♫ REQUESTED TRACK**\n> `{safe_request_label}`\n\n"
+                f"**◈ CURRENT STAGE**\n> 🟣 {progress_state['stage']}\n"
+                f"> ⏱ Elapsed: `{minutes:02d}:{seconds:02d}`\n\n"
+                "*Playback has not started. MusicMaid will validate the selected result before queueing it.*"
+            )
+            if embed_loading.fields:
+                embed_loading.set_field_at(
+                    0,
+                    name="⌁ RESOLUTION PIPELINE",
+                    value=(
+                        "✅ **Search candidates** — completed\n"
+                        "🟣 **Resolve stream URL** — in progress\n"
+                        "⚪ **Validate playable audio** — next\n"
+                        "⚪ **Prepare FFmpeg playback** — pending"
+                    ),
+                    inline=False,
+                )
+            try:
+                await interaction.edit_original_response(
+                    content=None, embed=embed_loading, view=None
+                )
+            except Exception as stage_err:
+                logger.debug(
+                    "[Playback] stage update skipped: %s",
+                    type(stage_err).__name__,
+                )
 
             search_start = time.time()
             is_timed_out = False
@@ -1214,6 +1246,8 @@ class MusicCog(commands.Cog, name="Music"):
                     correlation_id,
                     type(e).__name__,
                 )
+
+            await _stop_resolving_status()
 
             # Keep Audius/Jamendo fallback, but never silently substitute a
             # near-spelling title (e.g. Kalyan for a Kalyani request).
