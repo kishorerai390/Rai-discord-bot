@@ -255,6 +255,83 @@ bot = Vocard(
     intents=intents
 )
 
+def ensure_lavalink():
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:2333/v4/info", timeout=2) as r:
+            if r.status == 200:
+                func.logger.info("Lavalink is already running.")
+                return
+    except Exception:
+        pass
+
+    func.logger.info("Lavalink not detected on 127.0.0.1:2333. Preparing Lavalink...")
+    import subprocess, shutil, tarfile, time
+
+    lavalink_dir = os.path.join(func.ROOT_DIR, "lavalink")
+    os.makedirs(lavalink_dir, exist_ok=True)
+    jar_path = os.path.join(lavalink_dir, "Lavalink.jar")
+
+    if not os.path.exists(jar_path):
+        func.logger.info("Downloading Lavalink.jar v4.2.2...")
+        try:
+            urllib.request.urlretrieve(
+                "https://github.com/lavalink-devs/Lavalink/releases/download/4.2.2/Lavalink.jar",
+                jar_path
+            )
+            func.logger.info("Downloaded Lavalink.jar successfully.")
+        except Exception as e:
+            func.logger.error(f"Failed to download Lavalink.jar: {e}")
+
+    java_cmd = shutil.which("java")
+    jre_bin_java = os.path.join(func.ROOT_DIR, "jre", "bin", "java")
+    if os.path.exists(jre_bin_java):
+        try:
+            os.chmod(jre_bin_java, 0o755)
+        except Exception:
+            pass
+        java_cmd = jre_bin_java
+    elif not java_cmd and sys.platform != "win32":
+        func.logger.info("Downloading portable Temurin JRE 21...")
+        jre_tar = os.path.join(func.ROOT_DIR, "jre.tar.gz")
+        try:
+            urllib.request.urlretrieve(
+                "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jre_x64_linux_hotspot_21.0.6_7.tar.gz",
+                jre_tar
+            )
+            jre_dir = os.path.join(func.ROOT_DIR, "jre")
+            os.makedirs(jre_dir, exist_ok=True)
+            with tarfile.open(jre_tar, "r:gz") as tar:
+                for member in tar.getmembers():
+                    parts = member.name.split("/", 1)
+                    if len(parts) > 1 and parts[1]:
+                        member.name = parts[1]
+                        tar.extract(member, path=jre_dir)
+            if os.path.exists(jre_tar):
+                os.remove(jre_tar)
+            if os.path.exists(jre_bin_java):
+                os.chmod(jre_bin_java, 0o755)
+                java_cmd = jre_bin_java
+                func.logger.info("Installed portable JRE 21.")
+        except Exception as e:
+            func.logger.error(f"Failed to install portable JRE: {e}")
+
+    if java_cmd and os.path.exists(jar_path):
+        func.logger.info(f"Starting Lavalink process using {java_cmd}...")
+        try:
+            subprocess.Popen([java_cmd, "-jar", "Lavalink.jar"], cwd=lavalink_dir)
+            for _ in range(45):
+                try:
+                    with urllib.request.urlopen("http://127.0.0.1:2333/v4/info", timeout=1) as r:
+                        if r.status == 200:
+                            func.logger.info("Lavalink started and ready!")
+                            break
+                except Exception:
+                    time.sleep(1)
+        except Exception as e:
+            func.logger.error(f"Failed to spawn Lavalink: {e}")
+
 if __name__ == "__main__":
+    ensure_lavalink()
     update.check_version(with_msg=True)
     bot.run(bot_config.token, root_logger=True)
