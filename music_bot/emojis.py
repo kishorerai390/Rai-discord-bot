@@ -179,6 +179,12 @@ class EmojiManager:
                 return fallback
             return fallback
 
+        # Invalid app-owned tags should not leak the literal ``app:`` marker into
+        # Discord messages. Keep the existing Unicode fallback instead.
+        if app_owned:
+            logger.warning("Invalid application emoji configuration for key %s; using fallback.", key_upper)
+            return fallback
+
         # If configured as custom Unicode character or string
         return emoji_value
 
