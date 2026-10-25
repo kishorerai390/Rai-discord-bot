@@ -27,11 +27,7 @@ import asyncio
 import logging
 
 from typing import Any, Dict, Optional, Literal, TypedDict, List
-try:
-    from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
-except ImportError:
-    AsyncIOMotorClient = Any  # type: ignore
-    AsyncIOMotorCollection = Any  # type: ignore
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
 from .config import Config
 
