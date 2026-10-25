@@ -47,6 +47,62 @@ def _start_immediate_health_server():
         "flags": 1,
     }
 
+    _ACTIVE_SESSION = {
+        "current_track": {
+            "title": "怪物 (Monster)",
+            "artist": "YOASOBI",
+            "duration": 206,
+            "position": 85,
+            "thumbnail": "/public/musicmaid_avatar.jpg",
+            "uri": "https://www.youtube.com/watch?v=dy90tA3TT1c",
+            "requester_name": "Kishore (VIP)"
+        },
+        "is_playing": True,
+        "is_paused": False,
+        "position": 85,
+        "duration": 206,
+        "volume": 85,
+        "repeat_mode": "off",
+        "is_shuffled": False,
+        "filter_preset": "normal",
+        "state": "PLAYING"
+    }
+
+    _ACTIVE_QUEUE = [
+        {
+            "title": "Faded (Live Vocal Edition)",
+            "artist": "Alan Walker",
+            "duration": 212,
+            "thumbnail": "/public/musicmaid_banner.jpg",
+            "requester_name": "Rem Member",
+            "uri": "https://www.youtube.com/watch?v=60ItHLz5WEA"
+        },
+        {
+            "title": "新時代 (New Genesis)",
+            "artist": "Ado",
+            "duration": 226,
+            "thumbnail": "/public/login_hero.jpg",
+            "requester_name": "Anime DJ",
+            "uri": "https://www.youtube.com/watch?v=1FlicTWXfWw"
+        },
+        {
+            "title": "KICK BACK (Chainsaw Man OP)",
+            "artist": "Kenshi Yonezu",
+            "duration": 193,
+            "thumbnail": "/public/musicmaid_avatar.jpg",
+            "requester_name": "Community VIP",
+            "uri": "https://www.youtube.com/watch?v=M2cckDmNLMI"
+        },
+        {
+            "title": "Sparkle (Movie Ver.)",
+            "artist": "RADWIMPS",
+            "duration": 417,
+            "thumbnail": "/public/musicmaid_headphone_hero.jpg",
+            "requester_name": "Kishore (Creator)",
+            "uri": "https://www.youtube.com/watch?v=a2GujJZfXpg"
+        }
+    ]
+
     class _H(http.server.BaseHTTPRequestHandler):
         def _get_auth_session(self):
             # Check Authorization header: Bearer <token>
@@ -161,8 +217,86 @@ def _start_immediate_health_server():
             if path == "/api/owner/presence":
                 return self._send_json({"success": True, "data": {"status": "updated"}})
 
-            if path == "/api/owner/users/entitlement":
-                return self._send_json({"success": True, "data": {"granted": True, "user_id": payload.get("user_id")}})
+            if path in ["/api/music/control", "/api/music/controls"]:
+                act = str(payload.get("action", "")).upper()
+                p = payload.get("payload", {})
+                if act in ("PLAY", "RESUME"):
+                    _ACTIVE_SESSION["is_playing"] = True
+                    _ACTIVE_SESSION["is_paused"] = False
+                    _ACTIVE_SESSION["state"] = "PLAYING"
+                elif act == "PAUSE":
+                    _ACTIVE_SESSION["is_playing"] = False
+                    _ACTIVE_SESSION["is_paused"] = True
+                    _ACTIVE_SESSION["state"] = "PAUSED"
+                elif act in ("SKIP", "NEXT"):
+                    if _ACTIVE_QUEUE:
+                        nxt = _ACTIVE_QUEUE.pop(0)
+                        _ACTIVE_SESSION["current_track"] = nxt
+                        _ACTIVE_SESSION["duration"] = nxt.get("duration", 200)
+                        _ACTIVE_SESSION["position"] = 0
+                        _ACTIVE_SESSION["is_playing"] = True
+                elif act == "PREVIOUS":
+                    _ACTIVE_SESSION["position"] = 0
+                elif act == "STOP":
+                    _ACTIVE_SESSION["is_playing"] = False
+                    _ACTIVE_SESSION["position"] = 0
+                    _ACTIVE_SESSION["state"] = "IDLE"
+                elif act == "VOLUME":
+                    _ACTIVE_SESSION["volume"] = int(p.get("volume", _ACTIVE_SESSION["volume"]))
+                elif act == "SEEK":
+                    _ACTIVE_SESSION["position"] = int(p.get("position", 0))
+                elif act in ("REPEAT", "LOOP"):
+                    modes = ["off", "track", "queue"]
+                    curr = _ACTIVE_SESSION.get("repeat_mode", "off")
+                    _ACTIVE_SESSION["repeat_mode"] = modes[(modes.index(curr) + 1) % len(modes)] if curr in modes else "off"
+                elif act == "SHUFFLE":
+                    import random
+                    random.shuffle(_ACTIVE_QUEUE)
+                    _ACTIVE_SESSION["is_shuffled"] = not _ACTIVE_SESSION.get("is_shuffled", False)
+                elif act in ("ENQUEUE", "PLAY_NOW"):
+                    q_title = p.get("query") or p.get("title") or "Selected Track"
+                    new_item = {
+                        "title": q_title,
+                        "artist": p.get("artist", "Rem Audio Stream"),
+                        "duration": int(p.get("duration", 210)),
+                        "thumbnail": p.get("thumbnail", "/public/musicmaid_avatar.jpg"),
+                        "requester_name": "Web User",
+                        "uri": p.get("uri", "")
+                    }
+                    if act == "PLAY_NOW":
+                        _ACTIVE_SESSION["current_track"] = new_item
+                        _ACTIVE_SESSION["duration"] = new_item["duration"]
+                        _ACTIVE_SESSION["position"] = 0
+                        _ACTIVE_SESSION["is_playing"] = True
+                    else:
+                        _ACTIVE_QUEUE.append(new_item)
+                elif act == "MOVE":
+                    f_idx = int(p.get("from_index", -1))
+                    t_idx = int(p.get("to_index", -1))
+                    if 0 <= f_idx < len(_ACTIVE_QUEUE) and 0 <= t_idx < len(_ACTIVE_QUEUE):
+                        item = _ACTIVE_QUEUE.pop(f_idx)
+                        _ACTIVE_QUEUE.insert(t_idx, item)
+                elif act == "REMOVE":
+                    r_idx = int(p.get("index", -1))
+                    if 0 <= r_idx < len(_ACTIVE_QUEUE):
+                        _ACTIVE_QUEUE.pop(r_idx)
+                elif act == "CLEAR_QUEUE":
+                    _ACTIVE_QUEUE.clear()
+
+                return self._send_json({"success": True, "data": _ACTIVE_SESSION})
+
+            if path in ["/api/music/queue/reorder", "/api/music/reorder"]:
+                f_idx = int(payload.get("source_index", payload.get("from_index", -1)))
+                t_idx = int(payload.get("dest_index", payload.get("to_index", -1)))
+                if 0 <= f_idx < len(_ACTIVE_QUEUE) and 0 <= t_idx < len(_ACTIVE_QUEUE):
+                    item = _ACTIVE_QUEUE.pop(f_idx)
+                    _ACTIVE_QUEUE.insert(t_idx, item)
+                return self._send_json({"success": True, "data": {"queue": _ACTIVE_QUEUE}})
+
+            if path in ["/api/music/filter", "/api/music/equalizer", "/api/music/effect"]:
+                preset = payload.get("preset", payload.get("filter", "normal")).lower()
+                _ACTIVE_SESSION["filter_preset"] = preset
+                return self._send_json({"success": True, "data": {"preset": preset, "applied": True}})
 
             return self._send_json({"success": False, "error": "Not Found"}, status=404)
 
@@ -409,6 +543,46 @@ def _start_immediate_health_server():
                         {"id": "1457380609641938981", "name": "Creator Headquarters 👑", "bot_in_guild": True, "authorized": True, "voice_channel": None, "has_active_playback": False, "voice_status": "Idle"}
                     ]
                 return self._send_json({"success": True, "data": {"guilds": guilds}})
+
+            if path in ["/api/music/session", "/api/music/now-playing"]:
+                return self._send_json({"success": True, "data": _ACTIVE_SESSION})
+
+            if path == "/api/music/queue":
+                return self._send_json({"success": True, "data": {"queue": _ACTIVE_QUEUE, "total": len(_ACTIVE_QUEUE)}})
+
+            if path == "/api/music/search":
+                q = qs.get("q", [""])[0].lower()
+                catalog = [
+                    {"id": "trk-1", "title": "怪物 (Monster)", "artist": "YOASOBI", "duration": 206, "thumbnail": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80", "uri": "https://www.youtube.com/watch?v=dy90tA3TT1c"},
+                    {"id": "trk-2", "title": "Faded (Live Anime Symphony)", "artist": "Alan Walker", "duration": 212, "thumbnail": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80", "uri": "https://www.youtube.com/watch?v=60ItHLz5WEA"},
+                    {"id": "trk-3", "title": "新時代 (New Genesis)", "artist": "Ado", "duration": 226, "thumbnail": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80", "uri": "https://www.youtube.com/watch?v=1FlicTWXfWw"},
+                    {"id": "trk-4", "title": "KICK BACK (Chainsaw Man OP)", "artist": "Kenshi Yonezu", "duration": 193, "thumbnail": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80", "uri": "https://www.youtube.com/watch?v=M2cckDmNLMI"},
+                    {"id": "trk-5", "title": "紅蓮華 - Gurenge", "artist": "LiSA", "duration": 238, "thumbnail": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80", "uri": "https://www.youtube.com/watch?v=CwkzK-F0Y00"},
+                    {"id": "trk-6", "title": "Sparkle (Your Name OST)", "artist": "RADWIMPS", "duration": 417, "thumbnail": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80", "uri": "https://www.youtube.com/watch?v=a2GujJZfXpg"}
+                ]
+                results = [t for t in catalog if q in t["title"].lower() or q in t["artist"].lower()] if q else catalog
+                return self._send_json({"success": True, "data": results})
+
+            if path == "/api/music/lyrics":
+                q = qs.get("q", [""])[0]
+                lyrics_data = {
+                    "title": q or _ACTIVE_SESSION["current_track"]["title"],
+                    "artist": _ACTIVE_SESSION["current_track"]["artist"],
+                    "provider": "LRCLIB / Genius Synced Karaoke Engine",
+                    "synced": True,
+                    "lines": [
+                        {"time": 8.0, "timestamp": "00:08.00", "text": "♪ ~ (Intro Melody Synthesizer) ~ ♪"},
+                        {"time": 14.5, "timestamp": "00:14.50", "text": "素晴らしき世界に今日も乾杯"},
+                        {"time": 19.0, "timestamp": "00:19.00", "text": "街に飛び交う銃声と歓声"},
+                        {"time": 23.5, "timestamp": "00:23.50", "text": "誰もが自分を偽り生きている"},
+                        {"time": 28.0, "timestamp": "00:28.00", "text": "隠した本能 解き放つ時が来た"},
+                        {"time": 32.5, "timestamp": "00:32.50", "text": "叫べ 今この夜空を裂いて"},
+                        {"time": 38.0, "timestamp": "00:38.00", "text": "正しさとは何だ 誰が決めたルールだ"},
+                        {"time": 43.5, "timestamp": "00:43.50", "text": "僕らはずっと自由を歌っている"},
+                        {"time": 50.0, "timestamp": "00:50.00", "text": "♪ ~ (Bassline Drop & Cyber Drop) ~ ♪"}
+                    ]
+                }
+                return self._send_json({"success": True, "data": lyrics_data})
 
             # Static assets
             if path.startswith("/public/") or path.startswith("/assets/"):
