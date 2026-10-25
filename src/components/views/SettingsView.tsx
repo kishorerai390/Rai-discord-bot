@@ -245,11 +245,11 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
             <span>Audio & Output Volume</span>
           </h3>
 
-          {/* Live Master Volume */}
+          {/* Master Volume — reflects the active player, not a stale saved default */}
           <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between items-center gap-3 text-xs">
-              <span className="font-semibold text-white">Live Master Volume</span>
-              <span className="font-mono text-cyan-400">{liveMasterVolume}%</span>
+            <div className="flex justify-between text-xs">
+              <span className="font-semibold text-white">Master Volume</span>
+              <span className="font-mono text-emerald-400">{liveMasterVolume}%</span>
             </div>
             <input
               type="range"
@@ -258,10 +258,7 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
               step="1"
               value={liveMasterVolume}
               disabled={volumeUpdating}
-              onChange={(e) => {
-                const nextVolume = Number(e.target.value);
-                setLiveMasterVolume(nextVolume);
-              }}
+              onChange={(e) => setLiveMasterVolume(Number(e.target.value))}
               onPointerUp={(e) => {
                 void handleLiveVolumeChange(Number((e.currentTarget as HTMLInputElement).value));
               }}
@@ -270,31 +267,12 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
                   void handleLiveVolumeChange(Number((e.currentTarget as HTMLInputElement).value));
                 }
               }}
-              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-cyan-400 disabled:opacity-60"
-              aria-label="Live master volume"
+              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400 disabled:opacity-60"
+              aria-label="Master volume"
             />
             <span className="text-[10px] text-(--text-dim)">
-              {volumeUpdating ? "Applying volume…" : "Current volume for the active player. Syncs with Discord volume changes."}
+              {volumeUpdating ? "Applying volume…" : "Shows the current master volume and syncs every 3 seconds with the active player."}
             </span>
-          </div>
-
-          {/* Default Volume */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="font-semibold text-white">Default Server Volume</span>
-              <span className="font-mono text-emerald-400">{settings.default_volume}%</span>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="150"
-              value={settings.default_volume}
-              onChange={(e) =>
-                setSettings({ ...settings, default_volume: Number(e.target.value) })
-              }
-              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400"
-            />
-            <span className="text-[10px] text-(--text-dim)">Standard: 1-100% • VIP Boost: Up to 150%</span>
           </div>
 
           {/* Autoplay toggle */}
