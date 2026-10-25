@@ -7818,7 +7818,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 24/7 Voice Channel Stay Mode</li>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> Anime Maid Voice DJ</li>
                 </ul>
-                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}" ${!isUserSubscribed ? 'disabled aria-disabled="true" title="This is your current plan"' : ''}>
+                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}" disabled aria-disabled="true" title="${!isUserSubscribed ? 'This is your current plan' : 'Free tier plan information'}">
                   ${!isUserSubscribed ? '✓ Your Current Plan' : 'Free Tier'}
                 </button>
               </div>
