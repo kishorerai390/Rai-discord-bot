@@ -1409,6 +1409,10 @@ def build_ffmpeg_options(
         ua = track.http_headers.get("User-Agent") or track.http_headers.get("user-agent")
         if ua:
             user_agent = ua
+    elif track and track.stream_url and "c=ANDROID" in track.stream_url:
+        user_agent = "com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip"
+    elif track and track.stream_url and "c=IOS" in track.stream_url:
+        user_agent = "com.google.ios.youtube/19.29.1 (iPhone14,3; U; CPU iOS 16_5 like Mac OS X)"
 
     before = []
     if start_seconds > 0:
@@ -2032,6 +2036,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=cached_track.artist,
                     thumbnail=cached_track.thumbnail,
+                    http_headers=cached_track.http_headers,
                 )
                 setattr(cached, "_correlation_id", correlation_id)
                 return cached
@@ -2052,6 +2057,7 @@ class AudioResolver:
                         requester_name=requester_name,
                         artist=data.get("artist", "Unknown Artist"),
                         thumbnail=data.get("thumbnail"),
+                        http_headers=data.get("http_headers"),
                     )
                     cls._track_cache[cache_key] = (restored_track, now)
                     setattr(restored_track, "_correlation_id", correlation_id)
@@ -2082,6 +2088,7 @@ class AudioResolver:
                         requester_name=requester_name,
                         artist=res.artist,
                         thumbnail=res.thumbnail,
+                        http_headers=res.http_headers,
                     )
                     setattr(duplicate, "_correlation_id", correlation_id)
                     return duplicate
@@ -2119,6 +2126,7 @@ class AudioResolver:
                                     "duration": t.duration,
                                     "artist": t.artist,
                                     "thumbnail": t.thumbnail,
+                                    "http_headers": t.http_headers,
                                 })
                                 await redis_c.setex(f"mm:track:{k}", CACHE_TTL, payload)
                             except Exception:
@@ -2139,6 +2147,7 @@ class AudioResolver:
                 requester_name=requester_name,
                 artist=resolved.artist,
                 thumbnail=resolved.thumbnail,
+                http_headers=resolved.http_headers,
             )
             setattr(out_track, "_correlation_id", correlation_id)
             if hasattr(resolved, "provider"):
@@ -2825,6 +2834,62 @@ class AudioResolver:
                     cand_idx,
                     type(t1_err).__name__,
                 )
+                restricted_markers = (
+                    "403", "forbidden", "sign in", "confirm you're not a bot",
+                    "po-token", "access_denied", "too many requests", "429",
+                    "timeout", "timed out", "format is not available", "requested format",
+                )
+                if any(marker in t1_msg.casefold() for marker in restricted_markers):
+                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
+                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        fb_track, fb_diag = await _bounded_alternative_fallback(
+                            fallback_title,
+                            artist_hint,
+                        )
+                        if fb_track:
+                            fb_track = _apply_metadata_enhancements(fb_track)
+                            logger.info(
+                                "[Resolver] provider=%s operation=early_access_fallback "
+                                "correlation_id=%s outcome=resolved title=%r",
+                                getattr(fb_track, "provider", "alternative"),
+                                corr_id,
+                                fb_track.title,
+                            )
+                            return fb_track
+
+                    # Try JukeBot StreamRequest directly before abandoning public extraction
+                    try:
+                        from music_bot.services.jukebot_service import JukeBotStreamRequest
+                        juke_data = await JukeBotStreamRequest.extract_stream(target_url, timeout=10.0)
+                        if juke_data and juke_data.get("stream_url"):
+                            if _entry_matches_selected_video(juke_data, target_url, "stream_extract_jukebot"):
+                                track = QueuedTrack(
+                                    title=juke_data.get("title", "Unknown Title"),
+                                    url=juke_data.get("url", target_url),
+                                    stream_url=juke_data["stream_url"],
+                                    duration=juke_data.get("duration", 0),
+                                    requester_id=requester_id,
+                                    requester_name=requester_name,
+                                    artist=juke_data.get("uploader", "Unknown Artist"),
+                                    thumbnail=juke_data.get("thumbnail"),
+                                    http_headers=juke_data.get("http_headers"),
+                                )
+                                track = _apply_metadata_enhancements(track)
+                                setattr(track, "provider", "youtube")
+                                dur = time.time() - start_t
+                                logger.info(
+                                    f"[Resolver] [Ref: MM-{corr_id}] JukeBot StreamRequest tier resolved candidate #{cand_idx} "
+                                    f"'{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                                )
+                                return track
+                    except Exception as juke_err:
+                        logger.debug(f"[Resolver] JukeBot tier notice: {juke_err}")
+
+                    # Don't spend more time cycling YouTube clients after an explicit
+                    # access block; continue to verified-cookie fallback if configured.
+                    last_failure_reason = t1_msg
+                    break
+
                 if "format is not available" in t1_msg.lower():
                     # This is a known cloud extraction failure. Try the existing
                     # Audius/Jamendo path before spending up to 32 seconds on
@@ -2896,60 +2961,6 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-                restricted_markers = (
-                    "403", "forbidden", "sign in", "confirm you're not a bot",
-                    "po-token", "access_denied", "too many requests", "429",
-                    "timeout", "timed out",
-                )
-                if any(marker in t1_msg.casefold() for marker in restricted_markers):
-                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
-                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
-                        fb_track, fb_diag = await _bounded_alternative_fallback(
-                            fallback_title,
-                            artist_hint,
-                        )
-                        if fb_track:
-                            fb_track = _apply_metadata_enhancements(fb_track)
-                            logger.info(
-                                "[Resolver] provider=%s operation=early_access_fallback "
-                                "correlation_id=%s outcome=resolved title=%r",
-                                getattr(fb_track, "provider", "alternative"),
-                                corr_id,
-                                fb_track.title,
-                            )
-                            return fb_track
-
-                    # Try JukeBot StreamRequest directly before abandoning public extraction
-                    try:
-                        from music_bot.services.jukebot_service import JukeBotStreamRequest
-                        juke_data = await JukeBotStreamRequest.extract_stream(target_url, timeout=10.0)
-                        if juke_data and juke_data.get("stream_url"):
-                            if _entry_matches_selected_video(juke_data, target_url, "stream_extract_jukebot"):
-                                track = QueuedTrack(
-                                    title=juke_data.get("title", "Unknown Title"),
-                                    url=juke_data.get("url", target_url),
-                                    stream_url=juke_data["stream_url"],
-                                    duration=juke_data.get("duration", 0),
-                                    requester_id=requester_id,
-                                    requester_name=requester_name,
-                                    artist=juke_data.get("uploader", "Unknown Artist"),
-                                    thumbnail=juke_data.get("thumbnail"),
-                                )
-                                track = _apply_metadata_enhancements(track)
-                                setattr(track, "provider", "youtube")
-                                dur = time.time() - start_t
-                                logger.info(
-                                    f"[Resolver] [Ref: MM-{corr_id}] JukeBot StreamRequest tier resolved candidate #{cand_idx} "
-                                    f"'{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
-                                )
-                                return track
-                    except Exception as juke_err:
-                        logger.debug(f"[Resolver] JukeBot tier notice: {juke_err}")
-
-                    # Don't spend more time cycling YouTube clients after an explicit
-                    # access block; continue to verified-cookie fallback if configured.
-                    last_failure_reason = t1_msg
-                    break
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
@@ -3005,6 +3016,7 @@ class AudioResolver:
                             requester_name=requester_name,
                             artist=juke_data.get("uploader", "Unknown Artist"),
                             thumbnail=juke_data.get("thumbnail"),
+                            http_headers=juke_data.get("http_headers"),
                         )
                         track = _apply_metadata_enhancements(track)
                         setattr(track, "provider", "youtube")
