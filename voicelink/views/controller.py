@@ -58,6 +58,12 @@ class ControlButton(discord.ui.Button):
         """Retrieve button configuration based on states."""
         if states and "states" in self.btn_data:
             return self.btn_data["states"].get(states, {})
+        if "states" in self.btn_data:
+            # Fallback to the first available state if states was None or missing
+            for s in ("off", "pause", "muted", "on"):
+                if s in self.btn_data["states"]:
+                    return self.btn_data["states"][s]
+            return next(iter(self.btn_data["states"].values()), {})
         return self.btn_data
 
     def _get_button_style(self, style_name: Optional[str]) -> discord.ButtonStyle:
@@ -76,7 +82,14 @@ class ControlButton(discord.ui.Button):
         if state_config:
             self.emoji = state_config.get("emoji") or None
             self.style = self._get_button_style(state_config.get("style"))
-            self.label = self.player._ph.replace(state_config.get("label"), {})
+            raw_label = state_config.get("label")
+            label = self.player._ph.replace(raw_label, {}) if raw_label else None
+            if label == "Not found!":
+                label = None
+            self.label = label
+            # Discord API strictly requires at least one of label or emoji
+            if not self.emoji and not self.label:
+                self.emoji = "🎵"
     
     async def send(self, interaction: discord.Interaction, key: str, *params, view: discord.ui.View = None, ephemeral: bool = False) -> None:
         stay = self.player.settings.get("controller_msg", True)
@@ -299,7 +312,10 @@ class VolumeMute(ControlButton):
 
 class AutoPlay(ControlButton):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(
+            default_states="on" if kwargs["player"].autoplay else "off",
+            **kwargs
+        )
     
     async def callback(self, interaction: discord.Interaction):
         if not self.player.is_privileged(interaction.user):
@@ -307,7 +323,9 @@ class AutoPlay(ControlButton):
 
         check = not self.player.settings.get("autoplay", False)
         self.player.settings['autoplay'] = check
+        self.change_states("on" if check else "off")
         await self.send(interaction, 'player.controls.autoplay', await LangHandler.get_lang(interaction.guild_id, 'common.status.enabled' if check else "common.status.disabled"))
+        await interaction.response.edit_message(view=self.view)
 
         if not self.player.is_playing:
             await self.player.do_next()
@@ -478,34 +496,34 @@ BUTTON_TYPE: Dict[str, Type[Union[ControlButton, ControlSelect]]] = {
 
 DEFAULT_BUTTONS = [
     {
-        "back": {"emoji": "⏮️", "label": "@@t_player.buttons.back@@"},
+        "back": {"emoji": "⏮️", "label": "Back"},
         "play-pause": {
             "states": {
-                "pause": {"emoji": "⏸️", "label": "@@t_player.buttons.pause@@"},
-                "resume": {"emoji": "▶️", "label": "@@t_player.buttons.resume@@"}
+                "pause": {"emoji": "⏸️", "label": "Pause"},
+                "resume": {"emoji": "▶️", "label": "Resume"}
             }
         },
-        "skip": {"emoji": "⏭️", "label": "@@t_player.buttons.skip@@"},
-        "stop": {"emoji": "⏹️", "label": "@@t_player.buttons.stop@@"},
-        "add-fav": {"emoji": "⭐", "label": "@@t_player.buttons.fav@@"}
+        "skip": {"emoji": "⏭️", "label": "Skip"},
+        "stop": {"emoji": "⏹️", "label": "Stop"},
+        "add-fav": {"emoji": "⭐", "label": "Fav"}
     },
     {
         "loop": {
             "states": {
-                "off": {"emoji": "🔁", "label": "@@t_player.buttons.loopOff@@"},
-                "track": {"emoji": "🔂", "label": "@@t_player.buttons.loopTrack@@"},
-                "queue": {"emoji": "🔁", "label": "@@t_player.buttons.loopQueue@@"}
+                "off": {"emoji": "🔁", "label": "Off"},
+                "track": {"emoji": "🔂", "label": "Track"},
+                "queue": {"emoji": "🔁", "label": "Queue"}
             }
         },
-        "shuffle": {"emoji": "🔀", "label": "@@t_player.buttons.shuffle@@"},
+        "shuffle": {"emoji": "🔀", "label": "Shuffle"},
         "autoplay": {
             "states": {
-                "on": {"emoji": "♾️", "label": "@@t_player.buttons.autoplayOn@@"},
-                "off": {"emoji": "♾️", "label": "@@t_player.buttons.autoplayOff@@"}
+                "on": {"emoji": "♾️", "label": "Auto On"},
+                "off": {"emoji": "♾️", "label": "Auto Off"}
             }
         },
-        "volumedown": {"emoji": "🔉", "label": "@@t_player.buttons.volumedown@@"},
-        "volumeup": {"emoji": "🔊", "label": "@@t_player.buttons.volumeup@@"}
+        "volumedown": {"emoji": "🔉", "label": "Vol -"},
+        "volumeup": {"emoji": "🔊", "label": "Vol +"}
     }
 ]
 

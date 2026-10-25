@@ -500,7 +500,8 @@ class Player(VoiceProtocol):
 
     async def invoke_controller(self):
         """Sends or updates the music controller message in the designated channel."""
-        if not self.settings.get('controller', True) or self._updating or not self.channel:
+        voice_ch = self.channel or (self.guild.me.voice.channel if self.guild and self.guild.me and self.guild.me.voice else None)
+        if not self.settings.get('controller', True) or self._updating or not voice_ch:
             return
         
         self._updating = True
@@ -511,6 +512,10 @@ class Player(VoiceProtocol):
                 embed.color = Config().embed_color
 
             target_ctx = self.context
+            text_channel = getattr(target_ctx, "channel", None)
+            if not text_channel and self.guild:
+                text_channel = self.guild.system_channel or next((c for c in self.guild.text_channels if c.permissions_for(self.guild.me).send_messages), None)
+
             if not self.controller:
                 if request_channel_data := self.settings.get("music_request_channel"):
                     if channel := self.bot.get_channel(request_channel_data.get("text_channel_id")):
@@ -526,8 +531,9 @@ class Player(VoiceProtocol):
                         self.controller = await dispatch_message(target_ctx, content=embed, view=view, delete_after=None, requires_fetch=True)
                     except Exception as e:
                         self._logger.warning(f"dispatch_message via target_ctx failed ({e}), falling back to direct channel send")
-                        if target_ctx and hasattr(target_ctx, "channel") and target_ctx.channel:
-                            self.controller = await target_ctx.channel.send(embed=embed, view=view)
+
+                    if not self.controller and text_channel:
+                        self.controller = await text_channel.send(embed=embed, view=view)
 
             elif not await self.is_position_fresh():
                 try:
@@ -539,11 +545,15 @@ class Player(VoiceProtocol):
                     self.controller = await dispatch_message(target_ctx, content=embed, view=view, delete_after=None, requires_fetch=True)
                 except Exception as e:
                     self._logger.warning(f"dispatch_message via target_ctx failed ({e}), falling back to direct channel send")
-                    if target_ctx and hasattr(target_ctx, "channel") and target_ctx.channel:
-                        self.controller = await target_ctx.channel.send(embed=embed, view=view)
+
+                if not self.controller and text_channel:
+                    self.controller = await text_channel.send(embed=embed, view=view)
 
             else:
                 await self.controller.edit(embed=embed, view=view)
+
+            if self.controller:
+                self._logger.info(f"Music controller active for {self.guild.name} in #{getattr(self.controller.channel, 'name', 'unknown')}")
         
         except errors.Forbidden:
             self._logger.warning(f"Missing permission to update the music controller on {self.guild.name}({self.guild.id})")
