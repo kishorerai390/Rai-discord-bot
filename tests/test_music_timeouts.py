@@ -193,9 +193,9 @@ class TestMusicTimeouts(unittest.IsolatedAsyncioTestCase):
 
         # Must have deferred immediately
         self.response.defer.assert_awaited()
-        # Must have sent via followup (after defer, is_done becomes True)
-        self.followup.send.assert_awaited()
-        args, kwargs = self.followup.send.call_args
+        # Must have edited deferred response with timeout embed
+        self.interaction.edit_original_response.assert_awaited()
+        args, kwargs = self.interaction.edit_original_response.call_args
         embed = kwargs.get("embed")
         self.assertIsNotNone(embed)
         self.assertIn("TIMED OUT", embed.title)

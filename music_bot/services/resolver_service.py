@@ -662,22 +662,72 @@ def is_original_recording_candidate(
     return True
 
 
-def _is_strong_fallback_title_match(candidate: Dict[str, Any], query_intent: Dict[str, Any]) -> bool:
-    """Reject obvious near-name collisions in secondary-provider fallback.
+def _is_strong_fallback_title_match(
+    candidate: Dict[str, Any],
+    query_intent: Dict[str, Any],
+    artist_hint: Optional[str] = None,
+) -> bool:
+    """Reject obvious near-name collisions and unrelated tracks in secondary-provider fallback.
 
     The general ranker intentionally tolerates fuzzy tokens for YouTube search.
     That is too permissive for fallback playback: e.g. 'kalyani' must not accept
-    'Kalyan'. For single-word title requests require an exact title token; for
-    multi-word queries retain the existing broader ranking rules.
+    'Kalyan' or 'Kalyani at the Meridian', and 'despacito' must not accept
+    'I write despacito not tragedies'.
     """
+    stop_words = {
+        "official", "music", "video", "audio", "song", "songs", "lyric", "lyrics",
+        "hd", "4k", "remastered", "remaster", "full", "track", "at", "the", "in", "of", "a",
+        "an", "with", "ft", "feat", "featuring", "version", "classical", "recording",
+        "recordings", "traditional", "instrumental", "soundtrack", "ost", "score",
+        "theme", "original", "live", "acoustic", "session", "edit", "mix", "mixes",
+        "release", "releases", "deluxe", "anniversary", "edition", "editions", "special",
+        "mono", "stereo", "bonus", "expanded", "collection"
+    }
+    raw_core = str(query_intent.get("core_title") or query_intent.get("clean_query") or "").casefold()
     query_tokens = [
-        token for token in re.findall(r"\w+", str(query_intent.get("core_title") or "").casefold())
-        if len(token) > 1
+        token for token in re.findall(r"\w+", raw_core)
+        if len(token) > 1 and token not in stop_words
     ]
-    if len(query_tokens) != 1 or len(query_tokens[0]) < 4:
-        return True
-    title_tokens = set(re.findall(r"\w+", str(candidate.get("title") or "").casefold()))
-    return query_tokens[0] in title_tokens
+    if not query_tokens:
+        query_tokens = [
+            token for token in re.findall(r"\w+", raw_core)
+            if len(token) > 1
+        ]
+    if not query_tokens:
+        return False
+
+    cand_title_raw = str(candidate.get("title") or "").casefold()
+    title_tokens = set(re.findall(r"\w+", cand_title_raw))
+    if not all(token in title_tokens for token in query_tokens):
+        return False
+
+    cand_artist_tokens = set(re.findall(r"\w+", str(candidate.get("artist") or "").casefold()))
+    cand_meaningful = [
+        w for w in re.findall(r"\w+", cand_title_raw)
+        if len(w) > 1 and w not in stop_words and not re.match(r"^\d+(?:st|nd|rd|th)?$", w)
+    ]
+    cand_extra = [
+        w for w in cand_meaningful
+        if w not in set(query_tokens) and w not in cand_artist_tokens
+    ]
+
+    if len(query_tokens) == 1:
+        if cand_extra:
+            return False
+    else:
+        overlap = len(set(query_tokens) & set(cand_meaningful))
+        ratio = overlap / max(len(cand_meaningful), 1)
+        if ratio < 0.60 or len(cand_extra) > 2:
+            return False
+
+    if artist_hint and artist_hint != "Unknown Artist":
+        q_art_tokens = [w for w in re.findall(r"\w+", artist_hint.casefold()) if len(w) > 2 and w not in stop_words]
+        if q_art_tokens:
+            art_match = any(t in cand_artist_tokens or t in title_tokens for t in q_art_tokens)
+            if not art_match and not any(t in cand_artist_tokens for t in query_tokens):
+                return False
+
+    return True
 
 
 def requires_candidate_confirmation(candidates: List[Dict[str, Any]]) -> bool:
@@ -1016,6 +1066,7 @@ def _detect_js_runtimes() -> Dict[str, Any]:
     deno_path = shutil.which("deno")
     if not deno_path:
         for candidate in [
+            Path(__file__).resolve().parent.parent.parent / ".deno" / "bin" / "deno",
             Path.home() / ".deno" / "bin" / "deno",
             Path("/usr/local/bin/deno"),
             Path("/usr/bin/deno"),
@@ -1325,7 +1376,6 @@ def _build_ytdl_options(
         "outtmpl": "%(extractor)s-%(id)s-%(title)s.%(ext)s",
         "restrictfilenames": True,
         "noplaylist": True,
-        "nocheckcertificate": True,
         "source_address": "0.0.0.0",
         "cachedir": False,
         "ignoreerrors": False,
@@ -1739,6 +1789,13 @@ class AudioResolver:
                         type(retry_err).__name__,
                     )
                     data = None
+                    cls.last_search_error = _format_error(retry_err)
+                else:
+                    cls.last_search_error = None
+            elif not data and 'e' in locals():
+                cls.last_search_error = _format_error(e)
+            else:
+                cls.last_search_error = None
 
             entries = (data.get("entries") if isinstance(data, dict) and "entries" in data else [data]) if data else []
             raw_candidates: List[Dict[str, Any]] = []
@@ -2208,6 +2265,11 @@ class AudioResolver:
         diagnostics: Dict[str, str] = {}
 
         if not title or not title.strip():
+            logger.warning(
+                "[Resolver] provider=alternatives operation=fallback_attempt correlation_id=%s "
+                "outcome=rejected reason='No title available'",
+                corr_id,
+            )
             return None, {"error": "No title available for alternative provider search"}
 
         clean_title = re.sub(r"[\(\[\{].*?[\)\]\}]", " ", title)
@@ -2218,7 +2280,14 @@ class AudioResolver:
             flags=re.IGNORECASE,
         )
         if " - " in clean_title:
-            clean_title = clean_title.split(" - ")[0]
+            parts = [p.strip() for p in clean_title.split(" - ") if p.strip()]
+            if len(parts) >= 2:
+                if artist and artist.casefold() in parts[0].casefold():
+                    clean_title = parts[1]
+                elif artist and artist.casefold() in parts[1].casefold():
+                    clean_title = parts[0]
+                else:
+                    clean_title = parts[1] if len(parts[1]) > len(parts[0]) else parts[0]
         search_query = " ".join(clean_title.split()).strip()
         if not search_query:
             search_query = title.strip()
@@ -2226,22 +2295,55 @@ class AudioResolver:
         intent = analyze_query_intent(search_query)
 
         # 1. Audius Search & Match
+        start_aud = time.time()
+        logger.info(
+            "[Playback] operation=fallback_attempt provider=audius correlation_id=%s query=%r artist=%r",
+            corr_id,
+            _safe_query_for_log(search_query),
+            _safe_query_for_log(artist or ""),
+        )
         try:
             from music_bot.services.alternative_providers import AudiusProviderService
             audius_cands = await AudiusProviderService.search(search_query, limit=5)
             if not audius_cands and artist and artist != "Unknown Artist":
                 audius_cands = await AudiusProviderService.search(f"{search_query} {artist}", limit=5)
 
+            aud_dur_ms = (time.time() - start_aud) * 1000
+            logger.info(
+                "[Resolver] provider=audius operation=fallback_search correlation_id=%s "
+                "query=%r candidate_count=%d duration_ms=%.1f",
+                corr_id,
+                _safe_query_for_log(search_query),
+                len(audius_cands),
+                aud_dur_ms,
+            )
+
             matched_audius = None
             for cand in audius_cands:
-                if (
-                    is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist)
-                    and _is_strong_fallback_title_match(cand, intent)
-                ):
-                    matched_audius = cand
-                    break
+                cand_t = cand.get("title") or ""
+                cand_a = cand.get("artist") or ""
+                if not is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                    logger.info(
+                        "[Resolver] provider=audius operation=fallback_match_rejected correlation_id=%s "
+                        "title=%r artist=%r reason='Failed original recording candidate policy'",
+                        corr_id,
+                        cand_t,
+                        cand_a,
+                    )
+                    continue
+                if not _is_strong_fallback_title_match(cand, intent, artist_hint=artist):
+                    logger.info(
+                        "[Resolver] provider=audius operation=fallback_match_rejected correlation_id=%s "
+                        "title=%r artist=%r reason='Strict title/artist token identity mismatch'",
+                        corr_id,
+                        cand_t,
+                        cand_a,
+                    )
+                    continue
+                matched_audius = cand
+                break
 
-            if matched_audius:
+            if matched_audius and matched_audius.get("stream_url"):
                 track = QueuedTrack(
                     title=matched_audius["title"],
                     url=matched_audius["url"],
@@ -2256,31 +2358,75 @@ class AudioResolver:
                 setattr(track, "provider", "audius")
                 setattr(track, "_correlation_id", corr_id)
                 logger.info(
-                    f"[Resolver] [Ref: MM-{corr_id}] Audius alternative fallback matched '{search_query}' -> '{track.title}'"
+                    "[Resolver] provider=audius operation=fallback_selected correlation_id=%s "
+                    "title=%r artist=%r stream_url_present=True duration_ms=%.1f",
+                    corr_id,
+                    track.title,
+                    track.artist,
+                    aud_dur_ms,
                 )
                 return track, diagnostics
             else:
                 diagnostics["audius"] = f"Searched catalog for '{search_query}', 0 matching recordings verified"
         except Exception as aud_err:
             diagnostics["audius"] = f"Search error: {_format_error(aud_err)}"
+            logger.warning(
+                "[Resolver] provider=audius operation=fallback_search correlation_id=%s "
+                "exception_type=%s outcome=failed",
+                corr_id,
+                type(aud_err).__name__,
+            )
 
         # 2. Jamendo Search & Match
+        start_jam = time.time()
+        logger.info(
+            "[Playback] operation=fallback_attempt provider=jamendo correlation_id=%s query=%r artist=%r",
+            corr_id,
+            _safe_query_for_log(search_query),
+            _safe_query_for_log(artist or ""),
+        )
         try:
             from music_bot.services.alternative_providers import JamendoProviderService
             jamendo_cands = await JamendoProviderService.search(search_query, limit=5)
             if not jamendo_cands and artist and artist != "Unknown Artist":
                 jamendo_cands = await JamendoProviderService.search(f"{search_query} {artist}", limit=5)
 
+            jam_dur_ms = (time.time() - start_jam) * 1000
+            logger.info(
+                "[Resolver] provider=jamendo operation=fallback_search correlation_id=%s "
+                "query=%r candidate_count=%d duration_ms=%.1f",
+                corr_id,
+                _safe_query_for_log(search_query),
+                len(jamendo_cands),
+                jam_dur_ms,
+            )
+
             matched_jamendo = None
             for cand in jamendo_cands:
-                if (
-                    is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist)
-                    and _is_strong_fallback_title_match(cand, intent)
-                ):
-                    matched_jamendo = cand
-                    break
+                cand_t = cand.get("title") or ""
+                cand_a = cand.get("artist") or ""
+                if not is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                    logger.info(
+                        "[Resolver] provider=jamendo operation=fallback_match_rejected correlation_id=%s "
+                        "title=%r artist=%r reason='Failed original recording candidate policy'",
+                        corr_id,
+                        cand_t,
+                        cand_a,
+                    )
+                    continue
+                if not _is_strong_fallback_title_match(cand, intent, artist_hint=artist):
+                    logger.info(
+                        "[Resolver] provider=jamendo operation=fallback_match_rejected correlation_id=%s "
+                        "title=%r artist=%r reason='Strict title/artist token identity mismatch'",
+                        corr_id,
+                        cand_t,
+                        cand_a,
+                    )
+                    continue
+                matched_jamendo = cand
+                break
 
-            if matched_jamendo:
+            if matched_jamendo and matched_jamendo.get("stream_url"):
                 track = QueuedTrack(
                     title=matched_jamendo["title"],
                     url=matched_jamendo["url"],
@@ -2295,14 +2441,32 @@ class AudioResolver:
                 setattr(track, "provider", "jamendo")
                 setattr(track, "_correlation_id", corr_id)
                 logger.info(
-                    f"[Resolver] [Ref: MM-{corr_id}] Jamendo alternative fallback matched '{search_query}' -> '{track.title}'"
+                    "[Resolver] provider=jamendo operation=fallback_selected correlation_id=%s "
+                    "title=%r artist=%r stream_url_present=True duration_ms=%.1f",
+                    corr_id,
+                    track.title,
+                    track.artist,
+                    jam_dur_ms,
                 )
                 return track, diagnostics
             else:
                 diagnostics["jamendo"] = f"Searched catalog for '{search_query}', 0 matching recordings verified"
         except Exception as jam_err:
             diagnostics["jamendo"] = f"Search error: {_format_error(jam_err)}"
+            logger.warning(
+                "[Resolver] provider=jamendo operation=fallback_search correlation_id=%s "
+                "exception_type=%s outcome=failed",
+                corr_id,
+                type(jam_err).__name__,
+            )
 
+        logger.warning(
+            "[Resolver] provider=alternatives operation=fallback_exhausted correlation_id=%s "
+            "query=%r diagnostics=%r",
+            corr_id,
+            _safe_query_for_log(search_query),
+            diagnostics,
+        )
         return None, diagnostics
 
     @classmethod
@@ -2311,6 +2475,8 @@ class AudioResolver:
         cls._track_cache.clear()
         cls._search_cache.clear()
         cls._pending_search_tasks.clear()
+        cls.last_search_error = None
+        cls.last_resolver_error = None
         youtube_health_monitor.reset_cooldown()
         logger.info("[Resolver] Cleared in-memory track and search caches and reset health cooldown.")
 
@@ -2601,20 +2767,46 @@ class AudioResolver:
 
         # Check YouTube health monitor cooldown status to avoid repeatedly hitting restricted YouTube
         yt_cd_status = youtube_health_monitor.cooldown_status()
+        last_fail = yt_cd_status.get("last_failure", "access_denied")
         if yt_cd_status.get("cooldown_active") and (not is_direct_url or "youtube.com" in cleaned_query or "youtu.be" in cleaned_query):
-            last_fail = yt_cd_status.get("last_failure", "access_denied")
             rem_sec = yt_cd_status.get("cooldown_remaining_seconds", 0)
             logger.warning(
                 f"[Resolver] [Ref: MM-{corr_id}] YouTube {last_fail} cooldown active ({rem_sec} seconds remaining). "
                 f"Suppressing repeated YouTube attempts and proceeding to alternative providers."
             )
+            fb_diag: Dict[str, str] = {}
             # Try alternative providers fallback directly during active YouTube cooldown
             if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
-                search_q = title_hint or cleaned_query
-                if is_direct_url and (not search_q or search_q.startswith("http")):
-                    search_q = title_hint or ""
+                search_q = title_hint or ""
+                search_artist = artist_hint
+                if (not search_q or search_q.startswith("http")) and is_direct_url:
+                    v_id = _video_id_from_url(cleaned_query)
+                    if v_id:
+                        for c_list in cls._search_cache.values():
+                            for c in c_list:
+                                if c.get("id") == v_id or v_id in (c.get("url") or ""):
+                                    search_q = c.get("title") or ""
+                                    if not search_artist:
+                                        search_artist = c.get("artist") or c.get("uploader")
+                                    break
+                            if search_q:
+                                break
+                        if not search_q:
+                            try:
+                                oembed_url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={v_id}&format=json"
+                                req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0"})
+                                with urllib.request.urlopen(req, timeout=2.5) as resp:
+                                    oe_data = json.loads(resp.read().decode("utf-8"))
+                                    search_q = oe_data.get("title") or ""
+                                    if not search_artist:
+                                        search_artist = oe_data.get("author_name")
+                            except Exception:
+                                pass
+                if not search_q or search_q.startswith("http"):
+                    search_q = cleaned_query if not cleaned_query.startswith("http") else ""
+
                 if search_q and not search_q.startswith("http"):
-                    fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
+                    fb_track, fb_diag = await _bounded_alternative_fallback(search_q, search_artist)
                     if fb_track:
                         fb_track = _apply_metadata_enhancements(fb_track)
                         logger.info(
@@ -2623,9 +2815,17 @@ class AudioResolver:
                         )
                         return fb_track
 
+            # Format transparent error reporting why YouTube was skipped and which providers were checked
+            diag_summary = []
+            if fb_diag:
+                for prov_name, prov_msg in fb_diag.items():
+                    diag_summary.append(f"{prov_name.capitalize()}: {prov_msg}")
+            diag_str = f" Tried alternatives: {'; '.join(diag_summary)}." if diag_summary else ""
+
+            cat_prefix = "TIMEOUT" if last_fail == "timeout" else ("RATE_LIMITED" if last_fail == "rate_limited" else "ACCESS_RESTRICTION")
             cls.last_resolver_error = (
-                f"[ACCESS_RESTRICTION] (Ref: MM-{corr_id}) YouTube {last_fail} cooldown active "
-                f"({rem_sec} seconds remaining)"
+                f"[{cat_prefix}] (Ref: MM-{corr_id}) YouTube {last_fail} cooldown active "
+                f"({rem_sec}s remaining).{diag_str}"
             )
             return None
 
@@ -2679,17 +2879,21 @@ class AudioResolver:
             search_entries: List[Dict[str, Any]] = []
             search_error: Optional[str] = None
 
-            # First attempt instant retrieval from cls.search cache
+            # First attempt instant retrieval from cls.search
+            search_ran = False
             try:
                 cached_search = await cls.search(
                     cleaned_query,
                     limit=5,
                     correlation_id=corr_id,
                 )
-                if cached_search:
+                if cached_search is not None:
+                    search_ran = True
                     candidate_urls = [c["url"] for c in cached_search if c.get("url")]
-            except Exception:
-                pass
+                    if not candidate_urls and getattr(cls, "last_search_error", None):
+                        search_error = cls.last_search_error
+            except Exception as search_exc:
+                search_error = _format_error(search_exc)
 
             if not candidate_urls:
                 # Query up to 15 candidate tracks from YouTube for comprehensive original-vs-remix ranking
@@ -2711,47 +2915,64 @@ class AudioResolver:
                     search_error = _format_error(search_exc)
                     logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
 
-                if not search_entries:
-                    dur = time.time() - start_t
-                    if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
-                        cat = "TIMEOUT"
-                        reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
-                    elif search_error:
-                        cat = "SEARCH_FAILURE"
-                        reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
-                    else:
-                        cat = "NO_RESULTS"
-                        reason = f"YouTube search completed but returned no candidates for '{cleaned_query[:60]}'."
-                    if search_error:
-                        youtube_health_monitor.record_failure(search_error)
+            if not candidate_urls and not search_entries:
+                dur = time.time() - start_t
+                if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
+                    cat = "TIMEOUT"
+                    reason = f"Search timed out while contacting YouTube for '{cleaned_query[:60]}'."
+                elif search_error:
+                    cat = "SEARCH_FAILURE"
+                    reason = f"YouTube search failure for '{cleaned_query[:60]}': {search_error}"
+                else:
+                    cat = "NO_RESULTS"
+                    reason = f"YouTube search completed but returned no candidates for '{cleaned_query[:60]}'."
+                if search_error:
+                    youtube_health_monitor.record_failure(search_error)
 
-                    # Attempt multi-provider fallback (Audius / Jamendo) if enabled
-                    if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
-                        search_q = title_hint or cleaned_query
-                        if search_q and not search_q.startswith("http"):
-                            fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
-                            if fb_track:
-                                fb_track = _apply_metadata_enhancements(fb_track)
-                                return fb_track
+                # Attempt multi-provider fallback (Audius / Jamendo) if enabled
+                if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
+                    search_q = title_hint or cleaned_query
+                    if search_q and not search_q.startswith("http"):
+                        fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
+                        if fb_track:
+                            fb_track = _apply_metadata_enhancements(fb_track)
+                            return fb_track
 
-                    cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
-                    logger.warning(
-                        f"[Resolver] [Ref: MM-{corr_id}] YouTube search returned 0 candidates | query='{cleaned_query[:40]}' | "
-                        f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
-                    )
-                    return None
+                cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
+                logger.warning(
+                    f"[Resolver] [Ref: MM-{corr_id}] YouTube search returned 0 candidates | query='{cleaned_query[:40]}' | "
+                    f"extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s"
+                )
+                return None
 
-                # Stage 2: Rank candidates using smart query intent analysis
-                failed_stage = "ranking"
-                scored_candidates: List[Tuple[Dict[str, Any], float, List[str]]] = []
+            # Stage 2: Rank candidates using smart query intent analysis
+            failed_stage = "ranking"
+            scored_candidates: List[Tuple[Dict[str, Any], float, List[str]]] = []
+            for entry in search_entries:
+                if not is_original_recording_candidate(
+                    entry,
+                    intent,
+                    spotify_meta=spotify_info,
+                    title_hint=title_hint,
+                    artist_hint=artist_hint,
+                ):
+                    continue
+                score_val, reasons_list = score_candidate_detailed(
+                    entry,
+                    intent,
+                    spotify_meta=spotify_info,
+                    title_hint=title_hint,
+                    artist_hint=artist_hint,
+                )
+                scored_candidates.append((entry, score_val, reasons_list))
+
+            if not scored_candidates and search_entries:
                 for entry in search_entries:
-                    if not is_original_recording_candidate(
-                        entry,
-                        intent,
-                        spotify_meta=spotify_info,
-                        title_hint=title_hint,
-                        artist_hint=artist_hint,
-                    ):
+                    title_match_ratio, combined_match_ratio, _ = _candidate_match_metrics(entry, intent)
+                    if title_match_ratio < 0.5:
+                        continue
+                    _, reasons = score_candidate_detailed(entry, intent)
+                    if any(reason.startswith("unrequested_") for reason in reasons):
                         continue
                     score_val, reasons_list = score_candidate_detailed(
                         entry,
@@ -2762,31 +2983,15 @@ class AudioResolver:
                     )
                     scored_candidates.append((entry, score_val, reasons_list))
 
-                if not scored_candidates and search_entries:
-                    for entry in search_entries:
-                        title_match_ratio, combined_match_ratio, _ = _candidate_match_metrics(entry, intent)
-                        if title_match_ratio < 0.5:
-                            continue
-                        _, reasons = score_candidate_detailed(entry, intent)
-                        if any(reason.startswith("unrequested_") for reason in reasons):
-                            continue
-                        score_val, reasons_list = score_candidate_detailed(
-                            entry,
-                            intent,
-                            spotify_meta=spotify_info,
-                            title_hint=title_hint,
-                            artist_hint=artist_hint,
-                        )
-                        scored_candidates.append((entry, score_val, reasons_list))
+            if not scored_candidates and search_entries:
+                cls.last_resolver_error = (
+                    f"[NO_ORIGINAL_MATCH] No verified original recording was found for "
+                    f"'{cleaned_query[:60]}'. Try including the singer's name or provide a direct link."
+                )
+                logger.warning(f"[Resolver] [Ref: MM-{corr_id}] {cls.last_resolver_error}")
+                return None
 
-                if not scored_candidates:
-                    cls.last_resolver_error = (
-                        f"[NO_ORIGINAL_MATCH] No verified original recording was found for "
-                        f"'{cleaned_query[:60]}'. Try including the singer's name or provide a direct link."
-                    )
-                    logger.warning(f"[Resolver] [Ref: MM-{corr_id}] {cls.last_resolver_error}")
-                    return None
-
+            if scored_candidates:
                 scored_candidates.sort(key=lambda x: x[1], reverse=True)
 
                 # Log candidate ranking scores and reasons for debugging without exposing secrets
@@ -3146,6 +3351,20 @@ class AudioResolver:
         # When YouTube times out or fails (including access challenges or format blocks on datacenter IPs),
         # search secondary permitted providers if enabled.
         effective_fallback_query = title_hint if (is_direct_url and title_hint) else (cleaned_query if not is_direct_url else None)
+        if not effective_fallback_query and is_direct_url:
+            v_id = _video_id_from_url(cleaned_query)
+            if v_id:
+                for c_list in cls._search_cache.values():
+                    for c in c_list:
+                        if c.get("id") == v_id or v_id in (c.get("url") or ""):
+                            effective_fallback_query = c.get("title") or ""
+                            if not artist_hint:
+                                artist_hint = c.get("artist") or c.get("uploader")
+                            break
+                    if effective_fallback_query:
+                        break
+
+        fb_diag: Dict[str, str] = {}
         if (
             os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true"
             and effective_fallback_query
@@ -3163,10 +3382,14 @@ class AudioResolver:
             )
             if fb_track:
                 return fb_track
-            if fb_diag:
-                last_failure_reason = f"{last_failure_reason} | {fb_diag}"
 
-        cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}"
+        diag_summary = []
+        if fb_diag:
+            for prov_name, prov_msg in fb_diag.items():
+                diag_summary.append(f"{prov_name.capitalize()}: {prov_msg}")
+        diag_str = f" Tried alternatives: {'; '.join(diag_summary)}." if diag_summary else ""
+
+        cls.last_resolver_error = f"[{cat}] (Ref: MM-{corr_id}) {reason}.{diag_str}"
         logger.warning(
             f"[Resolver] [Ref: MM-{corr_id}] All resolution tiers exhausted | query='{cleaned_query[:40]}' | "
             f"stage={failed_stage} | extractor={yt_dlp.version.__version__} | category={cat} | dur={dur:.2f}s | error={last_failure_reason}"

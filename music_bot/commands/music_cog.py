@@ -91,22 +91,53 @@ logger = logging.getLogger("NekoSongs.Commands")
 def _alternative_track_matches_query(query: str, track: Any) -> bool:
     """Reject alternative-provider fallbacks whose title changes the requested song identity."""
     intent = analyze_query_intent(query)
+    stop_words = {
+        "official", "music", "video", "audio", "song", "songs", "lyric", "lyrics",
+        "hd", "4k", "remastered", "remaster", "full", "track", "at", "the", "in", "of", "a",
+        "an", "with", "ft", "feat", "featuring", "version", "classical", "recording",
+        "recordings", "traditional", "instrumental", "soundtrack", "ost", "score",
+        "theme", "original", "live", "acoustic", "session", "edit", "mix", "mixes",
+        "release", "releases", "deluxe", "anniversary", "edition", "editions", "special",
+        "mono", "stereo", "bonus", "expanded", "collection"
+    }
     core_tokens = [
-        token for token in re.findall(r"\w+", str(intent.get("core_title") or "").casefold())
-        if len(token) >= 4
+        token for token in re.findall(r"\w+", str(intent.get("core_title") or intent.get("clean_query") or "").casefold())
+        if len(token) > 1 and token not in stop_words
     ]
     if not core_tokens:
+        core_tokens = [
+            token for token in re.findall(r"\w+", str(intent.get("core_title") or intent.get("clean_query") or "").casefold())
+            if len(token) > 1
+        ]
+    if not core_tokens:
         return True
-    identity_tokens = set(
-        re.findall(
-            r"\w+",
-            " ".join(
-                str(getattr(track, field, "") or "")
-                for field in ("title", "artist")
-            ).casefold(),
-        )
-    )
-    return all(token in identity_tokens for token in core_tokens)
+
+    cand_title = str(getattr(track, "title", "") or "").casefold()
+    cand_artist = str(getattr(track, "artist", "") or "").casefold()
+    cand_tokens = set(re.findall(r"\w+", cand_title))
+    if not all(token in cand_tokens for token in core_tokens):
+        return False
+
+    cand_artist_tokens = set(re.findall(r"\w+", cand_artist))
+    cand_meaningful = [
+        w for w in re.findall(r"\w+", cand_title)
+        if len(w) > 1 and w not in stop_words and not re.match(r"^\d+(?:st|nd|rd|th)?$", w)
+    ]
+    cand_extra = [
+        w for w in cand_meaningful
+        if w not in set(core_tokens) and w not in cand_artist_tokens
+    ]
+
+    if len(core_tokens) == 1:
+        if cand_extra:
+            return False
+    else:
+        overlap = len(set(core_tokens) & set(cand_meaningful))
+        ratio = overlap / max(len(cand_meaningful), 1)
+        if ratio < 0.60 or len(cand_extra) > 2:
+            return False
+
+    return True
 
 
 # =============================================================================
@@ -915,6 +946,7 @@ class MusicCog(commands.Cog, name="Music"):
         correlation_id: Optional[str] = None,
         display_name: Optional[str] = None,
         top: bool = False,
+        artist_hint: Optional[str] = None,
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition."""
         correlation_id = correlation_id or uuid.uuid4().hex[:8].upper()
@@ -1145,6 +1177,7 @@ class MusicCog(commands.Cog, name="Music"):
                         selected = candidates[selected_index]
                         selected_url = selected.get("url") or ""
                         selected_title = selected.get("title") or ""
+                        selected_artist = selected.get("artist") or selected.get("uploader") or ""
                         logger.info(
                             "[Playback] operation=candidate_selected correlation_id=%s "
                             "title=%r video_id=%s score=%s",
@@ -1158,6 +1191,7 @@ class MusicCog(commands.Cog, name="Music"):
                             selected_url,
                             correlation_id=correlation_id,
                             display_name=selected_title,
+                            artist_hint=selected_artist,
                         )
 
                     await _stop_resolving_status()
@@ -1220,8 +1254,12 @@ class MusicCog(commands.Cog, name="Music"):
 
             search_start = time.time()
             is_timed_out = False
-            title_hint_val = display_name or (candidates[0].get("title") if candidates else None)
-            artist_hint_val = candidates[0].get("artist") if candidates else None
+            title_hint_val = (
+                display_name
+                or (candidates[0].get("title") if candidates else None)
+                or (query if not query.startswith(("http://", "https://", "spotify:")) else None)
+            )
+            artist_hint_val = artist_hint or (candidates[0].get("artist") if candidates else None)
             try:
                 track = await asyncio.wait_for(
                     AudioResolver.resolve_track(
@@ -1260,21 +1298,22 @@ class MusicCog(commands.Cog, name="Music"):
             # Keep Audius/Jamendo fallback, but never silently substitute a
             # near-spelling title (e.g. Kalyan for a Kalyani request).
             provider = str(getattr(track, "provider", "") or "").casefold() if track else ""
+            match_ref_query = display_name or (query if not query.startswith(("http://", "https://")) else None)
             if (
                 track
                 and provider in {"audius", "jamendo"}
-                and not query.startswith(("http://", "https://"))
-                and not re.match(r"spotify:(?:track|playlist|album):", query, re.IGNORECASE)
-                and "spotify.com/" not in query.casefold()
-                and "music.apple.com/" not in query.casefold()
-                and not _alternative_track_matches_query(query, track)
+                and match_ref_query
+                and not re.match(r"spotify:(?:track|playlist|album):", match_ref_query, re.IGNORECASE)
+                and "spotify.com/" not in match_ref_query.casefold()
+                and "music.apple.com/" not in match_ref_query.casefold()
+                and not _alternative_track_matches_query(match_ref_query, track)
             ):
                 logger.warning(
                     "[Playback] operation=alternative_track_identity_rejected correlation_id=%s "
                     "provider=%s query=%r title=%r",
                     correlation_id,
                     provider,
-                    _safe_query_for_log(query),
+                    _safe_query_for_log(match_ref_query),
                     getattr(track, "title", ""),
                 )
                 track = None
@@ -1285,9 +1324,11 @@ class MusicCog(commands.Cog, name="Music"):
 
             if not track:
                 await _stop_resolving_status()
-                display_query_for_user = display_name or query
-                if not display_name and display_query_for_user.startswith(("http://", "https://", "spotify:")):
-                    display_query_for_user = "selected track"
+                display_query_for_user = (
+                    display_name
+                    or (candidates[0].get("title") if candidates else None)
+                    or (query if not query.startswith(("http://", "https://", "spotify:")) else "Requested Track")
+                )
 
                 res_err = getattr(AudioResolver, "last_resolver_error", None)
                 if is_timed_out:

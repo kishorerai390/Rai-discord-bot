@@ -146,6 +146,7 @@ class TestMusicEnhancementsAndUpdater(unittest.IsolatedAsyncioTestCase):
         from web.music_api import MusicApiRouter
 
         router = MusicApiRouter(bot=MagicMock(), auth_manager=MagicMock())
+        router._get_current_user = AsyncMock(return_value={"user_id": 1, "is_owner": True})
         req = make_mocked_request("GET", "/api/music/extractor-health")
         resp = await router.get_extractor_health(req)
 

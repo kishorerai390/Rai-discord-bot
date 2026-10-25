@@ -14,8 +14,13 @@ from music_bot.services.resolver_service import (
         ("kalyani", "Kalyan", False),
         ("kalyani", "Kalyani", True),
         ("KALYANI", "Kalyani (Official Audio)", True),
+        ("kalyani", "Kalyani 10th Anniversary Special", True),
         ("shape of you", "Shape of You", True),
         ("shape of you", "Shape of You Remix", True),
+        ("shape of you", "Shape of You - Deluxe Edition", True),
+        ("acoustic breeze", "Acoustic Breeze - Official Release", True),
+        ("despacito", "I write despacito not tragedies", False),
+        ("despacito", "Despacito - Official Release", True),
     ],
 )
 def test_fallback_title_guard(query, candidate_title, expected):

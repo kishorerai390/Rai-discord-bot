@@ -3125,29 +3125,30 @@ UI_HTML = r"""<!DOCTYPE html>
         </a>
       </div>
 
-      <!-- MAIN -->
-      <span class="nav-group-title">MAIN</span>
+      <!-- NAVIGATION -->
+      <span class="nav-group-title">MENU</span>
       <ul class="nav-list">
-        <li><a class="nav-link" id="nav-dashboard" onclick="navigate('/dashboard')"><span class="nav-icon">📻</span> Overview</a></li>
-        <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Music Player</a></li>
-        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search & Add Music</a></li>
-        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Live Queue</a></li>
-        <li><a class="nav-link" id="nav-canvas" onclick="navigate('/canvas')"><span class="nav-icon">🎨</span> Stage Canvas</a></li>
+        <li><a class="nav-link" id="nav-dashboard" onclick="navigate('/dashboard')"><span class="nav-icon">🏠</span> Home</a></li>
+        <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search</a></li>
+        <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Player</a></li>
+        <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Queue</a></li>
       </ul>
 
       <!-- YOUR MUSIC -->
       <span class="nav-group-title" style="margin-top:0.6rem;">YOUR MUSIC</span>
       <ul class="nav-list">
-        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library & Favorites</a></li>
+        <li><a class="nav-link" id="nav-library" onclick="navigate('/library')"><span class="nav-icon">📚</span> Library</a></li>
         <li><a class="nav-link" id="nav-playlists" onclick="navigate('/playlists')"><span class="nav-icon">📁</span> Playlists</a></li>
-        <li><a class="nav-link" id="nav-history" onclick="navigate('/history')"><span class="nav-icon">🕒</span> Listening History</a></li>
+        <li><a class="nav-link" id="nav-history" onclick="navigate('/history')"><span class="nav-icon">🕒</span> History</a></li>
+        <li><a class="nav-link" id="nav-favorites" onclick="navigate('/library')"><span class="nav-icon">💜</span> Favorites</a></li>
       </ul>
 
-      <!-- PLAYBACK -->
-      <span class="nav-group-title" style="margin-top:0.6rem;">PLAYBACK</span>
+      <!-- SYSTEM & SETTINGS -->
+      <span class="nav-group-title" style="margin-top:0.6rem;">PREFERENCES</span>
       <ul class="nav-list">
+        <li><a class="nav-link" id="nav-settings" onclick="navigate('/settings')"><span class="nav-icon">⚙️</span> Settings</a></li>
+        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer</a></li>
         <li><a class="nav-link" id="nav-autodj" onclick="navigate('/autodj')"><span class="nav-icon">🤖</span> Smart Auto-DJ</a></li>
-        <li><a class="nav-link" id="nav-audio" onclick="navigate('/audio')"><span class="nav-icon">🎛️</span> Equalizer & Audio</a></li>
       </ul>
 
       <!-- SERVER (Visible only to Bot Owner) -->

@@ -420,28 +420,45 @@ class MusicPlayerService:
                         correlation_id=corr_id,
                     )
                     if fb_track and fb_track.stream_url:
-                        logger.info(
-                            f"[Playback] Fallback provider '{getattr(fb_track, 'provider', 'unknown')}' "
-                            f"succeeded for '{track.title}' -> playing '{fb_track.title}'"
+                        from music_bot.services.resolver_service import (
+                            _is_strong_fallback_title_match,
+                            analyze_query_intent,
                         )
-                        track.stream_url = fb_track.stream_url
-                        track.title = fb_track.title
-                        track.artist = fb_track.artist
-                        track.duration = fb_track.duration
-                        track.url = fb_track.url
-                        setattr(track, "provider", getattr(fb_track, "provider", "alternative"))
-                        track.http_headers = fb_track.http_headers
-                        try:
-                            fb_ffmpeg_opts = build_ffmpeg_options(track, audio_filter=session.audio_filter)
-                            audio_source = discord.FFmpegPCMAudio(track.stream_url, **fb_ffmpeg_opts)
-                            volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
-                            first_frame = await asyncio.wait_for(
-                                loop.run_in_executor(None, volume_transformer.read),
-                                timeout=4.0,
+                        fb_cand = {"title": fb_track.title, "artist": fb_track.artist}
+                        intent = analyze_query_intent(track.title)
+                        if not _is_strong_fallback_title_match(fb_cand, intent, artist_hint=track.artist):
+                            logger.error(
+                                "[Playback] operation=fallback_identity_guard correlation_id=%s "
+                                "outcome=rejected reason='Fallback track title/artist mismatch' "
+                                "queued_title=%r fallback_title=%r fallback_artist=%r",
+                                corr_id,
+                                track.title,
+                                fb_track.title,
+                                fb_track.artist,
                             )
-                        except Exception as fb_read_err:
-                            logger.warning(f"Fallback frame read failed for '{track.title}': {fb_read_err}")
-                            first_frame = b""
+                        else:
+                            logger.info(
+                                f"[Playback] Fallback provider '{getattr(fb_track, 'provider', 'unknown')}' "
+                                f"succeeded for '{track.title}' -> playing '{fb_track.title}'"
+                            )
+                            track.stream_url = fb_track.stream_url
+                            track.title = fb_track.title
+                            track.artist = fb_track.artist
+                            track.duration = fb_track.duration
+                            track.url = fb_track.url
+                            setattr(track, "provider", getattr(fb_track, "provider", "alternative"))
+                            track.http_headers = fb_track.http_headers
+                            try:
+                                fb_ffmpeg_opts = build_ffmpeg_options(track, audio_filter=session.audio_filter)
+                                audio_source = discord.FFmpegPCMAudio(track.stream_url, **fb_ffmpeg_opts)
+                                volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
+                                first_frame = await asyncio.wait_for(
+                                    loop.run_in_executor(None, volume_transformer.read),
+                                    timeout=4.0,
+                                )
+                            except Exception as fb_read_err:
+                                logger.warning(f"Fallback frame read failed for '{track.title}': {fb_read_err}")
+                                first_frame = b""
 
                 if not first_frame:
                     try:

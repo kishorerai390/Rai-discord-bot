@@ -211,7 +211,7 @@ class TestMasterControlPanelRedesign(unittest.IsolatedAsyncioTestCase):
         self.assertIn("NOW PLAYING", embed.title.upper())
         self.assertIn("Plastic Love", embed.description)
         self.assertIn("Mariya Takeuchi", embed.description)
-        self.assertIn("Spotify Source", embed.description)
+        self.assertIn("Spotify", embed.description)
         self.assertIn("75%", embed.description)
         self.assertIn("Playing", embed.description)
         self.assertIn("<@555666777>", embed.description)

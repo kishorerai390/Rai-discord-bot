@@ -45,7 +45,7 @@ def test_phase2_navigation_structure():
         'id="nav-search"',
         'id="nav-player"',
         'id="nav-queue"',
-        'id="nav-canvas"',
+        'id="nav-favorites"',
         'id="nav-library"',
         'id="nav-playlists"',
         'id="nav-history"',

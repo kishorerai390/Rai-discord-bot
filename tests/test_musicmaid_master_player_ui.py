@@ -224,14 +224,14 @@ class TestMusicMaidPlayerUI:
 
 
 def test_progress_bar_clamps_position_and_respects_width():
-    assert create_progress_bar(0, 100, 5) == "▶ ●────"
-    assert create_progress_bar(50, 100, 5) == "▶ ──●──"
-    assert create_progress_bar(100, 100, 5) == "▶ ────●"
-    assert create_progress_bar(150, 100, 5) == "▶ ────●"
-    assert create_progress_bar(-10, 100, 5) == "▶ ●────"
+    assert create_progress_bar(0, 100, 5) == "▶ 🔘────"
+    assert create_progress_bar(50, 100, 5) == "▶ ──🔘──"
+    assert create_progress_bar(100, 100, 5) == "▶ ────🔘"
+    assert create_progress_bar(150, 100, 5) == "▶ ────🔘"
+    assert create_progress_bar(-10, 100, 5) == "▶ 🔘────"
 
 
 def test_progress_bar_handles_unknown_duration_and_invalid_width():
-    assert create_progress_bar(0, 0, 4) == "▶ ───●"
-    assert create_progress_bar(10, 0, 1) == "▶ ●"
-    assert create_progress_bar(10, 20, 0) == "▶ ●"
+    assert create_progress_bar(0, 0, 4) == "🔘──────────────"
+    assert create_progress_bar(10, 0, 1) == "🔘──────────────"
+    assert create_progress_bar(10, 20, 1) == "▶ 🔘"

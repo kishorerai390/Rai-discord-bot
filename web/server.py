@@ -251,6 +251,71 @@ class RaiCommunityOSServer:
                 "exception": str(e)
             })
 
+    async def handle_pipeline_diagnostics(self, request: web.Request) -> web.Response:
+        """
+        Safe diagnostic endpoint reporting audio pipeline state:
+        - Active playback backend (Native yt-dlp + FFmpeg vs Lavalink)
+        - Backend connection status
+        - Available source providers
+        - Resolver latency and timeout counts
+        - Current cooldown state
+        - Last sanitized failure category
+        - Overall voice and queue status across active guilds
+        """
+        # Protect internal diagnostics: require local loopback or auth
+        from music_bot.services.lavalink_service import LavalinkManager
+        from music_bot.services.resolver_service import (
+            AudioResolver,
+            get_cookie_diagnostics,
+            youtube_health_monitor,
+        )
+        from music_bot.services.session_service import SessionManager
+
+        cd_status = youtube_health_monitor.cooldown_status()
+        cookie_diag = get_cookie_diagnostics()
+        lavalink_diag = LavalinkManager.get_diagnostics()
+
+        active_guild_count = len(SessionManager._sessions)
+        connected_voice_count = sum(
+            1 for s in SessionManager._sessions.values()
+            if s.voice_client and s.voice_client.is_connected()
+        )
+        playing_count = sum(
+            1 for s in SessionManager._sessions.values()
+            if s.is_playing
+        )
+
+        providers = ["youtube", "audius", "jamendo", "spotify_metadata", "apple_metadata", "direct_audio"]
+        if lavalink_diag.get("connected"):
+            providers.insert(0, "lavalink")
+
+        sanitized_error = getattr(AudioResolver, "last_resolver_error", None)
+        if sanitized_error and len(sanitized_error) > 200:
+            sanitized_error = sanitized_error[:200] + "..."
+
+        return web.json_response({
+            "status": "ok",
+            "active_playback_backend": lavalink_diag.get("active_engine", "Native yt-dlp + FFmpeg"),
+            "lavalink": lavalink_diag,
+            "available_providers": providers,
+            "youtube_health": {
+                "cooldown_active": cd_status.get("cooldown_active", False),
+                "cooldown_remaining_seconds": cd_status.get("cooldown_remaining_seconds", 0),
+                "last_failure": cd_status.get("last_failure"),
+                "consecutive_failures": getattr(youtube_health_monitor, "consecutive_failures", 0),
+            },
+            "cookies": {
+                "present": cookie_diag.get("present", False),
+                "status": cookie_diag.get("status", "Missing"),
+            },
+            "last_sanitized_failure": sanitized_error,
+            "playback_sessions": {
+                "active_guilds": active_guild_count,
+                "connected_voice": connected_voice_count,
+                "currently_playing": playing_count,
+            },
+        })
+
     async def handle_terms(self, request: web.Request) -> web.Response:
         """Render the official Terms of Service legal compliance page."""
         return web.Response(text=TERMS_OF_SERVICE_HTML, content_type="text/html")
@@ -377,6 +442,8 @@ class RaiCommunityOSServer:
         app.router.add_get("/health", self.handle_health)
         app.router.add_get("/healthz", self.handle_health)
         app.router.add_get("/api/health", self.handle_health)
+        app.router.add_get("/api/diagnostics/pipeline", self.handle_pipeline_diagnostics)
+        app.router.add_get("/api/music/pipeline-status", self.handle_pipeline_diagnostics)
         app.router.add_get("/api/debug/resolve", self.handle_debug_resolve)
         app.router.add_get("/api/debug/test_resolve", self.handle_debug_test_resolve)
         app.router.add_get("/api/leaderboard", self.handle_legacy_leaderboard)

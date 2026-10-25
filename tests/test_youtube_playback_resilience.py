@@ -493,6 +493,62 @@ async def test_ffmpeg_403_stream_recovery_to_audius_fallback():
 
 
 @pytest.mark.asyncio
+async def test_ffmpeg_403_stream_mismatched_fallback_rejected_by_player_guard():
+    """Verify that when YouTube stream produces empty frames and fallback returns a mismatched
+    track, the in-player identity guard rejects it before mutating the queued track or calling FFmpeg."""
+    from music_bot.services.player_service import PlayerService
+    from music_bot.services.session_service import GuildMusicSession, PlaybackState
+
+    bot = MagicMock()
+    session = GuildMusicSession(guild_id=123)
+    mock_vc = MagicMock()
+    mock_vc.is_playing.return_value = False
+    mock_vc.is_paused.return_value = False
+    mock_vc.is_connected.return_value = True
+    session.voice_client = mock_vc
+
+    track = QueuedTrack(
+        title="Despacito",
+        url="https://www.youtube.com/watch?v=kJQP7kiw5Fk",
+        stream_url="https://rr1---sn-4g5ednks.googlevideo.com/videoplayback?expire=123",
+        duration=228,
+        requester_id=1,
+        requester_name="Tester",
+        artist="Luis Fonsi",
+    )
+
+    unrelated_fallback = QueuedTrack(
+        title="I write despacito not tragedies",
+        url="https://audius.co/spoof/unrelated",
+        stream_url="https://audius-discovery.audius.co/v1/tracks/unrelated/stream",
+        duration=228,
+        requester_id=1,
+        requester_name="Tester",
+        artist="Panic at the Disco",
+    )
+    setattr(unrelated_fallback, "provider", "audius")
+
+    with patch("discord.FFmpegPCMAudio") as mock_ffmpeg, \
+         patch("discord.PCMVolumeTransformer") as mock_transformer, \
+         patch.object(AudioResolver, "evict_track", new_callable=AsyncMock), \
+         patch.object(AudioResolver, "resolve_track", new_callable=AsyncMock, return_value=None), \
+         patch.object(AudioResolver, "resolve_alternative_fallback", new_callable=AsyncMock, return_value=(unrelated_fallback, None)) as mock_fb:
+
+        mock_reader = MagicMock()
+        mock_reader.read.return_value = b""
+        mock_transformer.return_value = mock_reader
+
+        result = await PlayerService.start_playback(bot, session, track)
+        assert result is False
+        assert mock_fb.called
+        # Crucial assertions: proving unrelated track never replaces queued track nor reaches FFmpeg
+        assert track.stream_url != unrelated_fallback.stream_url
+        assert track.title == "Despacito"
+        assert getattr(track, "provider", None) != "audius"
+        assert mock_ffmpeg.call_count == 1
+
+
+@pytest.mark.asyncio
 async def test_ffmpeg_403_stream_all_sources_exhausted_diagnostic():
     """Verify that when YouTube fails and alternative providers find no valid match,
     PlayerService stops safely and records a comprehensive diagnostic."""
