@@ -4,8 +4,8 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: (command -v deno >/dev/null 2>&1 || curl -fsSL https://deno.land/install.sh | sh) && export PATH="$HOME/.deno/bin:$PATH" && pip install -r requirements.txt && python -c "import static_ffmpeg; static_ffmpeg.add_paths()"
-    startCommand: python main.py
+    buildCommand: bash build_render.sh
+    startCommand: bash start_render.sh
     healthCheckPath: /api/health
     envVars:
       # ── Python Runtime ──────────────────────────────────────────────────────
@@ -17,6 +17,10 @@ services:
         sync: false
       - key: NEKO_SONGS_BOT_TOKEN
         sync: false
+      - key: MONGODB_URL
+        value: "mongodb+srv://kishorerai390_db_user:MusicMaid1@musicmaid.8gj5cff.mongodb.net/?retryWrites=true&w=majority"
+      - key: MONGODB_NAME
+        value: "MusicMaid"
 
       # ── Discord Application ─────────────────────────────────────────────────
       - key: APPLICATION_ID
