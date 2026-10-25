@@ -4495,8 +4495,15 @@ UI_HTML = r"""<!DOCTYPE html>
         }
       }
 
-      // Volume
-      document.getElementById('vol-slider').value = currentSession.volume || 80;
+      // Keep the footer and Settings sliders bound to the same live session volume.
+      const sessionVolume = Number(currentSession.volume);
+      const displayedVolume = Number.isFinite(sessionVolume) ? Math.max(0, Math.min(150, sessionVolume)) : 80;
+      const footerVolumeSlider = document.getElementById('vol-slider');
+      const settingsVolumeSlider = document.getElementById('settings-volume-slider');
+      const settingsVolumeLabel = document.getElementById('settings-volume-label');
+      if (footerVolumeSlider) footerVolumeSlider.value = String(displayedVolume);
+      if (settingsVolumeSlider) settingsVolumeSlider.value = String(displayedVolume);
+      if (settingsVolumeLabel) settingsVolumeLabel.textContent = `${displayedVolume}%`;
 
       updateScrubberTimes();
       updateDynamicTurntableAndVU();
@@ -4694,11 +4701,22 @@ UI_HTML = r"""<!DOCTYPE html>
     }
 
     async function onVolumeChange(val) {
-      const el = document.getElementById('vol-slider');
-      if (el) el.setAttribute('aria-valuenow', val);
+      const volume = Math.max(0, Math.min(150, Number.parseInt(val, 10) || 0));
+      const footerSlider = document.getElementById('vol-slider');
+      const settingsSlider = document.getElementById('settings-volume-slider');
+      const settingsLabel = document.getElementById('settings-volume-label');
+      if (footerSlider) {
+        footerSlider.value = String(volume);
+        footerSlider.setAttribute('aria-valuenow', String(volume));
+      }
+      if (settingsSlider) {
+        settingsSlider.value = String(volume);
+        settingsSlider.setAttribute('aria-valuenow', String(volume));
+      }
+      if (settingsLabel) settingsLabel.textContent = `${volume}%`;
       const icon = document.getElementById('vol-icon');
-      if (icon) icon.innerText = parseInt(val) === 0 ? '🔇' : (parseInt(val) < 50 ? '🔉' : '🔊');
-      await dispatchCmd('VOLUME', { volume: parseInt(val) });
+      if (icon) icon.innerText = volume === 0 ? '🔇' : (volume < 50 ? '🔉' : '🔊');
+      await dispatchCmd('VOLUME', { volume });
     }
 
     let previousVolumeBeforeMute = 80;
@@ -8702,12 +8720,12 @@ UI_HTML = r"""<!DOCTYPE html>
 
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; padding-bottom:1.2rem; border-bottom:1px solid rgba(255,255,255,0.06);">
               <div>
-                <div style="font-weight:700; color:#fff; font-size:1rem;">Default Playback Volume</div>
-                <div style="font-size:0.78rem; color:var(--text-muted);">Configure the baseline volume level for Discord audio output.</div>
+                <div style="font-weight:700; color:#fff; font-size:1rem;">Master Volume</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">Current volume for the active Discord music session. Changes sync with the player controls.</div>
               </div>
               <div style="display:flex; align-items:center; gap:0.8rem;">
-                <input type="range" class="slider-track" min="1" max="150" value="80" onchange="onVolumeChange(this.value)" style="width:140px;">
-                <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--cyan);">80%</span>
+                <input id="settings-volume-slider" type="range" class="slider-track" min="0" max="150" step="1" value="${Number.isFinite(Number(currentSession?.volume)) ? Number(currentSession.volume) : 80}" onchange="onVolumeChange(this.value)" style="width:140px;" aria-label="Master volume">
+                <span id="settings-volume-label" style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--cyan);">${Number.isFinite(Number(currentSession?.volume)) ? Number(currentSession.volume) : 80}%</span>
               </div>
             </div>
 
