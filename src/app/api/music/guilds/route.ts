@@ -1,72 +1,47 @@
-import { NextResponse } from "next/server";
-import { getMusicDb } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 
-export async function GET() {
-  const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
-  try {
-    const resBot = await fetch(`${botApiUrl}/api/music/guilds`, {
-      signal: AbortSignal.timeout(2000),
-      cache: "no-store",
-    });
-    if (resBot.ok) {
-      const botJson = await resBot.json();
-      if (botJson.success && Array.isArray(botJson.data)) {
-        return NextResponse.json(botJson);
-      }
-    }
-  } catch {
-    // Fallback to local DB
+export async function GET(req: NextRequest) {
+  const user = await getCurrentUser(req);
+  if (!user) {
+    return NextResponse.json(
+      { success: false, error: "Sign in with Discord to view your servers.", data: { guilds: [] } },
+      { status: 401 }
+    );
   }
 
+  const botApiUrl = (process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  if (!botApiUrl) {
+    return NextResponse.json(
+      { success: false, error: "Music bot API is not configured.", data: { guilds: [] } },
+      { status: 503 }
+    );
+  }
+
+  const headers = new Headers({ "Accept": "application/json" });
+  const cookie = req.headers.get("cookie");
+  const authorization = req.headers.get("authorization");
+  if (cookie) headers.set("cookie", cookie);
+  if (authorization) headers.set("authorization", authorization);
+
   try {
-    const db = getMusicDb();
-    let rows: any[] = [];
-    try {
-      rows = db.prepare("SELECT * FROM music_guild_settings LIMIT 100").all() as any[];
-    } catch {
-      rows = [];
-    }
-
-    const activeSessions = db
-      .prepare("SELECT guild_id, state FROM music_sessions")
-      .all() as any[];
-
-    const sessionMap = new Map<string, string>();
-    for (const s of activeSessions) {
-      sessionMap.set(String(s.guild_id), s.state);
-    }
-
-    const guilds = rows.map((r) => ({
-      id: String(r.guild_id),
-      name: `Server ${r.guild_id}`,
-      icon: null,
-      is_active: sessionMap.has(String(r.guild_id)),
-      has_session: sessionMap.has(String(r.guild_id)),
-      voice_connected: sessionMap.get(String(r.guild_id)) === "PLAYING",
-    }));
-
-    if (guilds.length === 0) {
-      guilds.push({
-        id: "1457382179981099090",
-        name: "✦ ʀᴀɪ ʀᴀᴍ ✦",
-        icon: null,
-        is_active: true,
-        has_session: true,
-        voice_connected: true,
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        guilds,
-      },
+    const response = await fetch(`${botApiUrl}/api/music/guilds`, {
+      headers,
+      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
     });
-  } catch (err: any) {
-    return NextResponse.json({
-      success: false,
-      error: err.message,
-      data: { guilds: [] },
-    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result || result.success !== true) {
+      return NextResponse.json(
+        { success: false, error: result?.error?.message || result?.error || "Bot API could not verify your servers.", data: { guilds: [] } },
+        { status: response.ok ? 502 : response.status }
+      );
+    }
+    return NextResponse.json(result, { status: 200 });
+  } catch {
+    return NextResponse.json(
+      { success: false, error: "The live music bot API is unreachable.", data: { guilds: [] } },
+      { status: 503 }
+    );
   }
 }
