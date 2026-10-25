@@ -43,12 +43,19 @@ class Listeners(commands.Cog):
         bot.loop.create_task(self.restore_last_session_players())
         
     async def start_nodes(self) -> None:
-        """Connect and intiate nodes."""
+        """Connect and initiate nodes with retries."""
         for n in Config().nodes.values():
-            try:
-                await self.voicelink.create_node(bot=self.bot, **n)
-            except Exception as e:
-                func.logger.error(f'Node {n["identifier"]} is not able to connect! - Reason: {e}')
+            for attempt in range(1, 20):
+                try:
+                    await self.voicelink.create_node(bot=self.bot, **n)
+                    func.logger.info(f'Node [{n["identifier"]}] is connected!')
+                    break
+                except Exception as e:
+                    if attempt >= 19:
+                        func.logger.error(f'Node {n["identifier"]} failed after 20 attempts: {e}')
+                    else:
+                        func.logger.warning(f'Waiting for Lavalink node [{n["identifier"]}] (attempt {attempt}/20)...')
+                        await asyncio.sleep(2)
 
     async def restore_last_session_players(self) -> None:
         """Re-establish connections for players from the last session."""

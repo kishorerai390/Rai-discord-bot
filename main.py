@@ -215,8 +215,8 @@ class Vocard(commands.Bot):
             return await ctx.reply(embed=embed)
 
         elif not issubclass(error.__class__, VoicelinkException):
-            error = await Lang_handler.get_lang(ctx.guild.id, "common.errors.unknown") + bot_config.invite_link
             func.logger.error(f"An unexpected error occurred in the {ctx.command.name} command on the {ctx.guild.name}({ctx.guild.id}).", exc_info=exception)
+            error = f"⚠️ {error}"
 
         try:
             return await ctx.reply(error, ephemeral=True)

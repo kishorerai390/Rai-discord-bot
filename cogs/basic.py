@@ -121,7 +121,7 @@ class Basic(commands.Cog):
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def play(self, ctx: commands.Context, *, query: str, start: str = "0", end: str = "0") -> None:
         "Loads your input into the queue."
-        if isinstance(ctx, discord.Interaction) and not ctx.interaction.response.is_done():
+        if ctx.interaction and not ctx.interaction.response.is_done():
             await ctx.defer()
             
         player: voicelink.Player = ctx.guild.voice_client
@@ -130,9 +130,6 @@ class Basic(commands.Cog):
 
         if not player.is_user_join(ctx.author):
             return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
-
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
 
         tracks = await player.get_tracks(query, requester=ctx.author)
         if not tracks:
@@ -263,7 +260,7 @@ class Basic(commands.Cog):
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def playtop(self, ctx: commands.Context, *, query: str, start: str = "0", end: str = "0"):
         "Adds a song with the given url or query on the top of the queue."
-        if isinstance(ctx, discord.Interaction) and not ctx.interaction.response.is_done():
+        if ctx.interaction and not ctx.interaction.response.is_done():
             await ctx.defer()
         
         player: voicelink.Player = ctx.guild.voice_client
@@ -272,9 +269,6 @@ class Basic(commands.Cog):
 
         if not player.is_user_join(ctx.author):
             return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
-        
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
 
         tracks = await player.get_tracks(query, requester=ctx.author)
         if not tracks:
