@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   } = useMusic();
 
   return (
-    <div className="flex min-h-screen bg-[var(--bg-dark)] text-white relative">
+    <div className="flex min-h-screen bg-(--bg-dark) text-white relative">
       {/* MOBILE BACKDROP */}
       {mobileOpen && (
         <div
@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
 
       {/* MAIN VIEWPORT */}
-      <div className="flex-1 flex flex-col md:pl-[var(--sidebar-width)] pb-[var(--player-height)] min-h-screen min-w-0">
+      <div className="flex-1 flex flex-col md:pl-(--sidebar-width) pb-(--player-height) min-h-screen min-w-0">
         <TopBar
           onToggleMobile={() => setMobileOpen(!mobileOpen)}
           voiceStatusText={session?.voice_channel_name ? `🔊 ${session.voice_channel_name}` : "320kbps Online"}

@@ -96,7 +96,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
   const queueCount = session?.queue_length ?? 0;
 
   return (
-    <footer className="fixed bottom-0 left-0 right-0 min-h-[var(--player-height)] bg-[#0b0914]/95 border-t border-purple-500/25 backdrop-blur-2xl px-4 py-2.5 z-50 shadow-[-12px_0_40px_rgba(0,0,0,0.85)]">
+    <footer className="fixed bottom-0 left-0 right-0 min-h-(--player-height) bg-[#0b0914]/95 border-t border-purple-500/25 backdrop-blur-2xl px-4 py-2.5 z-50 shadow-[-12px_0_40px_rgba(0,0,0,0.85)]">
       <div className="max-w-6xl mx-auto flex flex-col gap-1.5">
         {/* TIER 1: TRACK METADATA & FAVORITE HEART */}
         <div className="flex items-center justify-between gap-3">
@@ -139,7 +139,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
           </button>
         </div>
 
-        <div className="h-[1px] bg-white/[0.06] w-full" />
+        <div className="h-px bg-white/6 w-full" />
 
         {/* TIER 2: CENTERED PLAYBACK CONTROLS */}
         <div className="flex items-center justify-center gap-5">
@@ -166,7 +166,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
           <button
             onClick={() => handleSafeControl(isPlaying ? "PAUSE" : "RESUME")}
             disabled={isBusy}
-            className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 text-white flex items-center justify-center shadow-lg shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-70"
+            className="w-10 h-10 rounded-full bg-linear-to-br from-purple-500 to-purple-700 text-white flex items-center justify-center shadow-lg shadow-purple-500/40 hover:scale-105 active:scale-95 transition-all disabled:opacity-70"
             title={isPlaying ? "Pause" : "Play"}
           >
             {isPlaying ? (
@@ -216,7 +216,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
             }}
           >
             <div
-              className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-150"
+              className="h-full bg-linear-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-150"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -299,7 +299,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
 
       {/* DISCORD NOW PLAYING INTERACTIVE EMBED MODAL */}
       {showDiscordPreview && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div
             className="fixed inset-0"
             onClick={() => setShowDiscordPreview(false)}
@@ -309,7 +309,7 @@ export function PlayerBar({ session, onDispatchControl, onToggleFavorite }: Play
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden">
+                  <div className="w-10 h-10 rounded-full bg-linear-to-tr from-pink-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md overflow-hidden">
                     🌸
                   </div>
                   <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[#23a55a] border-2 border-[#313338]" />
