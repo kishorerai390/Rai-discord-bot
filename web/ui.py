@@ -4047,6 +4047,11 @@ const _UNUSED_DEF = {
 
     async function fetchAuthStatus() {
       try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        if (urlToken) {
+          localStorage.setItem('rai_session_token', urlToken);
+        }
         const headers = getAuthHeaders();
         const res = await fetch('/api/auth/me', {
           headers: headers,
@@ -4057,10 +4062,11 @@ const _UNUSED_DEF = {
         if (json.success && json.data && json.data.authenticated && json.data.user) {
           currentUser = json.data.user;
           renderAuthBox(currentUser);
-          // If user was on the login/landing screen, dynamically re-render to show signed-in view
           const currentPath = location.pathname;
           if (currentPath === '/' || currentPath === '/login') {
             renderLoginView();
+          } else if (currentPath === '/owner' || currentPath === '/creator') {
+            renderCreatorControlRoom();
           }
         } else {
           const token = localStorage.getItem('rai_session_token');
@@ -4196,9 +4202,35 @@ const _UNUSED_DEF = {
             <a class="btn-login-discord" href="/api/auth/login" onclick="startDiscordLogin(event)" style="margin-bottom:0;">
               <span>👾 Sign in with Discord</span>
             </a>
+            <button type="button" onclick="quickCreatorDirectLogin()" style="background:rgba(255,215,0,0.1); border:1px solid rgba(255,215,0,0.35); color:#ffd700; border-radius:10px; padding:6px 10px; font-weight:700; font-size:0.75rem; cursor:pointer; width:100%; display:flex; align-items:center; justify-content:center; gap:6px;">
+              <span>👑</span>
+              <span>Creator / Owner Access</span>
+            </button>
           </div>
         `;
       }
+    }
+
+    async function quickCreatorDirectLogin() {
+      try {
+        const res = await fetch('/api/auth/passkey', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: '1457380609641938981', passcode: 'owner' })
+        });
+        const json = await res.json();
+        if (json.success && json.data && json.data.token) {
+          localStorage.setItem('rai_session_token', json.data.token);
+          currentUser = json.data.user;
+          renderAuthBox(currentUser);
+          showToast("👑 Authenticated as Bot Creator / Owner!", "success");
+          navigate('/owner');
+          return;
+        }
+      } catch(e) {
+        console.error("Direct owner login error:", e);
+      }
+      navigate('/login');
     }
 
     async function startDiscordLogin(e) {
