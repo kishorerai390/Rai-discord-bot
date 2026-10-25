@@ -33,22 +33,6 @@ from music_bot.services import youtube_health_monitor
 
 logger = logging.getLogger("RaiMusic.Resolver")
 
-YOUTUBE_ACCESS_CHALLENGE_MARKERS = (
-    "sign in to confirm",
-    "not a bot",
-    "confirm you're not a bot",
-    "confirm you’re not a bot",
-    "captcha",
-    "consent required",
-)
-
-
-def _is_youtube_access_challenge(error_message: str) -> bool:
-    """Return whether yt-dlp reported an explicit YouTube access challenge."""
-    message = str(error_message or "").casefold()
-    return any(marker in message for marker in YOUTUBE_ACCESS_CHALLENGE_MARKERS)
-
-
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 TOKENS_FILE = BASE_DIR / "data" / "tokens.json"
 
@@ -678,70 +662,6 @@ def is_original_recording_candidate(
     return True
 
 
-def _is_strong_fallback_title_match(candidate: Dict[str, Any], query_intent: Dict[str, Any]) -> bool:
-    """Reject obvious near-name collisions in secondary-provider fallback.
-
-    The general ranker intentionally tolerates fuzzy tokens for YouTube search.
-    That is too permissive for fallback playback: e.g. 'kalyani' must not accept
-    'Kalyan'. For single-word title requests require an exact title token; for
-    multi-word queries retain the existing broader ranking rules.
-    """
-    query_tokens = [
-        token for token in re.findall(r"\w+", str(query_intent.get("core_title") or "").casefold())
-        if len(token) > 1
-    ]
-    if len(query_tokens) != 1 or len(query_tokens[0]) < 4:
-        return True
-    title_tokens = set(re.findall(r"\w+", str(candidate.get("title") or "").casefold()))
-    return query_tokens[0] in title_tokens
-
-
-def is_alternative_provider_candidate(
-    candidate: Dict[str, Any],
-    query_intent: Dict[str, Any],
-) -> bool:
-    """Match Audius/Jamendo catalog entries without YouTube-specific official-upload rules.
-
-    Alternative catalogs often lack VEVO, verified-channel, or official-release
-    metadata. Keep title/artist matching and alternate-version safety checks,
-    but do not reject a good catalog match solely because it is not marked
-    as an official YouTube upload.
-    """
-    _, reasons = score_candidate_detailed(candidate, query_intent)
-    if any(reason.startswith("unrequested_") for reason in reasons):
-        return False
-
-    title = (candidate.get("title") or "").lower()
-    if any(re.search(rf"\b{re.escape(marker)}\b", title) for marker in NON_SONG_CONTENT_MARKERS):
-        return False
-
-    uploader = (candidate.get("uploader") or candidate.get("channel") or candidate.get("artist") or "").lower()
-    combined_text = f"{title} {uploader}"
-    cand_has_remix = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in REMIX_KEYWORDS)
-    cand_has_slowed = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in SLOWED_KEYWORDS)
-    cand_has_cover = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in COVER_KEYWORDS)
-    cand_has_mod = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in OTHER_MOD_KEYWORDS)
-    cand_has_live = any(p.search(combined_text) for p in LIVE_PATTERNS)
-    cand_has_parody = any(re.search(rf"\b{re.escape(k)}\b", combined_text) for k in PARODY_TRIBUTE_KEYWORDS)
-
-    if query_intent.get("user_requested_alternate"):
-        requested_alternate_match = (
-            (query_intent.get("wants_remix") and cand_has_remix)
-            or (query_intent.get("wants_slowed") and cand_has_slowed)
-            or (query_intent.get("wants_cover") and cand_has_cover)
-            or (query_intent.get("wants_other_mod") and cand_has_mod)
-            or (query_intent.get("wants_parody") and cand_has_parody)
-            or (query_intent.get("wants_live") and cand_has_live)
-        )
-        if not requested_alternate_match:
-            return False
-    elif cand_has_remix or cand_has_slowed or cand_has_cover or cand_has_mod or cand_has_live or cand_has_parody:
-        return False
-
-    title_match_ratio, combined_match_ratio, _ = _candidate_match_metrics(candidate, query_intent)
-    return title_match_ratio >= 0.5 and combined_match_ratio >= 0.75
-
-
 def requires_candidate_confirmation(candidates: List[Dict[str, Any]]) -> bool:
     """Require a user choice when top results are weak or too close to distinguish."""
     if not candidates:
@@ -944,19 +864,6 @@ async def _run_ytdlp(
         exc = future.exception()
         if exc is not None:
             elapsed_ms = (time.monotonic() - started_at) * 1000
-            # A timed-out asyncio waiter cannot stop an already-running yt-dlp
-            # worker thread. Capture its eventual upstream error too: otherwise
-            # a late HTTP 429/403 is logged by yt-dlp but the health monitor only
-            # sees the earlier outer timeout and starts an incorrectly short cooldown.
-            if provider == "youtube":
-                try:
-                    record_youtube_failure(_format_error(exc))
-                except Exception:
-                    logger.debug(
-                        "[Resolver] provider=%s operation=%s corr_id=%s "
-                        "outcome=late_failure_health_update_failed",
-                        provider, operation, correlation_id,
-                    )
             logger.warning(
                 "[Resolver] provider=%s operation=%s corr_id=%s duration_ms=%.1f "
                 "exception_type=%s retry_count=%d outcome=late_worker_failure",
@@ -1088,13 +995,6 @@ def _detect_js_runtimes() -> Dict[str, Any]:
 
     if deno_path:
         runtimes["deno"] = {"path": deno_path}
-
-    # Some deployments have Node available but not on PATH in the bot process.
-    if "node" not in runtimes:
-        for candidate in ("/usr/bin/node", "/usr/local/bin/node"):
-            if Path(candidate).is_file():
-                runtimes["node"] = {"path": candidate}
-                break
 
     return runtimes
 
@@ -1401,10 +1301,6 @@ def _build_ytdl_options(
         "socket_timeout": 8,
         "extractor_retries": 1,
         "retries": 1,
-        # JukeBot's lean request profile: avoid playlist expansion and local cache I/O.
-        # Keep stream extraction on the normal processing path; search callers use process=False.
-        "source_address": "0.0.0.0",
-        "cachedir": False,
         "extractor_args": {
             "youtube": {
                 "skip": ["translated_subs"],
@@ -1773,7 +1669,7 @@ class AudioResolver:
                 primary_opts = _build_ytdl_options(["android"], extract_flat=True)
                 ydl_instance = yt_dlp.YoutubeDL(primary_opts)
                 data = await _run_ytdlp(
-                    functools.partial(ydl_instance.extract_info, search_query, download=False, process=False),
+                    functools.partial(ydl_instance.extract_info, search_query, download=False),
                     timeout=search_timeout,
                     operation="search",
                     correlation_id=corr_id,
@@ -1792,7 +1688,7 @@ class AudioResolver:
                     retry_opts = _build_ytdl_options(["web", "mweb"], extract_flat=True)
                     ydl_retry = yt_dlp.YoutubeDL(retry_opts)
                     data = await _run_ytdlp(
-                        functools.partial(ydl_retry.extract_info, search_query, download=False, process=False),
+                        functools.partial(ydl_retry.extract_info, search_query, download=False),
                         timeout=search_timeout,
                         operation="search_retry",
                         correlation_id=corr_id,
@@ -2529,14 +2425,7 @@ class AudioResolver:
             else:
                 cleaned_query = query_or_url.split("/")[-1].split("?")[0].replace("-", " ")
 
-        # For a selected YouTube URL, preserve its human-readable track metadata
-        # so independent providers search for the song rather than the YouTube URL.
-        fallback_search_query = " ".join(
-            part.strip() for part in (title_hint, artist_hint) if part and part.strip()
-        ).strip() or cleaned_query
-        intent = analyze_query_intent(
-            fallback_search_query if ("youtube.com" in cleaned_query.lower() or "youtu.be" in cleaned_query.lower()) else cleaned_query
-        )
+        intent = analyze_query_intent(cleaned_query)
 
         def _apply_metadata_enhancements(t: Optional[QueuedTrack]) -> Optional[QueuedTrack]:
             if t and spotify_info:
@@ -2719,38 +2608,23 @@ class AudioResolver:
             if not candidate_urls:
                 # Query up to 15 candidate tracks from YouTube for comprehensive original-vs-remix ranking
                 search_query = f"ytsearch15:{cleaned_query}"
-                active_cooldown = youtube_cooldown_status()
-                if active_cooldown["cooldown_active"]:
-                    search_error = (
-                        f"YouTube {active_cooldown['last_failure']} cooldown active "
-                        f"({active_cooldown['cooldown_remaining_seconds']} seconds remaining)"
+                try:
+                    flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
+                    flat_ydl = yt_dlp.YoutubeDL(flat_opts)
+                    search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
+                    search_data = await _run_ytdlp(
+                        functools.partial(flat_ydl.extract_info, search_query, download=False),
+                        timeout=search_timeout,
+                        operation="search_fallback",
+                        correlation_id=corr_id,
                     )
-                    logger.info(
-                        "[Resolver] [Ref: MM-%s] provider=youtube operation=search_fallback "
-                        "outcome=skipped_cooldown category=%s remaining_seconds=%s",
-                        corr_id,
-                        active_cooldown["last_failure"],
-                        active_cooldown["cooldown_remaining_seconds"],
-                    )
-                else:
-                     try:
-                         flat_opts = _build_ytdl_options(["android"], extract_flat=True, use_cookies=False)
-                         flat_ydl = yt_dlp.YoutubeDL(flat_opts)
-                         search_timeout = float(os.getenv("YTDLP_SEARCH_TIMEOUT", "8.0"))
-                         search_data = await _run_ytdlp(
-                             functools.partial(flat_ydl.extract_info, search_query, download=False, process=False),
-                             timeout=search_timeout,
-                             operation="search_fallback",
-                             correlation_id=corr_id,
-                         )
-                         if search_data:
-                             entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
-                             search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
-                     except Exception as search_exc:
-                         search_error = _format_error(search_exc)
-                         logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
- 
- 
+                    if search_data:
+                        entries = search_data.get("entries") if isinstance(search_data, dict) and "entries" in search_data else [search_data]
+                        search_entries = [e for e in (entries or []) if e and not e.get("has_drm")]
+                except Exception as search_exc:
+                    search_error = _format_error(search_exc)
+                    logger.warning(f"[Resolver] [Ref: MM-{corr_id}] Search stage notice for '{cleaned_query[:50]}': {search_error}")
+
                 if not search_entries:
                     dur = time.time() - start_t
                     if search_error and ("TimeoutError" in search_error or "timed out" in search_error.lower()):
@@ -2854,40 +2728,14 @@ class AudioResolver:
         failed_stage = "stream_extraction"
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
-        youtube_rate_limited = False
-        youtube_access_blocked = False
-        youtube_timed_out = False
-
-        # Emit a safe cookie-health snapshot and respect the upstream cooldown before
-        # starting more YouTube extraction requests. A cooldown never blocks the
-        # existing alternative-provider fallback for search queries.
-        cookie_path = get_active_cookie_file()
-        inspect_youtube_cookie_file(cookie_path)
-        health_cooldown = youtube_cooldown_status()
-        if health_cooldown["cooldown_active"]:
-            last_failure_reason = (
-                f"YouTube {health_cooldown['last_failure']} cooldown active "
-                f"({health_cooldown['cooldown_remaining_seconds']} seconds remaining)"
-            )
-            youtube_rate_limited = health_cooldown["last_failure"] == "rate_limited"
-            candidate_urls = []
-            logger.warning(
-                "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract "
-                "outcome=skipped_cooldown category=%s remaining_seconds=%s",
-                corr_id,
-                health_cooldown["last_failure"],
-                health_cooldown["cooldown_remaining_seconds"],
-            )
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            t1_msg = ""
-            # The extractor may use an 8s socket timeout and retry once. Keep the
-            # outer timeout long enough for that bounded retry to finish.
+            # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
             try:
                 tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=bool(get_active_cookie_file()))
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
-                    timeout=20.0,
+                    timeout=14.0,
                     operation="stream_extract_tier1",
                     correlation_id=corr_id,
                     retry_count=cand_idx - 1,
@@ -2911,7 +2759,6 @@ class AudioResolver:
                         last_failure_reason = "Original recording could not be verified from title and source metadata"
             except Exception as t1_err:
                 t1_msg = _format_error(t1_err)
-                record_youtube_failure(t1_msg)
                 last_failure_reason = t1_msg
                 logger.info(
                     "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier1 "
@@ -2920,51 +2767,9 @@ class AudioResolver:
                     cand_idx,
                     type(t1_err).__name__,
                 )
-                if "429" in t1_msg or "too many requests" in t1_msg.lower():
-                    youtube_rate_limited = True
-                    last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
-                if _is_youtube_access_challenge(t1_msg):
-                    # Repeating other YouTube clients or cookie attempts after an
-                    # explicit access challenge wastes time and can worsen rate limits.
-                    # Preserve the alternative-provider fallback below for searches.
-                    youtube_access_blocked = True
-                    last_failure_reason = (
-                        "YouTube requires an accepted authenticated session or is "
-                        "challenging this server; public extraction was stopped."
-                    )
-                    logger.warning(
-                        "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract "
-                        "outcome=stopped_access_challenge alternative_fallback=%s",
-                        corr_id,
-                        not is_direct_url,
-                    )
-                    break
-                # Do not fan out into six more extractor profiles after upstream
-                # throttling, access challenges, or a network timeout. Those requests
-                # cannot fix the server-side restriction and made failed searches take
-                # 30-60+ seconds. Other genuine format/player-response failures retain
-                # the existing bounded profile fallbacks.
-                t1_lower = t1_msg.lower()
-                upstream_blocked_or_slow = any(marker in t1_lower for marker in (
-                    "http error 403", "http error 429", "too many requests",
-                    "timed out", "timeout", "sign in to confirm", "not a bot",
-                    "confirm you're not a bot", "confirm you’re not a bot",
-                ))
-                if (
-                    not upstream_blocked_or_slow
-                    and (
-                        "format is not available" in t1_lower
-                        or "failed to extract any player response" in t1_lower
-                        or "player response" in t1_lower
-                    )
-                ):
-                    # Newer YouTube responses may fail for one client profile while
-                    # another supported profile still resolves the same public video.
-                    # Keep this bounded and verify the returned video ID below.
+                if "format is not available" in t1_msg.lower():
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
-                        (["mweb"], "bestaudio/best"),
-                        (["tv_downgraded"], "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
                         (["web"], "best"),
                         (["android_vr"], "best"),
@@ -3012,17 +2817,13 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
-            if youtube_rate_limited or youtube_access_blocked or "timed out" in t1_msg.lower() or "timeout" in t1_msg.lower():
-                youtube_timed_out = "timed out" in t1_msg.lower() or "timeout" in t1_msg.lower()
-                break
-
-            # Tier 2 gets the same bounded retry window as the primary profile.
+            # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
                 tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=bool(get_active_cookie_file()))
                 tier2_ydl = yt_dlp.YoutubeDL(tier2_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier2_ydl.extract_info, target_url, download=False),
-                    timeout=20.0,
+                    timeout=10.0,
                     operation="stream_extract_tier2",
                     correlation_id=corr_id,
                     retry_count=cand_idx,
@@ -3046,11 +2847,7 @@ class AudioResolver:
                         last_failure_reason = "Original recording could not be verified from title and source metadata"
             except Exception as t2_err:
                 t2_msg = _format_error(t2_err)
-                record_youtube_failure(t2_msg)
                 last_failure_reason = t2_msg
-                if "429" in t2_msg or "too many requests" in t2_msg.lower():
-                    youtube_rate_limited = True
-                    last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
                 logger.warning(
                     "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier2 "
                     "candidate=%d exception_type=%s",
@@ -3058,18 +2855,6 @@ class AudioResolver:
                     cand_idx,
                     type(t2_err).__name__,
                 )
-                if _is_youtube_access_challenge(t2_msg):
-                    youtube_access_blocked = True
-                    last_failure_reason = "YouTube requires an accepted authenticated session or is challenging this server; public extraction was stopped."
-                    logger.warning(
-                        "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_tier2 "
-                        "outcome=stopped_access_challenge", corr_id,
-                    )
-                    break
-                if youtube_rate_limited:
-                    break
-                if "timed out" in t2_msg.lower():
-                    break
 
             # Tier JukeBot: JukeBot StreamRequest extraction fallback
             try:
@@ -3106,11 +2891,8 @@ class AudioResolver:
                 "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback outcome=started",
                 corr_id,
             )
-            # android_vr does not support cookie authentication in yt-dlp.
-            # Start the authenticated fallback with a cookie-compatible web client,
-            # then retain yt-dlp's default-client fallback as the final attempt.
             for cookie_clients, cookie_format in (
-                (["web"], "bestaudio/best"),
+                (["android_vr"], "best"),
                 (None, "bestaudio/best"),
             ):
                 try:
@@ -3119,7 +2901,7 @@ class AudioResolver:
                     tier3_ydl = yt_dlp.YoutubeDL(tier3_opts)
                     data = await _run_ytdlp(
                         functools.partial(tier3_ydl.extract_info, top_target, download=False),
-                        timeout=20.0,
+                        timeout=8.0,
                         operation="stream_extract_cookie_fallback",
                         correlation_id=corr_id,
                         retry_count=1,
@@ -3148,12 +2930,7 @@ class AudioResolver:
                             verification_failed = True
                             last_failure_reason = "Original recording could not be verified from title and source metadata"
                 except Exception as t3_err:
-                    t3_msg = _format_error(t3_err)
-                    record_youtube_failure(t3_msg)
-                    last_failure_reason = t3_msg
-                    if "429" in t3_msg or "too many requests" in t3_msg.lower():
-                        youtube_rate_limited = True
-                        last_failure_reason = "YouTube is rate-limiting this server (HTTP 429)."
+                    last_failure_reason = _format_error(t3_err)
                     logger.warning(
                         "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback "
                         "client_profile=%s exception_type=%s",
@@ -3161,22 +2938,6 @@ class AudioResolver:
                         ",".join(cookie_clients) if cookie_clients else "yt-dlp default",
                         type(t3_err).__name__,
                     )
-                    # Stop immediately on rate limits or explicit access challenges.
-                    if _is_youtube_access_challenge(t3_msg):
-                        youtube_access_blocked = True
-                        last_failure_reason = "YouTube requires an accepted authenticated session or is challenging this server; authenticated extraction was stopped."
-                        logger.warning(
-                            "[Resolver] [Ref: MM-%s] provider=youtube operation=stream_extract_cookie_fallback "
-                            "outcome=stopped_access_challenge", corr_id,
-                        )
-                        break
-                    if youtube_rate_limited:
-                        break
-                    # A transient timeout on the web client should not suppress the
-                    # final yt-dlp default-client attempt. Keep this to one bounded
-                    # attempt per profile; _run_ytdlp enforces the per-attempt timeout.
-                    if "timed out" in t3_msg.lower():
-                        continue
 
         dur = time.time() - start_t
         # Accurately categorize and classify the error
@@ -3190,13 +2951,10 @@ class AudioResolver:
         elif "video is unavailable" in lower_failure_reason or "private video" in lower_failure_reason or "has been removed" in lower_failure_reason:
             cat = "VIDEO_UNAVAILABLE"
             reason = f"YouTube reports that the requested video is unavailable for '{cleaned_query[:50]}'. Try another public link."
-        elif youtube_rate_limited or "429" in lower_failure_reason or "too many requests" in lower_failure_reason:
-            cat = "YOUTUBE_RATE_LIMITED"
-            reason = "YouTube is temporarily limiting requests from this server. Wait before retrying, or try the song title instead of a video link."
         elif "TimeoutError" in last_failure_reason or "timed out" in lower_failure_reason:
             cat = "TIMEOUT"
             reason = f"Network or resolution timed out while contacting YouTube for '{cleaned_query[:50]}'."
-        elif "access_denied" in lower_failure_reason or "access restriction" in lower_failure_reason or any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age", "forbidden")):
+        elif any(k in lower_failure_reason for k in ("sign in", "bot", "captcha", "confirm your age")):
             cat = "ACCESS_RESTRICTION"
             reason = f"YouTube access restriction encountered: {last_failure_reason}"
         elif "No playable" in last_failure_reason or "format is not available" in lower_failure_reason:

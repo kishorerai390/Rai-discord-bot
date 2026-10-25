@@ -56,14 +56,12 @@ def format_duration(seconds: Optional[int], is_position: bool = False) -> str:
 
 
 def create_progress_bar(elapsed: int, total: int, length: int = 15) -> str:
-    """Render a predictable Unicode progress bar with a single position marker."""
-    # Keep the output valid for zero/negative lengths and avoid division by zero.
-    width = max(1, int(length))
+    """Generate visual progress bar slider (e.g. ▶ ──🔘──────)."""
     if total <= 0:
-        return "▶ " + "─" * (width - 1) + "●"
+        return "🔘──────────────"
     ratio = min(1.0, max(0.0, elapsed / total))
-    pos = int(round(ratio * (width - 1)))
-    bar = "─" * pos + "●" + "─" * (width - 1 - pos)
+    pos = int(round(ratio * (length - 1)))
+    bar = "─" * pos + "🔘" + "─" * (length - 1 - pos)
     return f"▶ {bar}"
 
 
@@ -781,9 +779,6 @@ class MusicPlayerService:
                 )
                 if fresh_track and fresh_track.stream_url:
                     if apply_resolved_track(track, fresh_track):
-                        # A refreshed URL can be valid while a seek offset near the end
-                        # yields EOF (or an upstream CDN rejects the ranged request).
-                        # Retry the refreshed stream from its beginning before giving up.
                         try:
                             fresh_resume_opts = build_ffmpeg_options(
                                 track,
@@ -798,27 +793,6 @@ class MusicPlayerService:
                             )
                         except Exception:
                             first_frame = b""
-
-                        if not first_frame and start_seconds > 0:
-                            try:
-                                audio_source.cleanup()
-                            except Exception:
-                                pass
-                            try:
-                                retry_opts = dict(ffmpeg_opts)
-                                retry_opts["before_options"] = base_before
-                                audio_source = discord.FFmpegPCMAudio(track.stream_url, **retry_opts)
-                                volume_transformer = discord.PCMVolumeTransformer(audio_source, volume=norm_vol)
-                                first_frame = await asyncio.wait_for(
-                                    loop.run_in_executor(None, volume_transformer.read),
-                                    timeout=8.0,
-                                )
-                                if first_frame:
-                                    # The old seek/range request failed; resume from 0 rather
-                                    # than falsely declaring a refreshed stream unplayable.
-                                    start_seconds = 0
-                            except Exception:
-                                first_frame = b""
                     else:
                         logger.error(
                             "[Playback] operation=resume_recovery correlation_id=%s outcome=identity_mismatch "
@@ -2047,33 +2021,6 @@ class MusicPlayerService:
                     session.now_playing_message_id = None
                 except Exception:
                     session.now_playing_message_id = None
-
-            # 2b. Recover an existing MusicMaid panel if the in-memory session reference was lost.
-            # This prevents duplicate player cards after session recreation or overlapping startup recovery.
-            if not session.now_playing_message:
-                try:
-                    bot_user_id = getattr(getattr(bot or getattr(session, "bot", None), "user", None), "id", None)
-                    async for candidate in channel.history(limit=15):
-                        if bot_user_id and getattr(getattr(candidate, "author", None), "id", None) != bot_user_id:
-                            continue
-                        if not candidate.embeds:
-                            continue
-                        title = (candidate.embeds[0].title or "").lower()
-                        if "musicmaid" not in title and "master player" not in title:
-                            continue
-                        await candidate.edit(embed=embed, view=view)
-                        session.now_playing_message = candidate
-                        session.now_playing_message_id = candidate.id
-                        session.now_playing_channel_id = channel.id
-                        logger.info(
-                            "[PlayerPanel] Recovered existing panel guild=%s channel=%s message=%s",
-                            session.guild_id, channel.id, candidate.id,
-                        )
-                        if session.is_playing and (not session.progress_updater_task or session.progress_updater_task.done()):
-                            session.progress_updater_task = asyncio.create_task(cls._progress_updater_loop(session))
-                        return
-                except Exception as recovery_err:
-                    logger.debug("[PlayerPanel] Existing-panel recovery skipped: %s", recovery_err)
 
             # 3. Post new message and register as persistent panel
             try:
