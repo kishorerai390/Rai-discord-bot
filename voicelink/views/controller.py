@@ -476,12 +476,49 @@ BUTTON_TYPE: Dict[str, Type[Union[ControlButton, ControlSelect]]] = {
     "effects": Effects
 }
 
+DEFAULT_BUTTONS = [
+    {
+        "back": {"emoji": "⏮️", "label": "@@t_player.buttons.back@@"},
+        "play-pause": {
+            "states": {
+                "pause": {"emoji": "⏸️", "label": "@@t_player.buttons.pause@@"},
+                "resume": {"emoji": "▶️", "label": "@@t_player.buttons.resume@@"}
+            }
+        },
+        "skip": {"emoji": "⏭️", "label": "@@t_player.buttons.skip@@"},
+        "stop": {"emoji": "⏹️", "label": "@@t_player.buttons.stop@@"},
+        "add-fav": {"emoji": "⭐", "label": "@@t_player.buttons.fav@@"}
+    },
+    {
+        "loop": {
+            "states": {
+                "off": {"emoji": "🔁", "label": "@@t_player.buttons.loopOff@@"},
+                "track": {"emoji": "🔂", "label": "@@t_player.buttons.loopTrack@@"},
+                "queue": {"emoji": "🔁", "label": "@@t_player.buttons.loopQueue@@"}
+            }
+        },
+        "shuffle": {"emoji": "🔀", "label": "@@t_player.buttons.shuffle@@"},
+        "autoplay": {
+            "states": {
+                "on": {"emoji": "♾️", "label": "@@t_player.buttons.autoplayOn@@"},
+                "off": {"emoji": "♾️", "label": "@@t_player.buttons.autoplayOff@@"}
+            }
+        },
+        "volumedown": {"emoji": "🔉", "label": "@@t_player.buttons.volumedown@@"},
+        "volumeup": {"emoji": "🔊", "label": "@@t_player.buttons.volumeup@@"}
+    }
+]
+
 class InteractiveController(discord.ui.View):
     def __init__(self, player: "voicelink.Player"):
         super().__init__(timeout=None)
 
         self.player: voicelink.Player = player
-        for row_num, btn_row in enumerate(Config().controller.get("buttons")):
+        buttons_config = Config().controller.get("buttons") if isinstance(Config().controller, dict) else None
+        if not buttons_config:
+            buttons_config = DEFAULT_BUTTONS
+
+        for row_num, btn_row in enumerate(buttons_config):
             for btn_name, btn_data in btn_row.items():
                 btn_class = BUTTON_TYPE.get(btn_name.lower())
                 if not btn_class:

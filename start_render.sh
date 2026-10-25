@@ -48,6 +48,22 @@ s['activity'] = [{
     'status': 'online'
 }]
 
+if not s.get('default_controller'):
+    s['default_controller'] = {
+        'embeds': {
+            'active': {
+                'description': '**Now Playing: ```[@@track_name@@]```**\nLink: [Click Me](@@track_url@@) | Requester: @@track_requester_mention@@ | DJ: @@dj@@',
+                'footer': {
+                    'text': 'Queue Length: @@queue_length@@ | Duration: @@track_duration@@ | Volume: @@volume@@%'
+                }
+            },
+            'inactive': {
+                'title': {'name': 'MusicMaid Music System'},
+                'description': 'Join a voice channel and queue songs using `/play`!'
+            }
+        }
+    }
+
 with open(settings_path, 'w', encoding='utf-8') as f:
     json.dump(s, f, indent=4)
 print('Configured settings.json successfully!')

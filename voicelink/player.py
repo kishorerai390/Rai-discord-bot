@@ -353,11 +353,14 @@ class Player(VoiceProtocol):
         if not token or not endpoint:
             return
 
+        channel_id = str(self.channel.id) if self.channel else (str(self.guild.me.voice.channel.id) if self.guild.me and self.guild.me.voice and self.guild.me.voice.channel else None)
         data = {
             "token": token,
             "endpoint": endpoint,
             "sessionId": session_id,
         }
+        if channel_id:
+            data["channelId"] = channel_id
         
         await self.send(method=RequestMethod.PATCH, data={"voice": data})
         self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) dispatched voice update to {endpoint}")
@@ -611,11 +614,15 @@ class Player(VoiceProtocol):
         if self._voice_state.get("sessionId") and self._voice_state.get("event"):
             evt = self._voice_state["event"]
             if evt.get("token") and evt.get("endpoint"):
-                data["voice"] = {
+                channel_id = str(self.channel.id) if self.channel else (str(self.guild.me.voice.channel.id) if self.guild.me and self.guild.me.voice and self.guild.me.voice.channel else None)
+                voice_payload = {
                     "token": evt["token"],
                     "endpoint": evt["endpoint"],
                     "sessionId": self._voice_state["sessionId"],
                 }
+                if channel_id:
+                    voice_payload["channelId"] = channel_id
+                data["voice"] = voice_payload
         
         await self.send(method=RequestMethod.PATCH, query=f"noReplace={ignore_if_playing}", data=data)
         if self._node.yt_ratelimit:
