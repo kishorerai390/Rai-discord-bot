@@ -913,7 +913,7 @@ def ensure_lavalink():
         return
 
     func.logger.info("Lavalink not detected on 127.0.0.1:2333. Preparing Lavalink...")
-    import subprocess, shutil, tarfile, time
+    import subprocess, shutil, tarfile, time, urllib.request
 
     lavalink_dir = os.path.join(func.ROOT_DIR, "lavalink")
     os.makedirs(lavalink_dir, exist_ok=True)
