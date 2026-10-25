@@ -2862,6 +2862,7 @@ class AudioResolver:
                 restricted_markers = (
                     "403", "forbidden", "sign in", "confirm you're not a bot",
                     "po-token", "access_denied", "too many requests", "429",
+                    "timeout", "timed out",
                 )
                 if any(marker in t1_msg.casefold() for marker in restricted_markers):
                     fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
