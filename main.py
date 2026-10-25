@@ -90,11 +90,11 @@ def _start_immediate_health_server():
 
             if self.path in ["/dashboard", "/app", "/panel", "/player", "/music"]:
                 try:
-                    from web.ui import UI_HTML
+                    from web_dashboard import DASHBOARD_HTML
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.end_headers()
-                    self.wfile.write(UI_HTML.encode("utf-8"))
+                    self.wfile.write(DASHBOARD_HTML.encode("utf-8"))
                     return
                 except Exception as err:
                     self.send_response(500)
