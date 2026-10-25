@@ -278,15 +278,21 @@ bot = Vocard(
     intents=intents
 )
 
-def ensure_lavalink():
-    import urllib.request
+def check_lavalink_running(timeout=2) -> bool:
+    import urllib.request, urllib.error
+    req = urllib.request.Request("http://127.0.0.1:2333/v4/info", headers={"Authorization": "youshallnotpass"})
     try:
-        with urllib.request.urlopen("http://127.0.0.1:2333/v4/info", timeout=2) as r:
-            if r.status == 200:
-                func.logger.info("Lavalink is already running.")
-                return
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status in (200, 401)
+    except urllib.error.HTTPError as e:
+        return e.code in (200, 401)
     except Exception:
-        pass
+        return False
+
+def ensure_lavalink():
+    if check_lavalink_running(timeout=2):
+        func.logger.info("Lavalink is already running and responding on 127.0.0.1:2333.")
+        return
 
     func.logger.info("Lavalink not detected on 127.0.0.1:2333. Preparing Lavalink...")
     import subprocess, shutil, tarfile, time
@@ -344,13 +350,10 @@ def ensure_lavalink():
         try:
             subprocess.Popen([java_cmd, "-jar", "Lavalink.jar"], cwd=lavalink_dir)
             for _ in range(45):
-                try:
-                    with urllib.request.urlopen("http://127.0.0.1:2333/v4/info", timeout=1) as r:
-                        if r.status == 200:
-                            func.logger.info("Lavalink started and ready!")
-                            break
-                except Exception:
-                    time.sleep(1)
+                if check_lavalink_running(timeout=1):
+                    func.logger.info("Lavalink started and ready!")
+                    break
+                time.sleep(1)
         except Exception as e:
             func.logger.error(f"Failed to spawn Lavalink: {e}")
 

@@ -105,9 +105,10 @@ class Node:
         self._session_id: str = None
         self._available: bool = None
 
+        user_id = str(bot.user.id) if (bot and bot.user) else str(getattr(bot, "client_id", 0) or os.getenv("CLIENT_ID", "1556676516274905218"))
         self._headers: Dict[str, str] = {
             "Authorization": self._password,
-            "User-Id": str(bot.user.id),
+            "User-Id": user_id,
             "Client-Name": f"Voicelink/{__version__}",
             'Resume-Key': self.resume_key
         }
@@ -490,7 +491,10 @@ class NodePool:
         """Creates a Node object to be then added into the node pool.
         """
         if identifier in cls._nodes.keys():
-            raise NodeCreationError(f"A node with identifier '{identifier}' already exists.")
+            existing = cls._nodes[identifier]
+            if not existing.is_connected:
+                await existing.connect()
+            return existing
         
         if not logger:
             logger = logging.getLogger("vocard")

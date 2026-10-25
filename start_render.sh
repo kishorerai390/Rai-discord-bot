@@ -58,7 +58,7 @@ cd ..
 
 echo "Waiting for Lavalink on port 2333..."
 for i in {1..45}; do
-    if curl -s http://127.0.0.1:2333/v4/info >/dev/null 2>&1; then
+    if curl -s -H "Authorization: youshallnotpass" http://127.0.0.1:2333/v4/info >/dev/null 2>&1; then
         echo "Lavalink is ready! (PID: $LAVALINK_PID)"
         break
     fi
