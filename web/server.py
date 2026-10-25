@@ -189,13 +189,13 @@ class RaiCommunityOSServer:
         clients_to_test = [[c_filter]] if c_filter else [["android"], ["android_music"], ["tv_embedded"], ["web"]]
         for client in clients_to_test:
             name = "+".join(client)
-            for use_c in ([False, True] if (c_file and not c_filter) else [False]):
+            for use_c in ([False, True] if c_file else [False]):
                 key = f"{name}{'+cookie' if use_c else ''}"
                 t0 = time.time()
                 try:
                     opts = {
                         "quiet": True,
-                        "format": "bestaudio/best[height<=720]/best",
+                        "format": "bestaudio/18/22/b/best",
                         "socket_timeout": 6,
                         "retries": 1,
                         "extractor_args": {"youtube": {"player_client": client, "skip": ["translated_subs"]}}

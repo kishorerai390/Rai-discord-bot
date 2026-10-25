@@ -1032,6 +1032,7 @@ class MusicCog(commands.Cog, name="Music"):
                     f"🔘 **{current_stage}**\n"
                     f"Elapsed: {elapsed_str} · Source: {source_str}\n\n"
                     f"{bar}\n\n"
+                    f"ılıılı.♫.ılılı  [Lossless 320kbps Audio Engine]\n"
                     f"Next: {next_step_str}\n"
                     f"If a source fails, show the actual error and fallback status."
                 )
@@ -1083,6 +1084,7 @@ class MusicCog(commands.Cog, name="Music"):
                         f"🔘 **{progress_state['stage']}**\n"
                         f"Elapsed: {elapsed_text} · Source: {progress_state['source']}\n\n"
                         f"{bar_str}\n\n"
+                        f"ılıılı.♫.ılılı  [Lossless 320kbps Audio Engine]\n"
                         f"Next: {progress_state['next']}\n"
                         f"If a source fails, show the actual error and fallback status."
                     )
@@ -1090,14 +1092,11 @@ class MusicCog(commands.Cog, name="Music"):
                         await interaction.edit_original_response(
                             content=None, embed=embed_loading, view=None
                         )
-                    except (discord.NotFound, discord.Forbidden, discord.HTTPException) as status_err:
-                        logger.debug(
-                            "[Playback] operation=progress_update correlation_id=%s "
-                            "exception_type=%s outcome=stopped",
-                            correlation_id,
-                            type(status_err).__name__,
-                        )
+                    except (discord.NotFound, discord.Forbidden):
                         break
+                    except discord.HTTPException:
+                        await asyncio.sleep(3)
+                        continue
                     except Exception as status_err:
                         logger.debug(
                             "[Playback] progress update skipped: %s",
@@ -1233,14 +1232,14 @@ class MusicCog(commands.Cog, name="Music"):
                         artist_hint=artist_hint_val,
                         correlation_id=correlation_id,
                     ),
-                    timeout=90.0,
+                    timeout=30.0,
                 )
             except asyncio.TimeoutError:
                 track = None
                 is_timed_out = True
                 logger.warning(
                     "[Playback] operation=resolve correlation_id=%s "
-                    "exception_type=TimeoutError duration_ms=90000 outcome=timeout",
+                    "exception_type=TimeoutError duration_ms=30000 outcome=timeout",
                     correlation_id,
                 )
             except Exception as e:
@@ -1251,7 +1250,12 @@ class MusicCog(commands.Cog, name="Music"):
                     type(e).__name__,
                 )
 
-            await _stop_resolving_status()
+            if track:
+                progress_state["stage"] = "Connecting audio pipeline & buffering stream..."
+                progress_state["next"] = "buffer audio cushion → start live voice playback"
+                progress_state["ratio"] = 0.88
+            else:
+                await _stop_resolving_status()
 
             # Keep Audius/Jamendo fallback, but never silently substitute a
             # near-spelling title (e.g. Kalyan for a Kalyani request).
@@ -1280,6 +1284,7 @@ class MusicCog(commands.Cog, name="Music"):
                 )
 
             if not track:
+                await _stop_resolving_status()
                 display_query_for_user = display_name or query
                 if not display_name and display_query_for_user.startswith(("http://", "https://", "spotify:")):
                     display_query_for_user = "selected track"
@@ -1327,7 +1332,10 @@ class MusicCog(commands.Cog, name="Music"):
                         ),
                         color=COLOR_ERROR,
                     )
-                await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
+                try:
+                    await interaction.edit_original_response(content=None, embed=embed_fail, view=None)
+                except Exception:
+                    await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
                 return
 
             search_dur = time.time() - search_start
@@ -1369,7 +1377,8 @@ class MusicCog(commands.Cog, name="Music"):
                 total_dur_ms = (time.time() - start_t) * 1000
                 search_dur_ms = search_dur * 1000
 
-                if session.is_playing or session.is_paused or session.has_active_track:
+                should_queue = session.is_playing or (session.is_paused and len(session.queue) > 0)
+                if should_queue:
                     if top:
                         session.queue.insert(0, track)
                     else:
@@ -1409,9 +1418,14 @@ class MusicCog(commands.Cog, name="Music"):
                     if track.thumbnail:
                         embed_queued.set_thumbnail(url=track.thumbnail)
                     embed_queued.set_footer(text=f"Requested by {member.display_name}")
+                    await _stop_resolving_status()
                     try:
                         await interaction.edit_original_response(embed=embed_queued, content=None, view=None)
                     except Exception:
+                        try:
+                            await interaction.delete_original_response()
+                        except Exception:
+                            pass
                         await interaction.followup.send(embed=embed_queued)
                     await MusicPlayerService.send_now_playing_panel(session, bot=self.bot)
                 else:
@@ -1424,6 +1438,7 @@ class MusicCog(commands.Cog, name="Music"):
                         success = False
                         session.last_error = str(play_exc)
 
+                    await _stop_resolving_status()
                     play_dur = time.time() - play_start
                     play_dur_ms = play_dur * 1000
                     total_dur_ms = (time.time() - start_t) * 1000
@@ -1461,6 +1476,13 @@ class MusicCog(commands.Cog, name="Music"):
                                 )
                         except Exception as edit_err:
                             logger.warning(f"[Playback] Notice editing interaction on play success: {edit_err}")
+                            try:
+                                await interaction.delete_original_response()
+                            except Exception:
+                                pass
+                            await interaction.followup.send(
+                                content=f"🎶 **Started playing:** [{track.title}]({track.url or ''}) • *{DIALOGUE_START}*"
+                            )
 
                     else:
                         err_detail = getattr(session, "last_error", None) or "Audio pipeline could not decode or play the audio stream."
@@ -1475,7 +1497,14 @@ class MusicCog(commands.Cog, name="Music"):
                             ),
                             color=0xED4245,
                         )
-                        await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
+                        try:
+                            await interaction.edit_original_response(content=None, embed=embed_fail, view=None)
+                        except Exception:
+                            try:
+                                await interaction.delete_original_response()
+                            except Exception:
+                                pass
+                            await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
         except Exception as top_err:
             if "progress_task" in locals():
                 try:

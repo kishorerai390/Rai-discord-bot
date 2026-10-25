@@ -795,6 +795,22 @@ WRITABLE_COOKIE_PATH = Path(tempfile.gettempdir()) / "musicmaid_cookies.txt"
 
 
 
+def _is_youtube_access_challenge(message: Optional[str]) -> bool:
+    """Return True only for explicit YouTube anti-bot/consent challenges."""
+    if not isinstance(message, str) or not message.strip():
+        return False
+    normalized = message.casefold().replace("’", "'")
+    challenge_markers = (
+        "sign in to confirm you're not a bot",
+        "confirm you're not a bot",
+        "captcha challenge",
+        "captcha required",
+        "consent required",
+        "not a bot",
+    )
+    return any(marker in normalized for marker in challenge_markers)
+
+
 def _format_error(e: BaseException) -> str:
     """Format exception details while redacting credentials and signed URLs."""
     if isinstance(e, asyncio.TimeoutError):
@@ -1393,6 +1409,10 @@ def build_ffmpeg_options(
         ua = track.http_headers.get("User-Agent") or track.http_headers.get("user-agent")
         if ua:
             user_agent = ua
+    elif track and track.stream_url and "c=ANDROID" in track.stream_url:
+        user_agent = "com.google.android.youtube/19.29.37 (Linux; U; Android 11) gzip"
+    elif track and track.stream_url and "c=IOS" in track.stream_url:
+        user_agent = "com.google.ios.youtube/19.29.1 (iPhone14,3; U; CPU iOS 16_5 like Mac OS X)"
 
     before = []
     if start_seconds > 0:
@@ -2016,6 +2036,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=cached_track.artist,
                     thumbnail=cached_track.thumbnail,
+                    http_headers=cached_track.http_headers,
                 )
                 setattr(cached, "_correlation_id", correlation_id)
                 return cached
@@ -2036,6 +2057,7 @@ class AudioResolver:
                         requester_name=requester_name,
                         artist=data.get("artist", "Unknown Artist"),
                         thumbnail=data.get("thumbnail"),
+                        http_headers=data.get("http_headers"),
                     )
                     cls._track_cache[cache_key] = (restored_track, now)
                     setattr(restored_track, "_correlation_id", correlation_id)
@@ -2066,6 +2088,7 @@ class AudioResolver:
                         requester_name=requester_name,
                         artist=res.artist,
                         thumbnail=res.thumbnail,
+                        http_headers=res.http_headers,
                     )
                     setattr(duplicate, "_correlation_id", correlation_id)
                     return duplicate
@@ -2103,6 +2126,7 @@ class AudioResolver:
                                     "duration": t.duration,
                                     "artist": t.artist,
                                     "thumbnail": t.thumbnail,
+                                    "http_headers": t.http_headers,
                                 })
                                 await redis_c.setex(f"mm:track:{k}", CACHE_TTL, payload)
                             except Exception:
@@ -2123,6 +2147,7 @@ class AudioResolver:
                 requester_name=requester_name,
                 artist=resolved.artist,
                 thumbnail=resolved.thumbnail,
+                http_headers=resolved.http_headers,
             )
             setattr(out_track, "_correlation_id", correlation_id)
             if hasattr(resolved, "provider"):
@@ -2204,7 +2229,10 @@ class AudioResolver:
 
             matched_audius = None
             for cand in audius_cands:
-                if is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                if (
+                    is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist)
+                    and _is_strong_fallback_title_match(cand, intent)
+                ):
                     matched_audius = cand
                     break
 
@@ -2218,6 +2246,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=matched_audius.get("artist", "Unknown Artist"),
                     thumbnail=matched_audius.get("thumbnail"),
+                    http_headers=matched_audius.get("http_headers"),
                 )
                 setattr(track, "provider", "audius")
                 setattr(track, "_correlation_id", corr_id)
@@ -2239,7 +2268,10 @@ class AudioResolver:
 
             matched_jamendo = None
             for cand in jamendo_cands:
-                if is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                if (
+                    is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist)
+                    and _is_strong_fallback_title_match(cand, intent)
+                ):
                     matched_jamendo = cand
                     break
 
@@ -2253,6 +2285,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=matched_jamendo.get("artist", "Jamendo Artist"),
                     thumbnail=matched_jamendo.get("thumbnail"),
+                    http_headers=matched_jamendo.get("http_headers"),
                 )
                 setattr(track, "provider", "jamendo")
                 setattr(track, "_correlation_id", corr_id)
@@ -2474,6 +2507,42 @@ class AudioResolver:
 
         cls.last_resolver_error = None
         corr_id = correlation_id or uuid.uuid4().hex[:8].upper()
+
+        async def _bounded_alternative_fallback(
+            title: str,
+            artist: Optional[str] = None,
+        ) -> Tuple[Optional[QueuedTrack], Dict[str, str]]:
+            """Keep Audius/Jamendo fallback responsive when an upstream catalog stalls."""
+            timeout_s = 8.0
+            try:
+                timeout_s = max(2.0, min(float(os.getenv("ALTERNATIVE_PROVIDER_TIMEOUT", "8")), 15.0))
+                return await asyncio.wait_for(
+                    cls.resolve_alternative_fallback(
+                        title=title,
+                        artist=artist,
+                        requester_id=requester_id,
+                        requester_name=requester_name,
+                        correlation_id=corr_id,
+                    ),
+                    timeout=timeout_s,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[Resolver] provider=alternatives operation=fallback correlation_id=%s "
+                    "timeout_seconds=%s outcome=timeout",
+                    corr_id,
+                    timeout_s,
+                )
+                return None, {"error": f"Audius/Jamendo fallback timed out after {timeout_s:.0f}s"}
+            except Exception as fallback_exc:
+                logger.warning(
+                    "[Resolver] provider=alternatives operation=fallback correlation_id=%s "
+                    "exception_type=%s outcome=failed",
+                    corr_id,
+                    type(fallback_exc).__name__,
+                )
+                return None, {"error": f"Alternative provider fallback failed ({type(fallback_exc).__name__})"}
+
         normalized_query = " ".join(cleaned_query.split())
         logger.info(
             "[Resolver] provider=youtube operation=resolve correlation_id=%s "
@@ -2540,13 +2609,7 @@ class AudioResolver:
                 if is_direct_url and (not search_q or search_q.startswith("http")):
                     search_q = title_hint or ""
                 if search_q and not search_q.startswith("http"):
-                    fb_track, _ = await cls.resolve_alternative_fallback(
-                        title=search_q,
-                        artist=artist_hint,
-                        requester_id=requester_id,
-                        requester_name=requester_name,
-                        correlation_id=corr_id,
-                    )
+                    fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
                     if fb_track:
                         fb_track = _apply_metadata_enhancements(fb_track)
                         logger.info(
@@ -2661,13 +2724,7 @@ class AudioResolver:
                     if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
                         search_q = title_hint or cleaned_query
                         if search_q and not search_q.startswith("http"):
-                            fb_track, _ = await cls.resolve_alternative_fallback(
-                                title=search_q,
-                                artist=artist_hint,
-                                requester_id=requester_id,
-                                requester_name=requester_name,
-                                correlation_id=corr_id,
-                            )
+                            fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
                             if fb_track:
                                 fb_track = _apply_metadata_enhancements(fb_track)
                                 return fb_track
@@ -2747,9 +2804,11 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
+            # Tier 1: Primary Profile (android_vr/web when cookies present, otherwise ios/android) - 14.0s timeout
             try:
-                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=bool(get_active_cookie_file()))
+                has_cookies = bool(get_active_cookie_file())
+                tier1_clients = ["android_vr", "web"] if has_cookies else ["ios", "android"]
+                tier1_opts = _build_ytdl_options(tier1_clients, use_cookies=has_cookies)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
@@ -2785,12 +2844,70 @@ class AudioResolver:
                     cand_idx,
                     type(t1_err).__name__,
                 )
-                if "format is not available" in t1_msg.lower():
+                restricted_markers = (
+                    "403", "forbidden", "sign in", "confirm you're not a bot",
+                    "po-token", "access_denied", "too many requests", "429",
+                    "timeout", "timed out",
+                )
+                if any(marker in t1_msg.casefold() for marker in restricted_markers):
+                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
+                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        fb_track, fb_diag = await _bounded_alternative_fallback(
+                            fallback_title,
+                            artist_hint,
+                        )
+                        if fb_track:
+                            fb_track = _apply_metadata_enhancements(fb_track)
+                            logger.info(
+                                "[Resolver] provider=%s operation=early_access_fallback "
+                                "correlation_id=%s outcome=resolved title=%r",
+                                getattr(fb_track, "provider", "alternative"),
+                                corr_id,
+                                fb_track.title,
+                            )
+                            return fb_track
+
+                    # Try JukeBot StreamRequest directly before abandoning public extraction
+                    try:
+                        from music_bot.services.jukebot_service import JukeBotStreamRequest
+                        juke_data = await JukeBotStreamRequest.extract_stream(target_url, timeout=10.0)
+                        if juke_data and juke_data.get("stream_url"):
+                            if _entry_matches_selected_video(juke_data, target_url, "stream_extract_jukebot"):
+                                track = QueuedTrack(
+                                    title=juke_data.get("title", "Unknown Title"),
+                                    url=juke_data.get("url", target_url),
+                                    stream_url=juke_data["stream_url"],
+                                    duration=juke_data.get("duration", 0),
+                                    requester_id=requester_id,
+                                    requester_name=requester_name,
+                                    artist=juke_data.get("uploader", "Unknown Artist"),
+                                    thumbnail=juke_data.get("thumbnail"),
+                                    http_headers=juke_data.get("http_headers"),
+                                )
+                                track = _apply_metadata_enhancements(track)
+                                setattr(track, "provider", "youtube")
+                                dur = time.time() - start_t
+                                logger.info(
+                                    f"[Resolver] [Ref: MM-{corr_id}] JukeBot StreamRequest tier resolved candidate #{cand_idx} "
+                                    f"'{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                                )
+                                return track
+                    except Exception as juke_err:
+                        logger.debug(f"[Resolver] JukeBot tier notice: {juke_err}")
+
+                    # Don't spend more time cycling YouTube clients after an explicit
+                    # access block; continue to verified-cookie fallback if configured.
+                    last_failure_reason = t1_msg
+                    break
+
+                if "format is not available" in t1_msg.lower() or "requested format" in t1_msg.lower():
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
                         (["web"], "best"),
                         (["android_vr"], "best"),
+                        (["android_vr"], "18/best"),
+                        (["web"], "18/22/best"),
                     ):
                         try:
                             fb_opts = _build_ytdl_options(fallback_clients, use_cookies=bool(get_active_cookie_file()))
@@ -2834,6 +2951,26 @@ class AudioResolver:
                                 ",".join(fallback_clients) if fallback_clients else "yt-dlp default",
                                 type(fb_err).__name__,
                             )
+
+                    # If all yt-dlp format and profile variations failed on this candidate,
+                    # try alternative catalog before spending more time on tiers
+                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
+                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        early_track, early_diag = await _bounded_alternative_fallback(
+                            fallback_title,
+                            artist_hint,
+                        )
+                        if early_track:
+                            early_track = _apply_metadata_enhancements(early_track)
+                            logger.info(
+                                "[Resolver] provider=%s operation=early_format_fallback "
+                                "correlation_id=%s outcome=resolved title=%r",
+                                getattr(early_track, "provider", "alternative"),
+                                corr_id,
+                                early_track.title,
+                            )
+                            return early_track
+
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
@@ -2889,6 +3026,7 @@ class AudioResolver:
                             requester_name=requester_name,
                             artist=juke_data.get("uploader", "Unknown Artist"),
                             thumbnail=juke_data.get("thumbnail"),
+                            http_headers=juke_data.get("http_headers"),
                         )
                         track = _apply_metadata_enhancements(track)
                         setattr(track, "provider", "youtube")
@@ -2910,8 +3048,9 @@ class AudioResolver:
                 corr_id,
             )
             for cookie_clients, cookie_format in (
-                (["android_vr"], "best"),
-                (None, "bestaudio/best"),
+                (["android_vr"], "18/best"),
+                (["web"], "18/22/best"),
+                (None, "bestaudio/18/22/b/best"),
             ):
                 try:
                     tier3_opts = _build_ytdl_options(cookie_clients, use_cookies=True)
@@ -2999,12 +3138,9 @@ class AudioResolver:
                 or "bot" in lower_failure_reason
             )
         ):
-            fb_track, fb_diag = await cls.resolve_alternative_fallback(
-                title=effective_fallback_query,
-                artist=artist_hint,
-                requester_id=requester_id,
-                requester_name=requester_name,
-                correlation_id=corr_id,
+            fb_track, fb_diag = await _bounded_alternative_fallback(
+                effective_fallback_query,
+                artist_hint,
             )
             if fb_track:
                 return fb_track
