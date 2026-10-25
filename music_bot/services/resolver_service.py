@@ -2881,6 +2881,34 @@ class AudioResolver:
                                 fb_track.title,
                             )
                             return fb_track
+
+                    # Try JukeBot StreamRequest directly before abandoning public extraction
+                    try:
+                        from music_bot.services.jukebot_service import JukeBotStreamRequest
+                        juke_data = await JukeBotStreamRequest.extract_stream(target_url, timeout=10.0)
+                        if juke_data and juke_data.get("stream_url"):
+                            if _entry_matches_selected_video(juke_data, target_url, "stream_extract_jukebot"):
+                                track = QueuedTrack(
+                                    title=juke_data.get("title", "Unknown Title"),
+                                    url=juke_data.get("url", target_url),
+                                    stream_url=juke_data["stream_url"],
+                                    duration=juke_data.get("duration", 0),
+                                    requester_id=requester_id,
+                                    requester_name=requester_name,
+                                    artist=juke_data.get("uploader", "Unknown Artist"),
+                                    thumbnail=juke_data.get("thumbnail"),
+                                )
+                                track = _apply_metadata_enhancements(track)
+                                setattr(track, "provider", "youtube")
+                                dur = time.time() - start_t
+                                logger.info(
+                                    f"[Resolver] [Ref: MM-{corr_id}] JukeBot StreamRequest tier resolved candidate #{cand_idx} "
+                                    f"'{cleaned_query[:40]}' in {dur:.2f}s -> '{track.title}'"
+                                )
+                                return track
+                    except Exception as juke_err:
+                        logger.debug(f"[Resolver] JukeBot tier notice: {juke_err}")
+
                     # Don't spend more time cycling YouTube clients after an explicit
                     # access block; continue to verified-cookie fallback if configured.
                     last_failure_reason = t1_msg
