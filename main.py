@@ -67,6 +67,19 @@ def _start_immediate_health_server():
                     self.end_headers()
                     with open(fpath, "rb") as fp:
                         self.wfile.write(fp.read())
+            if self.path in ["/login", "/signin", "/auth/login"]:
+                try:
+                    from web_login import LOGIN_PAGE_HTML
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(LOGIN_PAGE_HTML.encode("utf-8"))
+                    return
+                except Exception as err:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(f"Login Error: {err}".encode("utf-8"))
                     return
 
             try:
