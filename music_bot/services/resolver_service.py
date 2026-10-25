@@ -795,6 +795,22 @@ WRITABLE_COOKIE_PATH = Path(tempfile.gettempdir()) / "musicmaid_cookies.txt"
 
 
 
+def _is_youtube_access_challenge(message: Optional[str]) -> bool:
+    """Return True only for explicit YouTube anti-bot/consent challenges."""
+    if not isinstance(message, str) or not message.strip():
+        return False
+    normalized = message.casefold().replace("’", "'")
+    challenge_markers = (
+        "sign in to confirm you're not a bot",
+        "confirm you're not a bot",
+        "captcha challenge",
+        "captcha required",
+        "consent required",
+        "not a bot",
+    )
+    return any(marker in normalized for marker in challenge_markers)
+
+
 def _format_error(e: BaseException) -> str:
     """Format exception details while redacting credentials and signed URLs."""
     if isinstance(e, asyncio.TimeoutError):
@@ -2810,6 +2826,27 @@ class AudioResolver:
                     type(t1_err).__name__,
                 )
                 if "format is not available" in t1_msg.lower():
+                    # This is a known cloud extraction failure. Try the existing
+                    # Audius/Jamendo path before spending up to 32 seconds on
+                    # sequential yt-dlp format/client retries. Keep those retries
+                    # below as a fallback if the alternative catalog has no match.
+                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
+                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        early_track, early_diag = await _bounded_alternative_fallback(
+                            fallback_title,
+                            artist_hint,
+                        )
+                        if early_track:
+                            early_track = _apply_metadata_enhancements(early_track)
+                            logger.info(
+                                "[Resolver] provider=%s operation=early_format_fallback "
+                                "correlation_id=%s outcome=resolved title=%r",
+                                getattr(early_track, "provider", "alternative"),
+                                corr_id,
+                                early_track.title,
+                            )
+                            return early_track
+
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
