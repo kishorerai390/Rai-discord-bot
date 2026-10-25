@@ -915,6 +915,7 @@ class MusicCog(commands.Cog, name="Music"):
         correlation_id: Optional[str] = None,
         display_name: Optional[str] = None,
         top: bool = False,
+        artist_hint: Optional[str] = None,
     ) -> None:
         """Internal worker executing search, resolve, queueing, and playback transition."""
         correlation_id = correlation_id or uuid.uuid4().hex[:8].upper()
@@ -1158,6 +1159,7 @@ class MusicCog(commands.Cog, name="Music"):
                             selected_url,
                             correlation_id=correlation_id,
                             display_name=selected_title,
+                            artist_hint=str(selected.get("artist") or "").strip() or None,
                         )
 
                     await _stop_resolving_status()
@@ -1221,7 +1223,9 @@ class MusicCog(commands.Cog, name="Music"):
             search_start = time.time()
             is_timed_out = False
             title_hint_val = display_name or (candidates[0].get("title") if candidates else None)
-            artist_hint_val = candidates[0].get("artist") if candidates else None
+            # A selected URL is resolved in a fresh _play_query call, where
+            # candidates is empty. Preserve the artist supplied by the selection callback.
+            artist_hint_val = artist_hint or (candidates[0].get("artist") if candidates else None)
             try:
                 track = await asyncio.wait_for(
                     AudioResolver.resolve_track(

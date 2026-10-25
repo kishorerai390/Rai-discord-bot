@@ -2610,18 +2610,35 @@ class AudioResolver:
             )
             # Try alternative providers fallback directly during active YouTube cooldown
             if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
-                search_q = title_hint or cleaned_query
-                if is_direct_url and (not search_q or search_q.startswith("http")):
-                    search_q = title_hint or ""
-                if search_q and not search_q.startswith("http"):
-                    fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
+                # Never search a secondary catalog using a raw YouTube URL/video ID.
+                # The original title/artist must be carried through candidate selection.
+                search_q = str(title_hint or "").strip()
+                fallback_artist = str(artist_hint or "").strip() or None
+                if search_q and not search_q.startswith(("http://", "https://")):
+                    logger.info(
+                        "[Resolver] provider=alternatives operation=fallback_start "
+                        "correlation_id=%s query=%r artist=%r reason=youtube_cooldown",
+                        corr_id, search_q[:100], fallback_artist,
+                    )
+                    fb_track, fb_diag = await _bounded_alternative_fallback(search_q, fallback_artist)
                     if fb_track:
                         fb_track = _apply_metadata_enhancements(fb_track)
                         logger.info(
-                            f"[Resolver] [Ref: MM-{corr_id}] Fallback provider {getattr(fb_track, 'provider', 'alternative')} resolved "
-                            f"'{search_q[:40]}' -> '{fb_track.title}' during YouTube cooldown"
+                            "[Resolver] provider=alternatives operation=fallback_complete "
+                            "correlation_id=%s provider=%s title=%r outcome=success",
+                            corr_id, getattr(fb_track, "provider", "alternative"), fb_track.title,
                         )
                         return fb_track
+                    logger.warning(
+                        "[Resolver] provider=alternatives operation=fallback_complete "
+                        "correlation_id=%s outcome=no_match diagnostic=%r",
+                        corr_id, fb_diag.get("error", "no acceptable alternative match"),
+                    )
+                else:
+                    logger.warning(
+                        "[Resolver] provider=alternatives operation=fallback_skipped "
+                        "correlation_id=%s reason=missing_original_title_hint", corr_id,
+                    )
 
             cls.last_resolver_error = (
                 f"[ACCESS_RESTRICTION] (Ref: MM-{corr_id}) YouTube {last_fail} cooldown active "
