@@ -104,7 +104,7 @@ class Config:
         self.bot_prefix: str = settings.get("prefix", "")
         self.activity: List[Dict[str, str]] = settings.get("activity", [{"listen": "/help"}])
         self.logging: Dict[Union[str, Dict[str, Union[str, bool]]]] = settings.get("logging", {})
-        self.embed_color: str = int(settings.get("embed_color", "0xb3b3b3"), 16)
+        self.embed_color: str = int(settings.get("embed_color", "0xa855f7"), 16)
         self.bot_access_user: List[int] = settings.get("bot_access_user", [])
         self.sources_settings: Dict[Dict[str, str]] = settings.get("sources_settings", {})
         self.cooldowns_settings: Dict[str, List[int]] = settings.get("cooldowns", {})

@@ -42,26 +42,55 @@ s['nodes'] = {
         'identifier': 'LOCAL_LAVALINK'
     }
 }
-s['activity'] = [{
-    'type': 'listening',
-    'name': '/help | MusicMaid',
-    'status': 'online'
-}]
+s['embed_color'] = '0xa855f7'
+s['activity'] = [
+    {
+        'type': 'listening',
+        'name': '/play | MusicMaid 🎧',
+        'status': 'online'
+    },
+    {
+        'type': 'listening',
+        'name': '/help | Crystal Clear Audio 💜',
+        'status': 'online'
+    },
+    {
+        'type': 'watching',
+        'name': 'your voice channels 🎵',
+        'status': 'online'
+    }
+]
 
 if not s.get('default_controller'):
     s['default_controller'] = {
         'embeds': {
             'active': {
-                'description': '**Now Playing: ```[@@track_name@@]```**\nLink: [Click Me](@@track_url@@) | Requester: @@track_requester_mention@@ | DJ: @@dj@@',
+                'title': {
+                    'name': '🎵 Now Playing in @@channel_name@@',
+                    'url': '@@track_url@@'
+                },
+                'description': '### [@@track_name@@](@@track_url@@)\n> 👤 **Artist:** `@@track_author@@`\n> 🎧 **Requester:** @@track_requester_mention@@\n> 🎚️ **Volume:** `@@volume@@%` • 🔁 **Loop:** `@@loop_mode@@`',
+                'thumbnail': '@@track_thumbnail@@',
                 'footer': {
-                    'text': 'Queue Length: @@queue_length@@ | Duration: @@track_duration@@ | Volume: @@volume@@%'
+                    'text': 'Queue Length: @@queue_length@@ • Duration: @@track_duration@@ • MusicMaid Audio',
+                    'icon_url': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg'
                 }
             },
             'inactive': {
-                'title': {'name': 'MusicMaid Music System'},
-                'description': 'Join a voice channel and queue songs using `/play`!'
+                'title': {
+                    'name': '💜 MusicMaid High-Fidelity Audio System',
+                    'url': 'https://rai-discord-bot.onrender.com'
+                },
+                'description': '### No track currently playing\nJoin a voice channel and type `/play <song name or link>` to start streaming!',
+                'thumbnail': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg',
+                'footer': {
+                    'text': 'MusicMaid • 24/7 Zero Latency Audio',
+                    'icon_url': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg'
+                }
             }
         }
+    }
+
 if 'logging' not in s:
     s['logging'] = {}
 if 'level' not in s['logging']:

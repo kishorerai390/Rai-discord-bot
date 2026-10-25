@@ -119,7 +119,7 @@ def ensure_settings() -> dict:
         "activity": [{"type": "listening", "name": "/help", "status": "online"}],
         "logging": {"file": {"path": "./logs", "enable": True}, "level": {"discord": "INFO", "musicmaid": "INFO", "ipc_client": "INFO"}, "max_history": 30},
         "bot_access_user": [],
-        "embed_color": "0xb3b3b3",
+        "embed_color": "0xa855f7",
         "default_max_queue": 1000,
         "default_search_platform": "youtube",
         "lyrics_platform": "lrclib",

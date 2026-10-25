@@ -87,9 +87,13 @@ class HelpView(discord.ui.View):
             embed.add_field(name="📰 Information:", value=update, inline=True)
             embed.add_field(name="Get Started", value="```Join a voice channel and /play {Song/URL} a song. (Track names, search queries, YouTube, Spotify, and playlist links are fully supported)```", inline=False)
             
+            embed.set_thumbnail(url=self.bot.user.display_avatar.url if self.bot.user else "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg")
+            embed.set_footer(text="MusicMaid • 24/7 Zero Latency Audio • /help", icon_url=self.bot.user.display_avatar.url if self.bot.user else None)
             return embed
 
         embed = discord.Embed(title=f"Category: {category.capitalize()}", color=Config().embed_color)
+        embed.set_thumbnail(url=self.bot.user.display_avatar.url if self.bot.user else "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg")
+        embed.set_footer(text="MusicMaid • 24/7 Zero Latency Audio • /help", icon_url=self.bot.user.display_avatar.url if self.bot.user else None)
         embed.add_field(name=f"Categories: [{2 + len(self.categories)}]", value="```py\n" + "\n".join(("👉 " if c == category.capitalize() else f"{i}. ") + c for i, c in enumerate(['News', 'Tutorial'] + self.categories, start=1)) + "```", inline=True)
 
         if category == 'tutorial':

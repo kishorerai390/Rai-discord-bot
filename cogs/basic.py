@@ -57,9 +57,18 @@ async def nowplay(ctx: commands.Context, player: voicelink.Player):
     if upnext:
         embed.add_field(name=texts[1], value=upnext)
 
-    pbar = "".join(":radio_button:" if i == round(player.position // round(track.length // 15)) else "▬" for i in range(15))
-    icon = ":red_circle:" if track.is_stream else (":pause_button:" if player.is_paused else ":arrow_forward:")
-    embed.add_field(name="\u2800", value=f"{icon} {pbar} **[{format_ms(player.position)}/{track.formatted_length}]**", inline=False)
+    if track.is_stream:
+        pbar_str = "🔴 **LIVE STREAM**"
+    else:
+        total_blocks = 14
+        progress_ratio = max(0.0, min(1.0, player.position / max(1, track.length)))
+        filled = int(round(progress_ratio * total_blocks))
+        pbar = "▰" * filled + "▱" * (total_blocks - filled)
+        status_icon = "⏸️" if player.is_paused else "▶️"
+        pbar_str = f"{status_icon} `{pbar}` **[{format_ms(player.position)} / {track.formatted_length}]**"
+
+    embed.add_field(name="\u2800", value=pbar_str, inline=False)
+    embed.set_footer(text="MusicMaid • High-Fidelity Audio", icon_url=ctx.bot.user.display_avatar.url if ctx.bot.user else None)
 
     return await dispatch_message(ctx, embed, view=LinkView(texts[2].format(track.source.title()), track.emoji, track.uri))
 
