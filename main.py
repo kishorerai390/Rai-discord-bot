@@ -48,10 +48,38 @@ def _start_immediate_health_server():
                 else:
                     self.wfile.write(b"No log file found yet.")
                 return
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain")
-            self.end_headers()
-            self.wfile.write(b"OK")
+            if self.path in ["/healthz", "/health", "/ping"]:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"OK")
+                return
+
+            if self.path.startswith("/public/") or self.path.startswith("/assets/"):
+                import mimetypes
+                fname = os.path.basename(self.path.split("?")[0])
+                fpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", fname)
+                if os.path.exists(fpath) and os.path.isfile(fpath):
+                    mime, _ = mimetypes.guess_type(fpath)
+                    self.send_response(200)
+                    self.send_header("Content-Type", mime or "application/octet-stream")
+                    self.send_header("Cache-Control", "public, max-age=86400")
+                    self.end_headers()
+                    with open(fpath, "rb") as fp:
+                        self.wfile.write(fp.read())
+                    return
+
+            try:
+                from web_landing import LANDING_PAGE_HTML
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(LANDING_PAGE_HTML.encode("utf-8"))
+            except Exception as e:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(f"MusicMaid Gateway Active (Render Port {port})".encode("utf-8"))
         def log_message(self, *args):
             pass
     try:
