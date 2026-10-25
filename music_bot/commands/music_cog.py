@@ -991,19 +991,46 @@ class MusicCog(commands.Cog, name="Music"):
                     await self.send_ephemeral_or_fallback(interaction, embed=embed_conn_err)
                     return
 
-            # 2. Resolve query: Edit original response with active resolving notice (no premature 'Found it!')
-            if display_name:
-                resolving_desc = f"Searching: `{display_name[:100]}`...\n*Contacting audio resolver without delay...*"
-            elif query.startswith(("http://", "https://", "spotify:")):
-                resolving_desc = "Resolving audio track...\n*Contacting audio resolver without delay...*"
+            # 2. Resolve query: premium status card with honest diagnostics.
+            # This is an initial state only; do not imply a source has succeeded yet.
+            request_label = display_name or query
+            if query.startswith(("http://", "https://", "spotify:")):
+                request_kind = "Direct link / metadata lookup"
+                action_label = "Resolving the requested track"
             else:
-                resolving_desc = f"Searching: `{query[:100]}`...\n*Contacting audio resolver without delay...*"
+                request_kind = "Song title search"
+                action_label = "Searching candidates and checking the best match"
 
+            safe_request_label = str(request_label or "Unknown track").replace("`", "'")[:100]
             embed_loading = discord.Embed(
-                title=f"{EmojiManager.get('SEARCH', self.bot)} MusicMaid ✦ Resolving Track",
-                description=resolving_desc,
-                color=COLOR_CYAN,
+                title="✦ MUSICMAID  //  RESOLVING AUDIO",
+                description=(
+                    f"**REQUEST**\n> ♫ `{safe_request_label}`\n\n"
+                    f"**CURRENT STAGE**\n> ◈ {action_label}\n> ◈ Preparing a playable audio stream\n\n"
+                    "*Playback has not started yet. The selected title is checked before it is queued.*"
+                ),
+                color=COLOR_PREMIUM,
             )
+            embed_loading.add_field(
+                name="◈ SOURCE CHECKS",
+                value="YouTube · Audius · Jamendo\nSpotify / Apple Music metadata · Direct audio URLs",
+                inline=False,
+            )
+            embed_loading.add_field(
+                name="⌁ DIAGNOSTICS",
+                value=(
+                    f"**Request type:** `{request_kind}`\n"
+                    f"**Trace ID:** `{str(correlation_id)[:32]}`\n"
+                    "**Stage:** `candidate search → stream resolution`"
+                ),
+                inline=True,
+            )
+            embed_loading.add_field(
+                name="↻ RETRY / FALLBACK",
+                value="Resolver-managed retries and source fallbacks remain enabled. Detailed failures are recorded in bot logs.",
+                inline=True,
+            )
+            embed_loading.set_footer(text="RAI MUSIC SYSTEM  •  LIVE RESOLUTION STATUS")
             try:
                 await interaction.edit_original_response(content=None, embed=embed_loading, view=None)
             except Exception as load_err:
