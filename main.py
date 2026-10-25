@@ -82,6 +82,27 @@ def _start_immediate_health_server():
                     self.wfile.write(f"Login Error: {err}".encode("utf-8"))
                     return
 
+            if self.path.startswith("/api/auth/callback"):
+                self.send_response(302)
+                self.send_header("Location", "/dashboard")
+                self.end_headers()
+                return
+
+            if self.path in ["/dashboard", "/app", "/panel", "/player", "/music"]:
+                try:
+                    from web.ui import UI_HTML
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(UI_HTML.encode("utf-8"))
+                    return
+                except Exception as err:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(f"Dashboard Error: {err}".encode("utf-8"))
+                    return
+
             try:
                 from web_landing import LANDING_PAGE_HTML
                 self.send_response(200)

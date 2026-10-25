@@ -569,6 +569,7 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#commands">Commands</a>
+      <a href="/dashboard">Dashboard</a>
       <a href="/login" style="color: var(--accent-neon); font-weight: 700;">Login</a>
       <a href="/api/logs" target="_blank">Live Logs</a>
       <a href="https://discord.gg/wRCgB7vBQv" target="_blank">Support</a>

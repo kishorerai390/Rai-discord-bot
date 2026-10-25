@@ -537,7 +537,7 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
       </form>
 
       <div class="demo-bar">
-        <a href="/" class="demo-link">Want to invite the bot instead? <span>Add to Server ↗</span></a>
+        <a href="/dashboard" class="demo-link">Want to explore without sign-in? <span>Open Live Dashboard ↗</span></a>
       </div>
     </div>
 
@@ -547,12 +547,11 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
     function handlePasskeySubmit(e) {
       e.preventDefault();
       const btn = document.getElementById('submit-btn');
-      btn.innerText = 'Connecting to MusicMaid Engine...';
+      btn.innerText = 'Connecting to MusicMaid Dashboard...';
       btn.style.opacity = '0.75';
       setTimeout(() => {
-        alert('Connected to MusicMaid Gateway! Guild sessions will sync in the live web player.');
-        window.location.href = '/';
-      }, 900);
+        window.location.href = '/dashboard';
+      }, 600);
     }
   </script>
 
