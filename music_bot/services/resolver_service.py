@@ -795,6 +795,22 @@ WRITABLE_COOKIE_PATH = Path(tempfile.gettempdir()) / "musicmaid_cookies.txt"
 
 
 
+def _is_youtube_access_challenge(message: Optional[str]) -> bool:
+    """Return True only for explicit YouTube anti-bot/consent challenges."""
+    if not isinstance(message, str) or not message.strip():
+        return False
+    normalized = message.casefold().replace("’", "'")
+    challenge_markers = (
+        "sign in to confirm you're not a bot",
+        "confirm you're not a bot",
+        "captcha challenge",
+        "captcha required",
+        "consent required",
+        "not a bot",
+    )
+    return any(marker in normalized for marker in challenge_markers)
+
+
 def _format_error(e: BaseException) -> str:
     """Format exception details while redacting credentials and signed URLs."""
     if isinstance(e, asyncio.TimeoutError):
