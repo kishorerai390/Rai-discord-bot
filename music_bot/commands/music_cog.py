@@ -1011,14 +1011,21 @@ class MusicCog(commands.Cog, name="Music"):
                 ),
                 color=COLOR_PREMIUM,
             )
+            pipeline_value = (
+                "🟣 **Resolve requested link** — in progress\n"
+                "⚪ **Validate track metadata** — next\n"
+                "⚪ **Resolve stream URL** — pending\n"
+                "⚪ **Prepare FFmpeg playback** — pending"
+                if query.startswith(("http://", "https://", "spotify:"))
+                else
+                "🟣 **Search candidates** — in progress\n"
+                "⚪ **Validate title / artist / video ID** — next\n"
+                "⚪ **Resolve stream URL** — pending\n"
+                "⚪ **Prepare FFmpeg playback** — pending"
+            )
             embed_loading.add_field(
                 name="⌁ RESOLUTION PIPELINE",
-                value=(
-                    "🟣 **Search candidates** — in progress\n"
-                    "⚪ **Validate title / artist / video ID** — next\n"
-                    "⚪ **Resolve stream URL** — pending\n"
-                    "⚪ **Prepare FFmpeg playback** — pending"
-                ),
+                value=pipeline_value,
                 inline=False,
             )
             embed_loading.add_field(
