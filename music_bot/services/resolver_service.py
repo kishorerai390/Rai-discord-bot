@@ -2804,9 +2804,11 @@ class AudioResolver:
         last_failure_reason = "No playable audio format returned"
         verification_failed = False
         for cand_idx, target_url in enumerate(candidate_urls[:2], 1):
-            # Tier 1: Primary Public Profile (ios, android) - 14.0s timeout for cold cloud responses
+            # Tier 1: Primary Profile (android_vr/web when cookies present, otherwise ios/android) - 14.0s timeout
             try:
-                tier1_opts = _build_ytdl_options(["ios", "android"], use_cookies=bool(get_active_cookie_file()))
+                has_cookies = bool(get_active_cookie_file())
+                tier1_clients = ["android_vr", "web"] if has_cookies else ["ios", "android"]
+                tier1_opts = _build_ytdl_options(tier1_clients, use_cookies=has_cookies)
                 tier1_ydl = yt_dlp.YoutubeDL(tier1_opts)
                 data = await _run_ytdlp(
                     functools.partial(tier1_ydl.extract_info, target_url, download=False),
@@ -2898,12 +2900,14 @@ class AudioResolver:
                     last_failure_reason = t1_msg
                     break
 
-                if "format is not available" in t1_msg.lower():
+                if "format is not available" in t1_msg.lower() or "requested format" in t1_msg.lower():
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
                         (["web"], "best"),
                         (["android_vr"], "best"),
+                        (["android_vr"], "18/best"),
+                        (["web"], "18/22/best"),
                     ):
                         try:
                             fb_opts = _build_ytdl_options(fallback_clients, use_cookies=bool(get_active_cookie_file()))
@@ -3044,8 +3048,9 @@ class AudioResolver:
                 corr_id,
             )
             for cookie_clients, cookie_format in (
-                (["android_vr"], "best"),
-                (None, "bestaudio/best"),
+                (["android_vr"], "18/best"),
+                (["web"], "18/22/best"),
+                (None, "bestaudio/18/22/b/best"),
             ):
                 try:
                     tier3_opts = _build_ytdl_options(cookie_clients, use_cookies=True)
