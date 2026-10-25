@@ -198,7 +198,7 @@ class Vocard(commands.Bot):
         func.logger.info(f"Logging As {self.user}")
         func.logger.info(f"Bot ID: {self.user.id}")
         func.logger.info("------------------")
-        func.logger.info(f"Vocard Version: {update.__version__}")
+        func.logger.info(f"MusicMaid Engine Version: {update.__version__}")
         func.logger.info(f"Discord Version: {discord.__version__}")
         func.logger.info(f"Python Version: {sys.version}")
         func.logger.info("------------------")

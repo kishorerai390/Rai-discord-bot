@@ -271,7 +271,7 @@ async def _process_playlist(ctx: commands.Context, playlist_data: dict, playlist
 class Playlists(commands.Cog, name="playlist"):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.description = "This is the Vocard playlist system. You can save your favorites and use Vocard to play on any server."
+        self.description = "This is the MusicMaid playlist system. You can save your favorites and use MusicMaid to play on any server."
 
     async def playlist_autocomplete(self, interaction: discord.Interaction, current: str) -> list:
         playlists_raw: dict[str, dict] = await MongoDBHandler.get_user(interaction.user.id, d_type='playlist')

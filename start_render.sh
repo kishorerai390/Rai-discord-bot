@@ -42,6 +42,11 @@ s['nodes'] = {
         'identifier': 'LOCAL_LAVALINK'
     }
 }
+s['activity'] = [{
+    'type': 'listening',
+    'name': '/help | MusicMaid',
+    'status': 'online'
+}]
 
 with open(settings_path, 'w', encoding='utf-8') as f:
     json.dump(s, f, indent=4)

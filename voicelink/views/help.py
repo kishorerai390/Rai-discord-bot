@@ -34,8 +34,8 @@ class HelpDropdown(discord.ui.Select):
             placeholder="Select Category!",
             min_values=1, max_values=1,
             options=[
-                discord.SelectOption(emoji="🆕", label="News", description="View new updates of Vocard."),
-                discord.SelectOption(emoji="🕹️", label="Tutorial", description="How to use Vocard."),
+                discord.SelectOption(emoji="🆕", label="News", description="View new updates of MusicMaid."),
+                discord.SelectOption(emoji="🕹️", label="Tutorial", description="How to use MusicMaid."),
             ] + [
                 discord.SelectOption(emoji=emoji, label=f"{category} Commands", description=f"This is {category.lower()} Category.")
                 for category, emoji in zip(categories, ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣"])
@@ -56,10 +56,9 @@ class HelpView(discord.ui.View):
         self.response: discord.Message = None
         self.categories: list[str] = [ name.capitalize() for name, cog in bot.cogs.items() if len([c for c in cog.walk_commands()]) ]
 
-        self.add_item(discord.ui.Button(label='Website', emoji='🌎', url='https://vocard.xyz'))
-        self.add_item(discord.ui.Button(label='Document', emoji=':support:915152950471581696', url='https://docs.vocard.xyz'))
-        self.add_item(discord.ui.Button(label='Github', emoji=':github:1098265017268322406', url='https://github.com/ChocoMeow/Vocard'))
-        self.add_item(discord.ui.Button(label='Donate', emoji=':patreon:913397909024800878', url='https://www.patreon.com/Vocard'))
+        self.add_item(discord.ui.Button(label='Website', emoji='🌎', url='https://rai-discord-bot.onrender.com'))
+        self.add_item(discord.ui.Button(label='Github', emoji=':github:1098265017268322406', url='https://github.com/kishorerai390/Rai-discord-bot'))
+        self.add_item(discord.ui.Button(label='Support Server', emoji='💬', url='https://discord.gg/wRCgB7vBQv'))
         self.add_item(HelpDropdown(self.categories))
 
     async def on_timeout(self) -> None:
@@ -77,16 +76,16 @@ class HelpView(discord.ui.View):
     def build_embed(self, category: str) -> discord.Embed:
         category = category.lower()
         if category == "news":
-            embed = discord.Embed(title="Vocard Help Menu", url="https://discord.com/channels/811542332678996008/811909963718459392/1069971173116481636", color=Config().embed_color)
+            embed = discord.Embed(title="MusicMaid Help Menu", url="https://github.com/kishorerai390/Rai-discord-bot", color=Config().embed_color)
             embed.add_field(
                 name=f"Available Categories: [{2 + len(self.categories)}]",
                 value="```py\n👉 News\n2. Tutorial\n{}```".format("".join(f"{i}. {c}\n" for i, c in enumerate(self.categories, start=3))),
                 inline=True
             )
 
-            update = "Vocard is a simple music bot. It leads to a comfortable experience which is user-friendly, It supports Soundcloud, Spotify, Twitch and more!"
+            update = "MusicMaid is a high-performance Discord music bot providing crystal-clear playback, custom playlists, audio filters, and seamless queue management!"
             embed.add_field(name="📰 Information:", value=update, inline=True)
-            embed.add_field(name="Get Started", value="```Join a voice channel and /play {Song/URL} a song. (Names, Video Links or Playlist links are supported on Vocard)```", inline=False)
+            embed.add_field(name="Get Started", value="```Join a voice channel and /play {Song/URL} a song. (Track names, search queries, YouTube, Spotify, and playlist links are fully supported)```", inline=False)
             
             return embed
 
@@ -94,7 +93,7 @@ class HelpView(discord.ui.View):
         embed.add_field(name=f"Categories: [{2 + len(self.categories)}]", value="```py\n" + "\n".join(("👉 " if c == category.capitalize() else f"{i}. ") + c for i, c in enumerate(['News', 'Tutorial'] + self.categories, start=1)) + "```", inline=True)
 
         if category == 'tutorial':
-            embed.description = "How can use Vocard? Some simple commands you should know now after watching this video."
+            embed.description = "How to use MusicMaid? Here are the essential commands and tutorials to get you started."
             embed.set_image(url="https://cdn.discordapp.com/attachments/674788144931012638/917656288899514388/final_61aef3aa7836890135c6010c_669380.gif")
         else:
             cog = [c for _, c in self.bot.cogs.items() if _.lower() == category][0]

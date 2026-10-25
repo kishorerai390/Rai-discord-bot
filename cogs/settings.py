@@ -223,7 +223,7 @@ class Settings(commands.Cog, name="settings"):
     @commands.has_permissions(manage_guild=True)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def duplicatetrack(self, ctx: commands.Context):
-        "Toggle Vocard to prevent duplicate songs from queuing."
+        "Toggle MusicMaid to prevent duplicate songs from queuing."
         settings = await MongoDBHandler.get_settings(ctx.guild.id)
         toggle = not settings.get('duplicate_track', False)
         player: voicelink.Player = ctx.guild.voice_client
@@ -294,7 +294,7 @@ class Settings(commands.Cog, name="settings"):
                         manage_messages=True
                     )
                 }
-                channel = await ctx.guild.create_text_channel("vocard-song-requests", overwrites=overwrites)
+                channel = await ctx.guild.create_text_channel("musicmaid-song-requests", overwrites=overwrites)
             except:
                 return await send_localized_message(ctx, "permissions.noCreatePermission")
 
