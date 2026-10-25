@@ -2474,6 +2474,42 @@ class AudioResolver:
 
         cls.last_resolver_error = None
         corr_id = correlation_id or uuid.uuid4().hex[:8].upper()
+
+        async def _bounded_alternative_fallback(
+            title: str,
+            artist: Optional[str] = None,
+        ) -> Tuple[Optional[QueuedTrack], Dict[str, str]]:
+            """Keep Audius/Jamendo fallback responsive when an upstream catalog stalls."""
+            timeout_s = 8.0
+            try:
+                timeout_s = max(2.0, min(float(os.getenv("ALTERNATIVE_PROVIDER_TIMEOUT", "8")), 15.0))
+                return await asyncio.wait_for(
+                    cls.resolve_alternative_fallback(
+                        title=title,
+                        artist=artist,
+                        requester_id=requester_id,
+                        requester_name=requester_name,
+                        correlation_id=corr_id,
+                    ),
+                    timeout=timeout_s,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "[Resolver] provider=alternatives operation=fallback correlation_id=%s "
+                    "timeout_seconds=%s outcome=timeout",
+                    corr_id,
+                    timeout_s,
+                )
+                return None, {"error": f"Audius/Jamendo fallback timed out after {timeout_s:.0f}s"}
+            except Exception as fallback_exc:
+                logger.warning(
+                    "[Resolver] provider=alternatives operation=fallback correlation_id=%s "
+                    "exception_type=%s outcome=failed",
+                    corr_id,
+                    type(fallback_exc).__name__,
+                )
+                return None, {"error": f"Alternative provider fallback failed ({type(fallback_exc).__name__})"}
+
         normalized_query = " ".join(cleaned_query.split())
         logger.info(
             "[Resolver] provider=youtube operation=resolve correlation_id=%s "
@@ -2540,13 +2576,7 @@ class AudioResolver:
                 if is_direct_url and (not search_q or search_q.startswith("http")):
                     search_q = title_hint or ""
                 if search_q and not search_q.startswith("http"):
-                    fb_track, _ = await cls.resolve_alternative_fallback(
-                        title=search_q,
-                        artist=artist_hint,
-                        requester_id=requester_id,
-                        requester_name=requester_name,
-                        correlation_id=corr_id,
-                    )
+                    fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
                     if fb_track:
                         fb_track = _apply_metadata_enhancements(fb_track)
                         logger.info(
@@ -2661,13 +2691,7 @@ class AudioResolver:
                     if os.getenv("ENABLE_ALTERNATIVE_PROVIDERS", "true").lower() == "true":
                         search_q = title_hint or cleaned_query
                         if search_q and not search_q.startswith("http"):
-                            fb_track, _ = await cls.resolve_alternative_fallback(
-                                title=search_q,
-                                artist=artist_hint,
-                                requester_id=requester_id,
-                                requester_name=requester_name,
-                                correlation_id=corr_id,
-                            )
+                            fb_track, fb_diag = await _bounded_alternative_fallback(search_q, artist_hint)
                             if fb_track:
                                 fb_track = _apply_metadata_enhancements(fb_track)
                                 return fb_track
@@ -2835,6 +2859,32 @@ class AudioResolver:
                                 type(fb_err).__name__,
                             )
 
+                restricted_markers = (
+                    "403", "forbidden", "sign in", "confirm you're not a bot",
+                    "po-token", "access_denied", "too many requests", "429",
+                )
+                if any(marker in t1_msg.casefold() for marker in restricted_markers):
+                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
+                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        fb_track, fb_diag = await _bounded_alternative_fallback(
+                            fallback_title,
+                            artist_hint,
+                        )
+                        if fb_track:
+                            fb_track = _apply_metadata_enhancements(fb_track)
+                            logger.info(
+                                "[Resolver] provider=%s operation=early_access_fallback "
+                                "correlation_id=%s outcome=resolved title=%r",
+                                getattr(fb_track, "provider", "alternative"),
+                                corr_id,
+                                fb_track.title,
+                            )
+                            return fb_track
+                    # Don't spend more time cycling YouTube clients after an explicit
+                    # access block; continue to verified-cookie fallback if configured.
+                    last_failure_reason = t1_msg
+                    break
+
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
             try:
                 tier2_opts = _build_ytdl_options(["web", "mweb", "android"], use_cookies=bool(get_active_cookie_file()))
@@ -2999,12 +3049,9 @@ class AudioResolver:
                 or "bot" in lower_failure_reason
             )
         ):
-            fb_track, fb_diag = await cls.resolve_alternative_fallback(
-                title=effective_fallback_query,
-                artist=artist_hint,
-                requester_id=requester_id,
-                requester_name=requester_name,
-                correlation_id=corr_id,
+            fb_track, fb_diag = await _bounded_alternative_fallback(
+                effective_fallback_query,
+                artist_hint,
             )
             if fb_track:
                 return fb_track
