@@ -29,7 +29,7 @@ class IPCClient:
         self._is_secure: bool = secure
         self._is_connected: bool = False
         self._is_connecting: bool = False
-        self._logger: logging.Logger = logging.getLogger("vocard.ipc_client")
+        self._logger: logging.Logger = logging.getLogger("musicmaid.ipc_client")
         
         self._websocket_url: str = f"{'wss' if self._is_secure else 'ws'}://{self._host}:{self._port}/ws_bot"
         self._session: Optional[aiohttp.ClientSession] = None

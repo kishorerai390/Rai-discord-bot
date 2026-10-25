@@ -1,6 +1,6 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ from typing import Optional, Union, List, Dict, Any
 from .config import Config
 from .mongodb import MongoDBHandler
 
-logger = logging.getLogger("vocard.language")
+logger = logging.getLogger("musicmaid.language")
 
 class LangHandler:
     """

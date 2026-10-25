@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-echo "=== Running Render Build for Vocard ==="
+echo "=== Running Render Build for MusicMaid ==="
 pip install -r requirements.txt
 
 # Download portable JRE 21 if not present

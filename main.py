@@ -1,6 +1,6 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ def _start_immediate_health_server():
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; charset=utf-8")
                 self.end_headers()
-                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "vocard.log")
+                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "musicmaid.log")
                 if os.path.exists(log_file):
                     try:
                         with open(log_file, "r", encoding="utf-8", errors="replace") as f:
@@ -46,7 +46,7 @@ def _start_immediate_health_server():
                     except Exception as err:
                         self.wfile.write(f"Error reading log: {err}".encode("utf-8"))
                 else:
-                    self.wfile.write(b"No vocard.log file found yet.")
+                    self.wfile.write(b"No log file found yet.")
                 return
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -104,7 +104,7 @@ class Translator(discord.app_commands.Translator):
 
         return None
 
-class Vocard(commands.Bot):
+class MusicMaid(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -267,7 +267,7 @@ if (LOG_FILE := LOG_SETTINGS.get("file", {})).get("enable", True):
     if not os.path.exists(log_path):
         os.makedirs(log_path)
 
-    file_handler = TimedRotatingFileHandler(filename=f'{log_path}/vocard.log', encoding="utf-8", backupCount=LOG_SETTINGS.get("max_history", 30), when="d")
+    file_handler = TimedRotatingFileHandler(filename=f'{log_path}/musicmaid.log', encoding="utf-8", backupCount=LOG_SETTINGS.get("max_history", 30), when="d")
     file_handler.namer = lambda name: name.replace(".log", "") + ".log"
     file_handler.setFormatter(logging.Formatter('{asctime} [{levelname:<8}] {name}: {message}', '%Y-%m-%d %H:%M:%S', style='{'))
     logging.getLogger().addHandler(file_handler)
@@ -283,7 +283,7 @@ intents.members = bot_config.ipc_client.get("enable", False)
 intents.voice_states = True
 intents.presences = False
 
-bot = Vocard(
+bot = MusicMaid(
     command_prefix=get_prefix,
     help_command=None,
     tree_cls=CommandCheck,

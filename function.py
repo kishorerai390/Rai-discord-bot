@@ -1,6 +1,6 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ from typing import Optional, Any
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-logger: logging.Logger = logging.getLogger("vocard")
+logger: logging.Logger = logging.getLogger("musicmaid")
 
 def _clean_str(val: Any) -> str:
     if not val:
@@ -117,7 +117,7 @@ def ensure_settings() -> dict:
     defaults = {
         "prefix": "?",
         "activity": [{"type": "listening", "name": "/help", "status": "online"}],
-        "logging": {"file": {"path": "./logs", "enable": True}, "level": {"discord": "INFO", "vocard": "INFO", "ipc_client": "INFO"}, "max_history": 30},
+        "logging": {"file": {"path": "./logs", "enable": True}, "level": {"discord": "INFO", "musicmaid": "INFO", "ipc_client": "INFO"}, "max_history": 30},
         "bot_access_user": [],
         "embed_color": "0xb3b3b3",
         "default_max_queue": 1000,

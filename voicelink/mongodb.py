@@ -1,6 +1,6 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
 from .config import Config
 
-logger: logging.Logger = logging.getLogger("vocard.db")
+logger: logging.Logger = logging.getLogger("musicmaid.db")
 
 # Type definitions for better code clarity
 class PlaylistPerms(TypedDict):

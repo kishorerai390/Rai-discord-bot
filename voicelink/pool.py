@@ -1,6 +1,6 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -505,7 +505,7 @@ class NodePool:
             return existing
         
         if not logger:
-            logger = logging.getLogger("vocard")
+            logger = logging.getLogger("musicmaid")
             
         node = Node(
             pool=cls, bot=bot, host=host, port=port, password=password,

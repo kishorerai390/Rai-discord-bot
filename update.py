@@ -1,6 +1,6 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,7 @@ def download_file(version=None):
         Response: the downloaded zip file content.
     """
     version = version if version else check_version()
-    print(f"Downloading Vocard version: {version}")
+    print(f"Downloading MusicMaid version: {version}")
     response = requests.get(VOCARD_URL + version + ".zip")
     if response.status_code == 404:
         print(f"{bcolors.FAIL}Warning: Version not found!{bcolors.ENDC}")
@@ -157,11 +157,11 @@ def run_migration():
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description='Update and migration script for Vocard.')
-    parser.add_argument('-c', '--check', action='store_true', help='Check the current version of the Vocard')
-    parser.add_argument('-v', '--version', type=str, help='Install the specified version of the Vocard')
-    parser.add_argument('-l', '--latest', action='store_true', help='Install the latest version of the Vocard from Github')
-    parser.add_argument('-b', '--beta', action='store_true', help='Install the beta version of the Vocard from Github')
+    parser = argparse.ArgumentParser(description='Update and migration script for MusicMaid.')
+    parser.add_argument('-c', '--check', action='store_true', help='Check the current version of MusicMaid')
+    parser.add_argument('-v', '--version', type=str, help='Install the specified version of MusicMaid')
+    parser.add_argument('-l', '--latest', action='store_true', help='Install the latest version of MusicMaid from Github')
+    parser.add_argument('-b', '--beta', action='store_true', help='Install the beta version of MusicMaid from Github')
     parser.add_argument('-m', '--migration', action='store_true', help='Download and run the migration script from Github')
     return parser.parse_args()
 

@@ -1,12 +1,12 @@
 """MIT License
 
-Copyright (c) 2023 - present Vocard Development
+Copyright (c) 2023 - present MusicMaid Development
 """
 
 __title__ = "voicelink"
 __author__ = "ChocoMeow"
 __license__ = "MIT"
-__copyright__ = "Copyright 2023-present Vocard Development"
+__copyright__ = "Copyright 2023-present MusicMaid Development"
 __version__ = "1.0.0"
 
 from .config import Config

@@ -1,5 +1,5 @@
 @echo off
-title MusicMaid Vocard Launcher
+title MusicMaid Launcher
 echo ========================================================
 echo        Starting Lavalink v4.2.2 Audio Server...
 echo ========================================================
@@ -9,7 +9,7 @@ echo Waiting for Lavalink to initialize...
 timeout /t 5 /nobreak >nul
 
 echo ========================================================
-echo        Starting MusicMaid Vocard Bot...
+echo        Starting MusicMaid Bot...
 echo ========================================================
 python main.py
 pause

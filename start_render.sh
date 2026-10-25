@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Starting MusicMaid Vocard on Render ==="
+echo "=== Starting MusicMaid on Render ==="
 
 # 1. Update settings.json from environment variables or defaults
 python -c "
@@ -62,7 +62,11 @@ if not s.get('default_controller'):
                 'description': 'Join a voice channel and queue songs using `/play`!'
             }
         }
-    }
+if 'logging' not in s:
+    s['logging'] = {}
+if 'level' not in s['logging']:
+    s['logging']['level'] = {}
+s['logging']['level']['musicmaid'] = 'INFO'
 
 with open(settings_path, 'w', encoding='utf-8') as f:
     json.dump(s, f, indent=4)
@@ -100,6 +104,6 @@ for i in {1..45}; do
     sleep 1
 done
 
-# 5. Start Vocard Bot
-echo "Starting Vocard Bot..."
+# 5. Start MusicMaid Bot
+echo "Starting MusicMaid Bot..."
 exec python -u main.py
