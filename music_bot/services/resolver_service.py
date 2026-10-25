@@ -2229,7 +2229,10 @@ class AudioResolver:
 
             matched_audius = None
             for cand in audius_cands:
-                if is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                if (
+                    is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist)
+                    and _is_strong_fallback_title_match(cand, intent)
+                ):
                     matched_audius = cand
                     break
 
@@ -2243,6 +2246,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=matched_audius.get("artist", "Unknown Artist"),
                     thumbnail=matched_audius.get("thumbnail"),
+                    http_headers=matched_audius.get("http_headers"),
                 )
                 setattr(track, "provider", "audius")
                 setattr(track, "_correlation_id", corr_id)
@@ -2264,7 +2268,10 @@ class AudioResolver:
 
             matched_jamendo = None
             for cand in jamendo_cands:
-                if is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist):
+                if (
+                    is_original_recording_candidate(cand, intent, title_hint=search_query, artist_hint=artist)
+                    and _is_strong_fallback_title_match(cand, intent)
+                ):
                     matched_jamendo = cand
                     break
 
@@ -2278,6 +2285,7 @@ class AudioResolver:
                     requester_name=requester_name,
                     artist=matched_jamendo.get("artist", "Jamendo Artist"),
                     thumbnail=matched_jamendo.get("thumbnail"),
+                    http_headers=matched_jamendo.get("http_headers"),
                 )
                 setattr(track, "provider", "jamendo")
                 setattr(track, "_correlation_id", corr_id)
@@ -2837,7 +2845,7 @@ class AudioResolver:
                 restricted_markers = (
                     "403", "forbidden", "sign in", "confirm you're not a bot",
                     "po-token", "access_denied", "too many requests", "429",
-                    "timeout", "timed out", "format is not available", "requested format",
+                    "timeout", "timed out",
                 )
                 if any(marker in t1_msg.casefold() for marker in restricted_markers):
                     fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
@@ -2891,27 +2899,6 @@ class AudioResolver:
                     break
 
                 if "format is not available" in t1_msg.lower():
-                    # This is a known cloud extraction failure. Try the existing
-                    # Audius/Jamendo path before spending up to 32 seconds on
-                    # sequential yt-dlp format/client retries. Keep those retries
-                    # below as a fallback if the alternative catalog has no match.
-                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
-                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
-                        early_track, early_diag = await _bounded_alternative_fallback(
-                            fallback_title,
-                            artist_hint,
-                        )
-                        if early_track:
-                            early_track = _apply_metadata_enhancements(early_track)
-                            logger.info(
-                                "[Resolver] provider=%s operation=early_format_fallback "
-                                "correlation_id=%s outcome=resolved title=%r",
-                                getattr(early_track, "provider", "alternative"),
-                                corr_id,
-                                early_track.title,
-                            )
-                            return early_track
-
                     for fallback_clients, fallback_format in (
                         (None, "bestaudio/best"),
                         (["android", "ios", "web"], "bestaudio/best"),
@@ -2960,6 +2947,25 @@ class AudioResolver:
                                 ",".join(fallback_clients) if fallback_clients else "yt-dlp default",
                                 type(fb_err).__name__,
                             )
+
+                    # If all yt-dlp format and profile variations failed on this candidate,
+                    # try alternative catalog before spending more time on tiers
+                    fallback_title = title_hint or (cleaned_query if not is_direct_url else "")
+                    if fallback_title and not fallback_title.startswith(("http://", "https://")):
+                        early_track, early_diag = await _bounded_alternative_fallback(
+                            fallback_title,
+                            artist_hint,
+                        )
+                        if early_track:
+                            early_track = _apply_metadata_enhancements(early_track)
+                            logger.info(
+                                "[Resolver] provider=%s operation=early_format_fallback "
+                                "correlation_id=%s outcome=resolved title=%r",
+                                getattr(early_track, "provider", "alternative"),
+                                corr_id,
+                                early_track.title,
+                            )
+                            return early_track
 
 
             # Tier 2: Fallback Public Profile (web, mweb, android) - 10.0s timeout
