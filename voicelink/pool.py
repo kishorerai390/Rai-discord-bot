@@ -203,7 +203,7 @@ class Node:
             try:
                 msg = await self._websocket.receive()
 
-                if msg.type == aiohttp.WSMsgType.CLOSED:
+                if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSE):
                     self._available = False
                     self._logger.warning(f"WebSocket closed for node [{self._identifier}]")
                     break
@@ -212,7 +212,8 @@ class Node:
                     self._logger.error(f"WebSocket error for node [{self._identifier}]")
                     break
                 
-                self._bot.loop.create_task(self._handle_payload(msg.json()))
+                elif msg.type == aiohttp.WSMsgType.TEXT:
+                    self._bot.loop.create_task(self._handle_payload(msg.json()))
 
             except aiohttp.ClientConnectionError as e:
                 self._logger.error(f"Connection error: {e}")

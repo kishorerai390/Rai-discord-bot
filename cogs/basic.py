@@ -136,6 +136,8 @@ class Basic(commands.Cog):
         player: voicelink.Player = ctx.guild.voice_client
         if not player:
             player = await voicelink.connect_channel(ctx)
+        else:
+            player.context = ctx
 
         if not player.is_user_join(ctx.author):
             return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
@@ -182,6 +184,8 @@ class Basic(commands.Cog):
         player: voicelink.Player = interaction.guild.voice_client
         if not player:
             player = await voicelink.connect_channel(interaction)
+        else:
+            player.context = interaction
 
         if not player.is_user_join(interaction.user):
             return await send_localized_message(interaction, "voice.connection.notInChannel", interaction.user.mention, player.channel.mention, ephemeral=True)

@@ -88,6 +88,35 @@ async def connect_channel(ctx: Union[commands.Context, Interaction], channel: Vo
 
     return player
 
+DEFAULT_CONTROLLER = {
+    "embeds": {
+        "active": {
+            "title": {
+                "name": "🎵 Now Playing in @@channel_name@@",
+                "url": "@@track_url@@"
+            },
+            "description": "### [@@track_name@@](@@track_url@@)\n> 👤 **Artist:** `@@track_author@@`\n> 🎧 **Requester:** @@track_requester_mention@@\n> 🎚️ **Volume:** `@@volume@@%` • 🔁 **Loop:** `@@loop_mode@@`",
+            "thumbnail": "@@track_thumbnail@@",
+            "footer": {
+                "text": "Queue: @@queue_length@@ tracks • Duration: @@track_duration@@ • MusicMaid Audio",
+                "icon_url": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg"
+            }
+        },
+        "inactive": {
+            "title": {
+                "name": "💜 MusicMaid High-Fidelity Audio System",
+                "url": "https://rai-discord-bot.onrender.com"
+            },
+            "description": "### No track currently playing\nJoin a voice channel and type `/play <song name or link>` to start streaming!",
+            "thumbnail": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg",
+            "footer": {
+                "text": "MusicMaid • 24/7 Zero Latency Audio",
+                "icon_url": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg"
+            }
+        }
+    }
+}
+
 class Player(VoiceProtocol):
     """The base player class for Voicelink.
        In order to initiate a player, you must pass it in as a cls when you connect to a channel.
@@ -313,10 +342,25 @@ class Player(VoiceProtocol):
     
     def build_embed(self, current_track: Track = None):
         """Builds an embed based on the current track state."""
-        controller = self.settings.get("default_controller", Config().controller).get("embeds", {})
-        embed_form = controller.get("active" if current_track else "inactive", {})
+        ctrl = self.settings.get("default_controller") or Config().controller or DEFAULT_CONTROLLER
+        if not isinstance(ctrl, dict) or not ctrl.get("embeds"):
+            ctrl = DEFAULT_CONTROLLER
         
-        return PlayerPlaceholder.build_embed(embed_form, self._ph)
+        embeds = ctrl.get("embeds") or DEFAULT_CONTROLLER["embeds"]
+        mode = "active" if current_track else "inactive"
+        embed_form = embeds.get(mode) or DEFAULT_CONTROLLER["embeds"][mode]
+        
+        embed = PlayerPlaceholder.build_embed(embed_form, self._ph)
+        if not embed.title and not embed.description:
+            if current_track:
+                embed.title = f"🎵 Now Playing: {current_track.title[:100]}"
+                embed.description = f"**Artist:** `{current_track.author}` • **Duration:** `{current_track.formatted_length}`"
+            else:
+                embed.title = "💜 MusicMaid Audio System"
+                embed.description = "Ready to play! Connect to a voice channel and use `/play`."
+        if not embed.color:
+            embed.color = Config().embed_color
+        return embed
 
     async def send(self, method: RequestMethod, query: str = None, data: Union[Dict, str] = {}) -> Dict:
         """Sends an HTTP request to the node with the given method, query, and data."""
@@ -463,6 +507,10 @@ class Player(VoiceProtocol):
 
         try:            
             embed, view = self.build_embed(self.current), InteractiveController(self)
+            if not embed.color:
+                embed.color = Config().embed_color
+
+            target_ctx = self.context
             if not self.controller:
                 if request_channel_data := self.settings.get("music_request_channel"):
                     if channel := self.bot.get_channel(request_channel_data.get("text_channel_id")):
@@ -474,7 +522,12 @@ class Player(VoiceProtocol):
                 
                 # Send a new controller message if none exists
                 if not self.controller:
-                    self.controller = await dispatch_message(self.context, content=embed, view=view, delete_after=None, requires_fetch=True)
+                    try:
+                        self.controller = await dispatch_message(target_ctx, content=embed, view=view, delete_after=None, requires_fetch=True)
+                    except Exception as e:
+                        self._logger.warning(f"dispatch_message via target_ctx failed ({e}), falling back to direct channel send")
+                        if target_ctx and hasattr(target_ctx, "channel") and target_ctx.channel:
+                            self.controller = await target_ctx.channel.send(embed=embed, view=view)
 
             elif not await self.is_position_fresh():
                 try:
@@ -482,7 +535,12 @@ class Player(VoiceProtocol):
                 except errors.NotFound:
                     self.controller = None
                     
-                self.controller = await dispatch_message(self.context, content=embed, view=view, delete_after=None, requires_fetch=True)
+                try:
+                    self.controller = await dispatch_message(target_ctx, content=embed, view=view, delete_after=None, requires_fetch=True)
+                except Exception as e:
+                    self._logger.warning(f"dispatch_message via target_ctx failed ({e}), falling back to direct channel send")
+                    if target_ctx and hasattr(target_ctx, "channel") and target_ctx.channel:
+                        self.controller = await target_ctx.channel.send(embed=embed, view=view)
 
             else:
                 await self.controller.edit(embed=embed, view=view)
@@ -499,7 +557,10 @@ class Player(VoiceProtocol):
     async def is_position_fresh(self):
         """Checks if the current controller message is among the most recent messages."""
         try:
-            async for message in self.context.channel.history(limit=5):
+            channel = getattr(self.context, "channel", None) or getattr(self.controller, "channel", None)
+            if not channel or not self.controller:
+                return False
+            async for message in channel.history(limit=5):
                 if message.id == self.controller.id:
                     return True
         except:
