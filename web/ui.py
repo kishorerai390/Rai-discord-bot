@@ -5546,7 +5546,7 @@ UI_HTML = r"""<!DOCTYPE html>
                       <div class="tonearm-bar"></div>
                       <div class="tonearm-head"></div>
                     </div>
-                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
+                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" onclick="togglePlayPause()" id="hero-play-btn" aria-label="Play or pause current track">
                       ${isPlaying && !isPaused ? '⏸' : '▶'}
                     </button>
                   </div>
@@ -7818,7 +7818,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 24/7 Voice Channel Stay Mode</li>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> Anime Maid Voice DJ</li>
                 </ul>
-                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}">
+                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}" ${!isUserSubscribed ? 'disabled aria-disabled="true" title="This is your current plan"' : ''}>
                   ${!isUserSubscribed ? '✓ Your Current Plan' : 'Free Tier'}
                 </button>
               </div>
@@ -8591,7 +8591,7 @@ UI_HTML = r"""<!DOCTYPE html>
                   <div style="font-weight:700; color:#fff; font-size:0.92rem;">Illuminati</div>
                   <div style="font-size:0.75rem; color:var(--text-muted);">Sushin Shyam • Played 12 mins ago</div>
                 </div>
-                <button class="btn btn-secondary btn-sm">▶ Play Again</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); quickEnqueueMood('Illuminati Sushin Shyam')">▶ Play Again</button>
               </div>
 
               <div class="queue-row" style="cursor:pointer;" onclick="quickEnqueueMood('Hukum Jailer Anirudh')">
