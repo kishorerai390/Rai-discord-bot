@@ -662,6 +662,24 @@ def is_original_recording_candidate(
     return True
 
 
+def _is_strong_fallback_title_match(candidate: Dict[str, Any], query_intent: Dict[str, Any]) -> bool:
+    """Reject obvious near-name collisions in secondary-provider fallback.
+
+    The general ranker intentionally tolerates fuzzy tokens for YouTube search.
+    That is too permissive for fallback playback: e.g. 'kalyani' must not accept
+    'Kalyan'. For single-word title requests require an exact title token; for
+    multi-word queries retain the existing broader ranking rules.
+    """
+    query_tokens = [
+        token for token in re.findall(r"\w+", str(query_intent.get("core_title") or "").casefold())
+        if len(token) > 1
+    ]
+    if len(query_tokens) != 1 or len(query_tokens[0]) < 4:
+        return True
+    title_tokens = set(re.findall(r"\w+", str(candidate.get("title") or "").casefold()))
+    return query_tokens[0] in title_tokens
+
+
 def requires_candidate_confirmation(candidates: List[Dict[str, Any]]) -> bool:
     """Require a user choice when top results are weak or too close to distinguish."""
     if not candidates:
@@ -1669,7 +1687,7 @@ class AudioResolver:
                 primary_opts = _build_ytdl_options(["android"], extract_flat=True)
                 ydl_instance = yt_dlp.YoutubeDL(primary_opts)
                 data = await _run_ytdlp(
-                    functools.partial(ydl_instance.extract_info, search_query, download=False),
+                    functools.partial(ydl_instance.extract_info, search_query, download=False, process=False),
                     timeout=search_timeout,
                     operation="search",
                     correlation_id=corr_id,
@@ -1688,7 +1706,7 @@ class AudioResolver:
                     retry_opts = _build_ytdl_options(["web", "mweb"], extract_flat=True)
                     ydl_retry = yt_dlp.YoutubeDL(retry_opts)
                     data = await _run_ytdlp(
-                        functools.partial(ydl_retry.extract_info, search_query, download=False),
+                        functools.partial(ydl_retry.extract_info, search_query, download=False, process=False),
                         timeout=search_timeout,
                         operation="search_retry",
                         correlation_id=corr_id,

@@ -992,12 +992,16 @@ class MusicCog(commands.Cog, name="Music"):
                     return
 
             # 2. Resolve query: premium neon status card with honest diagnostics.
-            # Provider rows describe the resolver's supported sources; they are not live per-provider telemetry.
-            request_label = display_name or query
-            if query.startswith(("http://", "https://", "spotify:")):
+            if display_name:
+                request_label = display_name
+                request_kind = "Song title search"
+                action_label = "Searching candidates and validating the match"
+            elif query.startswith(("http://", "https://", "spotify:")):
+                request_label = "Resolving audio track"
                 request_kind = "Direct link / metadata lookup"
-                action_label = "Resolving the requested track"
+                action_label = "Resolving audio track"
             else:
+                request_label = query
                 request_kind = "Song title search"
                 action_label = "Searching candidates and validating the match"
 
@@ -1108,6 +1112,7 @@ class MusicCog(commands.Cog, name="Music"):
                 except asyncio.CancelledError:
                     pass
 
+            candidates: List[Dict[str, Any]] = []
             if not query.startswith(("http://", "https://")):
                 try:
                     candidates = await AudioResolver.search(
@@ -1473,6 +1478,11 @@ class MusicCog(commands.Cog, name="Music"):
                         )
                         await self.send_ephemeral_or_fallback(interaction, embed=embed_fail)
         except Exception as top_err:
+            if "progress_task" in locals():
+                try:
+                    await _stop_resolving_status()
+                except Exception:
+                    pass
             logger.error(
                 "[Playback] operation=play_request correlation_id=%s exception_type=%s outcome=failed",
                 correlation_id,
