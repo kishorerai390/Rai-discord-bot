@@ -1,88 +1,76 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { getMusicDb } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const guildId = String(body.guild_id || "1457382179981099090");
-    const action = String(body.action || "").toUpperCase().trim();
-    const payload = body.payload || {};
-
-    if (!action) {
-      return NextResponse.json({ success: false, error: "Action is required" }, { status: 400 });
-    }
-
     const user = await getCurrentUser(req);
-    const userId = user?.id || "1457382179981099090";
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Sign in with Discord before controlling music." },
+        { status: 401 }
+      );
+    }
 
-    const botApiUrl = process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "https://rai-discord-bot.onrender.com";
+    const body = await req.json();
+    const guildId = String(body.guild_id || "").trim();
+    const action = String(body.action || "").toUpperCase().trim();
+    const payload = body.payload && typeof body.payload === "object" ? body.payload : {};
+
+    if (!/^\d{15,22}$/.test(guildId)) {
+      return NextResponse.json({ success: false, error: "A valid server ID is required." }, { status: 400 });
+    }
+    if (!action) {
+      return NextResponse.json({ success: false, error: "Action is required." }, { status: 400 });
+    }
+
+    const botApiUrl = (process.env.DISCORD_BOT_API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+    if (!botApiUrl) {
+      return NextResponse.json(
+        { success: false, error: "Music bot API is not configured. Set DISCORD_BOT_API_URL to the live bot API." },
+        { status: 503 }
+      );
+    }
+
+    // Forward the existing session so the bot API can perform its own authorization.
+    const headers = new Headers({ "Content-Type": "application/json" });
+    const cookie = req.headers.get("cookie");
+    const authorization = req.headers.get("authorization");
+    if (cookie) headers.set("cookie", cookie);
+    if (authorization) headers.set("authorization", authorization);
+
+    let resBot: Response;
     try {
-      const resBot = await fetch(`${botApiUrl}/api/music/control`, {
+      resBot = await fetch(`${botApiUrl}/api/music/control`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guild_id: guildId, action, payload, user_id: userId }),
-        signal: AbortSignal.timeout(3000),
+        headers,
+        body: JSON.stringify({ guild_id: guildId, action, payload, user_id: user.id }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
       });
-      if (resBot.ok) {
-        const botJson = await resBot.json();
-        if (botJson.success) {
-          return NextResponse.json(botJson);
-        }
-      }
     } catch {
-      // Fallback to local SQLite web action queue
-    }
-    const actionId = `act_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const db = getMusicDb();
-    const nowIso = new Date().toISOString();
-    try {
-      db.prepare(
-        `INSERT INTO music_web_actions (guild_id, action, payload_json, user_id, status, created_at)
-         VALUES (?, ?, ?, ?, 'PENDING', ?)`
-      ).run(guildId, action, JSON.stringify(payload), userId, nowIso);
-    } catch (e) {
-      // Fallback if table schema differs
-      try {
-        db.prepare(
-          `INSERT INTO music_web_actions (guild_id, action, payload_json, user_id, created_at)
-           VALUES (?, ?, ?, ?, ?)`
-        ).run(guildId, action, JSON.stringify(payload), userId, nowIso);
-      } catch (err2) {
-        console.warn("music_web_actions enqueue notice:", err2);
-      }
+      return NextResponse.json(
+        { success: false, error: "The live music bot API is unreachable. No action was queued or faked." },
+        { status: 503 }
+      );
     }
 
-    // 2. Direct database session state update for instant UI feedback
-    try {
-      if (action === "PAUSE") {
-        db.prepare("UPDATE music_sessions SET is_paused = 1, state = 'PAUSED' WHERE guild_id = ?").run(guildId);
-      } else if (action === "RESUME") {
-        db.prepare("UPDATE music_sessions SET is_paused = 0, state = 'PLAYING' WHERE guild_id = ?").run(guildId);
-      } else if (action === "VOLUME") {
-        const vol = Math.max(0, Math.min(150, Number(payload.volume ?? 80)));
-        db.prepare("UPDATE music_sessions SET volume = ? WHERE guild_id = ?").run(vol, guildId);
-        db.prepare("UPDATE music_guild_settings SET default_volume = ? WHERE guild_id = ?").run(vol, guildId);
-      } else if (action === "247_TOGGLE") {
-        const cur = db.prepare("SELECT twenty_four_seven_enabled FROM music_guild_settings WHERE guild_id = ?").get(guildId) as any;
-        const nextState = cur ? (cur.twenty_four_seven_enabled ? 0 : 1) : 1;
-        db.prepare(
-          "INSERT INTO music_guild_settings (guild_id, twenty_four_seven_enabled) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET twenty_four_seven_enabled = excluded.twenty_four_seven_enabled"
-        ).run(guildId, nextState);
-      }
-    } catch (dbErr) {
-      console.warn("Direct session update notice:", dbErr);
+    const result = await resBot.json().catch(() => null);
+    if (!resBot.ok) {
+      return NextResponse.json(
+        { success: false, error: result?.error?.message || result?.error || `Music bot rejected the action (HTTP ${resBot.status}).` },
+        { status: resBot.status }
+      );
+    }
+    if (!result || result.success !== true) {
+      return NextResponse.json(
+        { success: false, error: result?.error?.message || result?.error || "Music bot did not confirm the action." },
+        { status: 502 }
+      );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        action,
-        status: "dispatched",
-        guild_id: guildId,
-      },
-    });
-  } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json(result, { status: 200 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Failed to dispatch music action.";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
