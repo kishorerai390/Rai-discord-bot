@@ -57,6 +57,18 @@ SOUNDBOARD_LIBRARY = [
     {"id": "victory", "name": "Victory", "emoji": "🏆", "query": "final fantasy victory fanfare", "category": "Gaming"},
     {"id": "sheesh", "name": "Sheesh", "emoji": "🥶", "query": "sheesh sound effect", "category": "Meme"},
     {"id": "oof", "name": "Roblox OOF", "emoji": "💥", "query": "roblox oof death sound", "category": "Gaming"},
+    {"id": "nani", "name": "Nani?!", "emoji": "⚡", "query": "anime nani sound effect", "category": "Anime"},
+    {"id": "rem_victory", "name": "Rem Yay!", "emoji": "🌸", "query": "anime girl yay cute sound effect", "category": "Anime"},
+    {"id": "tuturu", "name": "Tuturu~", "emoji": "🎀", "query": "steins gate tuturu sound", "category": "Anime"},
+    {"id": "omae_wa", "name": "Omae Wa Mou", "emoji": "💀", "query": "omae wa mou shindeiru nani sound", "category": "Anime"},
+    {"id": "metal_pipe", "name": "Metal Pipe", "emoji": "🔩", "query": "metal pipe falling sound effect", "category": "Meme"},
+    {"id": "discord_ping", "name": "Discord Ping", "emoji": "🔔", "query": "discord notification sound effect", "category": "Meme"},
+    {"id": "emotional_damage", "name": "Emotional Damage", "emoji": "💔", "query": "emotional damage sound effect", "category": "Meme"},
+    {"id": "mission_passed", "name": "Mission Passed", "emoji": "⭐", "query": "gta san andreas mission passed sound", "category": "Gaming"},
+    {"id": "windows_xp", "name": "Windows Error", "emoji": "💻", "query": "windows xp error sound effect", "category": "Meme"},
+    {"id": "record_scratch", "name": "Record Scratch", "emoji": "💽", "query": "record scratch sound effect", "category": "Classic"},
+    {"id": "yamete", "name": "Yamete Kudasai", "emoji": "😳", "query": "yamete kudasai sound effect", "category": "Anime"},
+    {"id": "chika_dance", "name": "Chika Chika", "emoji": "💃", "query": "chika dance music snippet", "category": "Anime"},
 ]
 
 

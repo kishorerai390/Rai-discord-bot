@@ -3050,9 +3050,143 @@ UI_HTML = r"""<!DOCTYPE html>
       .login-left-pane {
         padding: 2.2rem 1.6rem;
       }
-      .login-title-h1 {
-        font-size: 2.2rem;
+    /* FLOATING EMOJI REACTIONS */
+    .reaction-tray {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.2rem 0.45rem;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-left: 0.4rem;
+    }
+    .reaction-btn {
+      background: transparent;
+      border: none;
+      font-size: 1.05rem;
+      cursor: pointer;
+      padding: 0.15rem 0.3rem;
+      border-radius: 6px;
+      transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .reaction-btn:hover {
+      transform: scale(1.35) rotate(-6deg);
+    }
+    .reaction-btn:active {
+      transform: scale(0.9);
+    }
+    .floating-reaction {
+      position: fixed;
+      bottom: 90px;
+      font-size: 2.2rem;
+      pointer-events: none;
+      z-index: 10000;
+      animation: floatUpAndFade 2.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+      filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.6));
+    }
+    @keyframes floatUpAndFade {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(0.6) rotate(0deg);
       }
+      25% {
+        transform: translateY(-80px) scale(1.25) rotate(12deg);
+      }
+      50% {
+        transform: translateY(-200px) scale(1.1) rotate(-10deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-420px) scale(0.85) rotate(18deg);
+      }
+    }
+
+    /* SOUNDBOARD STYLES */
+    .soundboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 1.2rem;
+    }
+    .soundboard-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: var(--radius-md);
+      padding: 1rem 1.1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 0.8rem;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .soundboard-card:hover {
+      background: rgba(147, 51, 234, 0.1);
+      border-color: rgba(168, 85, 247, 0.4);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(147, 51, 234, 0.25);
+    }
+    .soundboard-card.cooldown {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .soundboard-cat-pill {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-full);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-dim);
+    }
+
+    /* KARAOKE TELEPROMPTER STYLES */
+    .lyrics-teleprompter {
+      max-height: 440px;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      scroll-behavior: smooth;
+    }
+    .karaoke-line {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      padding: 0.5rem 0.8rem;
+      border-radius: var(--radius-sm);
+      transition: all 0.25s ease;
+      cursor: pointer;
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+    }
+    .karaoke-line:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .karaoke-line.active {
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, rgba(147, 51, 234, 0.25), transparent);
+      border-left: 3px solid var(--cyan);
+      text-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
+      transform: translateX(4px);
+    }
+    .karaoke-ts {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+    .karaoke-line.active .karaoke-ts {
+      color: var(--cyan);
+      opacity: 1;
     }
   </style>
 </head>
@@ -3134,6 +3268,7 @@ UI_HTML = r"""<!DOCTYPE html>
         <li><a class="nav-link" id="nav-search" onclick="navigate('/search')"><span class="nav-icon">🔍</span> Search</a></li>
         <li><a class="nav-link" id="nav-player" onclick="navigate('/player')"><span class="nav-icon">🎵</span> Player</a></li>
         <li><a class="nav-link" id="nav-queue" onclick="navigate('/queue')"><span class="nav-icon">📜</span> Queue</a></li>
+        <li><a class="nav-link" id="nav-soundboard" onclick="navigate('/soundboard')"><span class="nav-icon">📢</span> Soundboard</a></li>
       </ul>
 
       <!-- YOUR MUSIC -->
@@ -3282,6 +3417,14 @@ UI_HTML = r"""<!DOCTYPE html>
           <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence" aria-label="Toggle 24/7 Voice Channel Persistence">24/7 OFF</button>
           <button class="chip-pill" id="btn-autodj-pill" onclick="dispatchCmd('AUTODJ_TOGGLE')" title="Toggle Smart Auto-DJ" aria-label="Toggle Endless Smart Auto-DJ">✨ Auto-DJ</button>
           <button class="chip-pill" id="btn-shortcuts-pill" onclick="openShortcutsModal()" title="Keyboard Shortcuts (Press ?)" aria-label="Keyboard Shortcuts (Press ?)">⌨️ Hotkeys</button>
+          <div class="reaction-tray" title="Send Live Reaction">
+            <button class="reaction-btn" onclick="fireReaction('💖')" title="Love it!">💖</button>
+            <button class="reaction-btn" onclick="fireReaction('🔥')" title="Fire track!">🔥</button>
+            <button class="reaction-btn" onclick="fireReaction('🎧')" title="Vibing">🎧</button>
+            <button class="reaction-btn" onclick="fireReaction('🌸')" title="Kawaii">🌸</button>
+            <button class="reaction-btn" onclick="fireReaction('✨')" title="Sparkle">✨</button>
+            <button class="reaction-btn" onclick="fireReaction('🍙')" title="Rem snack">🍙</button>
+          </div>
         </div>
         <div class="player-bar-right">
           <button class="p-btn" onclick="navigate('/queue')" title="Open Queue Drawer" aria-label="Open Queue Drawer">≡♪</button>
@@ -3389,21 +3532,27 @@ UI_HTML = r"""<!DOCTYPE html>
 
   <!-- SOUNDBOARD MODAL -->
   <div class="modal-backdrop" id="soundboard-modal">
-    <div class="modal-content" style="max-width:520px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+    <div class="modal-content" style="max-width:620px; max-height:85vh; display:flex; flex-direction:column;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem;">
         <div class="section-title" style="font-size:1.25rem;"><span>📢</span> Instant Voice Soundboard</div>
         <button class="btn btn-secondary btn-sm" onclick="closeSoundboardModal()">✕</button>
       </div>
-      <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1.2rem;">
-        Trigger instant sound effects directly into your active voice channel:
+      <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:0.8rem;">
+        Broadcast instant anime, meme, and gaming SFX directly into your active Discord Voice Channel:
       </p>
-      <div class="eq-grid" style="grid-template-columns:repeat(2, 1fr); gap:0.75rem;">
-        <div class="eq-chip" onclick="triggerSfx('Airhorn', 'airhorn sound effect')">📢 Airhorn</div>
-        <div class="eq-chip" onclick="triggerSfx('Applause', 'crowd applause sound')">👏 Applause</div>
-        <div class="eq-chip" onclick="triggerSfx('Ba-Dum Tss', 'badum tss joke drum')">🥁 Ba-Dum Tss</div>
-        <div class="eq-chip" onclick="triggerSfx('Anime Wow', 'anime wow sound')">✨ Anime Wow</div>
-        <div class="eq-chip" onclick="triggerSfx('Bruh', 'bruh sound effect')">🗿 Bruh</div>
-        <div class="eq-chip" onclick="triggerSfx('Level Up', 'video game level up sound')">🎮 Level Up</div>
+      <div style="display:flex; gap:0.4rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+        <button class="chip-pill active soundboard-filter-btn" onclick="filterModalSoundboard('All', this)">All (24)</button>
+        <button class="chip-pill soundboard-filter-btn" onclick="filterModalSoundboard('Anime', this)">🌸 Anime</button>
+        <button class="chip-pill soundboard-filter-btn" onclick="filterModalSoundboard('Meme', this)">🗿 Meme</button>
+        <button class="chip-pill soundboard-filter-btn" onclick="filterModalSoundboard('Gaming', this)">🎮 Gaming</button>
+        <button class="chip-pill soundboard-filter-btn" onclick="filterModalSoundboard('Classic', this)">📢 Classic</button>
+      </div>
+      <div id="modal-soundboard-grid" class="eq-grid" style="grid-template-columns:repeat(2, 1fr); gap:0.6rem; overflow-y:auto; max-height:50vh; padding-right:0.3rem;">
+        <!-- Populated dynamically via renderModalSoundboard() -->
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.8rem;">
+        <button class="btn btn-secondary btn-sm" onclick="closeSoundboardModal(); navigate('/soundboard');">⤢ Open Full Soundboard Page</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeSoundboardModal()">Close</button>
       </div>
     </div>
   </div>
@@ -3778,11 +3927,164 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
     function openSoundboardModal() {
+    const SOUNDBOARD_ITEMS = [
+      { id: "airhorn", name: "Airhorn", emoji: "📢", category: "Classic", desc: "Classic MLG airhorn blast" },
+      { id: "applause", name: "Applause", emoji: "👏", category: "Reaction", desc: "Crowd standing ovation" },
+      { id: "badumtss", name: "Ba-Dum Tss", emoji: "🥁", category: "Comedy", desc: "Punchline drum rimshot" },
+      { id: "anime_wow", name: "Anime Wow", emoji: "✨", category: "Anime", desc: "Iconic sparkling anime gasp" },
+      { id: "bruh", name: "Bruh", emoji: "🗿", category: "Meme", desc: "Deep cinematic bruh" },
+      { id: "levelup", name: "Level Up", emoji: "🎮", category: "Gaming", desc: "Retro RPG milestone fanfare" },
+      { id: "vineboom", name: "Vine Boom", emoji: "💣", category: "Meme", desc: "Sub-bass meme boom impact" },
+      { id: "fbi", name: "FBI Open Up", emoji: "🚨", category: "Meme", desc: "Door breach siren alert" },
+      { id: "sadtrombone", name: "Sad Trombone", emoji: "🎺", category: "Comedy", desc: "Wah-wah-wah fail brass" },
+      { id: "victory", name: "Victory", emoji: "🏆", category: "Gaming", desc: "Final Fantasy victory theme" },
+      { id: "sheesh", name: "Sheesh", emoji: "🥶", category: "Meme", desc: "High pitched hype sheesh" },
+      { id: "oof", name: "Roblox OOF", emoji: "💥", category: "Gaming", desc: "Classic block death sound" },
+      { id: "nani", name: "Nani?!", emoji: "⚡", category: "Anime", desc: "What?! Anime shock reaction" },
+      { id: "rem_victory", name: "Rem Yay!", emoji: "🌸", category: "Anime", desc: "Rem happy celebration voice" },
+      { id: "tuturu", name: "Tuturu~", emoji: "🎀", category: "Anime", desc: "Steins;Gate Mayuri greeting" },
+      { id: "omae_wa", name: "Omae Wa Mou", emoji: "💀", category: "Anime", desc: "You are already finished" },
+      { id: "metal_pipe", name: "Metal Pipe", emoji: "🔩", category: "Meme", desc: "Hyper-resonant pipe drop" },
+      { id: "discord_ping", name: "Discord Ping", emoji: "🔔", category: "Meme", desc: "Deceptive @everyone chime" },
+      { id: "emotional_damage", name: "Emotional Damage", emoji: "💔", category: "Meme", desc: "Asian parent meme critique" },
+      { id: "mission_passed", name: "Mission Passed", emoji: "⭐", category: "Gaming", desc: "GTA Respect + fanfare" },
+      { id: "windows_xp", name: "Windows Error", emoji: "💻", category: "Meme", desc: "Critical system stop chime" },
+      { id: "record_scratch", name: "Record Scratch", emoji: "💽", category: "Classic", desc: "You're probably wondering..." },
+      { id: "yamete", name: "Yamete Kudasai", emoji: "😳", category: "Anime", desc: "Classic anime voice meme" },
+      { id: "chika_dance", name: "Chika Chika", emoji: "💃", category: "Anime", desc: "Fujiwara happy dance groove" }
+    ];
+
+    let currentSoundboardCategory = 'All';
+
+    function openSoundboardModal() {
       document.getElementById('soundboard-modal')?.classList.add('open');
+      renderModalSoundboard('All');
     }
     function closeSoundboardModal() {
       document.getElementById('soundboard-modal')?.classList.remove('open');
     }
+
+    function renderModalSoundboard(cat = 'All') {
+      const grid = document.getElementById('modal-soundboard-grid');
+      if (!grid) return;
+      const filtered = cat === 'All' ? SOUNDBOARD_ITEMS : SOUNDBOARD_ITEMS.filter(s => s.category.toLowerCase() === cat.toLowerCase());
+      grid.innerHTML = filtered.map(s => `
+        <div class="eq-chip" onclick="triggerSoundboardClip('${s.id}', '${s.name}')" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" title="${s.desc}">
+          <span>${s.emoji} ${s.name}</span>
+          <button class="btn btn-secondary btn-sm" style="font-size:0.65rem; padding:0.15rem 0.4rem;" onclick="event.stopPropagation(); previewSoundboardWeb('${s.id}')">🎧 Preview</button>
+        </div>
+      `).join('');
+    }
+
+    function filterModalSoundboard(cat, btn) {
+      document.querySelectorAll('.soundboard-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderModalSoundboard(cat);
+    }
+
+    async function triggerSoundboardClip(soundId, soundName) {
+      showToast(`📢 Broadcasting '${soundName}' to Discord Voice...`);
+      try {
+        const token = localStorage.getItem('rai_session_token');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const res = await fetch('/api/music/soundboard', {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: JSON.stringify({ guild_id: currentGuildId, sound_id: soundId })
+        });
+        const json = await res.json();
+        if (json.success) {
+          showToast(`✅ '${soundName}' played in voice!`);
+        } else if (json.error?.code === 'COOLDOWN_ACTIVE') {
+          showToast(`⏳ ${json.error.message}`, 'warning');
+        } else {
+          showToast(json.error?.message || `Failed to trigger '${soundName}'`, 'danger');
+        }
+      } catch(e) {
+        showToast("Error triggering soundboard clip", "danger");
+      }
+    }
+
+    function previewSoundboardWeb(soundId) {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+
+        if (soundId === 'airhorn') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(466.16, now);
+          osc.frequency.setValueAtTime(440.00, now + 0.08);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.36);
+        } else if (soundId === 'vineboom') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(32, now + 0.6);
+          gain.gain.setValueAtTime(0.35, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.72);
+        } else if (soundId === 'levelup' || soundId === 'victory') {
+          [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = 'triangle';
+            o.frequency.value = freq;
+            o.connect(g);
+            g.connect(ctx.destination);
+            g.gain.setValueAtTime(0.12, now + idx * 0.09);
+            g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.25);
+            o.start(now + idx * 0.09);
+            o.stop(now + idx * 0.09 + 0.26);
+          });
+        } else {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.3);
+        }
+        showToast(`🎧 Previewing in browser`);
+      } catch(e) {}
+    }
+
+    function fireReaction(emoji) {
+      const el = document.createElement('div');
+      el.className = 'floating-reaction';
+      el.innerText = emoji;
+      const leftOffset = Math.max(20, Math.min(window.innerWidth - 60, (window.innerWidth / 2) + (Math.random() * 260 - 130)));
+      el.style.left = `${leftOffset}px`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2300);
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ event: 'REACTION_SENT', guild_id: currentGuildId, emoji: emoji, user: currentUser?.username || 'Guest' }));
+        } catch(e) {}
+      }
+      showToast(`Sent ${emoji} reaction!`);
+    }
+
     function copyCommand(cmd) {
       if (navigator.clipboard) {
         navigator.clipboard.writeText(cmd);
@@ -3792,8 +4094,7 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
     function triggerSfx(name, query) {
-      showToast(`Triggering '${name}' in voice channel...`);
-      quickEnqueueMood(query);
+      triggerSoundboardClip(name.toLowerCase().replace(/[^a-z0-9_]/g, ''), name);
       closeSoundboardModal();
     }
 
@@ -3823,6 +4124,9 @@ UI_HTML = r"""<!DOCTYPE html>
       }
     }
 
+    let parsedLyricsLines = [];
+    let isRomajiMode = false;
+
     async function openLyricsModal() {
       const modal = document.getElementById('lyrics-modal');
       if (!modal) return;
@@ -3833,29 +4137,113 @@ UI_HTML = r"""<!DOCTYPE html>
 
       const t = currentSession?.current_track;
       if (!t) {
-        if (titleEl) titleEl.innerHTML = '<span>🎤</span> Track Lyrics';
+        if (titleEl) titleEl.innerHTML = '<span>🎤</span> Synchronized Karaoke Lyrics';
         if (artistEl) artistEl.innerText = 'No track currently playing';
-        if (bodyEl) bodyEl.innerText = 'Play a track in voice to view live lyrics.';
+        if (bodyEl) bodyEl.innerHTML = '<div style="text-align:center; padding:2.5rem; color:var(--text-muted);">Play a track in voice to view live synchronized lyrics.</div>';
         return;
       }
 
       if (titleEl) titleEl.innerHTML = `<span>🎤</span> ${t.title}`;
-      if (artistEl) artistEl.innerText = t.artist || "Unknown Artist";
-      if (bodyEl) bodyEl.innerText = 'Searching lyrics database...';
+      if (artistEl) artistEl.innerText = `${t.artist || "Unknown Artist"} · Synchronized Karaoke Engine`;
+      if (bodyEl) bodyEl.innerHTML = '<div style="text-align:center; padding:2.5rem; color:var(--cyan);"><span class="pulse-dot"></span> Synchronizing live teleprompter...</div>';
 
       try {
         const q = encodeURIComponent(`${t.title} ${t.artist || ''}`);
         const res = await fetch(`/api/music/lyrics?guild_id=${currentGuildId}&q=${q}`);
         const json = await res.json();
         if (json.success && json.data && json.data.lyrics) {
-          if (bodyEl) bodyEl.innerText = json.data.lyrics;
+          renderLyricsKaraokeTeleprompter(json.data.lyrics);
         } else {
-          if (bodyEl) bodyEl.innerText = `No synced lyrics found for "${t.title}".\n\nEnjoy the music! 🎵`;
+          if (bodyEl) bodyEl.innerHTML = `<div style="text-align:center; padding:3rem; color:var(--text-muted);">No synchronized lyrics found for "${t.title}".<br><span style="font-size:0.75rem; color:var(--cyan); margin-top:0.4rem; display:block;">Enjoy the pure music with Rem! 🎧💜</span></div>`;
         }
       } catch(e) {
-        if (bodyEl) bodyEl.innerText = 'Unable to fetch lyrics at this moment.';
+        if (bodyEl) bodyEl.innerHTML = '<div style="text-align:center; padding:2.5rem; color:var(--danger);">Unable to fetch lyrics at this moment.</div>';
       }
     }
+
+    function renderLyricsKaraokeTeleprompter(rawLyrics) {
+      const bodyEl = document.getElementById('lyrics-body');
+      if (!bodyEl) return;
+      parsedLyricsLines = [];
+      const lines = rawLyrics.split('\n');
+      const lrcRegex = /^\[(\d{2}):(\d{2}(?:\.\d{1,3})?)\](.*)$/;
+
+      lines.forEach((line, idx) => {
+        const match = line.trim().match(lrcRegex);
+        if (match) {
+          const mins = parseInt(match[1], 10);
+          const secs = parseFloat(match[2]);
+          const totalSecs = mins * 60 + secs;
+          const text = match[3].trim();
+          if (text) {
+            parsedLyricsLines.push({ time: totalSecs, text: text, index: idx });
+          }
+        } else if (line.trim()) {
+          parsedLyricsLines.push({ time: null, text: line.trim(), index: idx });
+        }
+      });
+
+      if (parsedLyricsLines.length === 0) {
+        bodyEl.innerHTML = `<pre style="white-space:pre-wrap; font-family:inherit; line-height:1.7;">${rawLyrics}</pre>`;
+        return;
+      }
+
+      bodyEl.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; padding-bottom:0.4rem; border-bottom:1px solid rgba(255,255,255,0.08);">
+          <span style="font-size:0.75rem; color:var(--emerald);">● Synced Karaoke Teleprompter</span>
+          <button class="chip-pill" id="btn-romaji-toggle" onclick="toggleRomajiMode()" style="font-size:0.72rem; padding:0.2rem 0.5rem;">🈶 Romaji Mode: OFF</button>
+        </div>
+        <div class="lyrics-teleprompter" id="karaoke-scroll-container">
+          ${parsedLyricsLines.map((l, i) => `
+            <div class="karaoke-line" id="k-line-${i}" onclick="seekToLyricsTime(${l.time})">
+              ${l.time !== null ? `<span class="karaoke-ts">${formatTime(Math.floor(l.time))}</span>` : ''}
+              <span class="karaoke-text" data-orig="${l.text}">${l.text}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      updateKaraokeActiveLine();
+    }
+
+    function toggleRomajiMode() {
+      isRomajiMode = !isRomajiMode;
+      const btn = document.getElementById('btn-romaji-toggle');
+      if (btn) btn.innerText = `🈶 Romaji Mode: ${isRomajiMode ? 'ON' : 'OFF'}`;
+      showToast(`Romaji Pronunciation ${isRomajiMode ? 'Enabled' : 'Disabled'}`);
+    }
+
+    function seekToLyricsTime(secs) {
+      if (secs !== null && secs >= 0) {
+        onScrubChange(Math.floor((secs / (trackDurationSeconds || 1)) * 100));
+        showToast(`Seeked to lyrics timestamp ${formatTime(secs)}`);
+      }
+    }
+
+    function updateKaraokeActiveLine() {
+      if (!parsedLyricsLines || parsedLyricsLines.length === 0) return;
+      const curTime = playbackSeconds;
+      let activeIdx = -1;
+      for (let i = 0; i < parsedLyricsLines.length; i++) {
+        if (parsedLyricsLines[i].time !== null && parsedLyricsLines[i].time <= curTime) {
+          activeIdx = i;
+        } else if (parsedLyricsLines[i].time !== null && parsedLyricsLines[i].time > curTime) {
+          break;
+        }
+      }
+
+      document.querySelectorAll('.karaoke-line').forEach(el => el.classList.remove('active'));
+      if (activeIdx >= 0) {
+        const activeEl = document.getElementById(`k-line-${activeIdx}`);
+        if (activeEl) {
+          activeEl.classList.add('active');
+          const container = document.getElementById('karaoke-scroll-container');
+          if (container) {
+            container.scrollTo({ top: activeEl.offsetTop - container.offsetTop - 120, behavior: 'smooth' });
+          }
+        }
+      }
+    }
+
     function closeLyricsModal() {
       document.getElementById('lyrics-modal')?.classList.remove('open');
     }
@@ -4709,6 +5097,7 @@ const _UNUSED_DEF = {
         }
       }
       updateDynamicTurntableAndVU();
+      updateKaraokeActiveLine();
     }
 
     function updatePlaybackBarUI() {
@@ -5232,6 +5621,9 @@ const _UNUSED_DEF = {
       } else if (path === '/history') {
         document.getElementById('nav-history')?.classList.add('active');
         renderHistory();
+      } else if (path === '/soundboard') {
+        document.getElementById('nav-soundboard')?.classList.add('active');
+        renderSoundboard();
       } else if (path === '/autodj') {
         document.getElementById('nav-autodj')?.classList.add('active');
         renderAutoDJ();
@@ -7658,6 +8050,13 @@ const _UNUSED_DEF = {
                 </button>
               </div>
 
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding:0.8rem 1rem; background:rgba(255,255,255,0.03); border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.06); flex-wrap:wrap; gap:0.6rem;">
+                <span style="font-size:0.84rem; color:#fff; font-weight:700;">Instant Session Auto-Generator:</span>
+                <button class="btn btn-primary btn-sm" onclick="autoPopulate10Tracks('${status.mood || 'balanced'}')" style="font-size:0.75rem; padding:0.35rem 0.75rem;">
+                  ⚡ Auto-Populate Curated Tracks (1-Click Session)
+                </button>
+              </div>
+
               <!-- MOOD SELECTION GRID -->
               <span class="nav-group-title" style="padding:0; margin-top:1.2rem; display:block;">Select Auto-DJ Vibe & Mood</span>
               <div class="eq-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-top:0.6rem;">
@@ -7723,6 +8122,24 @@ const _UNUSED_DEF = {
       });
       showToast(`Auto-DJ mood set to ${mood}`);
       renderAutoDJ();
+    }
+
+    async function autoPopulate10Tracks(mood) {
+      showToast(`⚡ Auto-populating tracks for mood: ${mood.toUpperCase()}...`);
+      const moodSeeds = {
+        'balanced': ['YOASOBI Idol', 'Alan Walker Faded', 'Kenshi Yonezu Kick Back', 'Eve Kaikai Kitan', 'Ado New Genesis'],
+        'energetic': ['Lisa Gurenge', 'Kenshi Yonezu Peace Sign', 'Burnout Syndromes Fly High', 'LiSA Crossing Field', 'KANA-BOON Silhouette'],
+        'chill': ['RADWIMPS Sparkle', 'Yoasobi Yasashii Suisei', 'Aimer Kataomoi', 'Fujii Kaze Shinunoga E-Wa', 'Yuuri Betelgeuse'],
+        'gaming': ['The Score Unstoppable', 'Imagine Dragons Warriors', 'Against The Current Legends Never Die', 'VALORANT Die For You', 'K/DA POP/STARS'],
+        'party': ['Dua Lipa Levitating', 'David Guetta Titanium', 'The Chainsmokers Closer', 'Marshmello Happier', 'Calvin Harris Summer'],
+        'lofi': ['Lofi Girl Chill Beats', 'Coffee and Rain Lofi', 'Anime Lofi Sleep Study', 'Tokyo Lofi Night', 'Midnight Lofi Chillhop']
+      };
+      const seeds = moodSeeds[mood] || moodSeeds['balanced'];
+      for (const query of seeds) {
+        await dispatchCmd('ENQUEUE', { query: query });
+      }
+      showToast(`✅ Enqueued curated tracks for ${mood.toUpperCase()}!`);
+      await syncQueue();
     }
 
     // =========================================================================
@@ -9076,6 +9493,98 @@ const _UNUSED_DEF = {
 
         </div>
       `;
+    // =========================================================================
+    // 5B. SOUNDBOARD VIEW (24 SFX CLIPS & MEMES)
+    // =========================================================================
+    function renderSoundboard() {
+      const container = document.getElementById('view-container');
+      container.innerHTML = `
+        <div class="view-fade-in" style="max-width:1080px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+            <div>
+              <h1 style="font-size:1.8rem; font-weight:800; color:#fff; display:flex; align-items:center; gap:0.6rem;">
+                <span>📢</span> Instant Voice Soundboard
+              </h1>
+              <p style="font-size:0.88rem; color:var(--text-muted); margin-top:0.2rem;">
+                Broadcast high-impact anime, meme, and gaming sound effects directly into your active Discord Voice Channel.
+              </p>
+            </div>
+            <div style="display:flex; gap:0.6rem; align-items:center;">
+              <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.12);"><span class="pulse-dot"></span> 3.0s Auto-Cooldown</span>
+            </div>
+          </div>
+
+          <div class="glass-card" style="padding:1.4rem;">
+            <!-- FILTER & SEARCH BAR -->
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+              <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                <button class="chip-pill active page-soundboard-filter" onclick="filterPageSoundboard('All', this)">All (24)</button>
+                <button class="chip-pill page-soundboard-filter" onclick="filterPageSoundboard('Anime', this)">🌸 Anime</button>
+                <button class="chip-pill page-soundboard-filter" onclick="filterPageSoundboard('Meme', this)">🗿 Meme</button>
+                <button class="chip-pill page-soundboard-filter" onclick="filterPageSoundboard('Gaming', this)">🎮 Gaming</button>
+                <button class="chip-pill page-soundboard-filter" onclick="filterPageSoundboard('Comedy', this)">🥁 Comedy</button>
+                <button class="chip-pill page-soundboard-filter" onclick="filterPageSoundboard('Classic', this)">📢 Classic</button>
+              </div>
+              <div style="position:relative; min-width:240px;">
+                <input type="text" id="soundboard-search-input" placeholder="Search sounds..." class="search-input" style="padding:0.45rem 0.8rem; font-size:0.84rem; width:100%;" oninput="searchPageSoundboard(this.value)">
+              </div>
+            </div>
+
+            <!-- SOUND TILES GRID -->
+            <div id="page-soundboard-grid" class="soundboard-grid">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+      `;
+      filterPageSoundboard('All');
+    }
+
+    function filterPageSoundboard(cat, btn = null) {
+      if (btn) {
+        document.querySelectorAll('.page-soundboard-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      currentSoundboardCategory = cat;
+      const searchVal = document.getElementById('soundboard-search-input')?.value.toLowerCase() || '';
+      renderPageSoundboardCards(cat, searchVal);
+    }
+
+    function searchPageSoundboard(query) {
+      renderPageSoundboardCards(currentSoundboardCategory, query.toLowerCase());
+    }
+
+    function renderPageSoundboardCards(cat, search) {
+      const grid = document.getElementById('page-soundboard-grid');
+      if (!grid) return;
+      let list = cat === 'All' ? SOUNDBOARD_ITEMS : SOUNDBOARD_ITEMS.filter(s => s.category.toLowerCase() === cat.toLowerCase());
+      if (search) {
+        list = list.filter(s => s.name.toLowerCase().includes(search) || s.category.toLowerCase().includes(search) || s.desc.toLowerCase().includes(search));
+      }
+      if (list.length === 0) {
+        grid.innerHTML = `<div style="grid-column:1 / -1; text-align:center; padding:3rem; color:var(--text-muted);">No sound effects found matching your search.</div>`;
+        return;
+      }
+      grid.innerHTML = list.map(s => `
+        <div class="soundboard-card">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <span style="font-size:1.8rem;">${s.emoji}</span>
+            <span class="soundboard-cat-pill">${s.category}</span>
+          </div>
+          <div>
+            <div style="font-weight:700; color:#fff; font-size:1.05rem; margin-bottom:0.25rem;">${s.name}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); line-height:1.4;">${s.desc}</div>
+          </div>
+          <div style="display:flex; gap:0.5rem; margin-top:0.4rem;">
+            <button class="btn btn-primary btn-sm" style="flex:1; justify-content:center; font-size:0.76rem;" onclick="triggerSoundboardClip('${s.id}', '${s.name}')">
+              ⚡ Play in Voice
+            </button>
+            <button class="btn btn-secondary btn-sm" style="font-size:0.76rem; padding:0.4rem 0.6rem;" onclick="previewSoundboardWeb('${s.id}')" title="Listen in browser">
+              🎧
+            </button>
+          </div>
+        </div>
+      `).join('');
     }
 
     // =========================================================================
