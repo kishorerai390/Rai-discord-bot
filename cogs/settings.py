@@ -58,6 +58,24 @@ _RESET_LABELS: dict[str, str] = {
 def status_icon(status: bool) -> str:
     return "✅" if status else "❌"
 
+def owner_or_manage_guild(ctx: commands.Context) -> bool:
+    """Allow the configured bot owner to manage Rem settings without server Manage Server permission."""
+    owner_ids = {1457380609641938981}
+    for env_name in ("BOT_OWNER_ID", "BOT_OWNER_IDS", "BOT_CREATOR_ID", "CREATOR_ID", "DEVELOPER_ID", "OWNER_ID", "FOUNDER_ID"):
+        raw_ids = __import__("os").getenv(env_name, "")
+        for raw_id in raw_ids.replace(";", ",").split(","):
+            if raw_id.strip().isdigit():
+                owner_ids.add(int(raw_id.strip()))
+
+    if getattr(ctx.author, "id", None) in owner_ids:
+        return True
+
+    return bool(
+        getattr(ctx, "guild", None)
+        and getattr(getattr(ctx.author, "guild_permissions", None), "manage_guild", False)
+    )
+
+
 class Settings(commands.Cog, name="settings"):
     def __init__(self, bot) -> None:
         self.bot: commands.Bot = bot
@@ -74,7 +92,7 @@ class Settings(commands.Cog, name="settings"):
         view.response = await dispatch_message(ctx, embed, view=view)
     
     @settings.command(name="prefix", aliases=get_aliases("prefix"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def prefix(self, ctx: commands.Context, prefix: str):
         "Change the default prefix for message commands."
@@ -85,7 +103,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, "settings.actions.prefixSet", prefix, prefix)
 
     @settings.command(name="language", aliases=get_aliases("language"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def language(self, ctx: commands.Context, language: str):
         "You can choose your preferred language, the bot message will change to the language you set."
@@ -103,7 +121,7 @@ class Settings(commands.Cog, name="settings"):
         return [app_commands.Choice(name=lang, value=lang) for lang in voicelink.LangHandler.get_all_languages()]
 
     @settings.command(name="dj", aliases=get_aliases("dj"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def dj(self, ctx: commands.Context, role: discord.Role = None):
         "Set a DJ role or remove DJ role."
@@ -115,7 +133,7 @@ class Settings(commands.Cog, name="settings"):
         app_commands.Choice(name=queue_type.capitalize(), value=queue_type)
         for queue_type in voicelink.queue.QUEUE_TYPES.keys()
     ])
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def queue(self, ctx: commands.Context, mode: str):
         "Change to another type of queue mode."
@@ -124,7 +142,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, "settings.actions.queueModeSet", mode.capitalize())
 
     @settings.command(name="247", aliases=get_aliases("247"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def playforever(self, ctx: commands.Context):
         "Toggles 24/7 mode, which disables automatic inactivity-based disconnects."
@@ -134,7 +152,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, 'settings.actions.mode247', await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if not toggle else "common.status.disabled"))
 
     @settings.command(name="bypassvote", aliases=get_aliases("bypassvote"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def bypassvote(self, ctx: commands.Context):
         "Toggles voting system."
@@ -144,7 +162,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, 'settings.actions.bypassVote', await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if not toggle else "common.status.disabled"))
 
     @settings.command(name="view", aliases=get_aliases("view"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def view(self, ctx: commands.Context):
         "Show all the bot settings in your server."
@@ -190,7 +208,7 @@ class Settings(commands.Cog, name="settings"):
 
     @settings.command(name="volume", aliases=get_aliases("volume"))
     @app_commands.describe(value="Input a integer.")
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def volume(self, ctx: commands.Context, value: commands.Range[int, 1, 150]):
         "Set the player's volume."
@@ -202,7 +220,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, 'settings.actions.volumeSet', value)
 
     @settings.command(name="togglecontroller", aliases=get_aliases("togglecontroller"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def togglecontroller(self, ctx: commands.Context):
         "Toggles the music controller."
@@ -220,7 +238,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, 'settings.actions.controllerToggled', await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if toggle else "common.status.disabled"))
 
     @settings.command(name="duplicatetrack", aliases=get_aliases("duplicatetrack"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def duplicatetrack(self, ctx: commands.Context):
         "Toggle Rem to prevent duplicate songs from queuing."
@@ -234,7 +252,7 @@ class Settings(commands.Cog, name="settings"):
         return await send_localized_message(ctx, "settings.actions.duplicateTrackToggled", await LangHandler.get_lang(ctx.guild.id, "common.status.disabled" if toggle else "common.status.enabled"))
     
     @settings.command(name="customcontroller", aliases=get_aliases("customcontroller"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def customcontroller(self, ctx: commands.Context):
         "Customizes music controller embeds."
@@ -246,7 +264,7 @@ class Settings(commands.Cog, name="settings"):
         view.response = await dispatch_message(ctx, view.build_embed(), view=view)
 
     @settings.command(name="controllermsg", aliases=get_aliases("controllermsg"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def controllermsg(self, ctx: commands.Context):
         "Toggles to send a message when clicking the button in the music controller."
@@ -257,7 +275,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, 'settings.actions.controllerMsgToggled', await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if toggle else "common.status.disabled"))
     
     @settings.command(name="silentmsg", aliases=get_aliases("silentmsg"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def silentmsg(self, ctx: commands.Context):
         "Toggle silent messaging to send discreet messages without alerting recipients."
@@ -268,7 +286,7 @@ class Settings(commands.Cog, name="settings"):
         await send_localized_message(ctx, 'settings.actions.silentMsgToggled', await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if toggle else "common.status.disabled"))
 
     @settings.command(name="stageannounce", aliases=get_aliases("stageannounce"))
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def stageannounce(self, ctx: commands.Context, template: str = None):
         "Customize the channel topic template"
@@ -279,7 +297,7 @@ class Settings(commands.Cog, name="settings"):
     @app_commands.describe(
         channel="Provide a request channel. If not, a text channel will be generated."
     )
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def setupchannel(self, ctx: commands.Context, channel: discord.TextChannel = None) -> None:
         "Sets up a dedicated channel for song requests in your server."
@@ -318,7 +336,7 @@ class Settings(commands.Cog, name="settings"):
         app_commands.Choice(name=label.capitalize(), value=label)
         for label in _RESET_LABELS.keys()
     ])
-    @commands.has_permissions(manage_guild=True)
+    @commands.check(owner_or_manage_guild)
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def reset_setting(self, ctx: commands.Context, *, setting: str):
         "Remove one guild setting override so the bot uses its default again."
