@@ -805,6 +805,23 @@ class Rem(commands.Bot):
 
         bot_config.client_id = self.user.id
         LangHandler._local_langs.clear()
+        asyncio.create_task(self._sync_profile_assets())
+
+    async def _sync_profile_assets(self):
+        try:
+            from pathlib import Path
+            avatar_path = Path("public/musicmaid_avatar.jpg")
+            banner_path = Path("public/musicmaid_banner.jpg")
+            kwargs = {}
+            if avatar_path.exists():
+                kwargs["avatar"] = avatar_path.read_bytes()
+            if banner_path.exists():
+                kwargs["banner"] = banner_path.read_bytes()
+            if kwargs:
+                await self.user.edit(**kwargs)
+                func.logger.info("[PROFILE] Discord bot avatar & banner synchronized with latest 4K assets.")
+        except Exception as e:
+            func.logger.debug(f"[PROFILE] Profile auto-sync notice: {e}")
 
     async def on_command_error(self, ctx: commands.Context, exception, /) -> None:
         error = getattr(exception, 'original', exception)

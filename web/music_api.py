@@ -948,6 +948,52 @@ class MusicApiRouter:
                     await self.db.mark_web_action_completed(action_id, {"status": "filter_applied", "preset": preset, "message": msg})
                     return json_success({"action_id": action_id, "action": action, "status": "FILTER_APPLIED", "preset": preset, "message": msg})
 
+                elif action == "REPLAY":
+                    await MusicPlayerService.seek(self.bot, session, 0)
+                    await self.db.mark_web_action_completed(action_id, {"status": "replayed", "position": 0})
+                    return json_success({"action_id": action_id, "action": action, "status": "REPLAYED", "message": "Replaying current track from beginning ↺"})
+
+                elif action == "FORWARD":
+                    delta = int(payload.get("seconds", 10))
+                    current_pos = getattr(session, "progress_seconds", 0) or 0
+                    target = int(current_pos + delta)
+                    await MusicPlayerService.seek(self.bot, session, target)
+                    await self.db.mark_web_action_completed(action_id, {"status": "forwarded", "position": target})
+                    return json_success({"action_id": action_id, "action": action, "status": "FORWARDED", "position": target, "message": f"Forwarded +{delta}s ⏩"})
+
+                elif action == "REWIND":
+                    delta = int(payload.get("seconds", 10))
+                    current_pos = getattr(session, "progress_seconds", 0) or 0
+                    target = max(0, int(current_pos - delta))
+                    await MusicPlayerService.seek(self.bot, session, target)
+                    await self.db.mark_web_action_completed(action_id, {"status": "rewound", "position": target})
+                    return json_success({"action_id": action_id, "action": action, "status": "REWOUND", "position": target, "message": f"Rewound -{delta}s ⏪"})
+
+                elif action == "SWAP":
+                    pos1 = int(payload.get("index1", payload.get("pos1", 0)))
+                    pos2 = int(payload.get("index2", payload.get("pos2", 1)))
+                    if 0 <= pos1 < len(session.queue) and 0 <= pos2 < len(session.queue):
+                        q_list = list(session.queue)
+                        q_list[pos1], q_list[pos2] = q_list[pos2], q_list[pos1]
+                        session.queue.clear()
+                        session.queue.extend(q_list)
+                        await MusicPlayerService.send_now_playing_panel(session)
+                        await self.db.mark_web_action_completed(action_id, {"status": "swapped", "pos1": pos1, "pos2": pos2})
+                        return json_success({"action_id": action_id, "action": action, "status": "SWAPPED", "message": f"Swapped tracks #{pos1+1} and #{pos2+1} 🔄"})
+                    return json_error("INVALID_SWAP_INDICES", "Track positions out of range", status=400)
+
+                elif action in ("LEAVE_VOICE", "DISCONNECT", "LEAVE"):
+                    session.twenty_four_seven = False
+                    session.is_intentional_disconnect = True
+                    if session.voice_client:
+                        try:
+                            await session.voice_client.disconnect(force=True)
+                        except Exception:
+                            pass
+                    await MusicPlayerService.stop(self.bot, session)
+                    await self.db.mark_web_action_completed(action_id, {"status": "disconnected"})
+                    return json_success({"action_id": action_id, "action": action, "status": "DISCONNECTED", "message": "Disconnected Rem from voice channel 👋"})
+
                 # Instant real-time broadcast to all connected WebSocket clients & SSE listeners
                 try:
                     from web.realtime import RealtimeGateway

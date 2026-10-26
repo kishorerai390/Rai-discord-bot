@@ -2834,14 +2834,16 @@ UI_HTML = r"""<!DOCTYPE html>
       font-size: 0.82rem;
       font-weight: 700;
       color: var(--text-muted);
-      cursor: pointer;
+      cursor: default;
       transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       border: 1px solid transparent;
       user-select: none;
+      pointer-events: none;
     }
-    .workspace-tab:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.05);
+    .workspace-tab.disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      pointer-events: none;
     }
     .workspace-tab.active {
       color: #fff;
@@ -3251,9 +3253,12 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="player-tier-controls" role="toolbar" aria-label="Audio Playback Controls">
         <div class="player-buttons-row">
           <button class="p-btn" id="btn-shuffle" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Queue" aria-label="Shuffle Queue">🔀</button>
+          <button class="p-btn" onclick="dispatchCmd('REWIND', {seconds:10})" title="Rewind 10 Seconds" aria-label="Rewind 10s">⏪</button>
           <button class="p-btn" onclick="dispatchCmd('PREVIOUS')" title="Previous Track" aria-label="Previous Track">⏮</button>
           <button class="p-btn p-btn-play" id="btn-master-play" onclick="togglePlayPause()" title="Play / Pause" aria-label="Play or Pause Track">▶</button>
           <button class="p-btn" onclick="dispatchCmd('SKIP')" title="Skip Track" aria-label="Skip to Next Track">⏭</button>
+          <button class="p-btn" onclick="dispatchCmd('FORWARD', {seconds:10})" title="Forward 10 Seconds" aria-label="Forward 10s">⏩</button>
+          <button class="p-btn" id="btn-replay" onclick="dispatchCmd('REPLAY')" title="Replay from Beginning" aria-label="Replay Track">↺</button>
           <button class="p-btn" id="btn-loop" onclick="cycleLoopMode()" title="Toggle Loop (Off / Track / Queue)" aria-label="Toggle Loop Mode">🔁</button>
         </div>
       </div>
@@ -3271,6 +3276,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="player-tier-status">
         <div class="player-status-left">
           <span class="player-queue-label" id="player-queue-count" onclick="navigate('/queue')" title="Click to view queue" role="button" tabindex="0" aria-label="View current queue">Queue: 0 tracks</span>
+          <button class="chip-pill" id="btn-cmd-palette-pill" onclick="openCommandsModal()" title="Rem Command Center (Ctrl+K)" aria-label="Open Command Center" style="background:rgba(168,85,247,0.18); border-color:var(--primary); color:var(--primary-hover); font-weight:700;">⚡ Commands (Ctrl+K)</button>
           <button class="chip-pill" id="btn-sleep-pill" onclick="openSleepTimerModal()" title="Bedtime Sleep Timer" aria-label="Set Sleep Timer">🌙 Sleep</button>
           <button class="chip-pill" id="btn-lyrics-pill" onclick="openLyricsModal()" title="View Track Lyrics" aria-label="Open Lyrics Dialog">🎤 Lyrics</button>
           <button class="chip-pill" id="btn-247-pill" onclick="dispatchCmd('247_TOGGLE')" title="Toggle 24/7 Voice Persistence" aria-label="Toggle 24/7 Voice Channel Persistence">24/7 OFF</button>
@@ -3316,44 +3322,66 @@ UI_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- COMMANDS LIST MODAL -->
+  <!-- COMMANDS LIST & LIVE RUNNER MODAL -->
   <div class="modal-backdrop" id="commands-modal">
-    <div class="modal-content" style="max-width:560px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-        <div class="section-title" style="font-size:1.25rem;"><span>📖</span> Rem Slash Commands</div>
-        <button class="btn btn-secondary btn-sm" onclick="closeCommandsModal()">✕</button>
+    <div class="modal-content" style="max-width:680px; width:95%; max-height:88vh; display:flex; flex-direction:column; padding:1.4rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <span style="font-size:1.4rem; filter:drop-shadow(0 0 8px rgba(168,85,247,0.6));">⚡</span>
+          <div>
+            <div class="section-title" style="font-size:1.25rem; margin:0;">Rem Command Center & Live Runner</div>
+            <div style="font-size:0.76rem; color:var(--text-muted);">Execute Discord bot actions live or copy slash command syntax</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeCommandsModal()" aria-label="Close command runner" style="border-radius:50%; width:32px; height:32px; padding:0; display:flex; align-items:center; justify-content:center;">✕</button>
       </div>
-      <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:1rem;">
-        Type any of these commands in your Discord server channels. Click to copy syntax!
-      </p>
-      <div style="display:flex; flex-direction:column; gap:0.6rem; max-height:360px; overflow-y:auto; padding-right:0.4rem;">
+
+      <!-- SEARCH & FILTER BAR -->
+      <div style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:0.85rem;">
+        <div style="position:relative; display:flex; align-items:center;">
+          <span style="position:absolute; left:0.85rem; color:var(--text-muted); font-size:0.9rem; pointer-events:none;">🔍</span>
+          <input type="text" id="cmd-palette-search" placeholder="Search commands (e.g. play, skip, 8d, volume, 247, lyrics, soundboard)..." oninput="filterPaletteCommands(this.value)" autocomplete="off" style="width:100%; background:rgba(0,0,0,0.35); border:1px solid rgba(168,85,247,0.3); border-radius:var(--radius-md); padding:0.65rem 3rem 0.65rem 2.4rem; color:#fff; font-size:0.88rem; outline:none; transition:border-color 0.2s;">
+          <span style="position:absolute; right:0.85rem; font-size:0.7rem; font-family:'JetBrains Mono',monospace; color:var(--text-dim); background:rgba(255,255,255,0.08); padding:0.15rem 0.4rem; border-radius:4px; pointer-events:none;">Ctrl+K</span>
+        </div>
+
+        <div style="display:flex; gap:0.4rem; overflow-x:auto; padding-bottom:0.2rem;" id="cmd-category-filters">
+          <button class="chip-pill active" onclick="filterPaletteCategory('all', this)" style="cursor:pointer; font-size:0.75rem;">All (32)</button>
+          <button class="chip-pill" onclick="filterPaletteCategory('playback', this)" style="cursor:pointer; font-size:0.75rem;">🎵 Playback</button>
+          <button class="chip-pill" onclick="filterPaletteCategory('dsp', this)" style="cursor:pointer; font-size:0.75rem;">🎛️ Audio DSP</button>
+          <button class="chip-pill" onclick="filterPaletteCategory('voice', this)" style="cursor:pointer; font-size:0.75rem;">🔊 Voice & System</button>
+          <button class="chip-pill" onclick="filterPaletteCategory('smart', this)" style="cursor:pointer; font-size:0.75rem;">✨ Smart Auto-DJ</button>
+        </div>
+      </div>
+
+      <!-- COMMANDS SCROLL LIST -->
+      <div id="cmd-palette-list" style="display:flex; flex-direction:column; gap:0.55rem; max-height:420px; overflow-y:auto; padding-right:0.3rem;">
         <div class="queue-row" onclick="copyCommand('/music play')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music play &lt;query&gt;</code><div style="font-size:0.75rem; color:var(--text-muted);">Play any song, artist, YouTube, or Spotify URL</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('play');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ Run</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music play');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
         <div class="queue-row" onclick="copyCommand('/music skip')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music skip</code><div style="font-size:0.75rem; color:var(--text-muted);">Skip current playing track to next in queue</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('skip');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ Run</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music skip');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
         <div class="queue-row" onclick="copyCommand('/music volume')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music volume &lt;1-150&gt;</code><div style="font-size:0.75rem; color:var(--text-muted);">Adjust audio playback volume (101-150% for VIP)</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('volume');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ Run</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music volume');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
         <div class="queue-row" onclick="copyCommand('/music 247')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music 247</code><div style="font-size:0.75rem; color:var(--text-muted);">Keep Rem in voice channel 24/7 without leaving</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('247');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ Run</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music 247');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
         <div class="queue-row" onclick="copyCommand('/music queue')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music queue</code><div style="font-size:0.75rem; color:var(--text-muted);">View the list of upcoming songs with duration</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('view_queue');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ View</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music queue');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
         <div class="queue-row" onclick="copyCommand('/music filter')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music filter &lt;preset&gt;</code><div style="font-size:0.75rem; color:var(--text-muted);">Apply DSP presets: Bass Boost, Nightcore, 8D, Vaporwave</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('filter_8d');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ Run</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music filter');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
         <div class="queue-row" onclick="copyCommand('/music autodj')" style="cursor:pointer;" title="Click to copy">
           <div><code style="color:var(--cyan); font-weight:800; font-size:0.9rem;">/music autodj</code><div style="font-size:0.75rem; color:var(--text-muted);">Toggle intelligent endless Auto-DJ when queue finishes</div></div>
-          <button class="btn btn-secondary btn-sm" style="font-size:0.72rem;">Copy</button>
+          <div style="display:flex; gap:0.4rem;"><button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); executePaletteAction('autodj');" style="font-size:0.72rem; padding:0.3rem 0.6rem;">⚡ Run</button><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); copyCommand('/music autodj');" style="font-size:0.72rem; padding:0.3rem 0.5rem;">Copy</button></div>
         </div>
       </div>
     </div>
@@ -3494,11 +3522,260 @@ UI_HTML = r"""<!DOCTYPE html>
     const pendingActions = new Set();
     const DEFAULT_ARTWORK = "/public/musicmaid_avatar.jpg";
 
+    // =========================================================================
+    // BOT COMMANDS REGISTRY & LIVE RUNNER ENGINE
+    // =========================================================================
+    const BOT_COMMANDS_REGISTRY = [
+      { id: 'play', cmd: '/music play <query>', title: '/music play', desc: 'Play any track, artist, YouTube, or Spotify URL', cat: 'playback', action: 'play' },
+      { id: 'playtop', cmd: '/music playtop <query>', title: '/music playtop', desc: 'Add track directly to the top of queue to play next', cat: 'playback', action: 'playtop' },
+      { id: 'forceplay', cmd: '/music forceplay <query>', title: '/music forceplay', desc: 'Instantly interrupt playback and play requested song now', cat: 'playback', action: 'forceplay' },
+      { id: 'pause', cmd: '/music pause', title: '/music pause', desc: 'Pause active audio stream in voice channel', cat: 'playback', action: 'pause' },
+      { id: 'resume', cmd: '/music resume', title: '/music resume', desc: 'Resume paused audio playback stream', cat: 'playback', action: 'resume' },
+      { id: 'skip', cmd: '/music skip', title: '/music skip', desc: 'Skip current playing track to next in queue', cat: 'playback', action: 'skip' },
+      { id: 'back', cmd: '/music back', title: '/music back', desc: 'Step back to the previously played track', cat: 'playback', action: 'previous' },
+      { id: 'replay', cmd: '/music replay', title: '/music replay', desc: 'Restart current song from the beginning (00:00)', cat: 'playback', action: 'replay' },
+      { id: 'forward', cmd: '/music forward [sec]', title: '/music forward', desc: 'Fast-forward playback position by 10 seconds', cat: 'playback', action: 'forward' },
+      { id: 'rewind', cmd: '/music rewind [sec]', title: '/music rewind', desc: 'Rewind playback position by 10 seconds', cat: 'playback', action: 'rewind' },
+      { id: 'shuffle', cmd: '/music shuffle', title: '/music shuffle', desc: 'Randomize and reorder the entire track queue', cat: 'playback', action: 'shuffle' },
+      { id: 'loop', cmd: '/music loop <mode>', title: '/music loop', desc: 'Cycle repeat mode (Single Track 🔂 / Queue 🔁 / Off)', cat: 'playback', action: 'loop' },
+      { id: 'clear', cmd: '/music clear', title: '/music clear', desc: 'Clear all upcoming tracks from queue', cat: 'playback', action: 'clear' },
+      { id: 'queue', cmd: '/music queue', title: '/music queue', desc: 'View full upcoming queue with pagination and duration', cat: 'playback', action: 'view_queue' },
+      { id: 'nowplaying', cmd: '/music nowplaying', title: '/music nowplaying', desc: 'Open dynamic Turntable Deck & track metadata view', cat: 'playback', action: 'view_nowplaying' },
+      { id: 'lyrics', cmd: '/music lyrics', title: '/music lyrics', desc: 'View real-time synchronized lyrics dialog', cat: 'playback', action: 'lyrics' },
+      { id: 'volume', cmd: '/music volume <1-150>', title: '/music volume', desc: 'Adjust audio playback volume (101-150% for VIP)', cat: 'voice', action: 'volume' },
+      { id: '247', cmd: '/music 247', title: '/music 247', desc: 'Keep Rem permanently inside voice channel 24/7', cat: 'voice', action: '247' },
+      { id: 'connect', cmd: '/music connect', title: '/music connect', desc: 'Summon Rem into your current or selected voice channel', cat: 'voice', action: 'connect' },
+      { id: 'leave', cmd: '/music leave', title: '/music leave', desc: 'Safely disconnect Rem from voice channel', cat: 'voice', action: 'leave' },
+      { id: 'soundboard', cmd: '/soundboard', title: '/soundboard', desc: 'Trigger instant voice soundboard effects (Airhorn, Wow...)', cat: 'voice', action: 'soundboard' },
+      { id: 'sleeptimer', cmd: '/sleeptimer', title: '/sleeptimer', desc: 'Fade volume and disconnect after bedtime timer', cat: 'voice', action: 'sleep' },
+      { id: 'ping', cmd: '/music ping', title: '/music ping', desc: 'Test Gateway and Lavalink latency in milliseconds', cat: 'voice', action: 'ping' },
+      { id: 'autodj', cmd: '/music autodj', title: '/music autodj', desc: 'Toggle intelligent endless Auto-DJ recommendation engine', cat: 'smart', action: 'autodj' },
+      { id: 'filter_bassboost', cmd: '/music filter bassboost', title: '/music filter bassboost', desc: 'Apply rich low-frequency DSP boost (+10dB @ 60Hz)', cat: 'dsp', action: 'filter_bassboost' },
+      { id: 'filter_nightcore', cmd: '/music filter nightcore', title: '/music filter nightcore', desc: 'High-pitch sped-up anime remix DSP (+25% tempo)', cat: 'dsp', action: 'filter_nightcore' },
+      { id: 'filter_8d', cmd: '/music filter 8d', title: '/music filter 8d', desc: '360° rotating binaural surround spatial audio', cat: 'dsp', action: 'filter_8d' },
+      { id: 'filter_vaporwave', cmd: '/music filter vaporwave', title: '/music filter vaporwave', desc: 'Slowed-down nostalgic tape pitch and reverb (-15%)', cat: 'dsp', action: 'filter_vaporwave' },
+      { id: 'filter_karaoke', cmd: '/music filter karaoke', title: '/music filter karaoke', desc: 'Center-channel vocal suppression for sing-along', cat: 'dsp', action: 'filter_karaoke' },
+      { id: 'filter_lowpass', cmd: '/music filter lowpass', title: '/music filter lowpass', desc: 'Cozy muffled bedroom lo-fi lowpass curve', cat: 'dsp', action: 'filter_lowpass' },
+      { id: 'filter_lofi', cmd: '/music filter lofi', title: '/music filter lofi', desc: 'Vintage radio saturation with gentle tape compression', cat: 'dsp', action: 'filter_lofi' },
+      { id: 'filter_clear', cmd: '/music filter cleareffect', title: '/music filter cleareffect', desc: 'Reset all DSP filters back to flat pure studio audio', cat: 'dsp', action: 'filter_clear' }
+    ];
+
+    let currentPaletteCategory = 'all';
+    let currentPaletteQuery = '';
+
     function openCommandsModal() {
-      document.getElementById('commands-modal')?.classList.add('open');
+      const modal = document.getElementById('commands-modal');
+      if (modal) {
+        modal.classList.add('open');
+        renderCommandPalette();
+        setTimeout(() => {
+          document.getElementById('cmd-palette-search')?.focus();
+        }, 80);
+      }
     }
+
     function closeCommandsModal() {
       document.getElementById('commands-modal')?.classList.remove('open');
+    }
+
+    function filterPaletteCommands(q) {
+      currentPaletteQuery = (q || '').toLowerCase().trim();
+      renderCommandPalette();
+    }
+
+    function filterPaletteCategory(cat, btn) {
+      currentPaletteCategory = cat;
+      const pills = document.querySelectorAll('#cmd-category-filters .chip-pill');
+      pills.forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      renderCommandPalette();
+    }
+
+    function renderCommandPalette() {
+      const list = document.getElementById('cmd-palette-list');
+      if (!list) return;
+
+      const filtered = BOT_COMMANDS_REGISTRY.filter(item => {
+        const matchesCat = (currentPaletteCategory === 'all' || item.cat === currentPaletteCategory);
+        const matchesQuery = !currentPaletteQuery ||
+          item.cmd.toLowerCase().includes(currentPaletteQuery) ||
+          item.title.toLowerCase().includes(currentPaletteQuery) ||
+          item.desc.toLowerCase().includes(currentPaletteQuery) ||
+          item.action.toLowerCase().includes(currentPaletteQuery);
+        return matchesCat && matchesQuery;
+      });
+
+      if (filtered.length === 0) {
+        list.innerHTML = `
+          <div style="text-align:center; padding:2rem 1rem; color:var(--text-muted); font-size:0.86rem;">
+            <span>🔍</span> No bot commands found matching "<strong>${escapeHtml(currentPaletteQuery)}</strong>".
+          </div>
+        `;
+        return;
+      }
+
+      list.innerHTML = filtered.map(item => `
+        <div class="queue-row" style="cursor:default; transition:transform 0.15s, background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+          <div style="flex:1; min-width:0; padding-right:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+              <code style="color:var(--cyan); font-weight:800; font-size:0.88rem; font-family:'JetBrains Mono',monospace;">${escapeHtml(item.cmd)}</code>
+              <span class="chip-pill" style="font-size:0.62rem; padding:0.1rem 0.4rem; text-transform:uppercase; color:var(--primary); border-color:rgba(168,85,247,0.3);">${escapeHtml(item.cat)}</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${escapeHtml(item.desc)}</div>
+          </div>
+          <div style="display:flex; gap:0.35rem; align-items:center; flex-shrink:0;">
+            <button class="btn btn-primary btn-sm" onclick="executePaletteAction('${item.action}', '${item.id}')" style="font-size:0.72rem; padding:0.32rem 0.65rem; border-radius:var(--radius-sm); font-weight:700;" title="Run command directly on Discord bot">⚡ Run</button>
+            <button class="btn btn-secondary btn-sm" onclick="copyCommand('${item.cmd.replace(/'/g, "\\'")}')" style="font-size:0.72rem; padding:0.32rem 0.55rem; border-radius:var(--radius-sm);" title="Copy slash command syntax">Copy</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function executePaletteAction(action, itemId) {
+      const item = BOT_COMMANDS_REGISTRY.find(c => c.action === action || c.id === itemId);
+      switch (action) {
+        case 'play': {
+          const q = prompt("Enter song name, artist, YouTube URL, or Spotify track:");
+          if (q && q.trim()) {
+            showToast(`Queueing "${q.trim()}"... 🎵`);
+            dispatchCmd('ENQUEUE', { query: q.trim() });
+            closeCommandsModal();
+          }
+          break;
+        }
+        case 'playtop': {
+          const q = prompt("Enter song to insert at the top of queue:");
+          if (q && q.trim()) {
+            showToast(`Playing next: "${q.trim()}" 🚀`);
+            dispatchCmd('PLAY_NEXT', { query: q.trim() });
+            closeCommandsModal();
+          }
+          break;
+        }
+        case 'forceplay': {
+          const q = prompt("Enter song to play immediately (interrupt current):");
+          if (q && q.trim()) {
+            showToast(`Force playing "${q.trim()}" ⚡`);
+            dispatchCmd('PLAY_NOW', { query: q.trim() });
+            closeCommandsModal();
+          }
+          break;
+        }
+        case 'pause':
+          dispatchCmd('PAUSE');
+          break;
+        case 'resume':
+          dispatchCmd('RESUME');
+          break;
+        case 'skip':
+          dispatchCmd('SKIP');
+          break;
+        case 'previous':
+          dispatchCmd('PREVIOUS');
+          break;
+        case 'replay':
+          dispatchCmd('REPLAY');
+          break;
+        case 'forward':
+          dispatchCmd('FORWARD', { seconds: 10 });
+          break;
+        case 'rewind':
+          dispatchCmd('REWIND', { seconds: 10 });
+          break;
+        case 'shuffle':
+          dispatchCmd('SHUFFLE');
+          break;
+        case 'loop':
+          cycleLoopMode();
+          break;
+        case 'clear':
+          if (confirm("Clear all upcoming songs in queue?")) {
+            dispatchCmd('CLEAR');
+          }
+          break;
+        case 'view_queue':
+          closeCommandsModal();
+          navigate('/queue');
+          break;
+        case 'view_nowplaying':
+          closeCommandsModal();
+          navigate('/dashboard');
+          break;
+        case 'lyrics':
+          closeCommandsModal();
+          openLyricsModal();
+          break;
+        case 'soundboard':
+          closeCommandsModal();
+          openSoundboardModal();
+          break;
+        case 'sleep':
+          closeCommandsModal();
+          openSleepTimerModal();
+          break;
+        case '247':
+          dispatchCmd('247_TOGGLE');
+          break;
+        case 'autodj':
+          dispatchCmd('AUTODJ_TOGGLE');
+          break;
+        case 'connect':
+          dispatchCmd('CONNECT_VOICE');
+          break;
+        case 'leave':
+          dispatchCmd('LEAVE_VOICE');
+          break;
+        case 'volume': {
+          const v = prompt("Enter volume (0 - 150%):", (currentSession?.volume || 80).toString());
+          if (v !== null) {
+            const num = parseInt(v, 10);
+            if (!isNaN(num) && num >= 0 && num <= 150) {
+              dispatchCmd('VOLUME', { volume: num });
+            } else {
+              showToast("Volume must be between 0 and 150%", "warning");
+            }
+          }
+          break;
+        }
+        case 'ping': {
+          const t0 = performance.now();
+          try {
+            const res = await fetch('/health');
+            const latency = Math.round(performance.now() - t0);
+            showToast(`🏓 Gateway Pong! Web latency: ${latency}ms | Lavalink: OK`, "info");
+          } catch(e) {
+            showToast("⚠️ Gateway ping timed out", "warning");
+          }
+          break;
+        }
+        case 'filter_bassboost':
+          dispatchCmd('FILTER', { preset: 'bassboost', name: 'Bass Boost' });
+          break;
+        case 'filter_nightcore':
+          dispatchCmd('FILTER', { preset: 'nightcore', name: 'Nightcore' });
+          break;
+        case 'filter_8d':
+          dispatchCmd('FILTER', { preset: '8d', name: '8D Audio' });
+          break;
+        case 'filter_vaporwave':
+          dispatchCmd('FILTER', { preset: 'vaporwave', name: 'Vaporwave' });
+          break;
+        case 'filter_karaoke':
+          dispatchCmd('FILTER', { preset: 'karaoke', name: 'Karaoke' });
+          break;
+        case 'filter_lowpass':
+          dispatchCmd('FILTER', { preset: 'lowpass', name: 'Lowpass Cozy' });
+          break;
+        case 'filter_lofi':
+          dispatchCmd('FILTER', { preset: 'lofi', name: 'Lofi Radio' });
+          break;
+        case 'filter_clear':
+          dispatchCmd('FILTER', { preset: 'flat', name: 'Flat Pure' });
+          break;
+        default:
+          copyCommand(item?.cmd || '/help');
+          break;
+      }
     }
     function openSoundboardModal() {
       document.getElementById('soundboard-modal')?.classList.add('open');
@@ -4831,19 +5108,33 @@ const _UNUSED_DEF = {
     }
 
     window.addEventListener('keydown', (e) => {
-      // Skip if user is actively typing in an input field
+      // Global shortcut: Ctrl+K or Cmd+K opens Command Runner anywhere
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        openCommandsModal();
+        return;
+      }
+
+      // Close open modals on Escape key even inside input
+      if (e.key === 'Escape') {
+        closeMobileSidebar();
+        closeShortcutsModal();
+        closeCommandsModal();
+        document.getElementById('lyrics-modal')?.classList.remove('open');
+        document.getElementById('sleep-modal')?.classList.remove('open');
+        document.getElementById('soundboard-modal')?.classList.remove('open');
+        document.getElementById('playlist-modal')?.classList.remove('open');
+        return;
+      }
+
+      // Skip single-key shortcuts if user is actively typing in an input field
       const tag = e.target?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
 
       switch (e.key) {
-        case 'Escape':
-          closeMobileSidebar();
-          closeShortcutsModal();
-          document.getElementById('lyrics-modal')?.classList.remove('open');
-          document.getElementById('sleep-modal')?.classList.remove('open');
-          document.getElementById('soundboard-modal')?.classList.remove('open');
-          document.getElementById('playlist-modal')?.classList.remove('open');
-          document.getElementById('commands-modal')?.classList.remove('open');
+        case '/':
+          e.preventDefault();
+          openCommandsModal();
           break;
         case ' ':
         case 'k':
@@ -5091,14 +5382,14 @@ const _UNUSED_DEF = {
         <div class="view-fade-in" style="width:100%; max-width:1060px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem; align-items:center;">
 
           <!-- WORKSPACE ORDER SWITCHER -->
-          <div class="workspace-switcher-bar" style="width:100%;">
-            <div class="workspace-tab active" onclick="navigate('/login')">
+          <div class="workspace-switcher-bar" style="width:100%; pointer-events:none;">
+            <div class="workspace-tab active" style="cursor:default; pointer-events:none;">
               <span>🔑</span> 1. Login & Welcome
             </div>
-            <div class="workspace-tab" onclick="navigate('/dashboard')">
+            <div class="workspace-tab disabled" style="cursor:not-allowed; opacity:0.55; pointer-events:none;">
               <span>🎧</span> 2. User Dashboard (Turntable & Deck)
             </div>
-            <div class="workspace-tab owner-tab" onclick="navigate('/owner')">
+            <div class="workspace-tab owner-tab disabled" style="cursor:not-allowed; opacity:0.55; pointer-events:none;">
               <span>👑</span> 3. Owner Dashboard (Creator Room)
             </div>
           </div>
@@ -5128,7 +5419,7 @@ const _UNUSED_DEF = {
                 <!-- Title & Subtitle -->
                 <h1 class="login-title-h1">Hello there.</h1>
                 <div class="login-subhead">
-                  <span style="font-weight:700; color:#fff;">Welcome to Rem Studio</span><br>
+                  <span style="font-weight:700; color:#fff;">Welcome to Rem Studio</span> <!-- Welcome to MusicMaid Studio --><br>
                   Dedicated 24/7 Lossless 320kbps Discord audio player with cyber-analog controls, real-time sync, and social Aux sharing.
                 </div>
 
@@ -7651,14 +7942,20 @@ const _UNUSED_DEF = {
             </p>
 
             <div class="eq-grid">
-              <div class="eq-chip ${currentSession?.eq_preset === 'Flat' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'flat', name:'Flat Pure'})">🎵 Flat / Bypass</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Flat Pure' || currentSession?.eq_preset === 'Flat' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'flat', name:'Flat Pure'})">🎵 Flat / Bypass</div>
               <div class="eq-chip ${currentSession?.eq_preset === 'Bass Boost' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'bassboost', name:'Bass Boost'})">🔥 Bass Boost</div>
               <div class="eq-chip ${currentSession?.eq_preset === 'Nightcore' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'nightcore', name:'Nightcore'})">⚡ Nightcore</div>
-              <div class="eq-chip ${currentSession?.eq_preset === '8D Audio' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'8d', name:'8D Audio'})">🎧 8D Spatial</div>
+              <div class="eq-chip ${currentSession?.eq_preset === '8D Audio' || currentSession?.eq_preset === '8D Spatial' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'8d', name:'8D Spatial'})">🎧 8D Spatial</div>
               <div class="eq-chip ${currentSession?.eq_preset === 'Vaporwave' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'vaporwave', name:'Vaporwave'})">📼 Vaporwave</div>
-              <div class="eq-chip ${currentSession?.eq_preset === 'Vocal' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'vocal', name:'Vocal Boost'})">🎤 Vocal Boost</div>
-              <div class="eq-chip ${currentSession?.eq_preset === 'Treble' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'treble', name:'Treble Boost'})">✨ Treble Boost</div>
-              <div class="eq-chip ${currentSession?.eq_preset === 'Lofi' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'lofi', name:'Lofi Radio'})">📻 Lofi Radio</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Karaoke' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'karaoke', name:'Karaoke'})">🎤 Karaoke</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Lowpass Cozy' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'lowpass', name:'Lowpass Cozy'})">🌊 Lowpass Cozy</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Lofi Radio' || currentSession?.eq_preset === 'Lofi' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'lofi', name:'Lofi Radio'})">📻 Lofi Radio</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Vocal Boost' || currentSession?.eq_preset === 'Vocal' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'vocal', name:'Vocal Boost'})">🎙️ Vocal Boost</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Treble Boost' || currentSession?.eq_preset === 'Treble' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'trebleboost', name:'Treble Boost'})">✨ Treble Boost</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Tremolo Pulse' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'tremolo', name:'Tremolo Pulse'})">🎛️ Tremolo Pulse</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Vibrato Wobble' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'vibrato', name:'Vibrato Wobble'})">💫 Vibrato Wobble</div>
+              <div class="eq-chip ${currentSession?.eq_preset === 'Distortion FX' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'distortion', name:'Distortion FX'})">💥 Distortion FX</div>
+              <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'flat', name:'Flat Pure'})">🚫 Clear All Filters</div>
             </div>
           </div>
 
@@ -7782,7 +8079,7 @@ const _UNUSED_DEF = {
 
             <!-- HERO HEADER -->
             <div class="pricing-hero">
-              <span class="pricing-hero-badge">💎 REM VIP PREMIUM</span>
+              <span class="pricing-hero-badge">💎 Noctyra Premium • Rem VIP</span>
               <h1 style="font-size:2.5rem; font-weight:900; color:#fff; line-height:1.15; margin-top:0.3rem;">
                 Supercharge Your Discord Audio & <span style="background:linear-gradient(135deg, #a78bfa, #7928ca); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Support the Bot</span>
               </h1>

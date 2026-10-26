@@ -1380,6 +1380,13 @@ class MusicPlayerService:
             "nightcore": "-af atempo=1.25,asetrate=48000*1.25",
             "8d": "-af apulsator=hz=0.125",
             "vaporwave": "-af atempo=0.85,asetrate=48000*0.85",
+            "karaoke": "-af pan=stereo|c0=c0-c1|c1=c1-c0",
+            "lowpass": "-af lowpass=f=1000",
+            "trebleboost": "-af equalizer=f=8000:width_type=h:width=500:g=6",
+            "tremolo": "-af tremolo=f=5:d=0.5",
+            "vibrato": "-af vibrato=f=6:d=0.5",
+            "distortion": "-af acrusher=samples=64:bits=8:mode=log:aa=1",
+            "lofi": "-af lowpass=f=3200,highpass=f=300,acrusher=samples=32:bits=10",
             "vocal": "-af equalizer=f=1000:width_type=h:width=200:g=6",
             "nightmode": "-af dynaudnorm=f=150:g=15",
             "balanced": "-af equalizer=f=1000:width_type=h:width=200:g=1",
@@ -1388,6 +1395,7 @@ class MusicPlayerService:
             "rock": "-af equalizer=f=100:width_type=h:width=60:g=5,equalizer=f=3000:width_type=h:width=500:g=4",
             "flat": "",
             "reset": "",
+            "cleareffect": "",
         }
 
         async with session.lock:
