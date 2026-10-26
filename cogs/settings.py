@@ -22,6 +22,7 @@ SOFTWARE.
 """
 
 import discord
+import os
 import voicelink
 import psutil
 import function as func
@@ -62,7 +63,7 @@ def owner_or_manage_guild(ctx: commands.Context) -> bool:
     """Allow the configured bot owner to manage Rem settings without server Manage Server permission."""
     owner_ids = {1457380609641938981}
     for env_name in ("BOT_OWNER_ID", "BOT_OWNER_IDS", "BOT_CREATOR_ID", "CREATOR_ID", "DEVELOPER_ID", "OWNER_ID", "FOUNDER_ID"):
-        raw_ids = __import__("os").getenv(env_name, "")
+        raw_ids = os.getenv(env_name, "")
         for raw_id in raw_ids.replace(";", ",").split(","):
             if raw_id.strip().isdigit():
                 owner_ids.add(int(raw_id.strip()))
