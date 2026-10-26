@@ -114,6 +114,90 @@ class TestPR38StaleVoiceRecovery(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(mock_connect.await_count, 2)
         mock_send.assert_awaited_once_with(self.ctx, "voice.connection.alreadyConnected")
 
+    @patch("cogs.basic.dispatch_message", new_callable=AsyncMock)
+    @patch("cogs.basic.LangHandler.get_lang", new_callable=AsyncMock, return_value=["LIVE", " (pos %s)", " (now)"])
+    @patch("cogs.basic.voicelink.connect_channel", new_callable=AsyncMock)
+    async def test_play_recovers_stale_voice_client(self, mock_connect, mock_get_lang, mock_dispatch):
+        """Case 4: `play` command detects stale client, tears it down, and connects to user."""
+        self.bot_member.voice = None
+        stale_player = MagicMock()
+        stale_player.teardown = AsyncMock()
+        self.guild.voice_client = stale_player
+
+        # Live player connected to user's channel
+        live_player = MagicMock()
+        live_player.is_user_join.return_value = True
+        mock_track = MagicMock()
+        mock_track.title = "moodbaazi"
+        mock_track.uri = "https://youtube.com/watch?v=123"
+        mock_track.author = "Artist"
+        mock_track.formatted_length = "3:30"
+        mock_track.is_stream = False
+        live_player.get_tracks = AsyncMock(return_value=[mock_track])
+        live_player.add_track = AsyncMock(return_value=0)
+        live_player.is_playing = False
+        live_player.do_next = AsyncMock()
+        mock_connect.return_value = live_player
+
+        self.ctx.interaction = None
+        self.ctx.author = MagicMock()
+
+        await self.cog.play.callback(self.cog, self.ctx, query="moodbaazi")
+
+        # Stale player must have been torn down
+        stale_player.teardown.assert_awaited_once()
+        # Connect channel was called to connect to user's channel
+        mock_connect.assert_awaited_once_with(self.ctx)
+        # Track was fetched and queued
+        live_player.get_tracks.assert_awaited_once_with("moodbaazi", requester=self.ctx.author)
+
+    @patch("cogs.basic.dispatch_message", new_callable=AsyncMock)
+    @patch("cogs.basic.LangHandler.get_lang", new_callable=AsyncMock, return_value=["LIVE", " (pos %s)", " (now)"])
+    @patch("cogs.basic.voicelink.connect_channel", new_callable=AsyncMock)
+    async def test_play_moves_idle_bot_from_empty_channel(self, mock_connect, mock_get_lang, mock_dispatch):
+        """Case 5: `play` moves bot when it's sitting alone in an empty channel and user is in another VC."""
+        bot_voice_state = MagicMock()
+        bot_channel = MagicMock()
+        bot_channel.id = 111111111
+        # Only the bot member in bot_channel
+        bot_channel.members = [self.bot_member]
+        self.bot_member.bot = True
+        bot_voice_state.channel = bot_channel
+        self.bot_member.voice = bot_voice_state
+
+        user_channel = MagicMock()
+        user_channel.id = 222222222
+        user = MagicMock()
+        user.bot = False
+        user_voice_state = MagicMock()
+        user_voice_state.channel = user_channel
+        user.voice = user_voice_state
+        self.ctx.author = user
+
+        live_player = MagicMock()
+        live_player.move_to = AsyncMock()
+        live_player.is_user_join.return_value = True
+        mock_track = MagicMock()
+        mock_track.title = "moodbaazi"
+        mock_track.uri = "https://youtube.com/watch?v=123"
+        mock_track.author = "Artist"
+        mock_track.formatted_length = "3:30"
+        mock_track.is_stream = False
+        live_player.get_tracks = AsyncMock(return_value=[mock_track])
+        live_player.add_track = AsyncMock(return_value=0)
+        live_player.is_playing = False
+        live_player.do_next = AsyncMock()
+        self.guild.voice_client = live_player
+
+        self.ctx.interaction = None
+
+        await self.cog.play.callback(self.cog, self.ctx, query="moodbaazi")
+
+        # Bot must have moved to user's channel!
+        live_player.move_to.assert_awaited_once_with(user_channel)
+        self.assertEqual(live_player.channel, user_channel)
+
 
 if __name__ == "__main__":
     unittest.main()
+

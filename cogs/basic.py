@@ -179,11 +179,40 @@ class Basic(commands.Cog):
         if ctx.interaction and not ctx.interaction.response.is_done():
             await ctx.defer()
             
-        player: voicelink.Player = ctx.guild.voice_client
+        guild = ctx.guild
+        bot_member = guild.me
+        actual_voice_channel = getattr(getattr(bot_member, "voice", None), "channel", None)
+        player: voicelink.Player = guild.voice_client
+
+        # Clean up stale VoiceClient if Discord confirms bot is not in a voice channel
+        if actual_voice_channel is None and player is not None:
+            logger.warning("[Voice] Stale voice client detected in guild %s during play; tearing down.", guild.id)
+            try:
+                teardown = getattr(player, "teardown", None)
+                if callable(teardown):
+                    await teardown()
+                else:
+                    await player.disconnect(force=True)
+            except Exception:
+                logger.exception("[Voice] Cleanup of stale player failed in guild %s.", guild.id)
+            player = None
+
         if not player:
             player = await voicelink.connect_channel(ctx)
         else:
             player.context = ctx
+
+        # Auto-relocate if bot is sitting alone in an empty channel and user is in another VC
+        user_voice = getattr(getattr(ctx.author, "voice", None), "channel", None)
+        if user_voice and actual_voice_channel and user_voice != actual_voice_channel:
+            human_listeners = [m for m in actual_voice_channel.members if not m.bot]
+            if len(human_listeners) == 0:
+                logger.info("[Voice] Moving idle bot from empty channel %s to user channel %s", actual_voice_channel.id, user_voice.id)
+                try:
+                    await player.move_to(user_voice)
+                    player.channel = user_voice
+                except Exception:
+                    logger.exception("[Voice] Auto-relocation failed from channel %s to %s", actual_voice_channel.id, user_voice.id)
 
         if not player.is_user_join(ctx.author):
             return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
@@ -227,11 +256,38 @@ class Basic(commands.Cog):
         if not query:
             return await send_localized_message(interaction, "player.errors.noPlaySource", ephemeral=True)
 
-        player: voicelink.Player = interaction.guild.voice_client
+        guild = interaction.guild
+        bot_member = guild.me
+        actual_voice_channel = getattr(getattr(bot_member, "voice", None), "channel", None)
+        player: voicelink.Player = guild.voice_client
+
+        if actual_voice_channel is None and player is not None:
+            logger.warning("[Voice] Stale voice client detected in guild %s during context play; tearing down.", guild.id)
+            try:
+                teardown = getattr(player, "teardown", None)
+                if callable(teardown):
+                    await teardown()
+                else:
+                    await player.disconnect(force=True)
+            except Exception:
+                logger.exception("[Voice] Cleanup of stale player failed in guild %s.", guild.id)
+            player = None
+
         if not player:
             player = await voicelink.connect_channel(interaction)
         else:
             player.context = interaction
+
+        user_voice = getattr(getattr(interaction.user, "voice", None), "channel", None)
+        if user_voice and actual_voice_channel and user_voice != actual_voice_channel:
+            human_listeners = [m for m in actual_voice_channel.members if not m.bot]
+            if len(human_listeners) == 0:
+                logger.info("[Voice] Moving idle bot from empty channel %s to user channel %s", actual_voice_channel.id, user_voice.id)
+                try:
+                    await player.move_to(user_voice)
+                    player.channel = user_voice
+                except Exception:
+                    logger.exception("[Voice] Auto-relocation failed from channel %s to %s", actual_voice_channel.id, user_voice.id)
 
         if not player.is_user_join(interaction.user):
             return await send_localized_message(interaction, "voice.connection.notInChannel", interaction.user.mention, player.channel.mention, ephemeral=True)
