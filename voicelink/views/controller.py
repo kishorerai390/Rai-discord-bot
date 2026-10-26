@@ -312,19 +312,28 @@ class VolumeMute(ControlButton):
 
 class AutoPlay(ControlButton):
     def __init__(self, **kwargs):
+        player = kwargs["player"]
+        # Keep the controller label aligned with the setting used by the toggle.
+        autoplay_enabled = player.settings.get("autoplay", player.autoplay)
         super().__init__(
-            default_states="on" if kwargs["player"].autoplay else "off",
+            default_states="on" if autoplay_enabled else "off",
             **kwargs
         )
-    
+
     async def callback(self, interaction: discord.Interaction):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, "permissions.missingAutoPlay", ephemeral=True)
 
-        check = not self.player.settings.get("autoplay", False)
-        self.player.settings['autoplay'] = check
+        # The player service reads player.autoplay; the controller and persistence
+        # layer also read player.settings["autoplay"]. Keep both in sync.
+        check = not self.player.settings.get("autoplay", self.player.autoplay)
+        self.player.autoplay = check
+        self.player.settings["autoplay"] = check
         self.change_states("on" if check else "off")
-        await self.send(interaction, 'player.controls.autoplay', await LangHandler.get_lang(interaction.guild_id, 'common.status.enabled' if check else "common.status.disabled"))
+        await self.send(interaction, "player.controls.autoplay", await LangHandler.get_lang(
+            interaction.guild_id,
+            "common.status.enabled" if check else "common.status.disabled"
+        ))
         await interaction.response.edit_message(view=self.view)
 
         if not self.player.is_playing:
