@@ -1182,7 +1182,7 @@ LANDING_PAGE_HTML = """<!DOCTYPE html>
   <!-- Navigation -->
   <nav>
     <a href="/" class="brand">
-      <img src="/public/rem_logo_badge.gif?v=2" alt="Rem Logo" class="brand-img" onerror="this.src='/public/musicmaid_avatar.jpg?v=2'">
+      <img src="/public/rem_logo_badge.gif?v=4" alt="Rem Logo" class="brand-img" onerror="this.src='/public/musicmaid_avatar.jpg?v=4'">
       <span class="brand-name">Rem 🎧💜</span>
     </a>
     <div class="nav-links">
