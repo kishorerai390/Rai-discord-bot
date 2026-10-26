@@ -9,3 +9,4 @@ psutil==5.9.8
 aiohttp>=3.11.12
 python-dotenv==1.1.1
 aiosqlite==0.21.0
+yt-dlp>=2026.8.19
