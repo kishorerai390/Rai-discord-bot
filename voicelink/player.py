@@ -62,11 +62,21 @@ from .utils import format_ms, dispatch_message
 if TYPE_CHECKING:
     from .ipc import IPCClient
 
+def _resolve_requested_voice_channel(ctx, channel: VoiceChannel = None):
+    """Resolve an explicit channel first, then fall back to the invoking user's voice state."""
+    if channel is not None:
+        return channel
+
+    # Prefix commands expose the member as ctx.author; slash commands expose it as ctx.user.
+    member = getattr(ctx, "author", None) or getattr(ctx, "user", None)
+    voice_state = getattr(member, "voice", None)
+    return getattr(voice_state, "channel", None)
+
+
 async def connect_channel(ctx: Union[commands.Context, Interaction], channel: VoiceChannel = None):
     texts = await LangHandler.get_lang(ctx.guild.id, "voice.connection.noChannel", "voice.connection.noPermission")
-    try:
-        channel = channel or ctx.author.voice.channel if isinstance(ctx, commands.Context) else ctx.user.voice.channel
-    except:
+    channel = _resolve_requested_voice_channel(ctx, channel)
+    if channel is None:
         raise VoicelinkException(texts[0])
 
     check = channel.permissions_for(ctx.guild.me)
