@@ -3068,7 +3068,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="sidebar-header-row">
         <a class="brand-box" onclick="navigate('/'); showToast('🎧 Rem 💜: Handcrafted with Python & 💜 for Discord!');" title="Rem — Your Anime Music Companion">
           <div class="brand-avatar" style="position:relative; overflow:hidden; border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(147,51,234,0.45); border:1px solid rgba(168,85,247,0.4); width:42px; height:42px; flex-shrink:0;">
-            <img src="/public/musicmaid_avatar.jpg" alt="Rem" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
+            <img src="/public/rem_logo_badge.gif?v=2" alt="Rem" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg?v=2';">
           </div>
           <div class="brand-title-wrap">
             <div style="display:flex; align-items:center; gap:0.4rem;">
@@ -3210,7 +3210,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="mobile-top-bar">
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
-          <img src="/public/musicmaid_avatar.jpg" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.style.display='none';">
+          <img src="/public/rem_logo_badge.gif?v=2" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg?v=2';">
           <span style="font-weight:800; font-size:1.1rem; color:#fff;">Rem 🎧💜</span>
           <span id="mobile-brand-symbol" class="signature-symbol-wrap" title="Rem Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
         </div>
@@ -5401,8 +5401,8 @@ const _UNUSED_DEF = {
               <div>
                 <!-- Brand Badge -->
                 <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1.5rem;">
-                  <div style="width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(168,85,247,0.4);">
-                    <img src="/public/musicmaid_avatar.jpg" alt="Rem" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML='🎧';">
+                  <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(168,85,247,0.4); overflow:hidden;">
+                    <img src="/public/rem_logo_badge.gif?v=2" alt="Rem" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg?v=2';">
                   </div>
                   <div>
                     <span style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.02em;">Rem 🎧💜</span>

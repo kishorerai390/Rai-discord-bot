@@ -57,8 +57,13 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
           <div>
             {/* BRAND HEADER CHIP */}
             <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-600/30 text-white font-black text-sm">
-                🎧
+              <div className="w-8 h-8 rounded-xl overflow-hidden shadow-lg shadow-purple-600/30 flex items-center justify-center bg-purple-900/40 border border-purple-500/30">
+                <img
+                  src="/rem_logo_badge.gif"
+                  alt="Rem"
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.currentTarget.src = "/musicmaid_avatar.jpg"; }}
+                />
               </div>
               <div className="flex items-baseline gap-1.5">
                 <span className="text-sm font-black text-white tracking-wide">Rem 🎧💜</span>

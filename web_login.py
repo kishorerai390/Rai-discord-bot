@@ -461,7 +461,7 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
       
       <div class="visual-content">
         <div class="brand-badge">
-          <img src="/public/musicmaid_avatar.jpg" alt="Rem Logo" class="brand-logo" onerror="this.src='/public/icon.png'">
+          <img src="/public/rem_logo_badge.gif?v=2" alt="Rem Logo" class="brand-logo" onerror="this.src='/public/musicmaid_avatar.jpg?v=2'">
           <span class="brand-title">Rem 🎧💜</span>
         </div>
 
