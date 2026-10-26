@@ -204,7 +204,7 @@ async def test_play_voice_connection_permission_branch(mock_bot, mock_interactio
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
         assert "How to fix" in embed.description
-        assert "grant **MusicMaid** the **Connect** & **Speak** permissions" in embed.description
+        assert "grant **Rem** the **Connect** & **Speak** permissions" in embed.description
         assert "General Voice" in embed.description
 
 
@@ -225,7 +225,7 @@ async def test_play_voice_connection_forbidden_exception_branch(mock_bot, mock_i
         embed = get_sent_embed(mock_interaction)
         assert embed is not None
         assert "COULD NOT CONNECT TO VOICE" in embed.title
-        assert "grant **MusicMaid** the **Connect** & **Speak** permissions" in embed.description
+        assert "grant **Rem** the **Connect** & **Speak** permissions" in embed.description
 
 
 @pytest.mark.asyncio
