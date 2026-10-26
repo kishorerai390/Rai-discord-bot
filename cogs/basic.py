@@ -116,8 +116,54 @@ class Basic(commands.Cog):
         "Connect to a voice channel."
         try:
             player = await voicelink.connect_channel(ctx, channel)
-        except discord.errors.ClientException:
-            return await send_localized_message(ctx, "voice.connection.alreadyConnected")
+        except discord.errors.ClientException as exc:
+            # discord.py can retain a stale VoiceProtocol in guild.voice_client after
+            # a disconnect/reconnect race. Only repair it when Discord's own member
+            # voice state confirms the bot is not actually in a voice channel.
+            guild = ctx.guild
+            bot_member = guild.me
+            actual_voice_channel = getattr(getattr(bot_member, "voice", None), "channel", None)
+            stale_player = guild.voice_client
+
+            if actual_voice_channel is None and stale_player is not None:
+                logger.warning(
+                    "[Voice] Stale voice client detected in guild %s; attempting one cleanup/reconnect.",
+                    guild.id,
+                    exc_info=exc,
+                )
+                try:
+                    teardown = getattr(stale_player, "teardown", None)
+                    if callable(teardown):
+                        await teardown()
+                    else:
+                        await stale_player.disconnect(force=True)
+                except Exception:
+                    logger.exception(
+                        "[Voice] Stale voice client cleanup failed in guild %s.",
+                        guild.id,
+                    )
+
+                # Retry exactly once; never loop or destroy a confirmed live connection.
+                try:
+                    player = await voicelink.connect_channel(ctx, channel)
+                except Exception:
+                    logger.exception(
+                        "[Voice] Reconnect after stale-client cleanup failed in guild %s.",
+                        guild.id,
+                    )
+                    return await send_localized_message(
+                        ctx, "voice.connection.alreadyConnected"
+                    )
+            else:
+                # The bot is genuinely connected, so preserve the live player.
+                logger.info(
+                    "[Voice] Connect requested while bot is already in channel %s (guild %s).",
+                    getattr(actual_voice_channel, "id", None),
+                    guild.id,
+                )
+                return await send_localized_message(
+                    ctx, "voice.connection.alreadyConnected"
+                )
 
         await send_localized_message(ctx, "voice.connection.connect", player.channel)
                 
