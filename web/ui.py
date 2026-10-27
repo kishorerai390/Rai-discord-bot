@@ -3327,10 +3327,10 @@ UI_HTML = r"""<!DOCTYPE html>
       <!-- ACTIVE DISCORD GUILD SWITCHER -->
       <div class="server-switcher" onclick="toggleServerMenu(event)">
         <div class="server-active-info">
-          <div class="server-icon" id="server-icon-badge">🎧</div>
+          <div class="server-icon" id="server-icon-badge">✦</div>
           <div class="server-names">
-            <span class="server-name-text" id="active-server-name">SUPPORT SERVER FOR MUSICMAID 🎧</span>
-            <span class="server-status-sub"><span class="pulse-dot"></span> <span id="active-server-vc">320kbps Online</span></span>
+            <span class="server-name-text" id="active-server-name">✦ ʀᴀɪ ʀᴀᴍ ✦</span>
+            <span class="server-status-sub"><span class="pulse-dot"></span> <span id="active-server-vc">320kbps Lossless Ready</span></span>
           </div>
         </div>
         <span style="font-size:0.75rem; color:var(--text-dim);">▼</span>
@@ -3519,7 +3519,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <!-- TIER 1: TRACK METADATA & FAVORITE HEART -->
       <div class="player-tier-top">
         <div class="player-bar-left">
-          <img id="bar-art" class="bar-thumb" src="/public/musicmaid_avatar.jpg" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
+          <img id="bar-art" class="bar-thumb" src="/public/rem_avatar_static.png" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Album Cover">
           <div class="bar-meta-stack">
             <div style="display:flex; align-items:center; gap:0.4rem;">
               <span class="bar-title" id="bar-title" onclick="navigate('/queue')">No Track Playing</span>
@@ -3804,8 +3804,15 @@ UI_HTML = r"""<!DOCTYPE html>
     // =========================================================================
     // GLOBAL STATE & DISCORD BOT SYNCHRONIZATION ENGINE
     // =========================================================================
-    let currentGuildId = localStorage.getItem('rai_selected_guild') || "1494692962041467005";
-    let activeGuilds = [{ id: "1494692962041467005", name: "SUPPORT SERVER FOR MUSICMAID 🎧", has_active_playback: true, bot_in_guild: true, authorized: true }];
+    let currentGuildId = localStorage.getItem('rai_selected_guild');
+    if (!currentGuildId || currentGuildId === "1494692962041467005") {
+      currentGuildId = "1457382179981099090";
+      localStorage.setItem('rai_selected_guild', currentGuildId);
+    }
+    let activeGuilds = [
+      { id: "1457382179981099090", name: "✦ ʀᴀɪ ʀᴀᴍ ✦", has_active_playback: true, bot_in_guild: true, authorized: true },
+      { id: "1525030316845301781", name: "THOR APEX ⚡", has_active_playback: false, bot_in_guild: true, authorized: true }
+    ];
     let currentSession = null;
     let currentQueue = [];
     let playbackSeconds = 0;
@@ -3819,7 +3826,7 @@ UI_HTML = r"""<!DOCTYPE html>
     let ws = null;
     let userFavorites = [];
     const pendingActions = new Set();
-    const DEFAULT_ARTWORK = "/public/musicmaid_avatar.jpg";
+    const DEFAULT_ARTWORK = "/public/rem_avatar_static.png";
 
     // =========================================================================
     // BOT COMMANDS REGISTRY & LIVE RUNNER ENGINE
@@ -5548,10 +5555,17 @@ const _UNUSED_DEF = {
       }
 
       if (!currentSession) {
-        if (vcText) vcText.innerText = "⚪ Not in Voice Channel";
-        if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot disconnected"></span> ⚪ Disconnected';
+        if (vcText) vcText.innerText = "⚪ Lossless Standby";
+        const curGuild = activeGuilds.find(g => g.id === currentGuildId);
+        if (activeVcEl) {
+          if (curGuild && curGuild.voice_channel) {
+            activeVcEl.innerHTML = `<span style="color:var(--emerald);">🔊 #${curGuild.voice_channel}</span>`;
+          } else {
+            activeVcEl.innerHTML = '<span style="color:var(--cyan);">320kbps Lossless Ready</span>';
+          }
+        }
         const idleStateEl = document.getElementById('bar-idle-state');
-        if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music to get started";
+        if (idleStateEl) idleStateEl.innerText = "Idle state: Search for music or select a channel to get started";
         updateDynamicTurntableAndVU();
         return;
       }
@@ -5619,8 +5633,8 @@ const _UNUSED_DEF = {
         if (activeVcEl) activeVcEl.innerHTML = `<span class="pulse-dot reconnecting"></span> 🟠 Reconnecting...`;
         if (vcText) vcText.innerText = `🟠 Reconnecting (${vName || 'Voice'})...`;
       } else {
-        if (activeVcEl) activeVcEl.innerHTML = '<span class="pulse-dot disconnected"></span> ⚪ Disconnected';
-        if (vcText) vcText.innerText = '⚪ Not in Voice Channel';
+        if (activeVcEl) activeVcEl.innerHTML = '<span style="color:var(--cyan);">320kbps Lossless Ready</span>';
+        if (vcText) vcText.innerText = '⚪ 320kbps Lossless Ready';
       }
 
       const heroVc = document.getElementById('hero-vc-pill');
@@ -6699,7 +6713,7 @@ const _UNUSED_DEF = {
                   <div class="turntable-deck" id="hero-turntable-deck" onclick="togglePlayPause()" title="Click to Play / Pause Turntable">
                     <div class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" id="hero-vinyl-disc">
                       <div class="vinyl-label">
-                        <img id="hero-vinyl-art" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" alt="Album Label">
+                        <img id="hero-vinyl-art" src="${t?.thumbnail || '/public/rem_avatar_static.png'}" onerror="this.onerror=null; this.src='/public/rem_avatar_static.png';" alt="Album Label">
                       </div>
                       <div class="vinyl-spindle"></div>
                     </div>
@@ -9664,7 +9678,7 @@ const _UNUSED_DEF = {
 
             <!-- VINYL ARTWORK -->
             <div class="album-art-wrap" style="width:240px; height:240px; margin-bottom:1.5rem; box-shadow:0 15px 35px rgba(0,0,0,0.6); border:2px solid rgba(168,85,247,0.35);">
-              <img id="player-vinyl-art" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" src="${t?.thumbnail || '/public/musicmaid_avatar.jpg'}" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg';" style="width:100%; height:100%; object-fit:cover;" alt="Cover">
+              <img id="player-vinyl-art" class="vinyl-disc ${isPlaying && !isPaused ? 'spin' : ''}" src="${t?.thumbnail || '/public/rem_avatar_static.png'}" onerror="this.onerror=null; this.src='/public/rem_avatar_static.png';" style="width:100%; height:100%; object-fit:cover;" alt="Cover">
             </div>
 
             <!-- TRACK INFO -->

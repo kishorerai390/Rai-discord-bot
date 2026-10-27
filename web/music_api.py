@@ -194,10 +194,9 @@ class MusicApiRouter:
 
         # Default fallback servers
         known_guilds = [
-            {"id": 1525030316845301781, "name": "THOR APEX ⚡", "icon": None, "active": True},
             {"id": 1457382179981099090, "name": "✦ ʀᴀɪ ʀᴀᴍ ✦", "icon": None, "active": True},
+            {"id": 1525030316845301781, "name": "THOR APEX ⚡", "icon": None, "active": True},
             {"id": 1428058914141900860, "name": "ABIJITH 777", "icon": None, "active": True},
-            {"id": 1494692962041467005, "name": "SUPPORT SERVER FOR MUSICMAID 🎧", "icon": None, "active": True},
             {"id": 1516486851387588640, "name": "RJ WHITEYY's server", "icon": None, "active": True},
             {"id": 1545715275062575175, "name": "𝐖ᴇx 𝐂ʀᴏᴘᴏʀᴀᴛɪᴏɴ", "icon": None, "active": True},
             {"id": 1552400206811631687, "name": "rf.rai_006's server", "icon": None, "active": True},
@@ -1730,6 +1729,8 @@ class MusicApiRouter:
             return json_success({"channels": []})
 
         guild = self.bot.get_guild(guild_id)
+        if not guild and hasattr(self.bot, "guilds") and self.bot.guilds:
+            guild = self.bot.get_guild(1457382179981099090) or self.bot.guilds[0]
         if not guild:
             return json_success({"channels": []})
 
