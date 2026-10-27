@@ -327,10 +327,10 @@ class AutoPlay(ControlButton):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, "permissions.missingAutoPlay", ephemeral=True)
 
-        # The player service reads player.autoplay; the controller and persistence
-        # layer also read player.settings["autoplay"]. Keep both in sync.
-        check = not self.player.settings.get("autoplay", self.player.autoplay)
-        self.player.autoplay = check
+        # Player.autoplay is a read-only property backed by settings["autoplay"].
+        # Do not assign to player.autoplay (that raises AttributeError and makes
+        # Discord show "This interaction failed" before it can be acknowledged).
+        check = not self.player.autoplay
         self.player.settings["autoplay"] = check
         self.change_states("on" if check else "off")
         # Acknowledge the component interaction before doing any network/database work.
