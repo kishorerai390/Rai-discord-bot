@@ -11,6 +11,7 @@ import datetime
 import inspect
 import json
 import logging
+import os
 from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional, Union
@@ -364,6 +365,26 @@ class MusicApiRouter:
             except Exception:
                 pass
 
+        # Collect voice listeners for DJ room presence
+        voice_listeners = []
+        if self.bot and hasattr(self.bot, "get_guild") and vc_id:
+            try:
+                g = self.bot.get_guild(guild_id)
+                if g:
+                    ch = g.get_channel(int(vc_id))
+                    if ch and hasattr(ch, "members"):
+                        for m in ch.members:
+                            if not getattr(m, "bot", False):
+                                voice_listeners.append({
+                                    "id": str(m.id),
+                                    "name": m.display_name,
+                                    "avatar": str(m.display_avatar.url) if hasattr(m, "display_avatar") else None,
+                                    "is_deaf": getattr(getattr(m, "voice", None), "self_deaf", False),
+                                    "is_mute": getattr(getattr(m, "voice", None), "self_mute", False),
+                                })
+            except Exception:
+                pass
+
         # If in-memory session found
         if session and session.current_track:
             track = session.current_track
@@ -401,6 +422,8 @@ class MusicApiRouter:
                 "voice_channel_name": vc_name,
                 "channel_name": vc_name,
                 "voice_status": voice_status,
+                "listeners": voice_listeners,
+                "listener_count": len(voice_listeners),
                 "sleep_timer_end": int(session.sleep_timer_end) if getattr(session, "sleep_timer_end", 0) > 0 else None,
                 "sleep_timer_seconds": max(0, int(session.sleep_timer_end - time.time())) if getattr(session, "sleep_timer_end", 0) > time.time() else None,
                 "last_error": getattr(session, "last_error", None),
@@ -1870,4 +1893,77 @@ class MusicApiRouter:
             "status": "PLAYING",
             "message": f"Triggered '{sound['name']}' in voice channel! 🔊",
         })
+
+    # ==========================================
+    # 9. SAFE BOT AUTO-UPDATE API
+    # ==========================================
+    async def get_system_update_status(self, request: web.Request) -> web.Response:
+        """Inspect git updates and voice activity to determine if an auto-update is safe."""
+        try:
+            from music_bot.services.updater_service import MusicAutoUpdater
+            git_info = await MusicAutoUpdater.check_git_updates()
+            is_busy, listener_count = MusicAutoUpdater.is_voice_busy(self.bot)
+
+            return json_success({
+                "is_git": git_info.get("is_git", False),
+                "has_updates": git_info.get("has_updates", False),
+                "pending_commits": git_info.get("pending_commits", 0),
+                "pending_messages": git_info.get("pending_messages", []),
+                "current_commit": git_info.get("current_commit", "unknown"),
+                "current_branch": git_info.get("current_branch", "unknown"),
+                "voice_busy": is_busy,
+                "active_listeners": listener_count,
+                "safe_to_update": (not is_busy) or (git_info.get("pending_commits", 0) == 0),
+                "timestamp": time.time(),
+            })
+        except Exception as e:
+            return json_error("UPDATE_CHECK_FAILED", str(e), 500)
+
+    async def trigger_system_update(self, request: web.Request) -> web.Response:
+        """Trigger git pull and supervisor restart if safe or force requested."""
+        try:
+            user = await self._require_authenticated_user(request)
+            is_owner = str(user.get("user_id", "")) in [
+                str(getattr(self.bot, "owner_id", "")),
+                str(os.getenv("BOT_OWNER_ID", "")),
+                str(os.getenv("BOT_OWNER_IDS", "")),
+            ]
+            if not is_owner and not user.get("is_admin", False):
+                return json_error("FORBIDDEN", "Only bot owners or administrators can trigger system updates.", 403)
+
+            body = {}
+            try:
+                body = await request.json()
+            except Exception:
+                pass
+
+            force = bool(body.get("force", False))
+
+            from music_bot.services.updater_service import MusicAutoUpdater
+            is_busy, listener_count = MusicAutoUpdater.is_voice_busy(self.bot)
+            if is_busy and not force:
+                return json_success({
+                    "status": "warning_busy",
+                    "voice_busy": True,
+                    "active_listeners": listener_count,
+                    "message": f"There are {listener_count} human listeners actively in voice! Use 'force' to update immediately or wait until the channel is idle.",
+                })
+
+            # Execute git pull
+            success, msg = await MusicAutoUpdater.pull_git_updates(bot=self.bot)
+            if not success:
+                return json_error("PULL_FAILED", f"Git pull failed: {msg}", 500)
+
+            # Signal supervisor restart
+            MusicAutoUpdater.schedule_supervisor_restart(delay_seconds=1.5)
+
+            return json_success({
+                "status": "restarting",
+                "message": "Update pulled successfully! Rem is restarting now under the supervisor loop...",
+                "pull_output": msg,
+            })
+        except web.HTTPException:
+            raise
+        except Exception as e:
+            return json_error("UPDATE_TRIGGER_FAILED", str(e), 500)
 

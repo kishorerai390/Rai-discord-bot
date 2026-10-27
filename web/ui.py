@@ -66,6 +66,105 @@ UI_HTML = r"""<!DOCTYPE html>
       --safe-right: env(safe-area-inset-right, 0px);
     }
 
+    /* THEME OVERRIDES */
+    html[data-theme="sakura"] {
+      --bg-dark: #0d0612;
+      --bg-sidebar: #150a1d;
+      --bg-surface: #1d0e28;
+      --bg-card: rgba(30, 14, 40, 0.85);
+      --bg-card-hover: rgba(45, 20, 60, 0.92);
+      --card-border: rgba(244, 114, 182, 0.22);
+      --card-border-hover: rgba(244, 114, 182, 0.5);
+      --primary: #f472b6;
+      --primary-hover: #fbcfe8;
+      --primary-glow: rgba(244, 114, 182, 0.35);
+      --accent-violet: #db2777;
+      --accent-magenta: #fb7185;
+      --cyan: #f43f5e;
+      --cyan-glow: rgba(244, 63, 94, 0.25);
+    }
+    html[data-theme="cyberpunk"] {
+      --bg-dark: #040912;
+      --bg-sidebar: #071020;
+      --bg-surface: #0b182e;
+      --bg-card: rgba(12, 25, 48, 0.85);
+      --bg-card-hover: rgba(18, 36, 68, 0.92);
+      --card-border: rgba(6, 182, 212, 0.22);
+      --card-border-hover: rgba(6, 182, 212, 0.5);
+      --primary: #06b6d4;
+      --primary-hover: #67e8f9;
+      --primary-glow: rgba(6, 182, 212, 0.35);
+      --accent-violet: #0284c7;
+      --accent-magenta: #f43f5e;
+      --cyan: #22d3ee;
+      --cyan-glow: rgba(34, 211, 238, 0.25);
+    }
+    html[data-theme="lofi"] {
+      --bg-dark: #100b08;
+      --bg-sidebar: #17110c;
+      --bg-surface: #221812;
+      --bg-card: rgba(35, 26, 20, 0.85);
+      --bg-card-hover: rgba(48, 36, 28, 0.92);
+      --card-border: rgba(245, 158, 11, 0.22);
+      --card-border-hover: rgba(251, 191, 36, 0.5);
+      --primary: #f59e0b;
+      --primary-hover: #fbbf24;
+      --primary-glow: rgba(245, 158, 11, 0.35);
+      --accent-violet: #d97706;
+      --accent-magenta: #fb923c;
+      --cyan: #fde68a;
+      --cyan-glow: rgba(253, 230, 138, 0.25);
+    }
+
+    /* DJ LISTENING ROOM PRESENCE */
+    .dj-presence-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      padding: 0.25rem 0.65rem;
+    }
+    .dj-avatar-stack {
+      display: flex;
+      align-items: center;
+      margin-left: 0.2rem;
+    }
+    .dj-avatar-item {
+      position: relative;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid var(--bg-surface);
+      margin-left: -6px;
+      background: var(--bg-card);
+      overflow: visible;
+      transition: transform 0.2s;
+    }
+    .dj-avatar-item:first-child { margin-left: 0; }
+    .dj-avatar-item:hover { transform: scale(1.2) translateY(-2px); z-index: 10; }
+    .dj-avatar-item img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+    }
+    .dj-crown-badge {
+      position: absolute;
+      top: -8px;
+      right: -4px;
+      font-size: 0.75rem;
+      filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.8));
+      animation: crownBounce 2s infinite ease-in-out;
+      pointer-events: none;
+    }
+    @keyframes crownBounce {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-2px) rotate(8deg); }
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
       background-color: var(--bg-dark);
@@ -3192,6 +3291,9 @@ UI_HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 
+  <!-- AMBIENT FLOATING PARTICLE CANVAS -->
+  <canvas id="ambient-particle-canvas" style="position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:0; opacity:0.65;"></canvas>
+
   <!-- MOBILE SIDEBAR BACKDROP OVERLAY -->
   <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeMobileSidebar()"></div>
 
@@ -3352,6 +3454,47 @@ UI_HTML = r"""<!DOCTYPE html>
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="btn btn-sm btn-primary" style="padding:0.3rem 0.65rem; font-size:0.75rem; border-radius:20px; font-weight:800;" onclick="navigate('/premium')">💎 Premium</button>
           <div id="mobile-voice-status" style="font-size:0.78rem; color:var(--cyan); font-weight:700;">320kbps Online</div>
+        </div>
+      </div>
+
+      <!-- DESKTOP TOP UTILITY & DJ ROOM BAR -->
+      <div class="desktop-top-header" style="display:flex; justify-content:space-between; align-items:center; padding:0.6rem 1.2rem; background:rgba(16,13,30,0.55); border-bottom:1px solid rgba(255,255,255,0.06); -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); margin-bottom:1rem; border-radius:14px; position:relative; z-index:20;">
+        <!-- LEFT: DJ ROOM PRESENCE & ACTIVE LISTENERS -->
+        <div style="display:flex; align-items:center; gap:0.8rem; overflow:hidden;">
+          <div class="dj-presence-bar" id="dj-presence-badge" title="Live Voice Channel Listeners">
+            <span style="color:var(--cyan); font-size:0.82rem;">🎧</span>
+            <span id="dj-listener-text" style="font-size:0.75rem; font-weight:700; color:var(--text);">0 in voice</span>
+            <div class="dj-avatar-stack" id="dj-avatar-stack">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+          <div id="update-notify-badge" style="display:none; cursor:pointer;" onclick="navigate('/settings')" class="chip-pill" title="New update available!">
+            <span class="pulse-dot"></span> <span id="update-notify-text" style="color:var(--cyan); font-weight:700;">🔄 Update Ready</span>
+          </div>
+        </div>
+
+        <!-- RIGHT: THEME QUICK SWITCHER & PREMIUM -->
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <div class="theme-picker-wrap" style="position:relative;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleThemeDropdown(event)" id="btn-theme-switcher" style="padding:0.35rem 0.75rem; font-size:0.78rem; display:flex; align-items:center; gap:0.35rem;" title="Switch visual theme">
+              <span id="theme-active-icon">💎</span> <span id="theme-active-label">Obsidian</span> <span style="font-size:0.65rem; color:var(--text-dim);">▼</span>
+            </button>
+            <div class="theme-dropdown-menu" id="theme-dropdown-menu" style="display:none; position:absolute; top:calc(100% + 6px); right:0; background:var(--bg-surface); border:1px solid var(--card-border); border-radius:12px; padding:0.4rem; min-width:180px; z-index:100; box-shadow:0 10px 30px rgba(0,0,0,0.6); flex-direction:column; gap:0.25rem;">
+              <div class="server-opt" onclick="setRemTheme('obsidian')" style="padding:0.45rem 0.6rem; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#fff;">
+                <span>💎</span> <strong>Royal Obsidian</strong>
+              </div>
+              <div class="server-opt" onclick="setRemTheme('sakura')" style="padding:0.45rem 0.6rem; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#fbcfe8;">
+                <span>🌸</span> <strong>Neon Sakura</strong>
+              </div>
+              <div class="server-opt" onclick="setRemTheme('cyberpunk')" style="padding:0.45rem 0.6rem; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#67e8f9;">
+                <span>⚡</span> <strong>Neo-Tokyo</strong>
+              </div>
+              <div class="server-opt" onclick="setRemTheme('lofi')" style="padding:0.45rem 0.6rem; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#fbbf24;">
+                <span>☕</span> <strong>Midnight Lofi</strong>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="navigate('/premium')" style="padding:0.35rem 0.75rem; font-size:0.78rem; font-weight:800; border-radius:20px;">💎 Premium VIP</button>
         </div>
       </div>
 
@@ -4518,6 +4661,8 @@ const _UNUSED_DEF = {
       }
 
       try {
+        initRemTheme();
+        initAmbientParticleCanvas();
         updateSignatureSymbolBranding(activeSignatureSymbol);
         renderGuildDropdown();
         await fetchAuthStatus();
@@ -4527,6 +4672,7 @@ const _UNUSED_DEF = {
         initFirebaseClient();
         await fetchGuilds();
         await syncAll();
+        checkSystemUpdateStatus();
       } catch (err) {
         console.warn("Initial sync non-fatal error:", err);
         handleRoute();
@@ -4536,6 +4682,8 @@ const _UNUSED_DEF = {
       progressTimer = setInterval(tickProgress, 1000);
       // Fast polling fallback (every 3 seconds)
       pollTimer = setInterval(syncAll, 3000);
+      // Check system updates periodically (every 5 minutes)
+      setInterval(checkSystemUpdateStatus, 300000);
 
       // ── Phase 9: Network Status Detection ──────────────────────────────────
       function onNetworkOffline() {
@@ -5029,6 +5177,269 @@ const _UNUSED_DEF = {
     }
 
     // =========================================================================
+    // THEME ENGINE & AMBIENT PARTICLE CANVAS
+    // =========================================================================
+    const REM_THEMES = {
+      obsidian: { icon: '💎', label: 'Obsidian' },
+      sakura: { icon: '🌸', label: 'Sakura' },
+      cyberpunk: { icon: '⚡', label: 'Neo-Tokyo' },
+      lofi: { icon: '☕', label: 'Lofi' },
+    };
+
+    let activeRemTheme = 'obsidian';
+    let particlesEnabled = true;
+    let particleAnimationId = null;
+
+    function initRemTheme() {
+      const savedTheme = localStorage.getItem('rem_theme') || 'obsidian';
+      const savedParticles = localStorage.getItem('rem_particles');
+      particlesEnabled = savedParticles !== 'false';
+      setRemTheme(savedTheme, false);
+    }
+
+    function setRemTheme(themeName, showNotification = true) {
+      if (!REM_THEMES[themeName]) themeName = 'obsidian';
+      activeRemTheme = themeName;
+      localStorage.setItem('rem_theme', themeName);
+      document.documentElement.setAttribute('data-theme', themeName);
+
+      const iconEl = document.getElementById('theme-active-icon');
+      const labelEl = document.getElementById('theme-active-label');
+      if (iconEl) iconEl.innerText = REM_THEMES[themeName].icon;
+      if (labelEl) labelEl.innerText = REM_THEMES[themeName].label;
+
+      const dropdown = document.getElementById('theme-dropdown-menu');
+      if (dropdown) dropdown.style.display = 'none';
+
+      if (showNotification) {
+        showToast(`Theme switched to ${REM_THEMES[themeName].icon} ${REM_THEMES[themeName].label}!`);
+      }
+    }
+
+    function toggleThemeDropdown(e) {
+      if (e) e.stopPropagation();
+      const dropdown = document.getElementById('theme-dropdown-menu');
+      if (!dropdown) return;
+      dropdown.style.display = dropdown.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    document.addEventListener('click', () => {
+      const dropdown = document.getElementById('theme-dropdown-menu');
+      if (dropdown) dropdown.style.display = 'none';
+    });
+
+    function toggleParticles(enabled) {
+      particlesEnabled = Boolean(enabled);
+      localStorage.setItem('rem_particles', particlesEnabled ? 'true' : 'false');
+      const canvas = document.getElementById('ambient-particle-canvas');
+      if (canvas) canvas.style.display = particlesEnabled ? 'block' : 'none';
+      showToast(particlesEnabled ? "🌸 Ambient particles enabled!" : "Ambient particles paused.");
+    }
+
+    function initAmbientParticleCanvas() {
+      const canvas = document.getElementById('ambient-particle-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const particles = [];
+      const PARTICLE_COUNT = 24;
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push({
+          x: Math.random() * window.innerWidth,
+          y: Math.random() * window.innerHeight,
+          radius: Math.random() * 3 + 2,
+          speedY: Math.random() * 0.8 + 0.3,
+          speedX: (Math.random() - 0.5) * 0.6,
+          angle: Math.random() * Math.PI * 2,
+          spinSpeed: (Math.random() - 0.5) * 0.03,
+          opacity: Math.random() * 0.5 + 0.25,
+        });
+      }
+
+      function draw() {
+        if (!particlesEnabled || document.hidden) {
+          particleAnimationId = requestAnimationFrame(draw);
+          return;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        particles.forEach(p => {
+          p.y += p.speedY;
+          p.x += p.speedX;
+          p.angle += p.spinSpeed;
+
+          if (p.y > canvas.height + 10) {
+            p.y = -10;
+            p.x = Math.random() * canvas.width;
+          }
+          if (p.x < -10) p.x = canvas.width + 10;
+          if (p.x > canvas.width + 10) p.x = -10;
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.angle);
+          ctx.globalAlpha = p.opacity;
+
+          if (activeRemTheme === 'sakura') {
+            ctx.fillStyle = '#f472b6';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.bezierCurveTo(-p.radius, -p.radius * 2, -p.radius * 2, -p.radius * 3, 0, -p.radius * 4);
+            ctx.bezierCurveTo(p.radius * 2, -p.radius * 3, p.radius, -p.radius * 2, 0, 0);
+            ctx.fill();
+          } else if (activeRemTheme === 'cyberpunk') {
+            ctx.fillStyle = Math.random() > 0.5 ? '#06b6d4' : '#ec4899';
+            ctx.fillRect(-p.radius, -p.radius, p.radius * 1.8, p.radius * 1.8);
+          } else if (activeRemTheme === 'lofi') {
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.arc(0, 0, p.radius, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.fillStyle = '#c084fc';
+            ctx.beginPath();
+            ctx.arc(0, 0, p.radius * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        });
+
+        particleAnimationId = requestAnimationFrame(draw);
+      }
+
+      particleAnimationId = requestAnimationFrame(draw);
+    }
+
+    // =========================================================================
+    // DJ ROOM PRESENCE & LIVE LISTENERS
+    // =========================================================================
+    function updateDJPresence(session) {
+      const presenceBadge = document.getElementById('dj-presence-badge');
+      const listenerText = document.getElementById('dj-listener-text');
+      const avatarStack = document.getElementById('dj-avatar-stack');
+      if (!listenerText || !avatarStack) return;
+
+      const listeners = session?.listeners || [];
+      const count = session?.listener_count || listeners.length || 0;
+      const currentTrack = session?.current_track;
+      const reqId = currentTrack?.requester_id;
+      const reqName = currentTrack?.requester_name;
+
+      listenerText.innerText = count > 0 ? `${count} in voice` : 'Voice Idle';
+
+      if (listeners.length === 0) {
+        avatarStack.innerHTML = `<span style="font-size:0.65rem; color:var(--text-dim); margin-left:0.25rem;">(Join voice to listen)</span>`;
+        return;
+      }
+
+      avatarStack.innerHTML = listeners.slice(0, 6).map(m => {
+        const isDJ = (reqId && String(m.id) === String(reqId)) || (reqName && m.name && m.name.toLowerCase().includes(String(reqName).toLowerCase()));
+        const avatarUrl = m.avatar || DEFAULT_ARTWORK;
+        return `
+          <div class="dj-avatar-item" title="${m.name}${isDJ ? ' (👑 Active DJ)' : ''}">
+            <img src="${avatarUrl}" onerror="this.onerror=null; this.src='${DEFAULT_ARTWORK}';" alt="${m.name}">
+            ${isDJ ? '<span class="dj-crown-badge">👑</span>' : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // =========================================================================
+    // SYSTEM AUTO-UPDATE LOGIC
+    // =========================================================================
+    let latestUpdateInfo = null;
+
+    async function checkSystemUpdateStatus() {
+      try {
+        const token = localStorage.getItem('rai_session_token');
+        const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch('/api/system/update_status', { headers: headers, credentials: 'include' });
+        const json = await res.json();
+        if (json.success && json.data) {
+          latestUpdateInfo = json.data;
+          const badge = document.getElementById('update-notify-badge');
+          const notifyText = document.getElementById('update-notify-text');
+          if (badge && notifyText) {
+            if (latestUpdateInfo.has_updates && latestUpdateInfo.pending_commits > 0) {
+              badge.style.display = 'inline-flex';
+              notifyText.innerText = `🔄 ${latestUpdateInfo.pending_commits} Updates Ready`;
+            } else {
+              badge.style.display = 'none';
+            }
+          }
+          updateSettingsUpdateCard();
+        }
+      } catch(e) {}
+    }
+
+    async function triggerManualSystemUpdate(force = false) {
+      try {
+        const token = localStorage.getItem('rai_session_token');
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        };
+        showToast("Checking update requirements & safety...", "info");
+        const res = await fetch('/api/system/trigger_update', {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: JSON.stringify({ force: force })
+        });
+        const json = await res.json();
+        if (!json.success) {
+          showToast(`Update notice: ${json.error?.message || 'Failed to trigger update'}`, "danger");
+          return;
+        }
+
+        if (json.data?.status === 'warning_busy') {
+          if (confirm(`${json.data.message}\n\nDo you want to FORCE the update now anyway?`)) {
+            triggerManualSystemUpdate(true);
+          }
+          return;
+        }
+
+        if (json.data?.status === 'restarting') {
+          showToast("⚡ Code pulled! Rem is restarting now under the supervisor loop. Back in ~3 seconds!", "success");
+          setTimeout(() => {
+            window.location.reload();
+          }, 3500);
+        }
+      } catch(e) {
+        showToast(`Update request failed: ${e.message}`, "danger");
+      }
+    }
+
+    function updateSettingsUpdateCard() {
+      const commitEl = document.getElementById('settings-curr-commit');
+      const branchEl = document.getElementById('settings-curr-branch');
+      const pendingEl = document.getElementById('settings-pending-commits');
+      const busyEl = document.getElementById('settings-voice-busy-status');
+      if (!commitEl || !latestUpdateInfo) return;
+
+      commitEl.innerText = latestUpdateInfo.current_commit || 'unknown';
+      if (branchEl) branchEl.innerText = latestUpdateInfo.current_branch || 'feature/vocard-bot';
+      if (pendingEl) pendingEl.innerText = latestUpdateInfo.pending_commits || 0;
+      if (busyEl) {
+        if (latestUpdateInfo.voice_busy) {
+          busyEl.innerHTML = `<span style="color:var(--amber);">⚠️ Voice Active (${latestUpdateInfo.active_listeners} listener(s)) — Will postpone until idle</span>`;
+        } else {
+          busyEl.innerHTML = `<span style="color:var(--emerald);">● Voice Idle — Safe to auto-update</span>`;
+        }
+      }
+    }
+
+    // =========================================================================
     // CORE SYNC & DATA FETCHING
     // =========================================================================
     async function syncAll() {
@@ -5068,6 +5479,7 @@ const _UNUSED_DEF = {
             }
           }
           updatePlaybackBarUI();
+          updateDJPresence(currentSession);
         }
       } catch(e) {}
     }
@@ -9481,18 +9893,93 @@ const _UNUSED_DEF = {
               <span class="chip-pill" style="color:var(--cyan); background:rgba(0,229,255,0.12);">⚡ Instant Auto-Rejoin</span>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
-              <div>
-                <div style="font-weight:700; color:#fff; font-size:1rem;">Interface Visual Identity</div>
-                <div style="font-size:0.78rem; color:var(--text-muted);">Rem Anime-Neon Palette (Matte Black & Lavender Accent).</div>
+            <!-- THEME & VISUAL IDENTITY SELECTOR -->
+            <div style="display:flex; flex-direction:column; gap:0.8rem; padding-bottom:1.2rem; border-bottom:1px solid rgba(255,255,255,0.06);">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div>
+                  <div style="font-weight:700; color:#fff; font-size:1rem;">🎨 Anime Ambient Visual Themes</div>
+                  <div style="font-size:0.78rem; color:var(--text-muted);">Choose your personalized UI color palette and atmospheric glow.</div>
+                </div>
+                <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.78rem; color:var(--cyan);">
+                  <input type="checkbox" id="particle-toggle-checkbox" onchange="toggleParticles(this.checked)" checked style="accent-color:var(--primary); cursor:pointer;">
+                  <span>🌸 Ambient Particle Engine</span>
+                </label>
               </div>
-              <span class="chip-pill" style="color:var(--primary); background:rgba(168,85,247,0.18);">💜 Neon Violet Active</span>
+
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:0.6rem; margin-top:0.4rem;">
+                <div class="server-opt" onclick="setRemTheme('obsidian')" style="padding:0.75rem; border-radius:12px; cursor:pointer; border:1px solid rgba(168,85,247,0.3); background:rgba(168,85,247,0.08); display:flex; align-items:center; gap:0.6rem;">
+                  <span style="font-size:1.3rem;">💎</span>
+                  <div>
+                    <div style="font-weight:700; color:#fff; font-size:0.85rem;">Royal Obsidian</div>
+                    <div style="font-size:0.68rem; color:var(--text-dim);">Neon purple & matte black</div>
+                  </div>
+                </div>
+                <div class="server-opt" onclick="setRemTheme('sakura')" style="padding:0.75rem; border-radius:12px; cursor:pointer; border:1px solid rgba(244,114,182,0.3); background:rgba(244,114,182,0.08); display:flex; align-items:center; gap:0.6rem;">
+                  <span style="font-size:1.3rem;">🌸</span>
+                  <div>
+                    <div style="font-weight:700; color:#fbcfe8; font-size:0.85rem;">Neon Sakura</div>
+                    <div style="font-size:0.68rem; color:var(--text-dim);">Rose glow & falling petals</div>
+                  </div>
+                </div>
+                <div class="server-opt" onclick="setRemTheme('cyberpunk')" style="padding:0.75rem; border-radius:12px; cursor:pointer; border:1px solid rgba(6,182,212,0.3); background:rgba(6,182,212,0.08); display:flex; align-items:center; gap:0.6rem;">
+                  <span style="font-size:1.3rem;">⚡</span>
+                  <div>
+                    <div style="font-weight:700; color:#67e8f9; font-size:0.85rem;">Neo-Tokyo</div>
+                    <div style="font-size:0.68rem; color:var(--text-dim);">Cyber cyan & electric embers</div>
+                  </div>
+                </div>
+                <div class="server-opt" onclick="setRemTheme('lofi')" style="padding:0.75rem; border-radius:12px; cursor:pointer; border:1px solid rgba(245,158,11,0.3); background:rgba(245,158,11,0.08); display:flex; align-items:center; gap:0.6rem;">
+                  <span style="font-size:1.3rem;">☕</span>
+                  <div>
+                    <div style="font-weight:700; color:#fbbf24; font-size:0.85rem;">Midnight Lofi</div>
+                    <div style="font-size:0.68rem; color:var(--text-dim);">Warm amber & golden dust</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SAFE BOT AUTO-UPDATE & SUPERVISOR CONTROL -->
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+                <div>
+                  <div style="font-weight:700; color:#fff; font-size:1rem; display:flex; align-items:center; gap:0.5rem;">
+                    <span>🔄</span> Autonomous Bot Auto-Update (Code 42 Supervisor)
+                  </div>
+                  <div style="font-size:0.78rem; color:var(--text-muted); margin-top:0.2rem;">
+                    Safely pulls commits from GitHub and restarts under the supervisor loop with zero voice disruption.
+                  </div>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                  <button class="btn btn-secondary btn-sm" onclick="checkSystemUpdateStatus(); showToast('Checking remote updates...');">
+                    <span>🔍 Check for Updates</span>
+                  </button>
+                  <button class="btn btn-primary btn-sm" onclick="triggerManualSystemUpdate(false)" style="font-weight:800;">
+                    <span>⚡ Update & Restart</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- STATUS CHIPS ROW -->
+              <div style="display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center; background:rgba(0,0,0,0.25); padding:0.75rem 1rem; border-radius:10px; border:1px solid rgba(255,255,255,0.04); font-size:0.78rem;">
+                <div>Branch: <strong id="settings-curr-branch" style="color:var(--cyan); font-family:'JetBrains Mono',monospace;">feature/vocard-bot</strong></div>
+                <span style="color:var(--text-dim);">•</span>
+                <div>Commit: <strong id="settings-curr-commit" style="color:#fff; font-family:'JetBrains Mono',monospace;">b7dd6eb</strong></div>
+                <span style="color:var(--text-dim);">•</span>
+                <div>Pending Commits: <strong id="settings-pending-commits" style="color:var(--emerald);">0</strong></div>
+                <span style="color:var(--text-dim);">•</span>
+                <div id="settings-voice-busy-status"><span style="color:var(--emerald);">● Voice Idle — Safe to auto-update</span></div>
+              </div>
             </div>
 
           </div>
 
         </div>
       `;
+      setTimeout(() => {
+        const chk = document.getElementById('particle-toggle-checkbox');
+        if (chk) chk.checked = particlesEnabled;
+        checkSystemUpdateStatus();
+      }, 50);
     // =========================================================================
     // 5B. SOUNDBOARD VIEW (24 SFX CLIPS & MEMES)
     // =========================================================================

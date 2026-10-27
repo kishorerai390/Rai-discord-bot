@@ -601,6 +601,8 @@ class RaiCommunityOSServer:
         app.router.add_post("/api/music/soundboard", m.trigger_soundboard)
         app.router.add_get("/api/music/voice-channels", m.get_voice_channels)
         app.router.add_post("/api/music/sleep-timer", m.set_sleep_timer)
+        app.router.add_get("/api/system/update_status", m.get_system_update_status)
+        app.router.add_post("/api/system/trigger_update", m.trigger_system_update)
 
         # Premium Subscription & Payment API (Razorpay & Stripe)
         p = self.payment_router

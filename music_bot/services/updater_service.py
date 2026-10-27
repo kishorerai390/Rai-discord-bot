@@ -219,6 +219,22 @@ class MusicAutoUpdater:
             out_diff, _ = await diff_proc.communicate()
             pending_count = int(out_diff.decode().strip() or "0") if diff_proc.returncode == 0 else 0
 
+            # Get pending commit titles if available
+            pending_messages = []
+            if pending_count > 0:
+                try:
+                    log_proc = await asyncio.create_subprocess_exec(
+                        "git", "log", "HEAD..@{u}", "--oneline", "-n", "5",
+                        cwd=str(repo_dir),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    out_log, _ = await log_proc.communicate()
+                    if log_proc.returncode == 0:
+                        pending_messages = [l.strip() for l in out_log.decode("utf-8", errors="replace").splitlines() if l.strip()]
+                except Exception:
+                    pass
+
             # Get current commit hash
             hash_proc = await asyncio.create_subprocess_exec(
                 "git", "rev-parse", "--short", "HEAD",
@@ -229,11 +245,23 @@ class MusicAutoUpdater:
             out_hash, _ = await hash_proc.communicate()
             curr_hash = out_hash.decode().strip() or "unknown"
 
+            # Get active branch name
+            branch_proc = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "--abbrev-ref", "HEAD",
+                cwd=str(repo_dir),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            out_branch, _ = await branch_proc.communicate()
+            curr_branch = out_branch.decode().strip() or "unknown"
+
             return {
                 "is_git": True,
                 "has_updates": pending_count > 0,
                 "pending_commits": pending_count,
+                "pending_messages": pending_messages,
                 "current_commit": curr_hash,
+                "current_branch": curr_branch,
             }
         except Exception as e:
             return {"is_git": False, "has_updates": False, "error": str(e)}
@@ -497,6 +525,34 @@ class MusicAutoUpdater:
             return {"operational": False, "message": str(e)}
 
     @classmethod
+    def is_voice_busy(cls, bot: Optional[RaiMusicBot]) -> Tuple[bool, int]:
+        """Check if any voice channels have active human listeners to protect active music sessions."""
+        if not bot or not hasattr(bot, "voice_clients"):
+            return False, 0
+        active_listeners = 0
+        try:
+            for vc in bot.voice_clients:
+                ch = getattr(vc, "channel", None)
+                if ch and hasattr(ch, "members"):
+                    active_listeners += sum(1 for m in ch.members if not getattr(m, "bot", False))
+        except Exception:
+            pass
+        return (active_listeners > 0), active_listeners
+
+    @classmethod
+    def schedule_supervisor_restart(cls, delay_seconds: float = 1.5) -> None:
+        """Schedules a graceful supervisor restart using exit code 42."""
+        async def _do_restart():
+            await asyncio.sleep(delay_seconds)
+            logger.info("[AutoUpdater] Exiting process with code 42 for supervisor launcher auto-update...")
+            os._exit(42)
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_do_restart())
+        except RuntimeError:
+            pass
+
+    @classmethod
     async def _updater_worker(cls, bot: RaiMusicBot) -> None:
         """Runs check 60 seconds after startup, then repeats periodically."""
         logger.info("[AutoUpdater] Autonomous self-healing & update loop initialized (adaptive 30m cycle).")
@@ -508,11 +564,18 @@ class MusicAutoUpdater:
                 # 1. Extractor canary health self-check & client rotation
                 await cls.check_extractor_health(bot=bot)
 
-                # 2. Check Git remote updates every 30 mins
+                # 2. Check Git remote updates every 30 mins with active voice protection
                 git_check = await cls.check_git_updates()
                 if git_check.get("has_updates"):
-                    logger.info(f"[AutoUpdater] Detected {git_check.get('pending_commits')} pending git commits. Pulling...")
-                    await cls.pull_git_updates(bot=bot)
+                    is_busy, listener_count = cls.is_voice_busy(bot)
+                    if is_busy:
+                        logger.info(
+                            f"[AutoUpdater] Detected {git_check.get('pending_commits')} pending git commits, "
+                            f"but {listener_count} human listener(s) are in voice. Postponing auto-update to protect music session."
+                        )
+                    else:
+                        logger.info(f"[AutoUpdater] Detected {git_check.get('pending_commits')} pending git commits. Voice is idle. Pulling...")
+                        await cls.pull_git_updates(bot=bot)
 
                 # 3. Scheduled PO-Token / Cookie rotation (every 6 hours = every 12 iterations)
                 if iteration > 0 and iteration % 12 == 0:
