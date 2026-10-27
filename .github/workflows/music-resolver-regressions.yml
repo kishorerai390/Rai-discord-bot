@@ -27,4 +27,4 @@ jobs:
         env:
           PYTHONPATH: .
         run: |
-          python -m pytest -v tests/test_youtube_access_challenge.py tests/test_musicmaid_master_player_ui.py tests/test_fallback_title_matching.py
+          python -m pytest -v tests/test_youtube_access_challenge.py tests/test_musicmaid_master_player_ui.py tests/test_fallback_title_matching.py tests/test_role_service.py tests/test_autoplay_controller.py tests/test_voicelink_filter_exports.py
