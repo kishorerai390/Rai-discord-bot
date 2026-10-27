@@ -330,17 +330,34 @@ class AutoPlay(ControlButton):
         self.player.autoplay = check
         self.player.settings["autoplay"] = check
         self.change_states("on" if check else "off")
-        # Acknowledge the component interaction immediately by updating the player view.
-        # Sending a localized status message first can consume the interaction response,
-        # making edit_message fail and leaving Discord to show "didn't respond in time".
-        await interaction.response.edit_message(view=self.view)
-        await self.send(interaction, "player.controls.autoplay", await LangHandler.get_lang(
-            interaction.guild_id,
-            "common.status.enabled" if check else "common.status.disabled"
-        ))
+        # Acknowledge the component interaction before doing any network/database work.
+        # Discord's interaction token expires quickly; a slow localization lookup or
+        # follow-up must never leave the button unacknowledged.
+        if not interaction.response.is_done():
+            await interaction.response.defer()
+        await interaction.edit_original_response(view=self.view)
+
+        try:
+            status_text = await LangHandler.get_lang(
+                interaction.guild_id,
+                "common.status.enabled" if check else "common.status.disabled"
+            )
+            if status_text:
+                await interaction.followup.send(
+                    status_text,
+                    allowed_mentions=discord.AllowedMentions().none(),
+                    ephemeral=not self.player.settings.get("controller_msg", True),
+                )
+        except Exception:
+            # The state change and component acknowledgement already succeeded.
+            # Do not turn a notification failure into a failed button interaction.
+            logger.exception("Failed to send autoplay status notification")
 
         if not self.player.is_playing:
-            await self.player.do_next()
+            try:
+                await self.player.do_next()
+            except Exception:
+                logger.exception("Autoplay could not start the next track")
 
 class Shuffle(ControlButton):
     def __init__(self, **kwargs):
