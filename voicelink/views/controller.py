@@ -130,12 +130,16 @@ class ControlSelect(discord.ui.Select):
 
 class Back(ControlButton):
     def __init__(self, **kwargs):
+        has_history = bool(kwargs["player"].queue.history())
         super().__init__(
-            disabled=False if kwargs["player"].queue.history() or not kwargs["player"].current else True,
+            disabled=not has_history,
             **kwargs
         )
     
     async def callback(self, interaction: discord.Interaction):
+        if not self.player.queue.history():
+            return await self.send(interaction, "player.errors.noHistory", ephemeral=True)
+
         if not self.player.is_privileged(interaction.user):
             if interaction.user in self.player.previous_votes:
                 return await self.send(interaction, "voting.voted", ephemeral=True)
@@ -164,11 +168,17 @@ class PlayPause(ControlButton):
 
         super().__init__(
             default_states="pause",
-            disabled=kwargs["player"].current is None,
+            disabled=kwargs["player"].current is None and kwargs["player"].queue.is_empty,
             **kwargs
         )
     
     async def callback(self, interaction: discord.Interaction):
+        if not self.player.current:
+            if not self.player.queue.is_empty:
+                await self.player.do_next()
+                return await self.send(interaction, "player.controls.resume.success", interaction.user)
+            return await self.send(interaction, "player.errors.noTrackPlaying", ephemeral=True)
+
         is_paused = not self.player.is_paused
         vote_type = self.playing_status(self.player, True)
         votes = getattr(self.player, f"{vote_type}_votes")
@@ -190,8 +200,12 @@ class Skip(ControlButton):
         super().__init__(**kwargs)
     
     async def callback(self, interaction: discord.Interaction):
-        if not self.player.is_playing:
-            return 
+        if not self.player.is_playing or not self.player.current:
+            if not self.player.queue.is_empty:
+                await self.player.do_next()
+                return await self.send(interaction, "player.controls.skip.success", interaction.user)
+            return await self.send(interaction, "player.errors.noTrackPlaying", ephemeral=True)
+
         if not self.player.is_privileged(interaction.user):
             if interaction.user == self.player.current.requester:
                 pass 
@@ -335,6 +349,9 @@ class Shuffle(ControlButton):
         super().__init__(**kwargs)
     
     async def callback(self, interaction: discord.Interaction):
+        if self.player.queue.is_empty:
+            return await self.send(interaction, 'queue.errors.empty', ephemeral=True)
+
         if not self.player.is_privileged(interaction.user):
             if interaction.user in self.player.shuffle_votes:
                 return await self.send(interaction, 'voting.voted', ephemeral=True)
@@ -563,7 +580,8 @@ class InteractiveController(discord.ui.View):
                 raise ButtonOnCooldown(retry_after)
             return True
         else:
-            await send_localized_message(interaction, "voice.connection.notInChannel", interaction.user.mention, self.player.channel.mention, ephemeral=True)
+            ch_mention = self.player.channel.mention if self.player.channel else "a voice channel"
+            await send_localized_message(interaction, "voice.connection.notInChannel", interaction.user.mention, ch_mention, ephemeral=True)
             return False
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item) -> None:

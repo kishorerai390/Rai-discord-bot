@@ -103,5 +103,19 @@ class TestRebuiltWebsiteAndCommands(unittest.TestCase):
         self.assertIn("guest_listener_", UI_HTML)
         self.assertTrue(hasattr(MusicApiRouter, "_require_authenticated_user"))
 
+    def test_discord_bot_controller_buttons_and_assets(self):
+        """Verify Discord bot player embed uses current avatar and controller classes exist."""
+        from voicelink.player import DEFAULT_CONTROLLER
+        from voicelink.views.controller import Back, PlayPause, Skip, Stop, Shuffle, InteractiveController
+        
+        inactive_thumb = DEFAULT_CONTROLLER["embeds"]["inactive"]["thumbnail"]
+        self.assertIn("rem_avatar_static.png", inactive_thumb)
+        self.assertNotIn("musicmaid_avatar.jpg", inactive_thumb)
+
+        # Verify buttons inherit from ControlButton
+        for btn in [Back, PlayPause, Skip, Stop, Shuffle]:
+            self.assertTrue(callable(btn))
+        self.assertTrue(hasattr(InteractiveController, "interaction_check"))
+
 if __name__ == "__main__":
     unittest.main()

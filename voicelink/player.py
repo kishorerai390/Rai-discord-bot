@@ -99,7 +99,7 @@ DEFAULT_CONTROLLER = {
             "thumbnail": "@@track_thumbnail@@",
             "footer": {
                 "text": "Queue: @@queue_length@@ tracks • Rem 🎧💜",
-                "icon_url": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg"
+                "icon_url": "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png"
             }
         },
         "inactive": {
@@ -108,10 +108,10 @@ DEFAULT_CONTROLLER = {
                 "url": "https://rai-discord-bot.onrender.com"
             },
             "description": "### Ready for music! (•ᴗ•) 🌸\nJoin a voice channel and type `/play <song name or link>` to stream with Rem!",
-            "thumbnail": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg",
+            "thumbnail": "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png",
             "footer": {
                 "text": "Rem 🎧💜 • Your Anime Music Companion",
-                "icon_url": "https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg"
+                "icon_url": "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png"
             }
         }
     }
@@ -316,6 +316,8 @@ class Player(VoiceProtocol):
     
     def is_user_join(self, user: Member):
         """Checks if a user is present in the voice channel or has 'Manage Server' permission."""
+        if not self.channel:
+            return bool(user.guild_permissions.manage_guild)
         if user not in self.channel.members:
             if not user.guild_permissions.manage_guild:
                 return False        

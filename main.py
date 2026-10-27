@@ -809,8 +809,7 @@ class Rem(commands.Bot):
 
     async def _sync_profile_assets(self):
         try:
-            from pathlib import Path
-            avatar_path = Path("public/musicmaid_avatar.jpg")
+            avatar_path = Path("public/rem_avatar_static.png") if Path("public/rem_avatar_static.png").exists() else Path("public/rem_avatar_square.png")
             banner_path = Path("public/musicmaid_banner.jpg")
             kwargs = {}
             if avatar_path.exists():
