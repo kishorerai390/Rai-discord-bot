@@ -22,8 +22,11 @@ SOFTWARE.
 """
 
 import discord
+import logging
 import re
 import voicelink
+
+logger = logging.getLogger(__name__)
 
 from discord.ext import commands
 from typing import Optional, Dict, Type, Union, Any
