@@ -14,6 +14,20 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
   const isAuth = Boolean(currentUser);
   const isOwner = Boolean(currentUser && currentUser.is_owner);
   const [gatewayPing, setGatewayPing] = useState<number | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const errorCode = new URLSearchParams(window.location.search).get("auth_error");
+    if (errorCode) {
+      const messages: Record<string, string> = {
+        missing_code: "Discord did not return an authorization code. Please try signing in again.",
+        token_exchange_failed: "Discord rejected the login callback. Check the OAuth redirect URL and client credentials.",
+        profile_fetch_failed: "Discord authorized the app, but the user profile could not be loaded. Please retry.",
+        session_store_failed: "Discord login worked, but the dashboard could not save your session. Please retry later.",
+      };
+      setAuthError(messages[errorCode] || "Discord sign-in failed. Please retry and check the OAuth redirect URL if it continues.");
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/api/music/stats")
@@ -140,6 +154,7 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
               </div>
             ) : (
               <div className="flex flex-col gap-3 w-full max-w-sm">
+                {authError && <div role="alert" className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"><strong className="block mb-1">Discord sign-in failed</strong>{authError}</div>}
                 <a
                   href="/api/auth/login"
                   className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl font-black text-base text-white bg-gradient-to-r from-[#5865F2] to-[#4752C4] hover:opacity-95 shadow-xl shadow-[#5865F2]/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
