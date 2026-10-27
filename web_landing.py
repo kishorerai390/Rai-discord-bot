@@ -1495,7 +1495,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     <!-- Navigation Bar -->
     <nav>
       <a href="/" class="brand">
-        <img src="/public/rem_logo_badge.gif?v=4" alt="Rem Logo" class="brand-img" onerror="this.src='/public/musicmaid_avatar.jpg'">
+        <img src="/public/rem_avatar_static.png" alt="Rem Logo" class="brand-img" onerror="this.src='/public/rem_avatar_square.png'">
         <div>
           <span class="brand-title">Rem 🎧💜</span>
           <span class="brand-badge">v2.4 Hi-Fi</span>

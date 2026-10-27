@@ -31,23 +31,26 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
       {/* 3-TIER WORKSPACE SWITCHER BAR */}
       <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.04] border border-[var(--border-subtle)] backdrop-blur-xl flex-wrap">
         <div
-          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600/40 to-cyan-500/20 border border-purple-500/50 shadow-md shadow-purple-600/20 transition-all cursor-default select-none"
+          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-slate-300 border border-transparent transition-all cursor-pointer hover:bg-white/5"
         >
           <span>🔑</span>
           <span>1. Login & Welcome</span>
         </div>
-        <div
-          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-[var(--text-muted)] border border-transparent transition-all cursor-default select-none"
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600/40 to-cyan-500/20 border border-purple-500/60 shadow-md shadow-purple-600/30 hover:scale-[1.02] transition-all cursor-pointer"
         >
           <span>🎧</span>
           <span>2. User Dashboard (Turntable & Deck)</span>
-        </div>
-        <div
-          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-amber-400/80 border border-transparent transition-all ml-auto cursor-default select-none"
+          <span className="text-[10px] bg-cyan-500/25 text-cyan-300 px-1.5 py-0.5 rounded-full font-extrabold border border-cyan-400/30">ACTIVE</span>
+        </Link>
+        <Link
+          href="/servers"
+          className="flex items-center gap-2 py-2 px-4 rounded-xl text-xs font-bold text-amber-400/80 border border-transparent transition-all ml-auto cursor-pointer hover:bg-amber-400/10"
         >
           <span>👑</span>
           <span>3. Owner Dashboard (Creator Room)</span>
-        </div>
+        </Link>
       </div>
 
       {/* MODERN SPLIT-SCREEN LOGIN CARD (REFERENCE IMAGE 1) */}
@@ -59,10 +62,10 @@ export function LoginView({ currentUser, onNavigate }: LoginViewProps) {
             <div className="flex items-center gap-2.5 mb-5">
               <div className="w-8 h-8 rounded-xl overflow-hidden shadow-lg shadow-purple-600/30 flex items-center justify-center bg-purple-900/40 border border-purple-500/30">
                 <img
-                  src="/rem_logo_badge.gif"
+                  src="/public/rem_avatar_static.png"
                   alt="Rem"
                   className="w-full h-full object-cover"
-                  onError={(e) => { e.currentTarget.src = "/musicmaid_avatar.jpg"; }}
+                  onError={(e) => { e.currentTarget.src = "/public/rem_avatar_square.png"; }}
                 />
               </div>
               <div className="flex items-baseline gap-1.5">

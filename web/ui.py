@@ -2915,44 +2915,51 @@ UI_HTML = r"""<!DOCTYPE html>
     .workspace-switcher-bar {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      background: rgba(15, 15, 24, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 0.65rem;
+      background: rgba(15, 15, 24, 0.85);
+      border: 1px solid rgba(168, 85, 247, 0.28);
       border-radius: var(--radius-md);
-      padding: 0.35rem 0.5rem;
-      backdrop-filter: blur(16px);
+      padding: 0.45rem 0.65rem;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4), 0 0 16px rgba(168, 85, 247, 0.12);
       margin-bottom: 1.4rem;
       flex-wrap: wrap;
     }
     .workspace-tab {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 1rem;
+      gap: 0.55rem;
+      padding: 0.55rem 1.15rem;
       border-radius: var(--radius-sm);
-      font-size: 0.82rem;
+      font-size: 0.84rem;
       font-weight: 700;
       color: var(--text-muted);
-      cursor: default;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       user-select: none;
-      pointer-events: none;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .workspace-tab:hover {
+      color: #fff;
+      border-color: rgba(168, 85, 247, 0.6);
+      background: rgba(168, 85, 247, 0.15);
+      transform: translateY(-1px);
     }
     .workspace-tab.disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-      pointer-events: none;
+      opacity: 0.7;
+      cursor: pointer;
     }
-    .workspace-tab.active {
+    .workspace-tab.active, .workspace-tab.active-glow {
       color: #fff;
-      background: linear-gradient(135deg, rgba(147, 51, 234, 0.35) 0%, rgba(0, 229, 255, 0.15) 100%);
-      border-color: rgba(147, 51, 234, 0.5);
-      box-shadow: 0 4px 14px rgba(147, 51, 234, 0.25);
+      background: linear-gradient(135deg, rgba(147, 51, 234, 0.45) 0%, rgba(0, 229, 255, 0.22) 100%);
+      border-color: rgba(168, 85, 247, 0.75);
+      box-shadow: 0 4px 18px rgba(147, 51, 234, 0.35), 0 0 12px rgba(0, 229, 255, 0.25);
     }
     .workspace-tab.owner-tab:hover {
       color: #ffd700;
-      border-color: rgba(255, 215, 0, 0.35);
+      border-color: rgba(255, 215, 0, 0.5);
+      background: rgba(255, 215, 0, 0.1);
     }
     .time-pill {
       background: transparent;
@@ -3304,7 +3311,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="sidebar-header-row">
         <a class="brand-box" onclick="navigate('/'); showToast('🎧 Rem 💜: Handcrafted with Python & 💜 for Discord!');" title="Rem — Your Anime Music Companion">
           <div class="brand-avatar" style="position:relative; overflow:hidden; border-radius:12px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(147,51,234,0.45); border:1px solid rgba(168,85,247,0.4); width:42px; height:42px; flex-shrink:0;">
-            <img src="/public/rem_logo_badge.gif?v=4" alt="Rem" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg?v=4';">
+            <img src="/public/rem_avatar_static.png" alt="Rem" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.src='/public/rem_avatar_square.png';">
           </div>
           <div class="brand-title-wrap">
             <div style="display:flex; align-items:center; gap:0.4rem;">
@@ -3447,7 +3454,7 @@ UI_HTML = r"""<!DOCTYPE html>
       <div class="mobile-top-bar">
         <div style="display:flex; align-items:center; gap:0.6rem;">
           <button class="mobile-btn" onclick="toggleMobileSidebar()">☰</button>
-          <img src="/public/rem_logo_badge.gif?v=4" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg?v=4';">
+          <img src="/public/rem_avatar_static.png" alt="Logo" style="width:28px; height:28px; border-radius:8px; object-fit:cover; border:1px solid rgba(147,51,234,0.4);" onerror="this.onerror=null; this.src='/public/rem_avatar_square.png';">
           <span style="font-weight:800; font-size:1.1rem; color:#fff;">Rem 🎧💜</span>
           <span id="mobile-brand-symbol" class="signature-symbol-wrap" title="Rem Signature Emblem" style="cursor:pointer;" onclick="navigate('/control-room')"></span>
         </div>
@@ -4642,6 +4649,9 @@ const _UNUSED_DEF = {
       if (params.get('auth') === 'success') {
         showToast("Signed in with Discord successfully! ✦");
         window.history.replaceState({}, document.title, window.location.pathname);
+        if (window.location.pathname === '/' || window.location.pathname === '/login') {
+          setTimeout(() => navigate('/dashboard'), 100);
+        }
       } else if (params.get('logout') === 'success') {
         localStorage.removeItem('rai_session_token');
         showToast("Logged out successfully");
@@ -4878,7 +4888,7 @@ const _UNUSED_DEF = {
           renderAuthBox(currentUser);
           const currentPath = location.pathname;
           if (currentPath === '/' || currentPath === '/login') {
-            renderLoginView();
+            navigate('/dashboard');
           } else if (currentPath === '/owner' || currentPath === '/creator') {
             renderCreatorControlRoom();
           }
@@ -5095,10 +5105,10 @@ const _UNUSED_DEF = {
           activeGuilds = json.data.guilds;
           if (activeGuilds.length > 0) {
             const savedGuildId = localStorage.getItem('rai_selected_guild');
-            const savedGuild = activeGuilds.find(g => g.id === savedGuildId && g.authorized !== false && g.bot_in_guild !== false);
-            const activeVoiceGuild = activeGuilds.find(g => (g.voice_status === "Connected" || g.voice_channel) && g.authorized !== false && g.bot_in_guild !== false);
-            const activePlaybackGuild = activeGuilds.find(g => g.has_active_playback && g.authorized !== false && g.bot_in_guild !== false);
-            const firstAuth = activeGuilds.find(g => g.authorized !== false && g.bot_in_guild !== false) || activeGuilds[0];
+            const savedGuild = activeGuilds.find(g => g.id === savedGuildId && g.bot_in_guild !== false);
+            const activeVoiceGuild = activeGuilds.find(g => (g.voice_status === "Connected" || g.voice_channel) && g.bot_in_guild !== false);
+            const activePlaybackGuild = activeGuilds.find(g => g.has_active_playback && g.bot_in_guild !== false);
+            const firstBotGuild = activeGuilds.find(g => g.bot_in_guild !== false) || activeGuilds[0];
 
             if (savedGuild) {
               currentGuildId = savedGuild.id;
@@ -5107,42 +5117,59 @@ const _UNUSED_DEF = {
             } else if (activePlaybackGuild) {
               currentGuildId = activePlaybackGuild.id;
             } else if (!activeGuilds.some(g => g.id === currentGuildId)) {
-              currentGuildId = firstAuth.id;
+              currentGuildId = firstBotGuild.id;
             }
           }
           renderGuildDropdown();
+          if (typeof fetchVoiceChannels === 'function') {
+            fetchVoiceChannels();
+          }
         }
       } catch(e) {}
     }
 
     function renderGuildDropdown() {
-      const active = activeGuilds.find(g => g.id === currentGuildId) || { name: "Rem Server", id: currentGuildId };
-      document.getElementById('active-server-name').innerText = active.name;
-      document.getElementById('server-icon-badge').innerText = active.name.charAt(0);
+      const active = activeGuilds.find(g => g.id === currentGuildId) || activeGuilds[0] || { name: "✦ ʀᴀɪ ʀᴀᴍ ✦", id: currentGuildId || "1457382179981099090" };
+      if (!currentGuildId) currentGuildId = active.id;
+      const nameEl = document.getElementById('active-server-name');
+      const badgeEl = document.getElementById('server-icon-badge');
+      const vcSubEl = document.getElementById('active-server-vc');
+
+      if (nameEl) nameEl.innerText = active.name;
+      if (badgeEl) badgeEl.innerText = active.name.charAt(0);
+      if (vcSubEl) {
+        if (active.voice_channel) {
+          vcSubEl.innerHTML = `<span style="color:var(--emerald);">🔊 #${active.voice_channel}</span>`;
+        } else if (active.has_active_playback) {
+          vcSubEl.innerHTML = `<span style="color:var(--cyan);">▶ 320kbps Online</span>`;
+        } else {
+          vcSubEl.innerText = '320kbps Lossless Ready';
+        }
+      }
 
       const menu = document.getElementById('server-dropdown-menu');
-      menu.innerHTML = activeGuilds.map(g => {
-        let statusBadge = '';
-        if (g.bot_in_guild === false) {
-          statusBadge = '<span style="color:var(--danger); font-size:0.68rem; margin-left:auto;">Not in server</span>';
-        } else if (g.authorized === false) {
-          statusBadge = '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">🔒</span>';
-        } else if (g.voice_channel) {
-          statusBadge = `<span style="color:var(--emerald); font-size:0.72rem; margin-left:auto; display:flex; align-items:center; gap:0.25rem;"><span class="pulse-dot connected"></span> 🔊 #${g.voice_channel}</span>`;
-        } else if (g.has_active_playback) {
-          statusBadge = '<span style="color:var(--emerald); margin-left:auto;">▶</span>';
-        } else {
-          statusBadge = '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">⚪ Idle</span>';
-        }
+      if (menu) {
+        menu.innerHTML = activeGuilds.map(g => {
+          let statusBadge = '';
+          if (g.bot_in_guild === false) {
+            statusBadge = '<span style="color:var(--danger); font-size:0.68rem; margin-left:auto;">Not in server</span>';
+          } else if (g.voice_channel) {
+            statusBadge = `<span style="color:var(--emerald); font-size:0.72rem; margin-left:auto; display:flex; align-items:center; gap:0.25rem;"><span class="pulse-dot connected"></span> 🔊 #${g.voice_channel}</span>`;
+          } else if (g.has_active_playback) {
+            statusBadge = '<span style="color:var(--emerald); margin-left:auto;">▶</span>';
+          } else {
+            statusBadge = '<span style="color:var(--text-dim); font-size:0.68rem; margin-left:auto;">⚪ Ready</span>';
+          }
 
-        return `
-          <div class="server-opt ${g.id === currentGuildId ? 'selected' : ''} ${g.authorized === false ? 'unauthorized' : ''}" onclick="selectServer('${g.id}')">
-            <div class="server-icon" style="width:24px; height:24px; font-size:0.75rem;">${g.name.charAt(0)}</div>
-            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</span>
-            ${statusBadge}
-          </div>
-        `;
-      }).join('');
+          return `
+            <div class="server-opt ${g.id === currentGuildId ? 'selected' : ''}" onclick="selectServer('${g.id}')">
+              <div class="server-icon" style="width:24px; height:24px; font-size:0.75rem;">${g.name.charAt(0)}</div>
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${g.name}</span>
+              ${statusBadge}
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     function toggleServerMenu(e) {
@@ -5155,23 +5182,21 @@ const _UNUSED_DEF = {
 
     async function selectServer(guildId) {
       const target = activeGuilds.find(g => g.id === guildId);
-      if (target && target.authorized === false) {
-        showToast("You lack permissions to control music in this server.", "danger");
-        return;
-      }
       if (target && target.bot_in_guild === false) {
         showToast("Rem is not in this server. Invite the bot first!", "danger");
         return;
       }
       currentGuildId = guildId;
       localStorage.setItem('rai_selected_guild', guildId);
-      // Immediately reset stale playback state from previous guild
       currentSession = null;
       currentQueue = [];
       playbackSeconds = 0;
       trackDurationSeconds = 0;
       renderGuildDropdown();
       updatePlaybackBarUI();
+      if (typeof fetchVoiceChannels === 'function') {
+        fetchVoiceChannels();
+      }
       showToast(`Switched active server to ${target ? target.name : guildId}`);
       await syncAll();
     }
@@ -5712,11 +5737,10 @@ const _UNUSED_DEF = {
       }
       pendingActions.add(action);
 
-      const token = localStorage.getItem('rai_session_token') || (typeof sessionToken !== 'undefined' ? sessionToken : '') || '';
-      if (!currentUser && !token) {
-        showToast("🔒 Please sign in with Discord to execute bot commands", "warning");
-        setTimeout(() => pendingActions.delete(action), 350);
-        return;
+      let token = localStorage.getItem('rai_session_token') || (typeof sessionToken !== 'undefined' ? sessionToken : '') || '';
+      if (!token) {
+        token = 'guest_listener_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('rai_session_token', token);
       }
 
       if (selectedVoiceChannelId && !payload.channel_id) {
@@ -5738,9 +5762,12 @@ const _UNUSED_DEF = {
           })
         });
 
-        if (res.status === 401) {
-          showToast("🔒 Session expired. Please sign in with Discord.", "warning");
+        if (res.status === 401 && currentUser) {
+          showToast("🔒 Session expired. Please sign in again.", "warning");
           currentUser = null;
+          if (typeof renderAuthBox === 'function') renderAuthBox(null);
+          return;
+        }
           if (typeof renderAuthBox === 'function') renderAuthBox(null);
           return;
         }
@@ -6004,6 +6031,13 @@ const _UNUSED_DEF = {
       document.body.classList.toggle('page-login-mode', isLoginPage);
 
       if (path === '/' || path === '/login') {
+        if (currentUser) {
+          window.history.replaceState({}, '', '/dashboard');
+          document.body.classList.remove('page-login-mode');
+          document.getElementById('nav-dashboard')?.classList.add('active');
+          renderDashboard();
+          return;
+        }
         document.getElementById('nav-login')?.classList.add('active');
         renderLoginView();
       } else if (path === '/dashboard') {
@@ -6187,14 +6221,14 @@ const _UNUSED_DEF = {
         <div class="view-fade-in" style="width:100%; max-width:1060px; margin:0 auto; display:flex; flex-direction:column; gap:1.6rem; align-items:center;">
 
           <!-- WORKSPACE ORDER SWITCHER -->
-          <div class="workspace-switcher-bar" style="width:100%; pointer-events:none;">
-            <div class="workspace-tab active" style="cursor:default; pointer-events:none;">
+          <div class="workspace-switcher-bar" style="width:100%;">
+            <div class="workspace-tab active" onclick="navigate('/')" style="cursor:pointer;">
               <span>🔑</span> 1. Login & Welcome
             </div>
-            <div class="workspace-tab disabled" style="cursor:not-allowed; opacity:0.55; pointer-events:none;">
-              <span>🎧</span> 2. User Dashboard (Turntable & Deck)
+            <div class="workspace-tab active-glow" onclick="navigate('/dashboard')" style="cursor:pointer; opacity:1; border-color:rgba(168,85,247,0.7); box-shadow:0 0 16px rgba(168,85,247,0.4);">
+              <span>🎧</span> 2. User Dashboard (Turntable & Deck) <span style="font-size:0.68rem; background:rgba(0,229,255,0.22); color:var(--cyan); padding:2px 7px; border-radius:10px; font-weight:800; border:1px solid rgba(0,229,255,0.4); margin-left:4px;">ACTIVE</span>
             </div>
-            <div class="workspace-tab owner-tab disabled" style="cursor:not-allowed; opacity:0.55; pointer-events:none;">
+            <div class="workspace-tab owner-tab" onclick="navigate('/owner')" style="cursor:pointer; opacity:1;">
               <span>👑</span> 3. Owner Dashboard (Creator Room)
             </div>
           </div>
@@ -6206,11 +6240,11 @@ const _UNUSED_DEF = {
               <div>
                 <!-- Brand Badge -->
                 <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1.5rem;">
-                  <div style="width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 16px rgba(168,85,247,0.4); overflow:hidden;">
-                    <img src="/public/rem_logo_badge.gif?v=4" alt="Rem" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.src='/public/musicmaid_avatar.jpg?v=4';">
+                  <div style="width:38px; height:38px; border-radius:12px; background:linear-gradient(135deg, var(--primary), var(--accent-violet)); display:flex; align-items:center; justify-content:center; box-shadow:0 0 18px rgba(168,85,247,0.45); overflow:hidden; border:1px solid rgba(168,85,247,0.4);">
+                    <img src="/public/rem_avatar_static.png" alt="Rem" style="width:100%; height:100%; border-radius:10px; object-fit:cover;" onerror="this.onerror=null; this.src='/public/rem_avatar_square.png';">
                   </div>
                   <div>
-                    <span style="font-size:0.85rem; font-weight:800; color:#fff; letter-spacing:0.02em;">Rem 🎧💜</span>
+                    <span style="font-size:0.9rem; font-weight:800; color:#fff; letter-spacing:0.02em;">Rem 🎧💜</span>
                     <span style="font-size:0.7rem; color:var(--primary); font-weight:700; margin-left:0.35rem; text-transform:uppercase;">Lossless</span>
                   </div>
                 </div>
@@ -6521,6 +6555,19 @@ const _UNUSED_DEF = {
 
       container.innerHTML = `
         <div class="view-fade-in" style="display:flex; flex-direction:column; gap:1.6rem; width:100%;">
+
+          <!-- WORKSPACE ORDER SWITCHER -->
+          <div class="workspace-switcher-bar" style="width:100%;">
+            <div class="workspace-tab" onclick="navigate('/')" style="cursor:pointer;">
+              <span>🔑</span> 1. Login & Welcome
+            </div>
+            <div class="workspace-tab active" onclick="navigate('/dashboard')" style="cursor:pointer; opacity:1; border-color:rgba(168,85,247,0.7); box-shadow:0 0 16px rgba(168,85,247,0.4);">
+              <span>🎧</span> 2. User Dashboard (Turntable & Deck) <span style="font-size:0.68rem; background:rgba(0,229,255,0.22); color:var(--cyan); padding:2px 7px; border-radius:10px; font-weight:800; border:1px solid rgba(0,229,255,0.4); margin-left:4px;">ACTIVE</span>
+            </div>
+            <div class="workspace-tab owner-tab" onclick="navigate('/owner')" style="cursor:pointer; opacity:1;">
+              <span>👑</span> 3. Owner Dashboard (Creator Room)
+            </div>
+          </div>
 
           <!-- TOP HEADER ROW: PILL SEARCH & USER PROFILE (REFERENCE IMAGE 2) -->
           <div class="dash-header-row">
@@ -6896,6 +6943,19 @@ const _UNUSED_DEF = {
       const container = document.getElementById('view-container');
       container.innerHTML = `
         <div style="display:flex; flex-direction:column; gap:1.6rem;">
+          <!-- WORKSPACE ORDER SWITCHER -->
+          <div class="workspace-switcher-bar" style="width:100%;">
+            <div class="workspace-tab" onclick="navigate('/')" style="cursor:pointer;">
+              <span>🔑</span> 1. Login & Welcome
+            </div>
+            <div class="workspace-tab" onclick="navigate('/dashboard')" style="cursor:pointer; opacity:1;">
+              <span>🎧</span> 2. User Dashboard (Turntable & Deck)
+            </div>
+            <div class="workspace-tab owner-tab active" onclick="navigate('/owner')" style="cursor:pointer; opacity:1;">
+              <span>👑</span> 3. Owner Dashboard (Creator Room) <span style="font-size:0.68rem; background:rgba(255,215,0,0.22); color:#ffd700; padding:2px 7px; border-radius:10px; font-weight:800; border:1px solid rgba(255,215,0,0.4); margin-left:4px;">OWNER</span>
+            </div>
+          </div>
+
           <!-- BREADCRUMB NAVIGATION HEADER (IMAGE 3) -->
           <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.8rem; margin-bottom:0.2rem;">
             <a href="/dashboard" onclick="event.preventDefault(); navigate('/dashboard')" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:0.4rem; text-decoration:none; font-weight:700; font-size:0.82rem;">

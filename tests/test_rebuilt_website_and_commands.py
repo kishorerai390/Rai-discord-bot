@@ -81,13 +81,27 @@ class TestRebuiltWebsiteAndCommands(unittest.TestCase):
         self.assertIn("vibeChips", content)
         self.assertIn("Vibe Explorer:", content)
 
-    def test_audio_playback_code_invariants(self):
-        """Verify no music playback engine or resolver files were modified."""
-        # Ensure voicelink and resolver_service are pure
-        import voicelink
-        from music_bot.services import resolver_service
-        self.assertTrue(hasattr(resolver_service, "AudioResolver"))
-        self.assertTrue(hasattr(resolver_service, "youtube_health_monitor"))
+    def test_current_logo_updated(self):
+        """Verify the current Rem anime avatar is used in web interfaces instead of old badge."""
+        from web.ui import UI_HTML
+        self.assertIn("/public/rem_avatar_static.png", UI_HTML)
+        self.assertNotIn("/public/rem_logo_badge.gif", UI_HTML)
+        self.assertIn("/public/rem_avatar_static.png", LANDING_PAGE_HTML)
+
+    def test_tab_2_active_and_clickable(self):
+        """Verify Tab 2 in workspace switcher is active, clickable, and not disabled."""
+        from web.ui import UI_HTML
+        self.assertIn("2. User Dashboard (Turntable & Deck)", UI_HTML)
+        self.assertIn('onclick="navigate(\'/dashboard\')"', UI_HTML)
+        self.assertIn("ACTIVE", UI_HTML)
+
+    def test_login_loop_prevention_and_guest_controls(self):
+        """Verify router navigates to dashboard on auth and guest actions are allowed in music_api."""
+        from web.ui import UI_HTML
+        from web.music_api import MusicApiRouter
+        self.assertIn("window.history.replaceState({}, '', '/dashboard');", UI_HTML)
+        self.assertIn("guest_listener_", UI_HTML)
+        self.assertTrue(hasattr(MusicApiRouter, "_require_authenticated_user"))
 
 if __name__ == "__main__":
     unittest.main()

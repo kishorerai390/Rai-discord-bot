@@ -73,8 +73,8 @@ export function Sidebar({
     >
       {/* BRAND LOGO */}
       <Link href="/" className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-all">
-        <div className="w-10 h-10 rounded-xl bg-linear-to-br from-purple-600 to-cyan-400 flex items-center justify-center text-xl shadow-lg shadow-purple-600/30">
-          🎵
+        <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-purple-600/30 border border-purple-500/40 shrink-0">
+          <img src="/public/rem_avatar_static.png" alt="Rem" className="w-full h-full object-cover" />
         </div>
         <div>
           <h1 className="font-extrabold text-base tracking-tight text-white leading-tight">
