@@ -330,11 +330,14 @@ class AutoPlay(ControlButton):
         self.player.autoplay = check
         self.player.settings["autoplay"] = check
         self.change_states("on" if check else "off")
+        # Acknowledge the component interaction immediately by updating the player view.
+        # Sending a localized status message first can consume the interaction response,
+        # making edit_message fail and leaving Discord to show "didn't respond in time".
+        await interaction.response.edit_message(view=self.view)
         await self.send(interaction, "player.controls.autoplay", await LangHandler.get_lang(
             interaction.guild_id,
             "common.status.enabled" if check else "common.status.disabled"
         ))
-        await interaction.response.edit_message(view=self.view)
 
         if not self.player.is_playing:
             await self.player.do_next()
