@@ -115,9 +115,19 @@ class Basic(commands.Cog):
     async def connect(self, ctx: commands.Context, channel: discord.VoiceChannel = None) -> None:
         "Connect to a voice channel."
         try:
+            # Acknowledge slash-command interactions before voice connection work,
+            # which may take longer than Discord's initial response deadline.
+            if ctx.interaction and not ctx.interaction.response.is_done():
+                await ctx.defer()
+
             player = await voicelink.connect_channel(ctx, channel)
         except discord.errors.ClientException:
             return await send_localized_message(ctx, "voice.connection.alreadyConnected")
+        except Exception:
+            logger.exception("Rem /connect failed")
+            return await send_localized_message(
+                ctx, "voice.connection.failed"
+            )
 
         await send_localized_message(ctx, "voice.connection.connect", player.channel)
                 
