@@ -125,8 +125,9 @@ class Basic(commands.Cog):
             return await send_localized_message(ctx, "voice.connection.alreadyConnected")
         except Exception:
             logger.exception("Rem /connect failed")
-            return await send_localized_message(
-                ctx, "voice.connection.failed"
+            return await ctx.send(
+                "❌ I couldn't connect to that voice channel. "
+                "Please check my voice permissions and try again."
             )
 
         await send_localized_message(ctx, "voice.connection.connect", player.channel)
