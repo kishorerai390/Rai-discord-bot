@@ -14,7 +14,19 @@ from .language import LangHandler
 from .mongodb import MongoDBHandler
 from .exceptions import *
 from .enums import *
-from .filters import Filters
+from .filters import (
+    Filters,
+    Filter,
+    Equalizer,
+    Timescale,
+    Karaoke,
+    Tremolo,
+    Vibrato,
+    Rotation,
+    ChannelMix,
+    Distortion,
+    LowPass,
+)
 from .objects import *
 from .pool import Node, NodePool
 from .queue import Queue, QUEUE_TYPES
