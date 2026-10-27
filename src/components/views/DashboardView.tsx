@@ -99,8 +99,83 @@ export function DashboardView({
 
   const currentRecCards = recCardPages[recPageIndex] || recCardPages[0];
 
+  const [isCommandModalOpen, setIsCommandModalOpen] = useState(false);
+  const [cmdSearch, setCmdSearch] = useState("");
+  const [selectedCmdCategory, setSelectedCmdCategory] = useState("all");
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+
+  const vibeChips = [
+    { label: "🌟 All Hits", query: "Top Anime & Lossless Discord Music" },
+    { label: "🔥 Anime Hype", query: "Top Anime Openings J-Rock Hits" },
+    { label: "☕ Lo-Fi Beats", query: "Lofi Chill Hip Hop Study Beats" },
+    { label: "⚡ Drift Phonk", query: "Aggressive Drift Phonk Bass Gaming 2026" },
+    { label: "💥 J-Rock & Pop", query: "Tokyo Sound Shonen Anthem" },
+    { label: "✨ Tamil & Desi", query: "Anirudh Ravichander viral soundtrack hits" },
+    { label: "💫 80s Synthwave", query: "Synthwave Retro 80s Cyberpunk Night Drive" },
+  ];
+
+  const botCommands = [
+    // PLAYBACK
+    { name: "/play", args: "<query>", desc: "Play any song, artist, playlist, or audio link in your voice channel.", cat: "playback", role: "everyone", action: "PLAY" },
+    { name: "/search", args: "<query>", desc: "Interactive search showing top 5 tracks with instant selector buttons.", cat: "playback", role: "everyone", action: "SEARCH" },
+    { name: "/playtop", args: "<query>", desc: "Insert and play track next at the very top of the queue.", cat: "playback", role: "everyone", action: "PLAYTOP" },
+    { name: "/forceplay", args: "<query>", desc: "Immediately interrupt current track and start playing this track.", cat: "playback", role: "dj", action: "FORCEPLAY" },
+    { name: "/pause", args: "", desc: "Temporarily pause the active audio playback.", cat: "playback", role: "everyone", action: "PAUSE" },
+    { name: "/resume", args: "", desc: "Resume paused audio playback.", cat: "playback", role: "everyone", action: "RESUME" },
+    { name: "/skip", args: "", desc: "Vote or immediately skip current track to next.", cat: "playback", role: "everyone", action: "SKIP" },
+    { name: "/stop", args: "", desc: "Stop playing audio, clear queue, and reset voice state.", cat: "playback", role: "dj", action: "STOP" },
+    { name: "/leave", args: "", desc: "Disconnect Rem from active voice channel.", cat: "playback", role: "dj", action: "LEAVE" },
+    { name: "/volume", args: "<1-150>", desc: "Adjust playback volume with soft limiter protection.", cat: "playback", role: "dj", action: "VOLUME" },
+    { name: "/lyrics", args: "[query]", desc: "Display real-time synchronized karaoke lyrics.", cat: "playback", role: "everyone", action: "LYRICS" },
+
+    // AUDIO FX / DSP
+    { name: "/speed", args: "<0.5-2.0>", desc: "Adjust playback speed without pitch distortion.", cat: "dsp", role: "dj", action: "SPEED" },
+    { name: "/nightcore", args: "", desc: "Apply high-tempo pitch-shifted anime party filter.", cat: "dsp", role: "everyone", action: "NIGHTCORE" },
+    { name: "/8d", args: "", desc: "Enable 360-degree rotating 8D spatial surround audio.", cat: "dsp", role: "everyone", action: "8D" },
+    { name: "/vaporwave", args: "", desc: "Slowed down aesthetic reverb filter.", cat: "dsp", role: "everyone", action: "VAPORWAVE" },
+    { name: "/karaoke", args: "", desc: "Vocal frequency attenuation for singing along.", cat: "dsp", role: "everyone", action: "KARAOKE" },
+    { name: "/cleareffect", args: "", desc: "Reset all active DSP equalizer filters to flat.", cat: "dsp", role: "everyone", action: "CLEAREFFECT" },
+
+    // QUEUE
+    { name: "/queue", args: "", desc: "View all upcoming songs in current queue.", cat: "queue", role: "everyone", action: "QUEUE" },
+    { name: "/shuffle", args: "", desc: "Randomize order of all upcoming songs in queue.", cat: "queue", role: "everyone", action: "SHUFFLE" },
+    { name: "/repeat", args: "<off|track|queue>", desc: "Toggle repeat mode between off, track, and queue.", cat: "queue", role: "everyone", action: "REPEAT" },
+    { name: "/clear", args: "", desc: "Clear all upcoming tracks from queue.", cat: "queue", role: "dj", action: "CLEAR" },
+    { name: "/history", args: "", desc: "View recently played songs in voice channel.", cat: "queue", role: "everyone", action: "HISTORY" },
+
+    // SETTINGS
+    { name: "/autodj", args: "", desc: "Toggle endless automated music recommendations when queue ends.", cat: "settings", role: "dj", action: "AUTODJ" },
+    { name: "/247", args: "", desc: "Keep Rem connected to voice channel 24/7 without timeout.", cat: "settings", role: "admin", action: "247" },
+    { name: "/debug", args: "", desc: "Run latency, resolver, and audio pipeline diagnostics.", cat: "settings", role: "everyone", action: "DEBUG" },
+  ];
+
+  const handleCopyCmd = (cmd: string) => {
+    navigator.clipboard?.writeText(cmd).catch(() => {});
+    setCopiedCmd(cmd);
+    setTimeout(() => setCopiedCmd(null), 2500);
+  };
+
+  const handleExecuteCmd = async (cmd: any) => {
+    if (cmd.action === "PLAY" || cmd.action === "PLAYTOP" || cmd.action === "SEARCH") {
+      onNavigate(`/search?q=${encodeURIComponent(searchQuery || "Anime Openings")}`);
+    } else if (cmd.action === "QUEUE") {
+      onNavigate("/queue");
+    } else if (cmd.action === "LYRICS") {
+      onNavigate("/queue");
+    } else {
+      await onControl(cmd.action);
+    }
+    setIsCommandModalOpen(false);
+  };
+
+  const filteredCommands = botCommands.filter((c) => {
+    const matchesCat = selectedCmdCategory === "all" || c.cat === selectedCmdCategory;
+    const matchesSearch = !cmdSearch || c.name.toLowerCase().includes(cmdSearch.toLowerCase()) || c.desc.toLowerCase().includes(cmdSearch.toLowerCase());
+    return matchesCat && matchesSearch;
+  });
+
   return (
-    <div className="flex flex-col gap-6 w-full">
+    <div className="flex flex-col gap-6 w-full relative">
       {/* 1. TOP HEADER ROW (REFERENCE IMAGE 2) */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <form onSubmit={handleSearchSubmit} className="flex-1 max-w-xl">
@@ -119,7 +194,32 @@ export function DashboardView({
           </div>
         </form>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Integrated Bot Commands Modal Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsCommandModalOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-gradient-to-r from-purple-600/30 to-pink-600/30 border border-purple-500/40 hover:border-purple-400 hover:scale-105 transition-all text-xs font-bold text-purple-200 shadow-md"
+            title="Browse all 41 integrated bot commands"
+          >
+            <span>⚡</span>
+            <span>Commands (41)</span>
+          </button>
+
+          {/* Surprise Me Auto-DJ */}
+          <button
+            type="button"
+            onClick={() => {
+              const randomVibe = vibeChips[Math.floor(Math.random() * vibeChips.length)];
+              onControl("PLAY", { query: randomVibe.query });
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 text-xs font-semibold text-white/80 transition-colors"
+            title="Auto-DJ Random Selection"
+          >
+            <span>🎲</span>
+            <span>Surprise Me</span>
+          </button>
+
           {user ? (
             <div
               onClick={() => onNavigate("/settings")}
@@ -160,6 +260,115 @@ export function DashboardView({
           </button>
         </div>
       </div>
+
+      {/* VIBE & SMART SUGGESTION PILLS */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <span className="text-xs font-bold text-purple-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+          <span>✨</span> Vibe Explorer:
+        </span>
+        {vibeChips.map((chip, idx) => (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => onControl("PLAY", { query: chip.query })}
+            className="px-3 py-1.5 rounded-full bg-white/4 border border-white/8 hover:border-purple-400/50 hover:bg-purple-600/15 text-xs text-white/80 hover:text-white transition-all shrink-0 font-medium cursor-pointer"
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
+      {/* MODAL: INTEGRATED BOT COMMANDS EXPLORER */}
+      {isCommandModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-2xl bg-[#0e0c1a] border border-purple-500/40 rounded-2xl p-6 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">Discord Bot Engine</span>
+                <h3 className="text-xl font-black text-white flex items-center gap-2">
+                  <span>⚡</span> Integrated Bot Commands ({botCommands.length})
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCommandModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 flex items-center justify-center text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Category Filter Tabs & Search */}
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {["all", "playback", "dsp", "queue", "settings"].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCmdCategory(cat)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold capitalize transition-colors ${
+                      selectedCmdCategory === cat
+                        ? "bg-purple-600 text-white"
+                        : "bg-white/5 text-white/60 hover:text-white hover:bg-white/10"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="text"
+                placeholder="Search commands..."
+                value={cmdSearch}
+                onChange={(e) => setCmdSearch(e.target.value)}
+                className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white outline-none focus:border-purple-500 w-48"
+              />
+            </div>
+
+            {/* Commands List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {filteredCommands.map((c, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-xl bg-white/3 border border-white/6 hover:border-purple-500/30 flex items-center justify-between gap-3 transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs font-bold text-purple-300 bg-purple-900/40 px-2 py-0.5 rounded">
+                        {c.name} {c.args}
+                      </span>
+                      <span className="text-[10px] uppercase font-bold text-white/40 border border-white/10 px-1.5 py-0.2 rounded-full">
+                        {c.role}
+                      </span>
+                    </div>
+                    <p className="text-xs text-white/70 line-clamp-2">{c.desc}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCmd(c.name)}
+                      className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-white/70 hover:text-white transition-colors"
+                      title="Copy Slash Command"
+                    >
+                      {copiedCmd === c.name ? "✓ Copied" : "📋 Copy"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExecuteCmd(c)}
+                      className="btn btn-primary btn-sm text-xs py-1 px-3 rounded-lg font-bold"
+                      title="Execute in web session"
+                    >
+                      ⚡ Run
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. MAIN 2-COLUMN LAYOUT (LEFT: 2.2fr, RIGHT: 1fr) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
