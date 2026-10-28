@@ -120,14 +120,39 @@ class Basic(commands.Cog):
             if ctx.interaction and not ctx.interaction.response.is_done():
                 await ctx.defer()
 
-            player = await voicelink.connect_channel(ctx, channel)
+            # Default to the voice channel of the person who invoked /connect.
+            # An explicitly supplied channel remains an intentional override.
+            member = getattr(ctx, "author", None) or getattr(ctx, "user", None)
+            target_channel = channel or getattr(getattr(member, "voice", None), "channel", None)
+            if target_channel is None:
+                # Keep the existing localized no-channel/usage behavior.
+                player = await voicelink.connect_channel(ctx, channel)
+            else:
+                current_player = getattr(ctx.guild, "voice_client", None)
+                current_channel = getattr(current_player, "channel", None) if current_player else None
+
+                if current_player and current_channel and current_channel.id == target_channel.id:
+                    player = current_player
+                elif current_player and current_channel:
+                    # Prefer a native move when supported by the active voice client.
+                    move_to = getattr(current_player, "move_to", None)
+                    if callable(move_to):
+                        await move_to(target_channel)
+                        player = current_player
+                    else:
+                        # This is an explicit /connect request to a different VC.
+                        # Reconnect only for that requested channel change.
+                        await current_player.disconnect(force=True)
+                        player = await voicelink.connect_channel(ctx, target_channel)
+                else:
+                    player = await voicelink.connect_channel(ctx, target_channel)
         except discord.errors.ClientException:
             return await send_localized_message(ctx, "voice.connection.alreadyConnected")
         except Exception:
             logger.exception("Rem /connect failed")
             return await ctx.send(
-                "❌ I couldn't connect to that voice channel. "
-                "Please check my voice permissions and try again."
+                "❌ I couldn't connect to your voice channel. "
+                "Join a voice channel first and check my voice permissions."
             )
 
         await send_localized_message(ctx, "voice.connection.connect", player.channel)
