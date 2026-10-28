@@ -129,6 +129,33 @@ class TestBotRoleService(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Reused existing role", msg)
         self.mock_guild.create_role.assert_not_called()
 
+    async def test_03b_legacy_musicmaid_role_is_renamed_in_place(self):
+        """Rename the legacy role without deleting/recreating it or changing its ID."""
+        existing_role = MagicMock(spec=discord.Role)
+        existing_role.id = 777777777777777777
+        existing_role.name = "MusicMaid"
+        existing_role.position = 5
+        existing_role.edit = AsyncMock()
+
+        role_perms = MagicMock()
+        for p in REQUIRED_PERMISSIONS_DICT.keys():
+            setattr(role_perms, p, True)
+        role_perms.administrator = False
+        existing_role.permissions = role_perms
+
+        self.mock_guild.roles = [existing_role]
+        self.mock_me.roles = [existing_role]
+        self.mock_guild.create_role = AsyncMock()
+
+        success, role, msg = await BotRoleService.setup_guild_role(self.mock_guild, self.mock_db)
+
+        self.assertTrue(success)
+        self.assertIs(role, existing_role)
+        existing_role.edit.assert_awaited_once()
+        self.assertEqual(existing_role.edit.await_args.kwargs["name"], BOT_ROLE_NAME)
+        self.mock_guild.create_role.assert_not_called()
+        self.mock_db.set_bot_role_id.assert_awaited_once_with(self.mock_guild.id, existing_role.id)
+
     # =========================================================================
     # 4. PERMISSION REPAIR ON EXISTING ROLE
     # =========================================================================

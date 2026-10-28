@@ -123,6 +123,33 @@ class BotRoleService:
         # Check if bot has manage_roles
         can_manage_roles = bool(me.guild_permissions.manage_roles)
 
+        # If we found the legacy MusicMaid role, rename that same role in place.
+        # This preserves its role ID, assignments, and channel overwrites; never delete/recreate it.
+        if existing_role and existing_role.name.strip().lower() == "musicmaid":
+            me_pos = getattr(me.top_role, "position", 0) if me.top_role else 0
+            role_pos = getattr(existing_role, "position", 0)
+            if can_manage_roles and me_pos > role_pos:
+                try:
+                    await existing_role.edit(
+                        name=BOT_ROLE_NAME,
+                        reason="Rename legacy MusicMaid bot role to Rem; preserve role ID and assignments",
+                    )
+                    logger.info(
+                        f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Renamed legacy MusicMaid role to '{BOT_ROLE_NAME}' in place."
+                    )
+                except discord.Forbidden:
+                    logger.warning(
+                        f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Cannot rename legacy MusicMaid role; missing permission or role hierarchy."
+                    )
+                except Exception as rename_err:
+                    logger.warning(
+                        f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Could not rename legacy MusicMaid role: {rename_err}"
+                    )
+            else:
+                logger.info(
+                    f"[RoleSetup] Guild '{guild.name}' ({guild.id}): Keeping legacy MusicMaid role unchanged because Manage Roles or role hierarchy is insufficient."
+                )
+
         # =====================================================================
         # CASE A: ROLE ALREADY EXISTS (Reuse & Repair)
         # =====================================================================

@@ -88,7 +88,8 @@ export async function GET(req: NextRequest) {
         nowIso
       );
     } catch (dbErr) {
-      console.warn("web_sessions insert notice:", dbErr);
+      console.error("Discord OAuth session persistence failed:", dbErr);
+      return NextResponse.redirect(`${baseUrl}/?auth_error=session_store_failed`);
     }
 
     // 4. Redirect with Cookie — set BOTH cookie names so both auth systems accept the session:
