@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}Help Center{% endblock %}
+{% block description %}Get help with Voicelink — setup guides, FAQs, and troubleshooting.{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+  <!-- Header -->
+  <div class="text-center mb-12">
+    <div class="w-14 h-14 rounded-2xl bg-brand-500/15 flex items-center justify-center mx-auto mb-4">
+      <i class="fa-solid fa-circle-question text-brand-400 text-2xl"></i>
+    </div>
+    <h1 class="text-4xl font-bold text-white mb-3">Help Center</h1>
+    <p class="text-slate-400 max-w-lg mx-auto">Everything you need to get Voicelink up and running on your server.</p>
+    <!-- Search -->
+    <div class="relative max-w-md mx-auto mt-6">
+      <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
+      <input id="help-search" type="text" placeholder="Search help articles…"
+             class="w-full pl-10 pr-4 py-3 bg-surface-200 border border-surface-400 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition" />
+    </div>
+  </div>
+
+  <!-- Quick links -->
+  <div class="grid sm:grid-cols-3 gap-4 mb-12">
+    {% set quick = [
+      ('fa-rocket', 'text-brand-400', 'bg-brand-500/10', 'Getting Started', 'Add the bot and play your first song in 2 minutes.', '#setup'),
+      ('fa-circle-exclamation', 'text-yellow-400', 'bg-yellow-500/10', 'Troubleshooting', 'Bot not playing? Diagnose common issues.', '#troubleshoot'),
+      ('fa-comments', 'text-green-400', 'bg-green-500/10', 'Discord Support', 'Join our server for live help from our team.', 'https://discord.gg/support'),
+    ] %}
+    {% for icon, color, bg, title, desc, href in quick %}
+    <a href="{{ href }}" class="group p-5 rounded-2xl bg-surface-200 border border-surface-400 hover:border-brand-600/50 hover:bg-surface-300 transition-all duration-200">
+      <div class="w-9 h-9 rounded-xl {{ bg }} flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+        <i class="fa-solid {{ icon }} {{ color }}"></i>
+      </div>
+      <h3 class="font-semibold text-white mb-1 text-sm">{{ title }}</h3>
+      <p class="text-xs text-slate-500 leading-relaxed">{{ desc }}</p>
+    </a>
+    {% endfor %}
+  </div>
+
+  <!-- Setup Guide -->
+  <section id="setup" class="mb-12">
+    <h2 class="text-xl font-bold text-white mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-rocket text-brand-400"></i> Getting Started
+    </h2>
+    <div class="space-y-3">
+      {% set steps = [
+        ('Invite Voicelink', 'Click the "Add to Discord" button and select your server. Grant the requested permissions.', 'fa-plus'),
+        ('Join a Voice Channel', 'Join any voice channel in your server before using music commands.', 'fa-headphones'),
+        ('Play Music', 'Use /play followed by a song name or URL to start playing music.', 'fa-play'),
+        ('Manage the Queue', 'Use /queue to view the queue, /skip to skip tracks, and /stop to end the session.', 'fa-list'),
+        ('Set Up DJ Role (optional)', 'Create a role named "DJ" to give users special music permissions.', 'fa-user-gear'),
+      ] %}
+      {% for i, (title, desc, icon) in enumerate(steps) %}
+      <div class="flex gap-4 p-4 rounded-xl bg-surface-200 border border-surface-400">
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-brand-600/20 border border-brand-600/40 flex items-center justify-center text-brand-300 text-sm font-bold">
+          {{ i + 1 }}
+        </div>
+        <div>
+          <h4 class="font-semibold text-white text-sm mb-0.5">{{ title }}</h4>
+          <p class="text-xs text-slate-400 leading-relaxed">{{ desc }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="mb-12">
+    <h2 class="text-xl font-bold text-white mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-circle-question text-brand-400"></i> Frequently Asked Questions
+    </h2>
+    <div class="space-y-2" id="faq-list">
+      {% for faq in faqs %}
+      <div class="faq-item collapse collapse-arrow bg-surface-200 border border-surface-400 rounded-xl" data-question="{{ faq.question | lower }}">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium text-sm text-white py-4">
+          {{ faq.question }}
+        </div>
+        <div class="collapse-content">
+          <p class="text-sm text-slate-400 leading-relaxed pb-2">{{ faq.answer }}</p>
+          {% if faq.related_command %}
+          <div class="mt-2">
+            <a href="/commands" class="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 transition">
+              <i class="fa-solid fa-terminal text-[10px]"></i> See /{{ faq.related_command }} command
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Permissions Table -->
+  <section id="permissions" class="mb-12">
+    <h2 class="text-xl font-bold text-white mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-shield-halved text-brand-400"></i> Required Permissions
+    </h2>
+    <div class="overflow-x-auto rounded-xl border border-surface-400">
+      <table class="table table-sm w-full">
+        <thead class="bg-surface-300">
+          <tr>
+            <th class="text-slate-400 font-medium text-xs uppercase tracking-wider py-3">Permission</th>
+            <th class="text-slate-400 font-medium text-xs uppercase tracking-wider py-3">Required</th>
+            <th class="text-slate-400 font-medium text-xs uppercase tracking-wider py-3">Reason</th>
+          </tr>
+        </thead>
+        <tbody class="bg-surface-200 divide-y divide-surface-400">
+          {% set perms = [
+            ('Connect', True, 'Join voice channels to play music'),
+            ('Speak', True, 'Stream audio to voice channels'),
+            ('Send Messages', True, 'Send now-playing and queue messages'),
+            ('Embed Links', True, 'Display rich embeds for song info'),
+            ('Read Message History', True, 'Read slash command interactions'),
+            ('Add Reactions', False, 'React to messages for controls'),
+            ('Manage Messages', False, 'Delete old queue messages'),
+            ('Deafen Members', False, 'Used for deafen on join feature'),
+          ] %}
+          {% for perm, required, reason in perms %}
+          <tr class="hover:bg-surface-300 transition-colors">
+            <td class="py-3 font-mono text-xs text-slate-300">{{ perm }}</td>
+            <td class="py-3">
+              {% if required %}
+              <span class="badge badge-xs bg-red-500/20 text-red-400 border-red-500/30">Required</span>
+              {% else %}
+              <span class="badge badge-xs bg-slate-700 text-slate-400 border-slate-600">Optional</span>
+              {% endif %}
+            </td>
+            <td class="py-3 text-xs text-slate-400">{{ reason }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Troubleshooting -->
+  <section id="troubleshoot" class="mb-12">
+    <h2 class="text-xl font-bold text-white mb-5 flex items-center gap-2">
+      <i class="fa-solid fa-wrench text-brand-400"></i> Troubleshooting
+    </h2>
+    <div class="space-y-3">
+      {% set issues = [
+        ('Bot won\'t join the voice channel', [
+          'Make sure you are in a voice channel before running /play.',
+          'Check the bot has "Connect" and "Speak" permissions in that channel.',
+          'If the channel is a Stage channel, the bot needs "Stage Moderator" permission.',
+        ]),
+        ('No audio is playing', [
+          'Make sure your server region is not causing issues — try changing it in server settings.',
+          'Try /stop then /play again to restart the audio session.',
+          'Check the volume with /volume — it may be set to 0.',
+        ]),
+        ('Commands are not showing up', [
+          'Slash commands can take up to 1 hour to register after invite.',
+          'Try typing / in the message box to force a refresh.',
+          'Make sure the bot has "applications.commands" scope (re-invite if needed).',
+        ]),
+        ('Spotify links are not working', [
+          'Spotify links are resolved via a Spotify → YouTube bridge.',
+          'Make sure SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET are configured.',
+          'Playlist imports may be limited to 100 tracks.',
+        ]),
+      ] %}
+      {% for issue, solutions in issues %}
+      <div class="collapse collapse-arrow bg-surface-200 border border-surface-400 rounded-xl">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium text-sm text-white py-4">
+          <i class="fa-solid fa-circle-exclamation text-yellow-500 mr-2 text-xs"></i>{{ issue }}
+        </div>
+        <div class="collapse-content">
+          <ul class="space-y-1.5 pb-2">
+            {% for s in solutions %}
+            <li class="flex gap-2 text-sm text-slate-400">
+              <i class="fa-solid fa-arrow-right text-brand-500 mt-0.5 text-xs flex-shrink-0"></i>
+              {{ s }}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Contact / Support -->
+  <div class="rounded-2xl bg-gradient-to-br from-brand-900/40 to-purple-900/30 border border-brand-700/40 p-8 text-center">
+    <i class="fa-brands fa-discord text-3xl text-brand-400 mb-3 block"></i>
+    <h3 class="font-bold text-white text-lg mb-2">Still need help?</h3>
+    <p class="text-sm text-slate-400 mb-5">Join our Discord support server and a team member will assist you.</p>
+    <a href="https://discord.gg/support" target="_blank"
+       class="btn bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2">
+      <i class="fa-brands fa-discord"></i> Join Support Server
+    </a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // FAQ search
+  const searchInput = document.getElementById('help-search');
+  searchInput && searchInput.addEventListener('input', () => {
+    const q = searchInput.value.toLowerCase();
+    document.querySelectorAll('.faq-item').forEach(el => {
+      el.style.display = el.dataset.question.includes(q) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

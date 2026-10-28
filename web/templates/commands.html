@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Commands{% endblock %}
+{% block description %}Browse all Voicelink bot commands organized by category.{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+  <!-- Header -->
+  <div class="mb-10 text-center">
+    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-900/60 border border-brand-700/50 text-brand-300 text-xs font-medium mb-4">
+      <i class="fa-solid fa-terminal text-xs"></i>
+      {{ commands | length }} commands available
+    </div>
+    <h1 class="text-4xl font-bold text-white mb-3">Commands</h1>
+    <p class="text-slate-400 max-w-xl mx-auto">All Voicelink slash commands, organized by category. Click any command to see detailed usage.</p>
+  </div>
+
+  <!-- Search + filter bar -->
+  <div class="flex flex-col sm:flex-row gap-3 mb-8">
+    <div class="relative flex-1">
+      <i class="fa-solid fa-search absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+      <input id="cmd-search" type="text" placeholder="Search commands…"
+             class="w-full pl-9 pr-4 py-2.5 bg-surface-200 border border-surface-400 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition" />
+    </div>
+    <div id="category-tabs" class="flex flex-wrap gap-2">
+      <button class="category-btn active-tab btn btn-sm" data-category="all">All</button>
+      {% for cat in categories %}
+      <button class="category-btn btn btn-sm btn-ghost text-slate-400 hover:text-white" data-category="{{ cat.id }}">
+        <i class="fa-solid {{ cat.icon }} text-xs"></i> {{ cat.name }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Commands grid -->
+  <div id="commands-grid" class="space-y-10">
+    {% for cat in categories %}
+    <div class="category-section" data-category="{{ cat.id }}">
+      <!-- Category header -->
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-8 h-8 rounded-lg bg-{{ cat.color }}-500/15 flex items-center justify-center">
+          <i class="fa-solid {{ cat.icon }} text-{{ cat.color }}-400 text-sm"></i>
+        </div>
+        <div>
+          <h2 class="font-semibold text-white">{{ cat.name }}</h2>
+          <p class="text-xs text-slate-500">{{ cat.description }}</p>
+        </div>
+      </div>
+
+      <!-- Commands cards -->
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for cmd in cat.commands %}
+        <div class="command-card group p-4 rounded-xl bg-surface-200 border border-surface-400 hover:border-brand-600/60 hover:bg-surface-300 transition-all duration-200 cursor-pointer"
+             data-name="{{ cmd.name }}"
+             data-aliases="{{ cmd.aliases | join(',') }}"
+             onclick="openCommandModal({{ cmd | tojson }})">
+          <div class="flex items-start justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <span class="text-brand-400 font-mono font-semibold text-sm">/{{ cmd.name }}</span>
+              {% if cmd.new %}
+              <span class="badge badge-xs bg-green-500/20 text-green-400 border-green-500/30">NEW</span>
+              {% endif %}
+            </div>
+            {% if cmd.premium %}
+            <span class="badge badge-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30"><i class="fa-solid fa-star text-[8px]"></i> Pro</span>
+            {% endif %}
+          </div>
+          <p class="text-xs text-slate-400 leading-relaxed mb-3">{{ cmd.description }}</p>
+          <div class="flex items-center gap-3 text-xs text-slate-600">
+            {% if cmd.cooldown %}
+            <span class="flex items-center gap-1"><i class="fa-solid fa-clock text-[10px]"></i> {{ cmd.cooldown }}s</span>
+            {% endif %}
+            {% if cmd.permissions %}
+            <span class="flex items-center gap-1"><i class="fa-solid fa-lock text-[10px]"></i> {{ cmd.permissions }}</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+
+    <!-- No results -->
+    <div id="no-results" class="hidden text-center py-16 text-slate-500">
+      <i class="fa-solid fa-circle-xmark text-4xl mb-3 block opacity-30"></i>
+      <p class="font-medium">No commands found</p>
+      <p class="text-sm mt-1">Try a different search term</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Command Detail Modal ─────────────────────────────────── -->
+<dialog id="cmd-modal" class="modal">
+  <div class="modal-box bg-surface-200 border border-surface-400 max-w-lg">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 text-slate-400 hover:text-white">✕</button>
+    </form>
+    <div id="modal-content"></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button></button></form>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/commands.js"></script>
+{% endblock %}

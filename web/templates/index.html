@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<!-- ── Hero ───────────────────────────────────────────────────── -->
+<section class="relative overflow-hidden min-h-[88vh] flex items-center">
+  <!-- Background glow -->
+  <div class="absolute inset-0 pointer-events-none">
+    <div class="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-brand-700/20 rounded-full blur-[120px]"></div>
+    <div class="absolute top-1/3 left-1/4 w-[300px] h-[300px] bg-purple-900/20 rounded-full blur-[80px]"></div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 relative z-10 w-full">
+    <div class="grid lg:grid-cols-2 gap-16 items-center">
+      <!-- Left: Text -->
+      <div class="text-center lg:text-left">
+        <!-- Badge -->
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-900/60 border border-brand-700/50 text-brand-300 text-xs font-medium mb-6">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+          Now playing on {{ stats.servers | default(0) | format_number }} servers
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white mb-6 leading-[1.1]">
+          The music bot<br/>your server
+          <span class="bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent"> deserves</span>
+        </h1>
+
+        <p class="text-lg text-slate-400 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+          High-quality audio, real-time queue management, audio filters, and a beautiful web controller — all in one bot.
+        </p>
+
+        <div class="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+          <a href="https://discord.com/oauth2/authorize?client_id={{ config.CLIENT_ID }}&permissions=8&scope=bot%20applications.commands"
+             target="_blank"
+             class="btn btn-lg bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2 shadow-xl shadow-brand-900/50 hover:shadow-brand-700/50 transition-all duration-300">
+            <i class="fa-brands fa-discord text-lg"></i> Add to Discord
+          </a>
+          <a href="/commands"
+             class="btn btn-lg btn-outline border-surface-400 text-slate-300 hover:bg-surface-300 hover:border-surface-400 hover:text-white gap-2 transition-all duration-300">
+            <i class="fa-solid fa-terminal text-sm"></i> View Commands
+          </a>
+        </div>
+      </div>
+
+      <!-- Right: Player Card Preview -->
+      <div class="relative flex justify-center lg:justify-end">
+        <div class="w-full max-w-sm rounded-2xl bg-surface-200 border border-surface-400 shadow-2xl shadow-black/50 overflow-hidden">
+          <!-- Header -->
+          <div class="bg-gradient-to-r from-brand-800/60 to-purple-900/40 px-5 py-4 border-b border-surface-400">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
+                <div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>
+              </div>
+              <span class="text-xs text-slate-400 font-medium">Voicelink Player</span>
+            </div>
+          </div>
+
+          <!-- Album art + info -->
+          <div class="p-5">
+            <div class="flex gap-4 items-start mb-4">
+              <div class="relative flex-shrink-0">
+                <div class="w-16 h-16 rounded-xl bg-gradient-to-br from-brand-500 to-purple-700 flex items-center justify-center shadow-lg">
+                  <i class="fa-solid fa-music text-white text-xl"></i>
+                </div>
+                <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                  <i class="fa-solid fa-play text-white text-[8px]"></i>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-semibold text-white truncate">Blinding Lights</p>
+                <p class="text-sm text-slate-400 truncate">The Weeknd</p>
+                <div class="flex items-center gap-1 mt-1">
+                  <i class="fa-brands fa-spotify text-green-400 text-xs"></i>
+                  <span class="text-xs text-slate-500">Spotify</span>
+                </div>
+              </div>
+              <button class="text-brand-400 hover:text-brand-300 transition">
+                <i class="fa-solid fa-heart"></i>
+              </button>
+            </div>
+
+            <!-- Progress -->
+            <div class="mb-4">
+              <div class="h-1 bg-surface-400 rounded-full overflow-hidden mb-1.5">
+                <div class="h-full bg-gradient-to-r from-brand-500 to-purple-500 rounded-full w-[42%]"></div>
+              </div>
+              <div class="flex justify-between text-xs text-slate-500">
+                <span>1:47</span><span>4:22</span>
+              </div>
+            </div>
+
+            <!-- Waveform bars -->
+            <div class="flex items-end gap-0.5 h-8 mb-4">
+              {% for i in range(28) %}
+              <div class="waveform-bar flex-1 bg-brand-500/60 rounded-sm" style="animation-delay: {{ loop.index0 * 0.07 }}s"></div>
+              {% endfor %}
+            </div>
+
+            <!-- Controls -->
+            <div class="flex items-center justify-center gap-5 mb-4">
+              <button class="text-slate-500 hover:text-slate-300 transition"><i class="fa-solid fa-shuffle text-sm"></i></button>
+              <button class="text-slate-300 hover:text-white transition text-lg"><i class="fa-solid fa-backward-step"></i></button>
+              <button class="w-10 h-10 rounded-full bg-brand-600 hover:bg-brand-500 flex items-center justify-center text-white shadow-lg transition">
+                <i class="fa-solid fa-pause text-sm"></i>
+              </button>
+              <button class="text-slate-300 hover:text-white transition text-lg"><i class="fa-solid fa-forward-step"></i></button>
+              <button class="text-slate-500 hover:text-slate-300 transition"><i class="fa-solid fa-repeat text-sm"></i></button>
+            </div>
+
+            <!-- Queue preview -->
+            <div class="border-t border-surface-400 pt-3 space-y-2">
+              <p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Up next</p>
+              {% set preview = [("Save Your Tears", "The Weeknd"), ("Levitating", "Dua Lipa")] %}
+              {% for title, artist in preview %}
+              <div class="flex items-center gap-2 text-xs">
+                <div class="w-6 h-6 rounded bg-surface-400 flex items-center justify-center text-slate-400 flex-shrink-0">
+                  <i class="fa-solid fa-music text-[8px]"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-slate-300 truncate">{{ title }}</p>
+                  <p class="text-slate-500 truncate">{{ artist }}</p>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats Bar ──────────────────────────────────────────────── -->
+<section class="border-y border-surface-300 bg-surface-100/50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+      {% set stats_items = [
+        (stats.servers | default(0), 'Servers', 'fa-server', 'text-brand-400'),
+        (stats.songs_played | default(0), 'Songs Played', 'fa-music', 'text-green-400'),
+        (stats.users | default(0), 'Users', 'fa-users', 'text-blue-400'),
+        (stats.uptime | default('99.9%'), 'Uptime', 'fa-clock', 'text-yellow-400'),
+      ] %}
+      {% for value, label, icon, color in stats_items %}
+      <div class="group">
+        <div class="flex items-center justify-center gap-2 mb-1">
+          <i class="fa-solid {{ icon }} {{ color }} text-sm"></i>
+          <span class="text-2xl font-bold text-white">
+            {% if value is string %}{{ value }}{% else %}{{ value | format_number }}{% endif %}
+          </span>
+        </div>
+        <p class="text-xs text-slate-500 uppercase tracking-wider">{{ label }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ───────────────────────────────────────────────── -->
+<section class="py-20">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl sm:text-4xl font-bold text-white mb-4">Everything you need</h2>
+      <p class="text-slate-400 max-w-xl mx-auto">Packed with features to make your Discord listening experience the best it can be.</p>
+    </div>
+
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {% set features = [
+        ('fa-bolt', 'text-yellow-400', 'bg-yellow-500/10', 'Lightning Fast', 'Powered by Lavalink for minimal latency and crystal-clear 96kHz audio.'),
+        ('fa-sliders', 'text-brand-400', 'bg-brand-500/10', 'Audio Filters', 'Bass boost, nightcore, vaporwave, 8D, karaoke and many more filters.'),
+        ('fa-list', 'text-green-400', 'bg-green-500/10', 'Smart Queue', 'Drag-to-reorder, skip to any track, save playlists, and autoplay.'),
+        ('fa-globe', 'text-blue-400', 'bg-blue-500/10', 'Multi-Source', 'Play from YouTube, Spotify, SoundCloud, Apple Music, and more.'),
+        ('fa-computer', 'text-purple-400', 'bg-purple-500/10', 'Web Controller', 'Control the bot from a beautiful web dashboard — no Discord needed.'),
+        ('fa-shield-halved', 'text-red-400', 'bg-red-500/10', 'Permission Control', 'DJ role, channel locks, and per-guild settings for full control.'),
+      ] %}
+      {% for icon, color, bg, title, desc in features %}
+      <div class="group p-5 rounded-2xl bg-surface-200 border border-surface-400 hover:border-surface-500 hover:bg-surface-300 transition-all duration-300 hover:shadow-lg hover:shadow-black/30">
+        <div class="w-10 h-10 rounded-xl {{ bg }} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+          <i class="fa-solid {{ icon }} {{ color }}"></i>
+        </div>
+        <h3 class="font-semibold text-white mb-1.5">{{ title }}</h3>
+        <p class="text-sm text-slate-400 leading-relaxed">{{ desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ────────────────────────────────────────────────────── -->
+<section class="py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="relative rounded-3xl bg-gradient-to-br from-brand-800/60 to-purple-900/40 border border-brand-700/40 p-10 text-center overflow-hidden">
+      <div class="absolute inset-0 pointer-events-none">
+        <div class="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-40 bg-brand-600/20 blur-[60px] rounded-full"></div>
+      </div>
+      <h2 class="text-3xl font-bold text-white mb-3 relative">Ready to vibe?</h2>
+      <p class="text-slate-400 mb-6 relative">Add Voicelink to your server in seconds and start listening.</p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center relative">
+        <a href="https://discord.com/oauth2/authorize?client_id={{ config.CLIENT_ID }}&permissions=8&scope=bot%20applications.commands"
+           target="_blank"
+           class="btn btn-lg bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2 shadow-xl shadow-brand-900/50">
+          <i class="fa-brands fa-discord text-lg"></i> Invite Voicelink
+        </a>
+        <a href="https://discord.gg/support" target="_blank"
+           class="btn btn-lg btn-ghost text-slate-300 hover:text-white hover:bg-surface-400 gap-2">
+          <i class="fa-brands fa-discord"></i> Support Server
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .waveform-bar {
+    height: 30%;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+</style>
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Status{% endblock %}
+{% block description %}Live status of Voicelink bot — uptime, latency, and incidents.{% endblock %}
+
+{% block head %}
+<meta http-equiv="refresh" content="30" />
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+
+  <!-- Header -->
+  <div class="text-center mb-10">
+    <div class="w-14 h-14 rounded-2xl bg-green-500/15 flex items-center justify-center mx-auto mb-4">
+      <i class="fa-solid fa-signal text-green-400 text-2xl"></i>
+    </div>
+    <h1 class="text-4xl font-bold text-white mb-2">System Status</h1>
+    <p class="text-slate-400 text-sm">Auto-refreshes every 30 seconds · Last updated: <span class="text-slate-300">{{ now }}</span></p>
+  </div>
+
+  <!-- Overall status banner -->
+  {% if overall_status == 'operational' %}
+  <div class="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/30 mb-8">
+    <span class="w-3 h-3 rounded-full bg-green-500 animate-pulse flex-shrink-0"></span>
+    <div>
+      <p class="font-semibold text-green-300">All Systems Operational</p>
+      <p class="text-xs text-green-500/70">No issues detected across all services.</p>
+    </div>
+  </div>
+  {% elif overall_status == 'degraded' %}
+  <div class="flex items-center gap-3 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 mb-8">
+    <span class="w-3 h-3 rounded-full bg-yellow-500 flex-shrink-0"></span>
+    <div>
+      <p class="font-semibold text-yellow-300">Partial Degradation</p>
+      <p class="text-xs text-yellow-500/70">Some services are experiencing issues.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/30 mb-8">
+    <span class="w-3 h-3 rounded-full bg-red-500 flex-shrink-0"></span>
+    <div>
+      <p class="font-semibold text-red-300">Major Outage</p>
+      <p class="text-xs text-red-500/70">We are aware and working on a fix.</p>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Services grid -->
+  <div class="space-y-3 mb-10">
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Services</h2>
+    {% for svc in services %}
+    <div class="flex items-center justify-between p-4 rounded-xl bg-surface-200 border border-surface-400">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-surface-300 flex items-center justify-center">
+          <i class="fa-solid {{ svc.icon }} text-slate-400 text-sm"></i>
+        </div>
+        <div>
+          <p class="font-medium text-white text-sm">{{ svc.name }}</p>
+          <p class="text-xs text-slate-500">{{ svc.description }}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        {% if svc.latency %}
+        <span class="text-xs text-slate-500 font-mono">{{ svc.latency }}ms</span>
+        {% endif %}
+        {% if svc.status == 'operational' %}
+        <span class="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+          <span class="w-2 h-2 rounded-full bg-green-500"></span> Operational
+        </span>
+        {% elif svc.status == 'degraded' %}
+        <span class="flex items-center gap-1.5 text-xs text-yellow-400 font-medium">
+          <span class="w-2 h-2 rounded-full bg-yellow-500"></span> Degraded
+        </span>
+        {% else %}
+        <span class="flex items-center gap-1.5 text-xs text-red-400 font-medium">
+          <span class="w-2 h-2 rounded-full bg-red-500"></span> Outage
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Uptime chart -->
+  <div class="mb-10">
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Uptime – Last 90 Days</h2>
+    <div class="p-4 rounded-xl bg-surface-200 border border-surface-400">
+      <div class="flex items-end gap-0.5 h-10 mb-3">
+        {% for day in uptime_days %}
+        <div class="flex-1 rounded-sm transition-all hover:opacity-80 cursor-pointer group relative"
+             style="height: {{ day.pct }}%; min-height: 4px;"
+             title="{{ day.date }}: {{ day.pct }}%">
+          <div class="w-full h-full rounded-sm {% if day.pct >= 99 %}bg-green-500{% elif day.pct >= 95 %}bg-yellow-500{% else %}bg-red-500{% endif %}"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="flex justify-between text-xs text-slate-600">
+        <span>90 days ago</span>
+        <span class="font-semibold text-green-400">{{ overall_uptime }}% uptime</span>
+        <span>Today</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-3 gap-4 mb-10">
+    {% set stat_items = [
+      (stats.uptime, 'Uptime', 'text-green-400'),
+      (stats.discord_latency ~ 'ms', 'Discord Latency', 'text-blue-400'),
+      (stats.lavalink_latency ~ 'ms', 'Lavalink Latency', 'text-purple-400'),
+    ] %}
+    {% for value, label, color in stat_items %}
+    <div class="p-4 rounded-xl bg-surface-200 border border-surface-400 text-center">
+      <p class="text-2xl font-bold {{ color }} mb-1">{{ value }}</p>
+      <p class="text-xs text-slate-500">{{ label }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Incident history -->
+  <div>
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Recent Incidents</h2>
+    {% if incidents %}
+    <div class="space-y-3">
+      {% for inc in incidents %}
+      <div class="p-4 rounded-xl bg-surface-200 border border-surface-400">
+        <div class="flex items-start justify-between mb-2">
+          <h4 class="font-semibold text-white text-sm">{{ inc.title }}</h4>
+          <span class="badge badge-sm {% if inc.status == 'resolved' %}bg-green-500/20 text-green-400 border-green-500/30{% else %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30{% endif %}">
+            {{ inc.status | title }}
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 mb-2">{{ inc.description }}</p>
+        <p class="text-xs text-slate-600">{{ inc.date }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="p-8 rounded-xl bg-surface-200 border border-surface-400 text-center text-slate-500">
+      <i class="fa-solid fa-check-circle text-green-400 text-2xl mb-2 block"></i>
+      <p class="text-sm font-medium text-slate-300">No incidents in the past 90 days</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Voicelink{% endblock %} · Voicelink Bot</title>
+  <meta name="description" content="{% block description %}A powerful Discord music bot{% endblock %}" />
+
+  <!-- Tailwind + DaisyUI -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" />
+
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="/static/css/app.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#f0f0ff',
+              100: '#e0e0ff',
+              200: '#c4c6fe',
+              300: '#a29cfb',
+              400: '#8b75f7',
+              500: '#7c3aed',
+              600: '#6d28d9',
+              700: '#5b21b6',
+              800: '#4c1d95',
+              900: '#2e1065',
+            },
+            surface: {
+              0:   '#07070f',
+              50:  '#0d0d1a',
+              100: '#111120',
+              200: '#16162a',
+              300: '#1e1e35',
+              400: '#252540',
+              500: '#2e2e50',
+            },
+          },
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          animation: {
+            'wave': 'wave 1.5s ease-in-out infinite',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'slide-up': 'slideUp 0.3s ease-out',
+          },
+          keyframes: {
+            wave: { '0%,100%': { transform: 'scaleY(0.3)' }, '50%': { transform: 'scaleY(1)' } },
+            slideUp: { from: { opacity: 0, transform: 'translateY(10px)' }, to: { opacity: 1, transform: 'translateY(0)' } },
+          },
+        },
+      },
+    }
+  </script>
+
+  {% block head %}{% endblock %}
+</head>
+
+<body class="bg-surface-50 text-slate-200 font-sans min-h-screen flex flex-col antialiased">
+
+  <!-- ── Navigation ───────────────────────────────────────────── -->
+  <nav class="sticky top-0 z-50 border-b border-surface-300 bg-surface-0/80 backdrop-blur-xl">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+
+        <!-- Logo -->
+        <a href="/" class="flex items-center gap-2.5 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-lg shadow-brand-900/50 group-hover:shadow-brand-700/50 transition-all duration-300">
+            <i class="fa-solid fa-music text-white text-sm"></i>
+          </div>
+          <span class="font-bold text-lg tracking-tight text-white">Voice<span class="text-brand-400">link</span></span>
+        </a>
+
+        <!-- Desktop links -->
+        <div class="hidden md:flex items-center gap-1">
+          {% set nav_links = [
+            ('/', 'Home', 'fa-house'),
+            ('/dashboard', 'Dashboard', 'fa-chart-line'),
+            ('/player', 'Player', 'fa-circle-play'),
+            ('/commands', 'Commands', 'fa-terminal'),
+            ('/help', 'Help', 'fa-circle-question'),
+            ('/status', 'Status', 'fa-signal'),
+          ] %}
+          {% for href, label, icon in nav_links %}
+          <a href="{{ href }}"
+             class="nav-link flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-surface-300 transition-all duration-200 {% if request.url.path == href %}!text-white !bg-surface-300{% endif %}">
+            <i class="fa-solid {{ icon }} text-xs"></i>
+            {{ label }}
+          </a>
+          {% endfor %}
+        </div>
+
+        <!-- Auth section -->
+        <div class="flex items-center gap-3">
+          {% if user %}
+          <div class="dropdown dropdown-end">
+            <label tabindex="0" class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition">
+              <img src="{{ user.avatar_url }}" alt="{{ user.username }}" class="w-8 h-8 rounded-full ring-2 ring-brand-500" />
+              <span class="hidden sm:block text-sm font-medium text-slate-300">{{ user.username }}</span>
+              <i class="fa-solid fa-chevron-down text-xs text-slate-500"></i>
+            </label>
+            <ul tabindex="0" class="dropdown-content z-[1] menu p-2 shadow-xl bg-surface-300 rounded-xl border border-surface-400 w-48 mt-2">
+              <li><a href="/dashboard" class="text-sm"><i class="fa-solid fa-chart-line w-4"></i> Dashboard</a></li>
+              <li><a href="/player" class="text-sm"><i class="fa-solid fa-circle-play w-4"></i> Player</a></li>
+              <li class="border-t border-surface-400 mt-1 pt-1">
+                <a href="/logout" class="text-sm text-red-400 hover:text-red-300"><i class="fa-solid fa-right-from-bracket w-4"></i> Logout</a>
+              </li>
+            </ul>
+          </div>
+          {% else %}
+          <a href="/login" class="btn btn-sm btn-primary bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2 shadow-lg shadow-brand-900/40">
+            <i class="fa-brands fa-discord"></i> Login
+          </a>
+          {% endif %}
+
+          <!-- Mobile menu toggle -->
+          <label for="mobile-menu" class="md:hidden btn btn-sm btn-ghost">
+            <i class="fa-solid fa-bars"></i>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile drawer -->
+    <input id="mobile-menu" type="checkbox" class="hidden peer" />
+    <div class="peer-checked:block hidden md:hidden border-t border-surface-300 bg-surface-0 px-4 py-3 space-y-1">
+      {% for href, label, icon in nav_links %}
+      <a href="{{ href }}" class="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-white hover:bg-surface-300 transition-all">
+        <i class="fa-solid {{ icon }} w-4 text-center"></i> {{ label }}
+      </a>
+      {% endfor %}
+    </div>
+  </nav>
+
+  <!-- ── Flash messages ────────────────────────────────────────── -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="max-w-7xl mx-auto w-full px-4 pt-4 space-y-2">
+    {% for category, message in messages %}
+    <div class="alert alert-{{ 'success' if category == 'success' else 'error' if category == 'error' else 'info' }} animate-slide-up">
+      <i class="fa-solid {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-circle' if category == 'error' else 'fa-info-circle' }}"></i>
+      <span class="text-sm">{{ message }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+
+  <!-- ── Page content ──────────────────────────────────────────── -->
+  <main class="flex-1">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ── Footer ───────────────────────────────────────────────── -->
+  <footer class="border-t border-surface-300 bg-surface-0 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div class="col-span-2 md:col-span-1">
+          <a href="/" class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+              <i class="fa-solid fa-music text-white text-xs"></i>
+            </div>
+            <span class="font-bold text-white">Voicelink</span>
+          </a>
+          <p class="text-xs text-slate-500 leading-relaxed">A powerful, feature-rich Discord music bot built with Python and Lavalink.</p>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Bot</h4>
+          <ul class="space-y-2 text-sm text-slate-500">
+            <li><a href="/commands" class="hover:text-slate-300 transition">Commands</a></li>
+            <li><a href="/dashboard" class="hover:text-slate-300 transition">Dashboard</a></li>
+            <li><a href="/player" class="hover:text-slate-300 transition">Player</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Support</h4>
+          <ul class="space-y-2 text-sm text-slate-500">
+            <li><a href="/help" class="hover:text-slate-300 transition">Help Center</a></li>
+            <li><a href="/status" class="hover:text-slate-300 transition">Status</a></li>
+            <li><a href="https://discord.gg/invite" target="_blank" class="hover:text-slate-300 transition">Discord Server</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Links</h4>
+          <ul class="space-y-2 text-sm text-slate-500">
+            <li><a href="https://github.com" target="_blank" class="hover:text-slate-300 transition flex items-center gap-1.5"><i class="fa-brands fa-github text-xs"></i> GitHub</a></li>
+            <li><a href="/privacy" class="hover:text-slate-300 transition">Privacy Policy</a></li>
+            <li><a href="/terms" class="hover:text-slate-300 transition">Terms of Service</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="border-t border-surface-300 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-slate-600">&copy; 2026 Voicelink Bot. All rights reserved.</p>
+        <div class="flex items-center gap-4">
+          <a href="https://discord.gg/invite" target="_blank" class="text-slate-600 hover:text-brand-400 transition text-sm"><i class="fa-brands fa-discord"></i></a>
+          <a href="https://github.com" target="_blank" class="text-slate-600 hover:text-slate-400 transition text-sm"><i class="fa-brands fa-github"></i></a>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-600">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block animate-pulse"></span>
+          All systems operational
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── Global JS ─────────────────────────────────────────────── -->
+  <script>
+    // Active nav link highlight
+    document.querySelectorAll('.nav-link').forEach(link => {
+      if (link.getAttribute('href') === window.location.pathname) {
+        link.classList.add('!text-white', '!bg-surface-300');
+      }
+    });
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

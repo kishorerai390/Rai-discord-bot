@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block description %}Manage your Discord servers and music sessions.{% endblock %}
+
+{% block content %}
+{% if not user %}
+<!-- Not logged in -->
+<div class="min-h-[70vh] flex items-center justify-center">
+  <div class="text-center max-w-md px-4">
+    <div class="w-16 h-16 rounded-2xl bg-brand-500/15 flex items-center justify-center mx-auto mb-5">
+      <i class="fa-brands fa-discord text-brand-400 text-3xl"></i>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">Login Required</h1>
+    <p class="text-slate-400 text-sm mb-6">Log in with Discord to manage your servers and music sessions.</p>
+    <a href="/login" class="btn bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2">
+      <i class="fa-brands fa-discord"></i> Login with Discord
+    </a>
+  </div>
+</div>
+{% else %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-white">Welcome back, {{ user.username }} 👋</h1>
+      <p class="text-slate-400 text-sm mt-0.5">Manage your servers and music sessions below.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="px-3 py-1.5 rounded-lg bg-surface-300 border border-surface-400 text-xs text-slate-400 flex items-center gap-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+        {{ active_sessions }} active session{{ 's' if active_sessions != 1 else '' }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Global stats row -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+    {% set gstats = [
+      ('fa-server', 'text-brand-400', 'Servers', user.guild_count),
+      ('fa-music', 'text-green-400', 'Songs Played Today', global_stats.songs_today),
+      ('fa-clock', 'text-blue-400', 'Hours Listened', global_stats.hours_listened),
+      ('fa-heart', 'text-red-400', 'Saved Tracks', global_stats.saved_tracks),
+    ] %}
+    {% for icon, color, label, val in gstats %}
+    <div class="p-4 rounded-xl bg-surface-200 border border-surface-400">
+      <div class="flex items-center gap-2 mb-2">
+        <i class="fa-solid {{ icon }} {{ color }} text-sm"></i>
+        <span class="text-xs text-slate-500 uppercase tracking-wide font-medium">{{ label }}</span>
+      </div>
+      <p class="text-xl font-bold text-white">{{ val | format_number }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Active Sessions -->
+  {% if active_players %}
+  <div class="mb-10">
+    <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">
+      <i class="fa-solid fa-circle-play text-brand-400 mr-1.5"></i>Active Sessions
+    </h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for player in active_players %}
+      <div class="p-4 rounded-2xl bg-surface-200 border border-surface-400 hover:border-brand-600/50 transition-all duration-200">
+        <div class="flex items-center gap-3 mb-3">
+          <img src="{{ player.guild_icon }}" alt="{{ player.guild_name }}" class="w-10 h-10 rounded-xl" onerror="this.src='/static/img/default-guild.png'" />
+          <div class="flex-1 min-w-0">
+            <p class="font-semibold text-white text-sm truncate">{{ player.guild_name }}</p>
+            <p class="text-xs text-slate-500">{{ player.listeners }} listener{{ 's' if player.listeners != 1 else '' }}</p>
+          </div>
+          <span class="flex items-center gap-1 text-xs text-green-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Live
+          </span>
+        </div>
+
+        <!-- Now playing -->
+        <div class="bg-surface-300 rounded-xl p-3 mb-3">
+          <p class="text-xs text-slate-500 mb-1">Now Playing</p>
+          <p class="font-medium text-white text-sm truncate">{{ player.current_track.title }}</p>
+          <p class="text-xs text-slate-400 truncate">{{ player.current_track.author }}</p>
+          <!-- Progress bar -->
+          <div class="mt-2 h-1 bg-surface-500 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r from-brand-500 to-purple-500 rounded-full transition-all duration-1000"
+                 style="width: {{ player.progress_pct }}%"></div>
+          </div>
+          <div class="flex justify-between text-xs text-slate-600 mt-1">
+            <span>{{ player.position }}</span><span>{{ player.current_track.duration }}</span>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1">
+            <a href="/player?guild={{ player.guild_id }}" class="btn btn-xs btn-ghost text-slate-400 hover:text-white">
+              <i class="fa-solid fa-expand text-xs"></i> Open
+            </a>
+          </div>
+          <div class="flex items-center gap-1 text-xs text-slate-500">
+            {% if player.shuffle %}<i class="fa-solid fa-shuffle text-brand-400"></i>{% endif %}
+            {% if player.loop %}<i class="fa-solid fa-repeat text-brand-400"></i>{% endif %}
+            <i class="fa-solid fa-volume-high"></i> {{ player.volume }}%
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Servers -->
+  <div>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">
+        <i class="fa-solid fa-server text-brand-400 mr-1.5"></i>Your Servers
+      </h2>
+      <div class="relative">
+        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+        <input id="guild-search" type="text" placeholder="Filter servers…"
+               class="pl-8 pr-3 py-1.5 bg-surface-300 border border-surface-400 rounded-lg text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-brand-500 transition" />
+      </div>
+    </div>
+
+    <div id="guilds-grid" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      {% for guild in guilds %}
+      <div class="guild-card group flex items-center gap-3 p-3.5 rounded-xl bg-surface-200 border border-surface-400 hover:border-brand-600/50 hover:bg-surface-300 transition-all duration-200"
+           data-name="{{ guild.name | lower }}">
+        <img src="{{ guild.icon }}" alt="{{ guild.name }}" class="w-10 h-10 rounded-xl flex-shrink-0"
+             onerror="this.src='/static/img/default-guild.png'" />
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-white text-sm truncate">{{ guild.name }}</p>
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span>{{ guild.member_count | format_number }} members</span>
+            {% if guild.has_bot %}
+            <span class="text-green-400"><i class="fa-solid fa-check text-[10px]"></i> Active</span>
+            {% else %}
+            <span class="text-slate-600">No bot</span>
+            {% endif %}
+          </div>
+        </div>
+        {% if guild.has_bot %}
+        <a href="/dashboard/guild/{{ guild.id }}" class="flex-shrink-0 opacity-0 group-hover:opacity-100 transition">
+          <i class="fa-solid fa-chevron-right text-slate-500 text-xs"></i>
+        </a>
+        {% else %}
+        <a href="https://discord.com/oauth2/authorize?guild_id={{ guild.id }}&client_id={{ config.CLIENT_ID }}&permissions=8&scope=bot"
+           target="_blank"
+           class="flex-shrink-0 btn btn-xs btn-ghost text-brand-400 hover:text-brand-300 opacity-0 group-hover:opacity-100 transition text-xs">
+          Invite
+        </a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Guild search
+  const gs = document.getElementById('guild-search');
+  gs && gs.addEventListener('input', () => {
+    const q = gs.value.toLowerCase();
+    document.querySelectorAll('.guild-card').forEach(el => {
+      el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Player{% endblock %}
+{% block description %}Control your music session in real-time.{% endblock %}
+
+{% block content %}
+{% if not user %}
+<div class="min-h-[70vh] flex items-center justify-center">
+  <div class="text-center max-w-md px-4">
+    <div class="w-16 h-16 rounded-2xl bg-brand-500/15 flex items-center justify-center mx-auto mb-5">
+      <i class="fa-solid fa-circle-play text-brand-400 text-3xl"></i>
+    </div>
+    <h1 class="text-2xl font-bold text-white mb-2">Login Required</h1>
+    <p class="text-slate-400 text-sm mb-6">Log in with Discord to control your music session.</p>
+    <a href="/login" class="btn bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2">
+      <i class="fa-brands fa-discord"></i> Login with Discord
+    </a>
+  </div>
+</div>
+{% else %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Guild selector bar -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <select id="guild-select" class="select select-sm bg-surface-300 border-surface-400 text-slate-200 focus:border-brand-500 focus:ring-0 rounded-xl text-sm">
+        <option value="">Select a server…</option>
+        {% for g in guilds %}
+        <option value="{{ g.id }}" {% if g.id == selected_guild_id %}selected{% endif %}>{{ g.name }}</option>
+        {% endfor %}
+      </select>
+      <!-- Connection status badge -->
+      <div id="ws-status" class="flex items-center gap-1.5 text-xs text-slate-500 px-2 py-1 rounded-lg bg-surface-300 border border-surface-400">
+        <span id="ws-dot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+        <span id="ws-label">Disconnected</span>
+      </div>
+    </div>
+    <!-- Volume -->
+    <div class="hidden sm:flex items-center gap-2">
+      <i class="fa-solid fa-volume-low text-slate-500 text-sm"></i>
+      <input id="volume-slider" type="range" min="0" max="100" value="{{ player.volume | default(80) }}"
+             class="range range-xs range-primary w-24" />
+      <span id="volume-display" class="text-xs text-slate-400 w-8">{{ player.volume | default(80) }}%</span>
+    </div>
+  </div>
+
+  <div class="grid lg:grid-cols-5 gap-6">
+
+    <!-- ── Left: Now Playing ─────────────────────────────────── -->
+    <div class="lg:col-span-2 space-y-4">
+
+      <!-- Album art card -->
+      <div class="rounded-2xl bg-surface-200 border border-surface-400 overflow-hidden">
+        <!-- Art -->
+        <div class="relative aspect-square bg-gradient-to-br from-brand-800/60 to-purple-900/40 flex items-center justify-center" id="art-container">
+          <img id="track-art" src="{{ player.current.thumbnail | default('') }}" alt="Album art"
+               class="w-full h-full object-cover {% if not player.current.thumbnail %}hidden{% endif %}" />
+          <div id="art-placeholder" class="{% if player.current.thumbnail %}hidden{% endif %} text-center">
+            <i class="fa-solid fa-music text-brand-400/40 text-6xl mb-3"></i>
+            <p class="text-slate-600 text-sm">No track playing</p>
+          </div>
+          <!-- Playing pulse overlay -->
+          {% if player.is_playing %}
+          <div class="absolute inset-0 bg-black/20 flex items-end p-4">
+            <div class="flex items-end gap-0.5 h-6">
+              {% for _ in range(20) %}
+              <div class="waveform-bar flex-1 bg-white/50 rounded-sm" style="animation-delay: {{ loop.index0 * 0.08 }}s"></div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Track info -->
+        <div class="p-5">
+          <div class="flex items-start justify-between mb-1">
+            <div class="flex-1 min-w-0">
+              <p id="track-title" class="font-bold text-white text-lg truncate leading-tight">
+                {{ player.current.title | default('Nothing playing') }}
+              </p>
+              <p id="track-author" class="text-slate-400 text-sm truncate">
+                {{ player.current.author | default('') }}
+              </p>
+            </div>
+            <button id="like-btn" class="ml-3 text-slate-500 hover:text-red-400 transition text-lg flex-shrink-0">
+              <i class="fa-{% if player.current.liked %}solid{% else %}regular{% endif %} fa-heart"></i>
+            </button>
+          </div>
+
+          <!-- Source badge -->
+          {% if player.current.source %}
+          <div class="flex items-center gap-1.5 mb-4 text-xs text-slate-500">
+            <i class="fa-brands fa-{{ player.current.source }} text-{{ 'green' if player.current.source == 'spotify' else 'red' if player.current.source == 'youtube' else 'orange' }}-400"></i>
+            {{ player.current.source | title }}
+          </div>
+          {% endif %}
+
+          <!-- Progress -->
+          <div class="mb-4">
+            <div class="group relative h-1.5 bg-surface-400 rounded-full overflow-hidden cursor-pointer mb-1.5" id="progress-bar">
+              <div id="progress-fill"
+                   class="h-full bg-gradient-to-r from-brand-500 to-purple-500 rounded-full transition-all duration-1000"
+                   style="width: {{ player.progress_pct | default(0) }}%"></div>
+            </div>
+            <div class="flex justify-between text-xs text-slate-500">
+              <span id="position-display">{{ player.position | default('0:00') }}</span>
+              <span id="duration-display">{{ player.current.duration | default('0:00') }}</span>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="flex items-center justify-center gap-4 mb-4">
+            <button id="shuffle-btn" title="Shuffle"
+                    class="control-btn text-lg {% if player.shuffle %}text-brand-400{% else %}text-slate-500 hover:text-slate-300{% endif %} transition">
+              <i class="fa-solid fa-shuffle"></i>
+            </button>
+            <button id="prev-btn" title="Previous" class="control-btn text-2xl text-slate-300 hover:text-white transition">
+              <i class="fa-solid fa-backward-step"></i>
+            </button>
+            <button id="play-btn" title="Play / Pause"
+                    class="w-14 h-14 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 hover:from-brand-400 hover:to-brand-600 flex items-center justify-center text-white shadow-xl shadow-brand-900/60 hover:shadow-brand-700/60 transition-all duration-200 active:scale-95">
+              <i class="fa-solid {% if player.is_playing %}fa-pause{% else %}fa-play{% endif %} text-xl" id="play-icon"></i>
+            </button>
+            <button id="next-btn" title="Skip" class="control-btn text-2xl text-slate-300 hover:text-white transition">
+              <i class="fa-solid fa-forward-step"></i>
+            </button>
+            <button id="loop-btn" title="Loop"
+                    class="control-btn text-lg {% if player.loop %}text-brand-400{% else %}text-slate-500 hover:text-slate-300{% endif %} transition">
+              <i class="fa-solid fa-repeat"></i>
+            </button>
+          </div>
+
+          <!-- Mobile volume -->
+          <div class="flex sm:hidden items-center gap-2 mt-2">
+            <i class="fa-solid fa-volume-low text-slate-500 text-sm"></i>
+            <input type="range" min="0" max="100" value="{{ player.volume | default(80) }}"
+                   class="range range-xs range-primary flex-1" id="volume-slider-mobile" />
+            <span class="text-xs text-slate-400 w-8 text-right">{{ player.volume | default(80) }}%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audio Filters card -->
+      <div class="rounded-2xl bg-surface-200 border border-surface-400 p-4">
+        <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-brand-400"></i> Audio Filters
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          {% set filters = [
+            ('bass_boost', 'Bass Boost', 'fa-waveform-lines'),
+            ('nightcore', 'Nightcore', 'fa-star'),
+            ('vaporwave', 'Vaporwave', 'fa-cloud'),
+            ('8d', '8D Audio', 'fa-rotate'),
+            ('karaoke', 'Karaoke', 'fa-microphone'),
+            ('soft', 'Soft', 'fa-feather'),
+            ('pop', 'Pop', 'fa-music'),
+            ('treble', 'Treble Boost', 'fa-signal'),
+          ] %}
+          {% for fid, fname, ficon in filters %}
+          <button class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200
+                         {% if fid in (player.active_filters | default([])) %}bg-brand-600/30 border-brand-500 text-brand-300{% else %}bg-surface-300 border-surface-400 text-slate-400 hover:border-slate-500 hover:text-slate-300{% endif %}"
+                  data-filter="{{ fid }}">
+            <i class="fa-solid {{ ficon }} text-[10px]"></i> {{ fname }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Right: Queue ───────────────────────────────────────── -->
+    <div class="lg:col-span-3">
+      <div class="rounded-2xl bg-surface-200 border border-surface-400 h-full flex flex-col" style="max-height: 80vh;">
+
+        <!-- Queue header -->
+        <div class="flex items-center justify-between p-4 border-b border-surface-400">
+          <div class="flex items-center gap-2">
+            <h3 class="font-semibold text-white text-sm">Queue</h3>
+            <span class="badge badge-sm bg-surface-400 text-slate-400 border-0" id="queue-count">
+              {{ player.queue | length }} track{{ 's' if player.queue | length != 1 else '' }}
+            </span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="clear-queue-btn" title="Clear queue"
+                    class="btn btn-xs btn-ghost text-slate-500 hover:text-red-400">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Add to queue input -->
+        <div class="p-3 border-b border-surface-400">
+          <div class="flex gap-2">
+            <div class="relative flex-1">
+              <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+              <input id="add-track-input" type="text" placeholder="Add a song (title or URL)…"
+                     class="w-full pl-8 pr-3 py-2 bg-surface-300 border border-surface-400 rounded-lg text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-brand-500 transition" />
+            </div>
+            <button id="add-track-btn" class="btn btn-sm bg-brand-600 hover:bg-brand-500 border-brand-700 text-white px-3">
+              <i class="fa-solid fa-plus text-xs"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Queue list (Sortable) -->
+        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="queue-list">
+          {% if player.queue %}
+          {% for i, track in enumerate(player.queue) %}
+          <div class="queue-item group flex items-center gap-3 p-3 rounded-xl hover:bg-surface-300 transition-all duration-150 cursor-grab active:cursor-grabbing"
+               data-index="{{ i }}" data-id="{{ track.id }}">
+            <!-- Drag handle -->
+            <div class="flex-shrink-0 text-slate-600 group-hover:text-slate-400 transition opacity-0 group-hover:opacity-100">
+              <i class="fa-solid fa-grip-vertical text-xs"></i>
+            </div>
+            <!-- Position -->
+            <span class="flex-shrink-0 text-xs text-slate-600 w-5 text-center">{{ i + 1 }}</span>
+            <!-- Thumb -->
+            <div class="flex-shrink-0 w-9 h-9 rounded-lg bg-surface-400 overflow-hidden">
+              {% if track.thumbnail %}
+              <img src="{{ track.thumbnail }}" alt="" class="w-full h-full object-cover" />
+              {% else %}
+              <div class="w-full h-full flex items-center justify-center">
+                <i class="fa-solid fa-music text-slate-600 text-xs"></i>
+              </div>
+              {% endif %}
+            </div>
+            <!-- Info -->
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-white truncate font-medium">{{ track.title }}</p>
+              <p class="text-xs text-slate-500 truncate">{{ track.author }} · {{ track.duration }}</p>
+            </div>
+            <!-- Actions -->
+            <div class="flex-shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+              <button class="play-track-btn btn btn-xs btn-ghost text-slate-500 hover:text-white" data-index="{{ i }}" title="Play now">
+                <i class="fa-solid fa-play text-xs"></i>
+              </button>
+              <button class="remove-track-btn btn btn-xs btn-ghost text-slate-500 hover:text-red-400" data-index="{{ i }}" title="Remove">
+                <i class="fa-solid fa-xmark text-xs"></i>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div id="empty-queue" class="flex flex-col items-center justify-center py-16 text-center text-slate-600">
+            <i class="fa-solid fa-music text-4xl mb-3 opacity-20"></i>
+            <p class="font-medium text-slate-500">The queue is empty</p>
+            <p class="text-xs mt-1">Add a song above or use /play in Discord</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const GUILD_ID = "{{ selected_guild_id | default('') }}";
+  const WS_URL = "{{ ws_url | default('') }}";
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+<script src="/static/js/player.js"></script>
+<style>
+  .waveform-bar {
+    height: 20%;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+</style>
+{% endblock %}
