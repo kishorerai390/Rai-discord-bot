@@ -4532,8 +4532,15 @@ const _UNUSED_DEF = {
         }
       }
 
-      // Volume
-      document.getElementById('vol-slider').value = currentSession.volume || 80;
+      // Keep the footer and Settings sliders bound to the same live session volume.
+      const sessionVolume = Number(currentSession.volume);
+      const displayedVolume = Number.isFinite(sessionVolume) ? Math.max(0, Math.min(150, sessionVolume)) : 80;
+      const footerVolumeSlider = document.getElementById('vol-slider');
+      const settingsVolumeSlider = document.getElementById('settings-volume-slider');
+      const settingsVolumeLabel = document.getElementById('settings-volume-label');
+      if (footerVolumeSlider) footerVolumeSlider.value = String(displayedVolume);
+      if (settingsVolumeSlider) settingsVolumeSlider.value = String(displayedVolume);
+      if (settingsVolumeLabel) settingsVolumeLabel.textContent = `${displayedVolume}%`;
 
       updateScrubberTimes();
       updateDynamicTurntableAndVU();
@@ -4731,11 +4738,22 @@ const _UNUSED_DEF = {
     }
 
     async function onVolumeChange(val) {
-      const el = document.getElementById('vol-slider');
-      if (el) el.setAttribute('aria-valuenow', val);
+      const volume = Math.max(0, Math.min(150, Number.parseInt(val, 10) || 0));
+      const footerSlider = document.getElementById('vol-slider');
+      const settingsSlider = document.getElementById('settings-volume-slider');
+      const settingsLabel = document.getElementById('settings-volume-label');
+      if (footerSlider) {
+        footerSlider.value = String(volume);
+        footerSlider.setAttribute('aria-valuenow', String(volume));
+      }
+      if (settingsSlider) {
+        settingsSlider.value = String(volume);
+        settingsSlider.setAttribute('aria-valuenow', String(volume));
+      }
+      if (settingsLabel) settingsLabel.textContent = `${volume}%`;
       const icon = document.getElementById('vol-icon');
-      if (icon) icon.innerText = parseInt(val) === 0 ? '🔇' : (parseInt(val) < 50 ? '🔉' : '🔊');
-      await dispatchCmd('VOLUME', { volume: parseInt(val) });
+      if (icon) icon.innerText = volume === 0 ? '🔇' : (volume < 50 ? '🔉' : '🔊');
+      await dispatchCmd('VOLUME', { volume });
     }
 
     let previousVolumeBeforeMute = 80;
@@ -5565,7 +5583,7 @@ const _UNUSED_DEF = {
                       <div class="tonearm-bar"></div>
                       <div class="tonearm-head"></div>
                     </div>
-                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
+                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" onclick="togglePlayPause()" id="hero-play-btn" aria-label="Play or pause current track">
                       ${isPlaying && !isPaused ? '⏸' : '▶'}
                     </button>
                   </div>
@@ -7837,7 +7855,7 @@ const _UNUSED_DEF = {
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> 24/7 Voice Channel Stay Mode</li>
                   <li class="pricing-feature-item" style="color:var(--text-dim);"><span style="color:var(--text-dim); line-height:1;">✕</span> Anime Maid Voice DJ</li>
                 </ul>
-                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}">
+                <button class="pricing-btn pricing-btn-secondary ${!isUserSubscribed ? 'pricing-btn-current' : ''}" disabled aria-disabled="true" title="${!isUserSubscribed ? 'This is your current plan' : 'Free tier plan information'}">
                   ${!isUserSubscribed ? '✓ Your Current Plan' : 'Free Tier'}
                 </button>
               </div>
@@ -8610,7 +8628,7 @@ const _UNUSED_DEF = {
                   <div style="font-weight:700; color:#fff; font-size:0.92rem;">Illuminati</div>
                   <div style="font-size:0.75rem; color:var(--text-muted);">Sushin Shyam • Played 12 mins ago</div>
                 </div>
-                <button class="btn btn-secondary btn-sm">▶ Play Again</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); quickEnqueueMood('Illuminati Sushin Shyam')">▶ Play Again</button>
               </div>
 
               <div class="queue-row" style="cursor:pointer;" onclick="quickEnqueueMood('Hukum Jailer Anirudh')">
@@ -8739,12 +8757,12 @@ const _UNUSED_DEF = {
 
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; padding-bottom:1.2rem; border-bottom:1px solid rgba(255,255,255,0.06);">
               <div>
-                <div style="font-weight:700; color:#fff; font-size:1rem;">Default Playback Volume</div>
-                <div style="font-size:0.78rem; color:var(--text-muted);">Configure the baseline volume level for Discord audio output.</div>
+                <div style="font-weight:700; color:#fff; font-size:1rem;">Master Volume</div>
+                <div style="font-size:0.78rem; color:var(--text-muted);">Current volume for the active Discord music session. Changes sync with the player controls.</div>
               </div>
               <div style="display:flex; align-items:center; gap:0.8rem;">
-                <input type="range" class="slider-track" min="1" max="150" value="80" onchange="onVolumeChange(this.value)" style="width:140px;">
-                <span style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--cyan);">80%</span>
+                <input id="settings-volume-slider" type="range" class="slider-track" min="0" max="150" step="1" value="${Number.isFinite(Number(currentSession?.volume)) ? Number(currentSession.volume) : 80}" onchange="onVolumeChange(this.value)" style="width:140px;" aria-label="Master volume">
+                <span id="settings-volume-label" style="font-family:'JetBrains Mono',monospace; font-size:0.85rem; color:var(--cyan);">${Number.isFinite(Number(currentSession?.volume)) ? Number(currentSession.volume) : 80}%</span>
               </div>
             </div>
 
