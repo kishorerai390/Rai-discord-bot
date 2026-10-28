@@ -44,20 +44,21 @@ class RemHomeView(discord.ui.View):
     async def continue_playing(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.guild:
             return await interaction.response.send_message("Use this inside your server.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         player = interaction.guild.voice_client
         member = interaction.user
         if not getattr(member, "voice", None) or not member.voice.channel:
-            return await interaction.response.send_message("Join a voice channel first so I know where to play. 🎧", ephemeral=True)
+            return await interaction.followup.send("Join a voice channel first so I know where to play. 🎧", ephemeral=True)
         if player and player.channel.id != member.voice.channel.id:
-            return await interaction.response.send_message(f"I'm connected to {player.channel.mention}. Join that channel first, or ask me to move.", ephemeral=True)
+            return await interaction.followup.send(f"I'm connected to {player.channel.mention}. Join that channel first, or ask me to move.", ephemeral=True)
         if player is None:
-            return await interaction.response.send_message("No saved session is active right now. Use Search for a song or /play to start music. 💜", ephemeral=True)
+            return await interaction.followup.send("No saved session is active right now. Use Search for a song or /play to start music. 💜", ephemeral=True)
         if player.is_paused:
             await player.set_pause(False, member)
         elif not player.is_playing:
             await player.do_next()
         await player.invoke_controller()
-        await interaction.response.send_message("You're back in, let's play! 🎶", ephemeral=True)
+        await interaction.followup.send("You're back in, let's play! 🎶", ephemeral=True)
 
     @discord.ui.button(label="Search for a song", emoji="🔎", style=discord.ButtonStyle.primary)
     async def search_song(self, interaction: discord.Interaction, button: discord.ui.Button):
