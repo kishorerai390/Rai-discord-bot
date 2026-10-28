@@ -20,7 +20,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
   <meta name="description" content="Rem is an anime-inspired AI DJ and 24/7 lossless music companion for Discord with interactive web player, all 41 integrated bot commands, smart suggestions, synced karaoke lyrics, 10-band equalizer, and drag-and-drop queues.">
   <meta property="og:title" content="Rem 🎧💜 — Your Anime Music Companion">
   <meta property="og:description" content="Lossless 320kbps audio, 41 bot commands integrated, instant web track search, synced karaoke lyrics, and audio DSP filters.">
-  <meta property="og:image" content="/public/musicmaid_avatar.jpg">
+  <meta property="og:image" content="/public/rem_avatar_static.png">
   <meta property="theme-color" content="#9333ea">
   <link rel="icon" type="image/png" href="/public/icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">

@@ -332,6 +332,13 @@ class RaiCommunityOSServer:
         """Render the official Contact Us support and grievance page."""
         return web.Response(text=CONTACT_US_HTML, content_type="text/html")
 
+    async def handle_service_worker(self, request: web.Request) -> web.Response:
+        """Serve official PWA service worker script."""
+        sw_path = Path(__file__).resolve().parent.parent / "public" / "sw.js"
+        if sw_path.exists():
+            return web.Response(text=sw_path.read_text(encoding="utf-8"), content_type="application/javascript")
+        return web.Response(status=404)
+
     async def handle_manifest(self, request: web.Request) -> web.Response:
         """Serve official PWA web app manifest."""
         manifest_path = Path(__file__).resolve().parent.parent / "public" / "manifest.json"
@@ -406,6 +413,7 @@ class RaiCommunityOSServer:
 
         # PWA & Assets
         app.router.add_get("/manifest.json", self.handle_manifest)
+        app.router.add_get("/sw.js", self.handle_service_worker)
         app.router.add_get("/icon.png", self.handle_icon)
         app.router.add_get("/favicon.ico", self.handle_icon)
 

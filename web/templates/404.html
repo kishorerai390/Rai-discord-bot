@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}404 – Not Found{% endblock %}
+
+{% block content %}
+<div class="min-h-[75vh] flex items-center justify-center text-center px-4">
+  <div>
+    <p class="text-8xl font-extrabold text-brand-500/30 mb-4 select-none">404</p>
+    <h1 class="text-2xl font-bold text-white mb-2">Page Not Found</h1>
+    <p class="text-slate-400 text-sm mb-8">The page you're looking for doesn't exist or has been moved.</p>
+    <div class="flex gap-3 justify-center">
+      <a href="/" class="btn bg-brand-600 hover:bg-brand-500 border-brand-700 text-white gap-2">
+        <i class="fa-solid fa-house text-xs"></i> Go Home
+      </a>
+      <a href="/help" class="btn btn-ghost text-slate-400 hover:text-white gap-2">
+        <i class="fa-solid fa-circle-question text-xs"></i> Help Center
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

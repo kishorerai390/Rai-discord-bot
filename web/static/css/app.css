@@ -1,0 +1,120 @@
+/* ── Voicelink – app.css ────────────────────────────────────── */
+
+/* Custom scrollbar */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #2e2e50; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #7c3aed60; }
+
+/* Waveform animation */
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50%       { transform: scaleY(1);   }
+}
+.waveform-bar {
+  transform-origin: bottom;
+  animation: wave 1.2s ease-in-out infinite;
+}
+
+/* Slide-up entrance */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.3s ease-out both; }
+
+/* Progress bar seek hover */
+#progress-bar { cursor: pointer; }
+#progress-bar:hover { height: 6px; transition: height 0.15s; }
+
+/* Queue drag ghost */
+.queue-item.sortable-ghost {
+  opacity: 0.4;
+  background: #252540;
+  border-radius: 0.75rem;
+}
+.queue-item.sortable-chosen { cursor: grabbing; }
+
+/* Active filter button */
+.filter-btn.active {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: #7c3aed;
+  color: #c4b5fd;
+}
+
+/* Command modal */
+#cmd-modal .modal-box {
+  background: #16162a;
+  border: 1px solid #252540;
+}
+
+/* DaisyUI overrides for dark theme */
+.btn-primary {
+  --btn-color: #7c3aed;
+  background-color: #7c3aed;
+  border-color: #6d28d9;
+  color: #fff;
+}
+.btn-primary:hover { background-color: #6d28d9; }
+
+/* Range slider */
+input[type="range"].range-primary::-webkit-slider-thumb { background: #7c3aed; }
+input[type="range"].range-primary::-moz-range-thumb     { background: #7c3aed; }
+
+/* Select styling */
+.select:focus { outline: none; box-shadow: 0 0 0 2px #7c3aed40; }
+
+/* Collapse DaisyUI dark overrides */
+.collapse-title { color: #e2e8f0; }
+.collapse-content { color: #94a3b8; }
+
+/* Badge overrides */
+.badge { font-size: 0.65rem; }
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, #1e1e35 25%, #252540 50%, #1e1e35 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* Toast notifications */
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 320px;
+}
+.toast-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #1e1e35;
+  border: 1px solid #252540;
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: slideUp 0.3s ease-out both;
+  font-size: 0.8125rem;
+  color: #e2e8f0;
+}
+.toast-item.success { border-left: 3px solid #22c55e; }
+.toast-item.error   { border-left: 3px solid #ef4444; }
+.toast-item.info    { border-left: 3px solid #7c3aed; }
+
+/* Responsive nav active */
+a.active-nav, a[aria-current="page"] {
+  color: #fff;
+  background: #252540;
+  border-radius: 0.5rem;
+}
+

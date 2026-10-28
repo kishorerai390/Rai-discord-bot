@@ -66,6 +66,62 @@ UI_HTML = r"""<!DOCTYPE html>
       --safe-right: env(safe-area-inset-right, 0px);
     }
 
+    /* COMPACT MINI DECK MODE & AUTOCOMPLETE STYLES */
+    body.compact-mini-mode {
+      --player-height: 64px !important;
+      --player-mobile-height: 56px !important;
+    }
+    body.compact-mini-mode footer.player-bar {
+      min-height: 64px !important;
+      padding: 0.35rem 1.4rem !important;
+    }
+    body.compact-mini-mode .player-tier-controls,
+    body.compact-mini-mode .player-tier-status,
+    body.compact-mini-mode .player-divider {
+      display: none !important;
+    }
+    body.compact-mini-mode .mini-mode-inline-controls {
+      display: flex !important;
+    }
+    body.compact-mini-mode .bar-idle-state {
+      display: none !important;
+    }
+    .mini-mode-inline-controls {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .autocomplete-dropdown {
+      position: absolute;
+      top: 104%;
+      left: 0;
+      right: 0;
+      background: #0f1322;
+      border: 1px solid rgba(147, 51, 234, 0.45);
+      border-radius: var(--radius-md);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.85);
+      z-index: 120;
+      padding: 0.4rem;
+      display: none;
+      flex-direction: column;
+      gap: 0.25rem;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+    .autocomplete-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.6rem;
+      padding: 0.5rem 0.7rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .autocomplete-item:hover {
+      background: rgba(147, 51, 234, 0.25);
+    }
+
     /* THEME OVERRIDES */
     html[data-theme="sakura"] {
       --bg-dark: #0d0612;
@@ -3529,7 +3585,14 @@ UI_HTML = r"""<!DOCTYPE html>
             <span class="bar-idle-state" id="bar-idle-state">Idle state: Search for music to get started</span>
           </div>
         </div>
-        <button class="btn-fav" id="bar-fav-btn" onclick="toggleCurrentFavorite()" title="Save to Favorites">♡</button>
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <div class="mini-mode-inline-controls">
+            <button class="p-btn" onclick="togglePlayPause()" style="width:34px; height:34px; font-size:0.9rem;" title="Play / Pause">⏯</button>
+            <button class="p-btn" onclick="dispatchCmd('SKIP')" style="width:30px; height:30px; font-size:0.8rem;" title="Skip">⏭</button>
+            <button class="p-btn" onclick="toggleMiniPlayerMode()" style="width:30px; height:30px; font-size:0.8rem;" title="Expand Deck">⤢</button>
+          </div>
+          <button class="btn-fav" id="bar-fav-btn" onclick="toggleCurrentFavorite()" title="Save to Favorites">♡</button>
+        </div>
       </div>
 
       <div class="player-divider"></div>
@@ -3582,6 +3645,7 @@ UI_HTML = r"""<!DOCTYPE html>
             <span id="vol-icon" onclick="quickMute()" style="cursor:pointer;" title="Mute / Unmute" aria-label="Toggle Audio Mute" role="button" tabindex="0">🔊</span>
             <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" role="slider" aria-label="Audio playback volume" aria-valuemin="0" aria-valuemax="150" aria-valuenow="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
           </div>
+          <button class="p-btn" id="btn-mini-mode" onclick="toggleMiniPlayerMode()" title="Toggle Compact Deck" aria-label="Toggle Mini Player Mode">🗗</button>
           <button class="p-btn" id="btn-fullscreen-player" onclick="toggleFullscreenPlayer()" title="Toggle Fullscreen" aria-label="Toggle Fullscreen Mode">⤢</button>
         </div>
       </div>
@@ -4646,6 +4710,12 @@ const _UNUSED_DEF = {
     // INITIALIZATION & REAL-TIME WEBSOCKET
     // =========================================================================
     document.addEventListener("DOMContentLoaded", async () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
+      if (localStorage.getItem('rem_mini_player') === '1') {
+        document.body.classList.add('compact-mini-mode');
+      }
       // Check for OAuth redirect query parameters & token pass-through
       const params = new URLSearchParams(window.location.search);
       const urlToken = params.get('token');
@@ -5782,10 +5852,12 @@ const _UNUSED_DEF = {
           if (typeof renderAuthBox === 'function') renderAuthBox(null);
           return;
         }
-          if (typeof renderAuthBox === 'function') renderAuthBox(null);
+
+        if (res.status === 429) {
+          const retryAfter = res.headers.get('Retry-After') || 3;
+          showToast(`⏳ Cooldown active: Please wait ${retryAfter}s before sending next command`, "warning");
           return;
         }
-
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.success) {
           const msg = json.data?.message || json.message || `Executed: ${action}`;
@@ -5905,6 +5977,159 @@ const _UNUSED_DEF = {
         document.exitFullscreen?.().catch(() => {});
         showToast("Exited Fullscreen Mode");
       }
+    }
+
+    function toggleMiniPlayerMode() {
+      const isCompact = document.body.classList.toggle('compact-mini-mode');
+      localStorage.setItem('rem_mini_player', isCompact ? '1' : '0');
+      showToast(isCompact ? "Switched to Compact Mini Deck 🗗" : "Expanded Master Deck ✦");
+    }
+
+    async function shareQueueToClipboard() {
+      if (!currentQueue || currentQueue.length === 0) {
+        showToast("Queue is currently empty! Add songs to share.", "warning");
+        return;
+      }
+      const guildParam = currentGuildId ? `?guild=${encodeURIComponent(currentGuildId)}` : '';
+      const shareUrl = `${window.location.origin}/dashboard${guildParam}#queue`;
+      const count = currentQueue.length;
+      const topTracks = currentQueue.slice(0, 3).map((t, i) => `${i + 1}. ${t.title}`).join('\n');
+      const shareText = `🎵 Rem Music Queue (${count} tracks)\n${topTracks}${count > 3 ? `\n...and ${count - 3} more` : ''}\n\nJoin & Listen Live: ${shareUrl}`;
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareText);
+          showToast(`🔗 Copied queue link & tracklist (${count} songs) to clipboard! ✦`);
+        } else {
+          prompt("Copy your Rem Queue Share Link:", shareText);
+        }
+      } catch (err) {
+        prompt("Copy your Rem Queue Share Link:", shareText);
+      }
+    }
+
+    function generateNowPlayingCard() {
+      const t = currentSession?.current_track;
+      if (!t) {
+        showToast("No active track playing to generate a card for!", "warning");
+        return;
+      }
+
+      showToast("🎨 Rendering luxury track card...", "info");
+      const canvas = document.createElement('canvas');
+      canvas.width = 800;
+      canvas.height = 420;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Dark luxury background gradient
+      const bgGrad = ctx.createLinearGradient(0, 0, 800, 420);
+      bgGrad.addColorStop(0, '#07060d');
+      bgGrad.addColorStop(0.5, '#120e22');
+      bgGrad.addColorStop(1, '#0b0916');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, 800, 420);
+
+      // Radial neon glow
+      const radial = ctx.createRadialGradient(200, 180, 20, 200, 180, 280);
+      radial.addColorStop(0, 'rgba(168, 85, 247, 0.28)');
+      radial.addColorStop(1, 'transparent');
+      ctx.fillStyle = radial;
+      ctx.fillRect(0, 0, 800, 420);
+
+      // Card border
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(16, 16, 768, 388);
+
+      // Branding Header
+      ctx.font = 'bold 22px Outfit, sans-serif';
+      ctx.fillStyle = '#a855f7';
+      ctx.fillText('Rem', 40, 56);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '500 14px Outfit, sans-serif';
+      ctx.fillText('• 24/7 Lossless Discord Music Player', 94, 56);
+
+      // Badge: 320kbps Opus
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
+      ctx.fillRect(630, 36, 130, 28);
+      ctx.strokeStyle = '#10b981';
+      ctx.strokeRect(630, 36, 130, 28);
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText('● 320kbps OPUS', 644, 55);
+
+      // Artwork box
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = t.thumbnail || '/public/rem_avatar_static.png';
+
+      const renderDetails = () => {
+        try {
+          ctx.save();
+          ctx.beginPath();
+          ctx.roundRect(40, 90, 180, 180, 16);
+          ctx.clip();
+          ctx.drawImage(img, 40, 90, 180, 180);
+          ctx.restore();
+        } catch (e) {
+          ctx.fillStyle = '#22193b';
+          ctx.fillRect(40, 90, 180, 180);
+        }
+
+        // Track title
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 28px Outfit, sans-serif';
+        const title = t.title.length > 28 ? t.title.substring(0, 26) + '...' : t.title;
+        ctx.fillText(title, 248, 140);
+
+        // Artist & server
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = '600 18px Outfit, sans-serif';
+        const artist = (t.artist || 'Unknown Artist');
+        ctx.fillText(artist, 248, 175);
+
+        // Server voice status
+        const vcName = currentSession?.voice_channel_name || 'Discord Voice';
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '14px Outfit, sans-serif';
+        ctx.fillText(`🔊 Streaming live in #${vcName}`, 248, 210);
+
+        // Scrubber bar on card
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.fillRect(40, 310, 720, 8);
+        const pct = trackDurationSeconds > 0 ? Math.min(1, playbackSeconds / trackDurationSeconds) : 0.45;
+        const barGrad = ctx.createLinearGradient(40, 0, 760, 0);
+        barGrad.addColorStop(0, '#a855f7');
+        barGrad.addColorStop(1, '#38bdf8');
+        ctx.fillStyle = barGrad;
+        ctx.fillRect(40, 310, 720 * pct, 8);
+
+        // Time labels
+        ctx.font = '13px monospace';
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillText(formatTime(playbackSeconds), 40, 340);
+        ctx.fillText(formatTime(trackDurationSeconds), 724, 340);
+
+        // Footer note
+        ctx.font = '12px Outfit, sans-serif';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText('Streamed with Rem AI Audio Engine • Web Control Deck', 40, 380);
+
+        // Trigger Download
+        try {
+          const a = document.createElement('a');
+          a.download = `rem-playing-${Date.now()}.png`;
+          a.href = canvas.toDataURL('image/png');
+          a.click();
+          showToast("✅ Downloaded your customized Rem Now Playing Card! ✦");
+        } catch (err) {
+          window.open(canvas.toDataURL('image/png'), '_blank');
+        }
+      };
+
+      img.onload = renderDetails;
+      img.onerror = renderDetails;
     }
 
     function showToast(msg, type = "success") {
@@ -8140,6 +8365,7 @@ const _UNUSED_DEF = {
             </div>
             <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
               <button class="btn btn-secondary btn-sm" onclick="dispatchCmd('SHUFFLE')" title="Shuffle Current Queue">🔀 Shuffle</button>
+              <button class="btn btn-secondary btn-sm" onclick="shareQueueToClipboard()" title="Share Current Queue Link & Tracklist">🔗 Share Queue</button>
               <button class="btn btn-secondary btn-sm" onclick="openPlaylistModal()" title="Save Current Queue to Server Library">💾 Save Playlist</button>
               <button class="btn btn-danger btn-sm" onclick="confirmClearQueue()" title="Clear All Tracks in Queue">🗑 Clear Queue</button>
             </div>
@@ -9721,6 +9947,7 @@ const _UNUSED_DEF = {
               <button class="btn btn-secondary btn-sm" onclick="toggleCurrentFavorite()">❤️ Favorite</button>
               <button class="btn btn-secondary btn-sm" onclick="openLyricsModal()">🎤 Lyrics</button>
               <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')">📜 View Queue (${currentQueue.length})</button>
+              <button class="btn btn-secondary btn-sm" onclick="generateNowPlayingCard()" title="Generate Stylized Track Card">🎨 Share Card</button>
               <button class="btn btn-secondary btn-sm" onclick="navigate('/audio')">🎛️ Equalizer</button>
             </div>
 
