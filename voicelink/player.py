@@ -62,11 +62,26 @@ from .utils import format_ms, dispatch_message
 if TYPE_CHECKING:
     from .ipc import IPCClient
 
+def _resolve_requested_voice_channel(
+    ctx: Union[commands.Context, Interaction],
+    channel: Optional[VoiceChannel] = None
+) -> Optional[VoiceChannel]:
+    if channel is not None:
+        return channel
+    voice_state = getattr(ctx, "author", None)
+    if voice_state is not None:
+        voice_state = getattr(voice_state, "voice", None)
+    else:
+        user = getattr(ctx, "user", None)
+        voice_state = getattr(user, "voice", None) if user else None
+
+    return getattr(voice_state, "channel", None) if voice_state else None
+
+
 async def connect_channel(ctx: Union[commands.Context, Interaction], channel: VoiceChannel = None):
     texts = await LangHandler.get_lang(ctx.guild.id, "voice.connection.noChannel", "voice.connection.noPermission")
-    try:
-        channel = channel or ctx.author.voice.channel if isinstance(ctx, commands.Context) else ctx.user.voice.channel
-    except:
+    channel = _resolve_requested_voice_channel(ctx, channel)
+    if not channel:
         raise VoicelinkException(texts[0])
 
     check = channel.permissions_for(ctx.guild.me)
