@@ -149,14 +149,11 @@ class Listeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voicelink_track_start(self, player: voicelink.Player, track, _):
-        """Announce only after Lavalink confirms the track has actually started."""
+        """Update the music controller to show the active Now Playing embed when a track starts."""
         try:
-            await player.context.send(
-                f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
-                f"(`{track.formatted_length}`)"
-            )
+            await player.invoke_controller()
         except Exception as e:
-            func.logger.warning(f"Could not announce started track in guild {player.guild.id}: {e}")
+            func.logger.warning(f"Could not update controller on track start in guild {player.guild.id}: {e}")
 
     @commands.Cog.listener()
     async def on_voicelink_track_end(self, player: voicelink.Player, track, _):
