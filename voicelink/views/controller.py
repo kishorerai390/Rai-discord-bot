@@ -304,8 +304,8 @@ class VolumeDown(ControlButton):
 
         value = value if (value := self.player.volume - 20) >= 0 else 0
         await self.player.set_volume(value, interaction.user)
-
-        await self.send(interaction, 'settings.actions.volumeSet', value, ephemeral=True)
+        # Update the existing controller instead of posting a new confirmation per click.
+        await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
 
 class VolumeMute(ControlButton):
     def __init__(self, **kwargs):
