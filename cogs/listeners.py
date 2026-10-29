@@ -170,9 +170,28 @@ class Listeners(commands.Cog):
     @commands.Cog.listener()
     async def on_voicelink_track_exception(self, player: voicelink.Player, track, error: dict):
         try:
+            # Automatic fallback: if YouTube stream extraction fails due to datacenter IP blocks,
+            # seamlessly recover using SoundCloud so playback continues uninterrupted!
+            if track and not getattr(track, "_recovered", False):
+                track._recovered = True
+                clean_title = re.sub(r'\(.*?\)|\[.*?\]', '', getattr(track, "title", "")).strip()
+                author = getattr(track, "author", "")
+                recovery_query = f"scsearch:{clean_title} {author}".strip() if clean_title else f"scsearch:{track.title}"
+                func.logger.info(f"[Recovery] Attempting stream recovery for '{track.title}' via SoundCloud: {recovery_query}")
+                try:
+                    alt_tracks = await player.get_tracks(recovery_query, requester=getattr(track, "requester", None))
+                    if alt_tracks:
+                        alt = alt_tracks[0] if isinstance(alt_tracks, list) else alt_tracks
+                        alt._recovered = True
+                        func.logger.info(f"[Recovery] Succeeded! Playing recovered track: {alt.title}")
+                        await player.play(alt)
+                        return
+                except Exception as rec_err:
+                    func.logger.warning(f"[Recovery] Failed for '{track.title}': {rec_err}")
+
             player._track_is_stuck = True
             await player.context.send(f"{error['message']} The next song will begin in the next 5 seconds.", delete_after=10)
-        except:
+        except Exception:
             pass
 
     @commands.Cog.listener()

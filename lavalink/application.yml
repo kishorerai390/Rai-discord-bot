@@ -40,6 +40,14 @@ lavalink:
 plugins:
   youtube:
     enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - "TVHTML5EMBEDDED"
+      - "ANDROID_TESTSUITE"
+      - "MUSIC"
+      - "WEB"
     oauth:
       enabled: false
 
