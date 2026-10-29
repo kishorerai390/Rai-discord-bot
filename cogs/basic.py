@@ -318,7 +318,7 @@ class Basic(commands.Cog):
                 await send_localized_message(interaction, "player.playback.playlistLoad", tracks.name, index)
             else:
                 position = await player.add_track(tracks[0])
-                await announce_track(ctx, tracks[0], queued=position >= 1 and player.is_playing)
+                await announce_track(interaction, tracks[0], queued=position >= 1 and player.is_playing)
         finally:
             if not player.is_playing:
                 await player.do_next()
