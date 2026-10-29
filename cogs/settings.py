@@ -331,6 +331,21 @@ class Settings(commands.Cog, name="settings"):
         }}})
         await send_localized_message(ctx, "songRequest.channelCreated", channel.mention)
 
+    @settings.command(name="bind")
+    @app_commands.describe(channel="Restrict music bot commands exclusively to this text channel.")
+    @commands.check(owner_or_manage_guild)
+    async def bind(self, ctx: commands.Context, channel: discord.TextChannel):
+        "Lock Rem commands to a specific channel to prevent chat spam."
+        await MongoDBHandler.update_settings(ctx.guild.id, {"$set": {'bound_channel_id': channel.id}})
+        await dispatch_message(ctx, f"🔒 **Channel Shield Active**: Rem commands are now restricted to {channel.mention}!")
+
+    @settings.command(name="unbind")
+    @commands.check(owner_or_manage_guild)
+    async def unbind(self, ctx: commands.Context):
+        "Remove channel restriction so Rem commands work in all permitted channels."
+        await MongoDBHandler.update_settings(ctx.guild.id, {"$unset": {'bound_channel_id': None}})
+        await dispatch_message(ctx, "🔓 **Channel Shield Removed**: Rem commands can now be used in any permitted channel.")
+
     @settings.command(name="reset", aliases=get_aliases("reset"))
     @app_commands.describe(setting="Which setting to restore to defaults.")
     @app_commands.choices(setting=[

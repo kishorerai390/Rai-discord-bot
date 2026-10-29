@@ -3917,6 +3917,10 @@ UI_HTML = r"""<!DOCTYPE html>
       { id: '247', cmd: '/music 247', title: '/music 247', desc: 'Keep Rem permanently inside voice channel 24/7', cat: 'voice', action: '247' },
       { id: 'connect', cmd: '/music connect', title: '/music connect', desc: 'Summon Rem into your current or selected voice channel', cat: 'voice', action: 'connect' },
       { id: 'leave', cmd: '/music leave', title: '/music leave', desc: 'Safely disconnect Rem from voice channel', cat: 'voice', action: 'leave' },
+      { id: 'soundboard', cmd: '/soundboard <sound>', title: '/soundboard', desc: 'Trigger instant anime and meme voice SFX (tuturu, bruh, wow, airhorn)', cat: 'voice', action: 'soundboard' },
+      { id: 'aidj', cmd: '/aidj [on|off]', title: '/aidj', desc: 'Toggle Rem AI Anime DJ Companion live commentary & track announcements', cat: 'playback', action: 'aidj' },
+      { id: 'bind', cmd: '/settings bind #channel', title: '/settings bind', desc: 'Lock Rem commands exclusively to a designated music channel', cat: 'voice', action: 'bind' },
+      { id: 'unbind', cmd: '/settings unbind', title: '/settings unbind', desc: 'Remove channel lock and allow Rem commands across all permitted channels', cat: 'voice', action: 'unbind' },
       { id: 'soundboard', cmd: '/soundboard', title: '/soundboard', desc: 'Trigger instant voice soundboard effects (Airhorn, Wow...)', cat: 'voice', action: 'soundboard' },
       { id: 'sleeptimer', cmd: '/sleeptimer', title: '/sleeptimer', desc: 'Fade volume and disconnect after bedtime timer', cat: 'voice', action: 'sleep' },
       { id: 'ping', cmd: '/music ping', title: '/music ping', desc: 'Test Gateway and Lavalink latency in milliseconds', cat: 'voice', action: 'ping' },
@@ -4095,6 +4099,21 @@ UI_HTML = r"""<!DOCTYPE html>
           break;
         case 'leave':
           dispatchCmd('LEAVE_VOICE');
+          break;
+        case 'soundboard':
+          closeCommandsModal();
+          navigate('/soundboard');
+          break;
+        case 'aidj':
+          showToast("Toggling AI Anime DJ Mode... 🌸");
+          dispatchCmd('AUTODJ_TOGGLE');
+          closeCommandsModal();
+          break;
+        case 'bind':
+        case 'unbind':
+          showToast("Configure Channel Shield in Server Settings ⚙️");
+          closeCommandsModal();
+          navigate('/settings');
           break;
         case 'volume': {
           const v = prompt("Enter volume (0 - 150%):", (currentSession?.volume || 80).toString());
@@ -6368,7 +6387,7 @@ const _UNUSED_DEF = {
       } else if (path === '/settings') {
         document.getElementById('nav-settings')?.classList.add('active');
         renderSettings();
-      } else if (path === '/system' || path === '/health-ui') {
+      } else if (path === '/system' || path === '/health-ui' || path === '/status') {
         document.getElementById('nav-system')?.classList.add('active');
         renderSystemHealth();
       } else if (path === '/premium') {

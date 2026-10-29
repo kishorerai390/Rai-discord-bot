@@ -882,6 +882,22 @@ class CommandCheck(discord.app_commands.CommandTree):
             if not channel_perm.read_messages or not channel_perm.send_messages:
                 await interaction.response.send_message("I don't have permission to read or send messages in this channel.", ephemeral=True)
                 return False
+
+            # Channel Shield / Bound Channel enforcement
+            try:
+                settings = await MongoDBHandler.get_settings(interaction.guild.id)
+                bound_id = settings.get("bound_channel_id")
+                if bound_id and interaction.channel_id != bound_id:
+                    # Always allow /settings commands so admins can unbind or manage
+                    cmd_name = interaction.command.qualified_name if interaction.command else ""
+                    if "settings" not in cmd_name:
+                        await interaction.response.send_message(
+                            f"🔒 Rem commands are locked to <#{bound_id}>! Please run your command there.",
+                            ephemeral=True
+                        )
+                        return False
+            except Exception:
+                pass
             
         return True
 
