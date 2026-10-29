@@ -22,6 +22,7 @@ SOFTWARE.
 """
 
 import re
+import asyncio
 import discord
 import voicelink
 
@@ -1185,6 +1186,129 @@ class Basic(commands.Cog):
         embed.set_thumbnail(url=bot_avatar)
         embed.set_footer(text="Rem 🎧💜 • Your Anime Music Companion", icon_url=bot_avatar)
         await dispatch_message(ctx, embed)
+
+    @commands.hybrid_command(name="radio", aliases=["station", "live"])
+    @app_commands.describe(station="Choose a 24/7 anime or lofi radio stream station.")
+    @app_commands.choices(station=[
+        app_commands.Choice(name="Lofi Girl Chill Beats ☕", value="lofi"),
+        app_commands.Choice(name="Tokyo Night Citypop 🌃", value="citypop"),
+        app_commands.Choice(name="Top Anime Openings & J-Rock 🌸", value="anime"),
+        app_commands.Choice(name="Synthwave & Retrowave 80s 🏎️", value="synthwave"),
+        app_commands.Choice(name="Piano & Ghibli Peace 🎹", value="piano"),
+    ])
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def radio(self, ctx: commands.Context, station: str = "lofi") -> None:
+        "Stream continuous 24/7 anime and lofi radio stations."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
+        stations = {
+            "lofi": ("Lofi Girl Chill Beats ☕", "https://www.youtube.com/watch?v=jfKfPfyJRdk"),
+            "citypop": ("Tokyo Night Citypop 🌃", "japanese city pop 80s radio live stream"),
+            "anime": ("Top Anime Openings & J-Rock 🌸", "anime openings radio live 24/7"),
+            "synthwave": ("Synthwave & Retrowave 80s 🏎️", "synthwave radio live 24/7"),
+            "piano": ("Piano & Ghibli Peace 🎹", "ghibli piano relaxing music live 24/7")
+        }
+
+        info = stations.get(station.lower(), stations["lofi"])
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            try:
+                player = await voicelink.connect_channel(ctx)
+            except Exception:
+                return await dispatch_message(ctx, "⚠️ Please join a voice channel first!")
+
+        tracks = await player.get_tracks(info[1], requester=ctx.author)
+        if not tracks:
+            tracks = await player.get_tracks(f"{station} radio stream live", requester=ctx.author)
+
+        if not tracks:
+            return await dispatch_message(ctx, f"⚠️ Unable to connect to radio station `{info[0]}`.")
+
+        track = tracks[0] if isinstance(tracks, list) else tracks
+        await player.add_track(track, at_font=True)
+        if not player.is_playing:
+            await player.do_next()
+
+        await dispatch_message(ctx, f"📻 **Rem Radio**: Now tuning into **{info[0]}** in {player.channel.mention}! 🌸")
+
+    @commands.hybrid_command(name="sleep", aliases=["timer", "bedtime"])
+    @app_commands.describe(minutes="Minutes until Rem automatically stops playback (e.g. 15, 30, 60).")
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def sleep(self, ctx: commands.Context, minutes: commands.Range[int, 1, 300] = 30) -> None:
+        "Sets a sleep timer to stop playback and disconnect with a gentle fade-out."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            return await dispatch_message(ctx, "⚠️ Rem is not currently playing in any voice channel!")
+
+        async def _sleep_worker(pl: voicelink.Player, duration: int):
+            await asyncio.sleep(max(1, (duration * 60) - 30))
+            for _ in range(3):
+                if not pl or not pl.is_connected:
+                    return
+                current_vol = getattr(pl, "volume", 100)
+                await pl.set_volume(max(10, current_vol - 25))
+                await asyncio.sleep(10)
+            if pl and pl.is_connected:
+                await pl.teardown()
+
+        asyncio.create_task(_sleep_worker(player, minutes))
+        await dispatch_message(ctx, f"🌙 **Bedtime Sleep Timer Active**: Rem will gently fade out and stop in **{minutes} minutes**. Sweet dreams! 🌸")
+
+    @commands.hybrid_command(name="vibe", aliases=["mood"])
+    @app_commands.describe(mood="Select or type a mood to auto-generate a queue (e.g. chill, phonk, gym, study, anime).")
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def vibe(self, ctx: commands.Context, mood: str = "anime") -> None:
+        "Auto-generates a tailored queue matching your vibe or mood."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
+        mood_queries = {
+            "anime": "Top Anime Openings J-Rock Hits playlist",
+            "chill": "Lofi Chill Hip Hop Study Beats mix",
+            "phonk": "Aggressive Brazilian Phonk Drift playlist",
+            "gym": "High Energy Phonk Hardstyle Workout mix",
+            "study": "Chilled Cow Lofi Study Session beats",
+            "night": "Japanese City Pop 80s Retro Night Drive",
+            "gaming": "Electronic High Energy Gaming Bass Boost mix"
+        }
+
+        query = mood_queries.get(mood.lower(), f"{mood} music mix playlist")
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            try:
+                player = await voicelink.connect_channel(ctx)
+            except Exception:
+                return await dispatch_message(ctx, "⚠️ Please join a voice channel first!")
+
+        tracks = await player.get_tracks(query, requester=ctx.author)
+        if not tracks:
+            return await dispatch_message(ctx, f"⚠️ Could not find tracks for vibe `{mood}`.")
+
+        if isinstance(tracks, list):
+            for t in tracks[:10]:
+                await player.add_track(t)
+            added_count = min(10, len(tracks))
+        else:
+            await player.add_track(tracks)
+            added_count = 1
+
+        if not player.is_playing:
+            await player.do_next()
+
+        await dispatch_message(ctx, f"🔮 **Rem Vibe Matcher**: Loaded **{added_count} tracks** for **'{mood.capitalize()}'** vibe in {player.channel.mention}! ✨")
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Basic(bot))

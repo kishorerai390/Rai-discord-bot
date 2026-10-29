@@ -167,3 +167,44 @@ def test_ui_contains_pass_aux_modal_and_10_band_eq():
     assert "Precision 10-Band Custom Equalizer" in UI_HTML
     assert "applyCustomEqSliders" in UI_HTML
     assert "resetCustomEqSliders" in UI_HTML
+
+
+@pytest.mark.asyncio
+async def test_radio_sleep_vibe_commands():
+    bot = MagicMock(spec=commands.Bot)
+    cog = Basic(bot)
+
+    ctx = MagicMock()
+    ctx.interaction = MagicMock()
+    ctx.interaction.response.is_done.return_value = False
+    ctx.defer = AsyncMock()
+    ctx.guild.id = 123456789
+
+    mock_channel = MagicMock(spec=discord.VoiceChannel)
+    mock_channel.mention = "#voice"
+    fake_player = MagicMock()
+    fake_player.channel = mock_channel
+    fake_player.is_playing = False
+    fake_player.get_tracks = AsyncMock(return_value=[MagicMock()])
+    fake_player.add_track = AsyncMock()
+    fake_player.do_next = AsyncMock()
+    ctx.guild.voice_client = fake_player
+
+    with pytest.MonkeyPatch.context() as m:
+        dispatch_mock = AsyncMock()
+        m.setattr("cogs.basic.dispatch_message", dispatch_mock)
+
+        # 1. Test /radio
+        await cog.radio.callback(cog, ctx, station="lofi")
+        dispatch_mock.assert_awaited()
+        assert "Lofi Girl" in dispatch_mock.await_args[0][1]
+
+        # 2. Test /vibe
+        await cog.vibe.callback(cog, ctx, mood="anime")
+        dispatch_mock.assert_awaited()
+        assert "Rem Vibe Matcher" in dispatch_mock.await_args[0][1]
+
+        # 3. Test /sleep
+        await cog.sleep.callback(cog, ctx, minutes=15)
+        dispatch_mock.assert_awaited()
+        assert "15 minutes" in dispatch_mock.await_args[0][1]
