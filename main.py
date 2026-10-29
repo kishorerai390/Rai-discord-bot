@@ -775,23 +775,9 @@ class Rem(commands.Bot):
         except Exception as e:
             func.logger.warning(f"Could not sync application commands: {e}")
 
-        # Health check HTTP server for Render web service
-        port = os.getenv("PORT")
-        if port:
-            try:
-                from aiohttp import web
-                health_app = web.Application()
-                async def health_handler(request):
-                    return web.Response(text="OK", status=200)
-                health_app.router.add_get("/", health_handler)
-                health_app.router.add_get("/api/health", health_handler)
-                runner = web.AppRunner(health_app)
-                await runner.setup()
-                site = web.TCPSite(runner, "0.0.0.0", int(port))
-                await site.start()
-                func.logger.info(f"Health check HTTP server running on port {port}")
-            except Exception as e:
-                func.logger.error(f"Failed to start health check HTTP server: {e}")
+        # Render's HTTP server is already started by _start_immediate_health_server()
+        # before Discord login. Do not bind PORT a second time here; duplicate
+        # listeners cause an 'address already in use' error on every startup.
 
     async def on_ready(self):
         func.logger.info("------------------")
