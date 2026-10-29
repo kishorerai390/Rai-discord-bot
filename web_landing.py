@@ -598,6 +598,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       background: rgba(255, 255, 255, 0.15);
       border-color: var(--accent-neon);
       transform: scale(1.08);
+      box-shadow: 0 6px 24px rgba(236, 72, 153, 0.65);
     }
 
     .deck-btn.play {

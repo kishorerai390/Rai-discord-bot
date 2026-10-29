@@ -667,11 +667,11 @@ class Player(VoiceProtocol):
             
         return await self._node.get_tracks(query, requester=requester, search_type=search_type)
 
-    async def connect(self, *, timeout: float, reconnect: bool, self_deaf: bool = True, self_mute: bool = False):
+    async def connect(self, *, timeout: float, reconnect: bool, self_deaf: bool = False, self_mute: bool = False):
         """Connects the player to a voice channel."""
         self._node._players[self.guild.id] = self
         self._is_connected = True
-        await self.guild.change_voice_state(channel=self.channel, self_deaf=True, self_mute=self_mute)
+        await self.guild.change_voice_state(channel=self.channel, self_deaf=self_deaf, self_mute=self_mute)
 
         if self.channel:
             self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) has been connected to {self.channel.name}({self.channel.id}).")
