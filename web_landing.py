@@ -1582,7 +1582,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
 
         <div class="turntable-visual">
           <div class="vinyl-disc" id="hero-vinyl">
-            <img src="/public/musicmaid_avatar.jpg" id="hero-thumb" alt="Track Art" onerror="this.src='/public/icon.png'">
+            <img src="/public/rem_avatar_static.png" id="hero-thumb" alt="Track Art" onerror="this.src='/public/icon.png'">
           </div>
 
           <div class="deck-meta">
@@ -1829,7 +1829,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
        ========================================================================= -->
   <div class="sticky-player-bar">
     <div class="sp-left">
-      <img src="/public/musicmaid_avatar.jpg" class="sp-thumb" id="sp-thumb" alt="Thumb" onerror="this.src='/public/icon.png'">
+      <img src="/public/rem_avatar_static.png" class="sp-thumb" id="sp-thumb" alt="Thumb" onerror="this.src='/public/icon.png'">
       <div>
         <span class="sp-title" id="sp-title">怪物 (Monster)</span>
         <span class="sp-artist" id="sp-artist">YOASOBI • 320kbps</span>
@@ -1884,16 +1884,16 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
 
     // Suggestions Database
     const trackDatabase = [
-      { id: "1", title: "怪物 (Monster)", artist: "YOASOBI", duration: 206, durText: "03:26", vibe: "anime", image: "/public/musicmaid_avatar.jpg", query: "YOASOBI Monster Beastars" },
+      { id: "1", title: "怪物 (Monster)", artist: "YOASOBI", duration: 206, durText: "03:26", vibe: "anime", image: "/public/rem_avatar_static.png", query: "YOASOBI Monster Beastars" },
       { id: "2", title: "Faded (Live Vocal Edition)", artist: "Alan Walker", duration: 212, durText: "03:32", vibe: "synthwave", image: "/public/musicmaid_banner.jpg", query: "Alan Walker Faded" },
       { id: "3", title: "新時代 (New Genesis)", artist: "Ado", duration: 226, durText: "03:46", vibe: "anime", image: "/public/login_hero.jpg", query: "Ado New Genesis One Piece Film Red" },
-      { id: "4", title: "KICK BACK", artist: "Kenshi Yonezu", duration: 193, durText: "03:13", vibe: "jrock", image: "/public/musicmaid_avatar.jpg", query: "Kenshi Yonezu KICK BACK Chainsaw Man" },
+      { id: "4", title: "KICK BACK", artist: "Kenshi Yonezu", duration: 193, durText: "03:13", vibe: "jrock", image: "/public/rem_avatar_static.png", query: "Kenshi Yonezu KICK BACK Chainsaw Man" },
       { id: "5", title: "Midnight Lo-Fi Coffee", artist: "Rem Beats & ChilledCow", duration: 165, durText: "02:45", vibe: "lofi", image: "/public/musicmaid_headphone_hero.jpg", query: "Lofi study beats relaxing" },
       { id: "6", title: "Drift Phonk Horizon", artist: "KSLV Noh & DVRST", duration: 178, durText: "02:58", vibe: "phonk", image: "/public/musicmaid_banner.jpg", query: "Drift Phonk High Bass Cyberpunk" },
       { id: "7", title: "Sparkle (Your Name OST)", artist: "RADWIMPS", duration: 417, durText: "06:57", vibe: "jrock", image: "/public/musicmaid_headphone_hero.jpg", query: "RADWIMPS Sparkle Your Name" },
       { id: "8", title: "Hukum (Thalaivar Alappara)", artist: "Anirudh Ravichander", duration: 206, durText: "03:26", vibe: "desi", image: "/public/musicmaid_banner.jpg", query: "Anirudh Ravichander Hukum Jailer" },
       { id: "9", title: "Renegades of Synth", artist: "Kavinsky & The Midnight", duration: 230, durText: "03:50", vibe: "synthwave", image: "/public/login_hero.jpg", query: "Synthwave 80s Cyberpunk Night Drive" },
-      { id: "10", title: "Kawaii Strawberry Jam", artist: "Snail's House", duration: 154, durText: "02:34", vibe: "kawaii", image: "/public/musicmaid_avatar.jpg", query: "Snails House Kawaii Future Bass" }
+      { id: "10", title: "Kawaii Strawberry Jam", artist: "Snail's House", duration: 154, durText: "02:34", vibe: "kawaii", image: "/public/rem_avatar_static.png", query: "Snails House Kawaii Future Bass" }
     ];
 
     // All 41 Integrated Bot Commands Directory
@@ -1954,7 +1954,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     let activeQueue = [
       { title: "Faded (Live Vocal Edition)", artist: "Alan Walker", dur: "03:32", thumb: "/public/musicmaid_banner.jpg", user: "@Kishore" },
       { title: "新時代 (New Genesis)", artist: "Ado", dur: "03:46", thumb: "/public/login_hero.jpg", user: "@AnimeDJ" },
-      { title: "KICK BACK", artist: "Kenshi Yonezu", dur: "03:13", thumb: "/public/musicmaid_avatar.jpg", user: "@VIP" },
+      { title: "KICK BACK", artist: "Kenshi Yonezu", dur: "03:13", thumb: "/public/rem_avatar_static.png", user: "@VIP" },
       { title: "Sparkle (Your Name OST)", artist: "RADWIMPS", dur: "06:57", thumb: "/public/musicmaid_headphone_hero.jpg", user: "@RemFan" }
     ];
 
@@ -2023,7 +2023,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       container.innerHTML = filtered.map(t => `
         <div class="sug-card">
           <div class="sug-thumb-wrap">
-            <img src="${t.image}" alt="${t.title}" onerror="this.src='/public/musicmaid_avatar.jpg'">
+            <img src="${t.image}" alt="${t.title}" onerror="this.src='/public/rem_avatar_static.png'">
             <span class="sug-dur-badge">${t.durText}</span>
           </div>
           <h4 class="sug-title" title="${t.title}">${t.title}</h4>
@@ -2056,7 +2056,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       if (matches.length > 0) {
         box.innerHTML = matches.map(m => `
           <div class="ac-item" onclick="selectAutocomplete('${m.title.replace(/'/g, "\\'")}', '${m.artist.replace(/'/g, "\\'")}', '${m.image}', '${m.durText}')">
-            <img src="${m.image}" alt="Thumb" onerror="this.src='/public/musicmaid_avatar.jpg'">
+            <img src="${m.image}" alt="Thumb" onerror="this.src='/public/rem_avatar_static.png'">
             <div>
               <div class="ac-item-title">${m.title}</div>
               <div class="ac-item-sub">${m.artist} • ${m.durText}</div>
@@ -2083,7 +2083,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
         return;
       }
       document.getElementById('autocomplete-box').classList.remove('show');
-      playSelectedTrack(val, 'Searched Track', '/public/musicmaid_avatar.jpg');
+      playSelectedTrack(val, 'Searched Track', '/public/rem_avatar_static.png');
       showToast(`Searching & playing "${val}" via Rem Audio Engine ⚡`, '🎵');
     }
 
@@ -2263,7 +2263,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     }
 
     function queueSelectedTrack(title, artist, dur, img) {
-      activeQueue.push({ title, artist, dur, thumb: img || '/public/musicmaid_avatar.jpg', user: '@WebUser' });
+      activeQueue.push({ title, artist, dur, thumb: img || '/public/rem_avatar_static.png', user: '@WebUser' });
       renderQueue();
       showToast(`Added "${title}" to collaborative queue! 📑`, '➕');
     }
@@ -2417,7 +2417,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
              ondrop="onDrop(event, ${idx})"
              ondragend="onDragEnd(event)">
           <span class="queue-drag-handle">⋮⋮</span>
-          <img src="${item.thumb}" class="queue-thumb" alt="Thumb" onerror="this.src='/public/musicmaid_avatar.jpg'">
+          <img src="${item.thumb}" class="queue-thumb" alt="Thumb" onerror="this.src='/public/rem_avatar_static.png'">
           <div class="queue-row-meta">
             <div class="queue-row-title">${item.title}</div>
             <div class="queue-row-sub">${item.artist} • ${item.user}</div>
