@@ -1504,7 +1504,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
 
       <div class="nav-links">
         <a href="#suggestions">✨ Suggestions</a>
-        <a href="#commands">⚡ Commands (41)</a>
+        <a href="#commands">⚡ Commands (43)</a>
         <a href="#equalizer">🎛️ Equalizer FX</a>
         <a href="#lyrics">🎤 Synced Lyrics</a>
         <a href="#queue">📑 Queue</a>
@@ -1545,7 +1545,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
             <span>⚡</span>
           </a>
           <a href="#commands" class="btn btn-secondary">
-            <span>Explore 41 Commands</span>
+            <span>Explore 43 Commands</span>
             <span>📖</span>
           </a>
           <button onclick="triggerSurpriseAutoDJ()" class="btn btn-secondary">
@@ -1678,7 +1678,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       <div class="commands-container">
         <div class="cmd-toolbar">
           <div class="cmd-filter-tabs">
-            <button class="cmd-tab-btn active" onclick="filterCommands('all')">All Commands (41)</button>
+            <button class="cmd-tab-btn active" onclick="filterCommands('all')">All Commands (43)</button>
             <button class="cmd-tab-btn" onclick="filterCommands('playback')">🎵 Playback (14)</button>
             <button class="cmd-tab-btn" onclick="filterCommands('dsp')">🎛️ Audio FX & DSP (10)</button>
             <button class="cmd-tab-btn" onclick="filterCommands('queue')">📑 Queue & Playlists (11)</button>
@@ -1945,7 +1945,9 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       { name: "/dj", args: "<role>", desc: "Assign Discord role with DJ queue and filter permissions.", cat: "settings", role: "admin", aliases: "setdj" },
       { name: "/settings setupchannel", args: "", desc: "Create dedicated #rem-song-requests channel with buttons.", cat: "settings", role: "admin", aliases: "bind" },
       { name: "/settings prefix", args: "<new_prefix>", desc: "Change bot message prefix for legacy text commands.", cat: "settings", role: "admin", aliases: "setprefix" },
-      { name: "/debug", args: "", desc: "Inspect live audio resolver latency, voice engine, and cookies.", cat: "settings", role: "everyone", aliases: "diag, ping" }
+      { name: "/debug", args: "", desc: "Inspect live audio resolver latency, voice engine, and cookies.", cat: "settings", role: "everyone", aliases: "diag, ping" },
+      { name: "/soundboard", args: "<sound>", desc: "Trigger instant anime/meme audio SFX (tuturu, bruh, anime wow, airhorn, vineboom, etc.) into voice.", cat: "dsp", role: "everyone", aliases: "sfx, sb" },
+      { name: "/aidj", args: "[on|off]", desc: "Toggle Rem's AI Anime DJ Companion mode with live track intros and commentary.", cat: "settings", role: "everyone", aliases: "remdj, animedj" }
     ];
 
     // Active Queue Data

@@ -7101,10 +7101,84 @@ const _UNUSED_DEF = {
     }
 
     function requestPassTheAux() {
-      showToast("🎵 Passed you the Aux cord! What are we listening to next?");
-      setTimeout(() => {
-        navigate('/search');
-      }, 350);
+      openPassTheAuxModal();
+    }
+
+    function openPassTheAuxModal() {
+      let modal = document.getElementById('pass-aux-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'pass-aux-modal';
+        modal.className = 'modal-backdrop';
+        modal.innerHTML = `
+          <div class="modal-card" style="max-width:540px; width:92%; background:rgba(18,18,28,0.95); border:1px solid rgba(168,85,247,0.4); box-shadow:0 12px 40px rgba(0,0,0,0.8), 0 0 25px rgba(168,85,247,0.3); border-radius:20px; padding:1.8rem; backdrop-filter:blur(24px); position:relative; animation:modalPopIn 0.25s cubic-bezier(0.16,1,0.3,1);">
+            <button onclick="closePassTheAuxModal()" style="position:absolute; top:1.2rem; right:1.2rem; background:rgba(255,255,255,0.08); border:none; color:#fff; width:32px; height:32px; border-radius:50%; font-size:1.1rem; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+            <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:0.5rem;">
+              <span style="font-size:1.8rem;">🔥</span>
+              <h2 style="font-size:1.4rem; font-weight:800; color:#fff; margin:0;">Pass The Aux — Room Listening Party</h2>
+            </div>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.2rem; line-height:1.5;">
+              You hold the server Aux cord! Drop a song directly to <strong>#1 Priority in Queue</strong>, or invite your friends to add tracks seamlessly.
+            </p>
+
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:1rem; margin-bottom:1.2rem;">
+              <div style="font-size:0.75rem; font-weight:700; color:var(--cyan); text-transform:uppercase; margin-bottom:0.5rem; letter-spacing:0.05em;">⚡ Instant Priority Queue</div>
+              <div style="display:flex; gap:0.5rem;">
+                <input type="text" id="aux-priority-input" placeholder="Enter song title or YouTube/Spotify URL..." style="flex:1; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:0.6rem 0.9rem; color:#fff; font-size:0.85rem; outline:none;" onkeydown="if(event.key==='Enter') submitAuxPriorityDrop()">
+                <button class="btn btn-primary btn-sm" onclick="submitAuxPriorityDrop()" style="font-weight:700; white-space:nowrap; padding:0.6rem 1rem;">Drop to #1 ⚡</button>
+              </div>
+            </div>
+
+            <div style="margin-bottom:1.2rem;">
+              <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:0.6rem; letter-spacing:0.05em;">🔥 Quick Party Drops (1-Tap Queue)</div>
+              <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('Top Anime Openings J-Rock Hits'); closePassTheAuxModal();" style="font-size:0.78rem;">🌸 Anime J-Rock</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('Aggressive Brazilian Phonk Drift'); closePassTheAuxModal();" style="font-size:0.78rem;">🏎️ Phonk Drift</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('Lofi Chill Hip Hop Study Beats'); closePassTheAuxModal();" style="font-size:0.78rem;">☕ Lofi Chill</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('Tamil Night Hits Anirudh AR Rahman'); closePassTheAuxModal();" style="font-size:0.78rem;">🌙 Tamil Hits</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickEnqueueMood('Electronic High Energy Gaming Bass Boost'); closePassTheAuxModal();" style="font-size:0.78rem;">⚡ EDM Bass</button>
+              </div>
+            </div>
+
+            <div style="display:flex; align-items:center; justify-content:space-between; padding-top:0.8rem; border-top:1px solid rgba(255,255,255,0.08);">
+              <span style="font-size:0.78rem; color:var(--text-muted);">Share room with friends:</span>
+              <button class="btn btn-secondary btn-sm" onclick="copyPartyRoomLink()" style="font-size:0.78rem; gap:0.35rem;">
+                <span>🔗</span> Copy Party Link
+              </button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+      }
+      modal.style.display = 'flex';
+      setTimeout(() => document.getElementById('aux-priority-input')?.focus(), 100);
+    }
+
+    function closePassTheAuxModal() {
+      const modal = document.getElementById('pass-aux-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function submitAuxPriorityDrop() {
+      const input = document.getElementById('aux-priority-input');
+      const val = input ? input.value.trim() : '';
+      if (!val) {
+        showToast("Please enter a track name or link!", "warning");
+        return;
+      }
+      actionPlayNext(val);
+      showToast("⚡ Dropped track directly into #1 Next in Queue!", "success");
+      closePassTheAuxModal();
+    }
+
+    function copyPartyRoomLink() {
+      const link = window.location.origin + '/dashboard';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(link);
+        showToast("Party link copied to clipboard! 📋", "success");
+      } else {
+        showToast("Party URL: " + link, "info");
+      }
     }
 
     async function triggerSelfHealingDoctor() {
@@ -9134,6 +9208,34 @@ const _UNUSED_DEF = {
               <div class="eq-chip ${currentSession?.eq_preset === 'Distortion FX' ? 'active' : ''}" onclick="dispatchCmd('FILTER', {preset:'distortion', name:'Distortion FX'})">💥 Distortion FX</div>
               <div class="eq-chip" onclick="dispatchCmd('FILTER', {preset:'flat', name:'Flat Pure'})">🚫 Clear All Filters</div>
             </div>
+
+            <!-- INTERACTIVE 10-BAND PARAMETRIC EQUALIZER -->
+            <div style="margin-top:2rem; padding:1.4rem; background:rgba(0,0,0,0.3); border-radius:16px; border:1px solid rgba(255,255,255,0.06);">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.2rem; flex-wrap:wrap; gap:0.5rem;">
+                <div>
+                  <h4 style="font-size:1.05rem; font-weight:700; color:#fff; display:flex; align-items:center; gap:0.4rem;">
+                    <span>🎚️</span> Precision 10-Band Custom Equalizer
+                  </h4>
+                  <p style="font-size:0.78rem; color:var(--text-muted); margin:0.2rem 0 0 0;">
+                    Tune individual frequency bands in real-time. Changes are pushed live to Lavalink Opus output.
+                  </p>
+                </div>
+                <div style="display:flex; gap:0.5rem;">
+                  <button class="btn btn-secondary btn-sm" onclick="resetCustomEqSliders()" style="font-size:0.75rem;">Reset Flat</button>
+                  <button class="btn btn-primary btn-sm" onclick="applyCustomEqSliders()" style="font-size:0.75rem;">Apply Custom EQ ⚡</button>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(75px, 1fr)); gap:1rem; text-align:center;">
+                ${['60Hz', '150Hz', '250Hz', '400Hz', '1kHz', '2.4kHz', '4kHz', '8kHz', '12kHz', '16kHz'].map((hz, idx) => `
+                  <div style="flex:1; min-width:60px; display:flex; flex-direction:column; align-items:center; gap:0.5rem; background:rgba(255,255,255,0.02); padding:0.8rem 0.4rem; border-radius:12px; border:1px solid rgba(255,255,255,0.04);">
+                    <span id="eq-val-${idx}" style="font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--cyan); font-weight:700;">0dB</span>
+                    <input type="range" class="slider-track" id="eq-band-${idx}" min="-12" max="12" value="0" step="1" orient="vertical" style="width:8px; height:90px; -webkit-appearance:slider-vertical;" oninput="document.getElementById('eq-val-${idx}').innerText = (this.value > 0 ? '+' : '') + this.value + 'dB'">
+                    <span style="font-size:0.72rem; color:var(--text-muted); font-weight:600;">${hz}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
           </div>
 
           <!-- SYNCHRONIZED LYRICS VIEWER -->
@@ -9150,6 +9252,27 @@ const _UNUSED_DEF = {
       `;
 
       if (t) fetchLiveLyrics();
+    }
+
+        function resetCustomEqSliders() {
+      for (let i = 0; i < 10; i++) {
+        const slider = document.getElementById('eq-band-' + i);
+        const label = document.getElementById('eq-val-' + i);
+        if (slider) slider.value = 0;
+        if (label) label.innerText = '0dB';
+      }
+      dispatchCmd('FILTER', { preset: 'flat', name: 'Flat Pure' });
+      showToast("Reset EQ bands to Flat Reference (0dB)");
+    }
+
+    function applyCustomEqSliders() {
+      const bands = [];
+      for (let i = 0; i < 10; i++) {
+        const slider = document.getElementById('eq-band-' + i);
+        bands.push(slider ? parseInt(slider.value, 10) : 0);
+      }
+      dispatchCmd('FILTER', { preset: 'custom', name: 'Custom 10-Band EQ', bands: bands });
+      showToast("Applied Custom 10-Band Equalizer! 🎚️", "success");
     }
 
     async function fetchLiveLyrics() {

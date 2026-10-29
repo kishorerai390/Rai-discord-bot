@@ -97,3 +97,73 @@ def test_branding_replaces_legacy_mm_logo():
     assert "dIFBwU7" not in cleaned
     assert cleaned == bot.user.display_avatar.url
 
+
+
+@pytest.mark.asyncio
+async def test_soundboard_command_plays_track():
+    bot = MagicMock(spec=commands.Bot)
+    cog = Basic(bot)
+
+    ctx = MagicMock()
+    ctx.interaction = MagicMock()
+    ctx.interaction.response.is_done.return_value = False
+    ctx.defer = AsyncMock()
+    ctx.guild.id = 123456789
+
+    mock_channel = MagicMock(spec=discord.VoiceChannel)
+    mock_channel.mention = "#general"
+    fake_player = MagicMock()
+    fake_player.channel = mock_channel
+    fake_player.is_playing = False
+    fake_player.get_tracks = AsyncMock(return_value=[MagicMock()])
+    fake_player.add_track = AsyncMock()
+    fake_player.do_next = AsyncMock()
+    ctx.guild.voice_client = fake_player
+
+    with pytest.MonkeyPatch.context() as m:
+        dispatch_mock = AsyncMock()
+        m.setattr("cogs.basic.dispatch_message", dispatch_mock)
+
+        await cog.soundboard.callback(cog, ctx, sound="tuturu")
+        ctx.defer.assert_awaited_once()
+        fake_player.get_tracks.assert_awaited_once()
+        fake_player.add_track.assert_awaited_once()
+        fake_player.do_next.assert_awaited_once()
+        dispatch_mock.assert_awaited_once()
+        assert "Tuturu~" in dispatch_mock.await_args[0][1]
+
+@pytest.mark.asyncio
+async def test_aidj_command_toggles_mode():
+    bot = MagicMock(spec=commands.Bot)
+    cog = Basic(bot)
+
+    ctx = MagicMock()
+    ctx.interaction = MagicMock()
+    ctx.interaction.response.is_done.return_value = False
+    ctx.defer = AsyncMock()
+    ctx.guild.id = 123456789
+
+    fake_player = MagicMock()
+    fake_player.ai_dj = False
+    ctx.guild.voice_client = fake_player
+
+    with pytest.MonkeyPatch.context() as m:
+        dispatch_mock = AsyncMock()
+        m.setattr("cogs.basic.dispatch_message", dispatch_mock)
+
+        await cog.aidj.callback(cog, ctx, mode="on")
+        assert fake_player.ai_dj is True
+        dispatch_mock.assert_awaited_once()
+        sent_embed = dispatch_mock.await_args[0][1]
+        assert "ENABLED" in sent_embed.title
+
+def test_ui_contains_pass_aux_modal_and_10_band_eq():
+    # Verify Pass the Aux Modal and priority drop
+    assert "openPassTheAuxModal" in UI_HTML
+    assert "Pass The Aux — Room Listening Party" in UI_HTML
+    assert "submitAuxPriorityDrop" in UI_HTML
+
+    # Verify 10-Band EQ sliders and helpers
+    assert "Precision 10-Band Custom Equalizer" in UI_HTML
+    assert "applyCustomEqSliders" in UI_HTML
+    assert "resetCustomEqSliders" in UI_HTML
