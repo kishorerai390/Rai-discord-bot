@@ -114,6 +114,8 @@ class Basic(commands.Cog):
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def connect(self, ctx: commands.Context, channel: discord.VoiceChannel = None) -> None:
         "Connect to a voice channel."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
         try:
             player = await voicelink.connect_channel(ctx, channel)
         except discord.errors.ClientException as exc:
@@ -330,7 +332,7 @@ class Basic(commands.Cog):
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def search(self, ctx: commands.Context, *, query: str, platform: str = Config().search_platform.name):
         "Searches your query and displays the results."
-        if isinstance(ctx, discord.Interaction) and not ctx.interaction.response.is_done():
+        if ctx.interaction and not ctx.interaction.response.is_done():
             await ctx.defer()
             
         player: voicelink.Player = ctx.guild.voice_client
@@ -419,6 +421,8 @@ class Basic(commands.Cog):
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def forceplay(self, ctx: commands.Context, *, query: str, start: str = "0", end: str = "0"):
         "Enforce playback using the given URL or query."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
         player: voicelink.Player = ctx.guild.voice_client
         if not player:
             player = await voicelink.connect_channel(ctx)
@@ -426,8 +430,6 @@ class Basic(commands.Cog):
         if not player.is_privileged(ctx.author):
             return await send_localized_message(ctx, "permissions.missingFunction", ephemeral=True)
         
-        if ctx.interaction:
-            await ctx.interaction.response.defer()
             
         tracks = await player.get_tracks(query, requester=ctx.author)
         if not tracks:

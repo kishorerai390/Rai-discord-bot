@@ -194,9 +194,11 @@ class RealtimeGateway:
         if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
             try:
                 for vc in self.bot.voice_clients:
-                    if hasattr(vc, "is_playing") and vc.is_playing():
+                    is_p = vc.is_playing() if callable(getattr(vc, "is_playing", None)) else getattr(vc, "is_playing", False)
+                    if is_p:
                         is_music_playing = True
-                        track_name = getattr(vc, "current_title", "Lossless Stream")
+                        curr = getattr(vc, "current", None)
+                        track_name = getattr(curr, "title", None) or getattr(vc, "current_title", "Lossless Stream")
                         if hasattr(vc, "channel") and hasattr(vc.channel, "members"):
                             non_bots = [m for m in vc.channel.members if not getattr(m, "bot", False)]
                             music_listeners = (music_listeners or 0) + len(non_bots)
@@ -317,15 +319,19 @@ class RealtimeGateway:
         if self.bot and hasattr(self.bot, "voice_clients") and self.bot.voice_clients:
             try:
                 for vc in self.bot.voice_clients:
-                    if hasattr(vc, "is_playing") and vc.is_playing():
+                    is_p = vc.is_playing() if callable(getattr(vc, "is_playing", None)) else getattr(vc, "is_playing", False)
+                    if is_p:
+                        curr = getattr(vc, "current", None)
+                        title = getattr(curr, "title", None) or getattr(vc, "current_title", "Lossless Hi-Fi Audio")
+                        artist = getattr(curr, "author", None) or "Rem 🎧💜"
                         listeners = len([m for m in getattr(vc.channel, "members", []) if not getattr(m, "bot", False)])
                         sessions.append({
                             "id": "session_music_live",
                             "type": "music",
                             "channel_name": getattr(vc.channel, "name", "Voice Channel"),
                             "icon": "🎧",
-                            "title": getattr(vc, "current_title", "Lossless Hi-Fi Audio"),
-                            "artist": "Rem 🎧💜",
+                            "title": title,
+                            "artist": artist,
                             "community": "Rem Realm",
                             "participants": f"{max(1, listeners)} listeners",
                             "participant_count": max(1, listeners),

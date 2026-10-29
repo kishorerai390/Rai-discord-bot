@@ -507,6 +507,19 @@ class Player(VoiceProtocol):
         await self.invoke_controller()
         await self.update_voice_status()
 
+        # Realtime Gateway telemetry broadcast to connected Web Dashboard & Frontends
+        try:
+            from web.realtime import RealtimeGateway
+            rt = RealtimeGateway.get_instance()
+            if rt:
+                self._bot.loop.create_task(rt.broadcast("MUSIC_UPDATED", {
+                    "guild_id": str(self.guild.id),
+                    "track": getattr(track, "title", None) if track else None,
+                    "action": "TRACK_START" if track else "IDLE",
+                }))
+        except Exception:
+            pass
+
         if self.is_ipc_connected:
             await self.send_ws({
                 "op": "trackUpdate", 

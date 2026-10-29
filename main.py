@@ -654,14 +654,17 @@ def _start_immediate_health_server():
         def log_message(self, *args):
             pass
 
+    global _IMMEDIATE_SERVER
     try:
         s = http.server.HTTPServer(("0.0.0.0", int(port)), _H)
+        _IMMEDIATE_SERVER = s
         t = threading.Thread(target=s.serve_forever, daemon=True)
         t.start()
         print(f"[HEALTH] Immediate HTTP health check server started on port {port}")
     except Exception as e:
         print(f"[HEALTH] Could not bind immediate health server on port {port}: {e}")
 
+_IMMEDIATE_SERVER = None
 _start_immediate_health_server()
 
 import aiohttp
@@ -775,23 +778,34 @@ class Rem(commands.Bot):
         except Exception as e:
             func.logger.warning(f"Could not sync application commands: {e}")
 
-        # Health check HTTP server for Render web service
-        port = os.getenv("PORT")
-        if port:
+        # Connect and launch Rai Community OS Web Platform (Frontend, Backend, and Bot bridge)
+        global _IMMEDIATE_SERVER
+        if _IMMEDIATE_SERVER:
             try:
-                from aiohttp import web
-                health_app = web.Application()
-                async def health_handler(request):
-                    return web.Response(text="OK", status=200)
-                health_app.router.add_get("/", health_handler)
-                health_app.router.add_get("/api/health", health_handler)
-                runner = web.AppRunner(health_app)
-                await runner.setup()
-                site = web.TCPSite(runner, "0.0.0.0", int(port))
-                await site.start()
-                func.logger.info(f"Health check HTTP server running on port {port}")
+                _IMMEDIATE_SERVER.shutdown()
+                _IMMEDIATE_SERVER.server_close()
+                func.logger.info("[HEALTH] Immediate startup HTTP server released for Rai Community OS handoff.")
             except Exception as e:
-                func.logger.error(f"Failed to start health check HTTP server: {e}")
+                func.logger.debug(f"[HEALTH] Temporary server shutdown notice: {e}")
+            _IMMEDIATE_SERVER = None
+
+        web_port = int(os.getenv("PORT", "8080"))
+        try:
+            from web.server import RaiCommunityOSServer
+            self.web_server = RaiCommunityOSServer(bot=self, db=getattr(self, "app_db", None), port=web_port)
+            await self.web_server.start()
+            self.app_db = getattr(self.web_server, "db", None)
+            func.logger.info(f"✦ Rai Community OS Platform & Music Web connected and online on port {web_port} ✦")
+        except Exception as e:
+            func.logger.error(f"Failed to start Rai Community OS Web Server on port {web_port}: {e}", exc_info=True)
+
+    async def close(self):
+        if hasattr(self, "web_server") and self.web_server:
+            try:
+                await self.web_server.stop()
+            except Exception:
+                pass
+        await super().close()
 
     async def on_ready(self):
         func.logger.info("------------------")

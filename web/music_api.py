@@ -105,37 +105,23 @@ class MusicApiRouter:
         return None
 
     async def _require_authenticated_user(self, request: web.Request) -> Dict[str, Any]:
-        """Ensure caller is signed in with a valid Discord session or fallback to guest listener identity."""
+        """Ensure caller is signed in with a valid Discord session."""
         user = await self._get_current_user(request)
         if not user:
-            # Seamless guest / web listener mode so all site buttons function properly
-            guest_uid = 1457380609641938981
-            return {
-                "user_id": guest_uid,
-                "id": guest_uid,
-                "username": "Web Listener",
-                "display_name": "Web Listener",
-                "is_guest": True,
-                "is_owner": False,
-                "is_admin": False,
-            }
+            raise web.HTTPUnauthorized(
+                text=json.dumps({"success": False, "error": {"code": "UNAUTHORIZED", "message": "Authentication required to interact with music."}}),
+                content_type="application/json",
+            )
         uid = user.get("user_id") or user.get("id")
         try:
             parsed_id = int(uid)
             user["user_id"] = parsed_id
             user["id"] = parsed_id
         except (ValueError, TypeError):
-            # Graceful fallback to guest listener
-            guest_uid = 1457380609641938981
-            return {
-                "user_id": guest_uid,
-                "id": guest_uid,
-                "username": "Web Listener",
-                "display_name": "Web Listener",
-                "is_guest": True,
-                "is_owner": False,
-                "is_admin": False,
-            }
+            raise web.HTTPUnauthorized(
+                text=json.dumps({"success": False, "error": {"code": "INVALID_USER_ID", "message": "Invalid user identity"}}),
+                content_type="application/json",
+            )
         return user
 
     async def _verify_guild_access(self, user: Dict[str, Any], guild_id: int) -> bool:
@@ -253,10 +239,10 @@ class MusicApiRouter:
                     vc = guild_obj.voice_client
 
             is_connected = False
-            if vc and hasattr(vc, "is_connected") and callable(vc.is_connected):
+            if vc and hasattr(vc, "is_connected"):
                 try:
-                    conn = vc.is_connected()
-                    is_connected = (conn is True) or (isinstance(conn, bool) and conn)
+                    conn = vc.is_connected() if callable(vc.is_connected) else vc.is_connected
+                    is_connected = bool(conn)
                 except Exception:
                     is_connected = False
 
@@ -405,6 +391,55 @@ class MusicApiRouter:
                                 })
             except Exception:
                 pass
+
+        # Live voicelink.Player on Discord bot instance
+        if not (session and session.current_track) and self.bot and hasattr(self.bot, "get_guild"):
+            g = self.bot.get_guild(guild_id)
+            if g and g.voice_client and getattr(g.voice_client, "current", None):
+                vl_player = g.voice_client
+                track = vl_player.current
+                total = int(track.length / 1000) if getattr(track, "length", None) else 0
+                elapsed = int(vl_player.position / 1000) if getattr(vl_player, "position", None) else 0
+                is_playing = bool(getattr(vl_player, "is_playing", False))
+                is_paused = bool(getattr(vl_player, "is_paused", False))
+                q_cnt = getattr(getattr(vl_player, "queue", None), "count", 0)
+
+                data = {
+                    "guild_id": str(guild_id),
+                    "state": "PLAYING" if is_playing else ("PAUSED" if is_paused else "IDLE"),
+                    "is_playing": is_playing,
+                    "is_paused": is_paused,
+                    "current_track": {
+                        "title": getattr(track, "title", "Lossless Audio"),
+                        "artist": getattr(track, "author", "Rem Artist") or "Rem Artist",
+                        "url": getattr(track, "uri", ""),
+                        "thumbnail": getattr(track, "thumbnail", None) or "/public/rem_avatar_static.png",
+                        "duration": total,
+                        "requester_id": str(track.requester.id) if getattr(track, "requester", None) else None,
+                        "requester_name": getattr(track.requester, "display_name", "Member") if getattr(track, "requester", None) else "Member",
+                    },
+                    "position_seconds": elapsed,
+                    "duration_seconds": total,
+                    "remaining_seconds": max(0, total - elapsed) if total > 0 else 0,
+                    "volume": getattr(vl_player, "volume", 100),
+                    "loop_mode": getattr(getattr(getattr(vl_player, "queue", None), "_repeat", None), "mode", None).name.lower() if hasattr(vl_player, "queue") else "off",
+                    "eq_preset": "Flat",
+                    "audio_filter": None,
+                    "queue_count": q_cnt,
+                    "history_count": 0,
+                    "auto_dj": getattr(vl_player, "autoplay", False),
+                    "twenty_four_seven": is_247_enabled,
+                    "voice_channel_id": str(vc_id) if vc_id else None,
+                    "voice_channel_name": vc_name,
+                    "channel_name": vc_name,
+                    "voice_status": voice_status,
+                    "listeners": voice_listeners,
+                    "listener_count": len(voice_listeners),
+                    "permissions": perms,
+                    "signature_symbol": "vr_headset",
+                }
+                data["session"] = {k: v for k, v in data.items() if k != "session"}
+                return json_success(data)
 
         # If in-memory session found
         if session and session.current_track:
@@ -560,6 +595,22 @@ class MusicApiRouter:
                     })
             except Exception:
                 pass
+
+        if not tracks and self.bot and hasattr(self.bot, "get_guild"):
+            g = self.bot.get_guild(guild_id)
+            if g and g.voice_client and hasattr(g.voice_client, "queue"):
+                vl_player = g.voice_client
+                queue_tracks = getattr(vl_player.queue, "tracks", [])
+                for i, t in enumerate(queue_tracks):
+                    tracks.append({
+                        "index": i,
+                        "title": getattr(t, "title", "Track"),
+                        "artist": getattr(t, "author", "Unknown"),
+                        "url": getattr(t, "uri", ""),
+                        "duration": int(t.length / 1000) if getattr(t, "length", None) else 0,
+                        "thumbnail": getattr(t, "thumbnail", None),
+                        "requester_name": getattr(t.requester, "display_name", "Member") if getattr(t, "requester", None) else "Member",
+                    })
 
         total_duration = sum(t["duration"] for t in tracks)
         return json_success({
@@ -1065,6 +1116,104 @@ class MusicApiRouter:
 
             except Exception as direct_err:
                 logger.debug(f"Direct dispatch note (delegating to worker): {direct_err}")
+
+        # If no dedicated SessionManager session, execute directly on bot's voicelink.Player
+        if self.bot and hasattr(self.bot, "get_guild"):
+            g = self.bot.get_guild(guild_id_int)
+            vl_player = g.voice_client if g else None
+            if vl_player and (hasattr(vl_player, "set_pause") or hasattr(vl_player, "current")):
+                try:
+                    if action == "PAUSE":
+                        await vl_player.set_pause(True)
+                        await self.db.mark_web_action_completed(action_id, {"status": "paused", "message": "Playback paused"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "PAUSED", "message": "Playback paused ⏸️"})
+
+                    elif action in ("RESUME", "PLAY"):
+                        await vl_player.set_pause(False)
+                        await self.db.mark_web_action_completed(action_id, {"status": "resumed", "message": "Playback resumed"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "PLAYING", "message": "Playback resumed ▶️"})
+
+                    elif action in ("SKIP", "NEXT"):
+                        await vl_player.stop()
+                        await self.db.mark_web_action_completed(action_id, {"status": "skipped", "message": "Skipped to next track"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "SKIPPED", "message": "Skipped track ⏭️"})
+
+                    elif action == "STOP":
+                        await vl_player.teardown()
+                        await self.db.mark_web_action_completed(action_id, {"status": "stopped", "message": "Playback stopped"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "STOPPED", "message": "Playback stopped ⏹️"})
+
+                    elif action == "VOLUME":
+                        vol = int(payload.get("volume", 100))
+                        await vl_player.set_volume(vol)
+                        await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "VOLUME_SET", "volume": vol, "message": f"Volume set to {vol}% 🔊"})
+
+                    elif action == "SEEK":
+                        target_s = int(payload.get("seconds", 0))
+                        await vl_player.seek(target_s * 1000)
+                        await self.db.mark_web_action_completed(action_id, {"status": "seeked", "position": target_s})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "SEEKED", "position": target_s, "message": f"Seeked to {target_s}s ⏱️"})
+
+                    elif action == "SHUFFLE":
+                        await vl_player.shuffle("tracks")
+                        await self.db.mark_web_action_completed(action_id, {"status": "shuffled", "message": "Queue shuffled"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "SHUFFLED", "message": "Queue shuffled 🔀"})
+
+                    elif action in ("LOOP", "LOOP_CYCLE"):
+                        mode = await vl_player.set_repeat()
+                        mode_str = mode.name.lower() if hasattr(mode, "name") else str(mode)
+                        await self.db.mark_web_action_completed(action_id, {"status": "loop_set", "mode": mode_str})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "LOOP_SET", "mode": mode_str, "message": f"Repeat mode: {mode_str} 🔁"})
+
+                    elif action == "CLEAR":
+                        if hasattr(vl_player, "queue"):
+                            vl_player.queue.clear()
+                        await self.db.mark_web_action_completed(action_id, {"status": "cleared"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "CLEARED", "message": "Queue cleared 🗑️"})
+
+                    elif action == "REMOVE":
+                        idx = int(payload.get("index", payload.get("position", 0)))
+                        if hasattr(vl_player, "queue") and hasattr(vl_player.queue, "tracks"):
+                            tracks_list = vl_player.queue.tracks
+                            if 0 <= idx < len(tracks_list):
+                                removed = tracks_list[idx]
+                                vl_player.queue._queue.remove(removed)
+                                await self.db.mark_web_action_completed(action_id, {"status": "removed", "title": getattr(removed, "title", "Track")})
+                                self._broadcast_music_update(str(guild_id_val), action)
+                                return json_success({"action_id": action_id, "action": action, "status": "REMOVED", "title": getattr(removed, "title", "Track"), "message": f"Removed '{getattr(removed, 'title', 'Track')}'"})
+
+                    elif action in ("ENQUEUE", "PLAY_NOW"):
+                        q_str = payload.get("query", "").strip()
+                        if q_str and hasattr(vl_player, "get_tracks"):
+                            tracks = await vl_player.get_tracks(q_str, requester=g.me)
+                            if tracks:
+                                trk = tracks[0] if isinstance(tracks, list) else tracks
+                                await vl_player.add_track(trk, at_front=(action == "PLAY_NOW"), duplicate=True)
+                                if not vl_player.is_playing:
+                                    await vl_player.do_next()
+                                title = getattr(trk, "title", q_str)
+                                await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": title})
+                                self._broadcast_music_update(str(guild_id_val), action)
+                                return json_success({"action_id": action_id, "action": action, "status": "ENQUEUED", "title": title, "message": f"Added '{title}' to queue ➕"})
+
+                    elif action in ("LEAVE_VOICE", "DISCONNECT", "LEAVE"):
+                        await vl_player.teardown()
+                        await self.db.mark_web_action_completed(action_id, {"status": "disconnected"})
+                        self._broadcast_music_update(str(guild_id_val), action)
+                        return json_success({"action_id": action_id, "action": action, "status": "DISCONNECTED", "message": "Disconnected Rem from voice channel 👋"})
+
+                except Exception as vl_err:
+                    logger.warning(f"[VoiceLink Bridge] Action {action} direct execution notice: {vl_err}")
 
         return json_success({"action_id": action_id, "action": action, "status": "QUEUED"})
 
