@@ -50,6 +50,12 @@ class Listeners(commands.Cog):
                 func.logger.info(f'Node [{ident}] is connected!')
                 break
             except Exception as e:
+                error_text = str(e).lower()
+                # Authentication failures are configuration errors, not transient outages.
+                # Stop retrying immediately so a bad password cannot hammer the node.
+                if any(marker in error_text for marker in ("invalid password", "unauthorized", "authentication failed", "http 401", "status code 401")):
+                    func.logger.error(f'Node [{ident}] authentication failed; stopping retries. Check the node credentials in settings.json / Render configuration.')
+                    break
                 if attempt >= 30:
                     func.logger.error(f'Node [{ident}] failed after 30 attempts: {e}')
                 else:
@@ -140,6 +146,17 @@ class Listeners(commands.Cog):
 
         except Exception as del_error:
             func.logger.error("Failed to remove session file: %s", Config.LAST_SESSION_FILE_DIR, exc_info=del_error)
+
+    @commands.Cog.listener()
+    async def on_voicelink_track_start(self, player: voicelink.Player, track, _):
+        """Announce only after Lavalink confirms the track has actually started."""
+        try:
+            await player.context.send(
+                f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
+                f"(`{track.formatted_length}`)"
+            )
+        except Exception as e:
+            func.logger.warning(f"Could not announce started track in guild {player.guild.id}: {e}")
 
     @commands.Cog.listener()
     async def on_voicelink_track_end(self, player: voicelink.Player, track, _):
