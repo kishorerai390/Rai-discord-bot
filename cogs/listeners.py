@@ -50,6 +50,12 @@ class Listeners(commands.Cog):
                 func.logger.info(f'Node [{ident}] is connected!')
                 break
             except Exception as e:
+                error_text = str(e).lower()
+                # Authentication failures are configuration errors, not transient outages.
+                # Stop retrying immediately so a bad password cannot hammer the node.
+                if any(marker in error_text for marker in ("invalid password", "unauthorized", "authentication failed", "http 401", "status code 401")):
+                    func.logger.error(f'Node [{ident}] authentication failed; stopping retries. Check the node credentials in settings.json / Render configuration.')
+                    break
                 if attempt >= 30:
                     func.logger.error(f'Node [{ident}] failed after 30 attempts: {e}')
                 else:
