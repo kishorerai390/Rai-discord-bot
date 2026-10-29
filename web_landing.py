@@ -1551,8 +1551,10 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
             <span>Add Rem to Discord</span>
             <span>⚡</span>
           </a>
-          <a href="/login" class="btn btn-secondary" style="border: 1px solid rgba(192, 132, 252, 0.45); font-weight: 700;">
-            <span>Open Web Dashboard 🎛️</span>
+          <a href="/login" class="btn btn-secondary" style="border: 1px solid rgba(192, 132, 252, 0.45); font-weight: 700;">
+
+            <span>Open Web Dashboard 🎛️</span>
+
           </a>
           <a href="#commands" class="btn btn-secondary">
             <span>Explore 43 Commands</span>
@@ -1862,14 +1864,22 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <div class="sp-right">
-      <button class="sp-btn" onclick="scrollToId('lyrics')" title="Lyrics">🎤</button>
-      <button class="sp-btn" onclick="scrollToId('equalizer')" title="Equalizer">🎛️</button>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="cursor:pointer;" onclick="toggleMute()" id="sp-vol-icon">🔊</span>
-        <input type="range" min="0" max="100" value="85" class="vol-slider" id="sp-vol-slider" oninput="handleVolume(this.value)">
-      </div>
-      <a href="/login" class="btn btn-primary btn-sm" style="border-radius:12px; font-weight:700; text-decoration:none; padding:0.4rem 0.85rem; font-size:0.8rem; margin-left:6px;" title="Open Web Dashboard">Dashboard ↗</a>
+    <div class="sp-right">
+
+      <button class="sp-btn" onclick="scrollToId('lyrics')" title="Lyrics">🎤</button>
+
+      <button class="sp-btn" onclick="scrollToId('equalizer')" title="Equalizer">🎛️</button>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+
+        <span style="cursor:pointer;" onclick="toggleMute()" id="sp-vol-icon">🔊</span>
+
+        <input type="range" min="0" max="100" value="85" class="vol-slider" id="sp-vol-slider" oninput="handleVolume(this.value)">
+
+      </div>
+
+      <a href="/login" class="btn btn-primary btn-sm" style="border-radius:12px; font-weight:700; text-decoration:none; padding:0.4rem 0.85rem; font-size:0.8rem; margin-left:6px;" title="Open Web Dashboard">Dashboard ↗</a>
+
     </div>
   </div>
 
@@ -1893,18 +1903,92 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     let activeCmdCategory = 'all';
     let currentLyricIdx = 3;
 
-    // Suggestions Database
+    // Suggestions Database - Comprehensive High-Res Catalog
+
     const trackDatabase = [
+
+      // Anime Openings
+
       { id: "1", title: "怪物 (Monster)", artist: "YOASOBI", duration: 206, durText: "03:26", vibe: "anime", image: "/public/rem_avatar_static.png", query: "YOASOBI Monster Beastars" },
-      { id: "2", title: "Faded (Live Vocal Edition)", artist: "Alan Walker", duration: 212, durText: "03:32", vibe: "synthwave", image: "/public/musicmaid_banner.jpg", query: "Alan Walker Faded" },
+
       { id: "3", title: "新時代 (New Genesis)", artist: "Ado", duration: 226, durText: "03:46", vibe: "anime", image: "/public/login_hero.jpg", query: "Ado New Genesis One Piece Film Red" },
-      { id: "4", title: "KICK BACK", artist: "Kenshi Yonezu", duration: 193, durText: "03:13", vibe: "jrock", image: "/public/rem_avatar_static.png", query: "Kenshi Yonezu KICK BACK Chainsaw Man" },
-      { id: "5", title: "Midnight Lo-Fi Coffee", artist: "Rem Beats & ChilledCow", duration: 165, durText: "02:45", vibe: "lofi", image: "/public/musicmaid_headphone_hero.jpg", query: "Lofi study beats relaxing" },
+
+      { id: "11", title: "紅蓮華 (Gurenge)", artist: "LiSA", duration: 237, durText: "03:57", vibe: "anime", image: "/public/musicmaid_headphone_hero.jpg", query: "LiSA Gurenge Demon Slayer" },
+
+      { id: "12", title: "Idol (アイドル)", artist: "YOASOBI", duration: 213, durText: "03:33", vibe: "anime", image: "/public/rem_avatar_static.png", query: "YOASOBI Idol Oshi no Ko" },
+
+      { id: "13", title: "廻廻奇譚 (Kaikai Kitan)", artist: "Eve", duration: 221, durText: "03:41", vibe: "anime", image: "/public/login_hero.jpg", query: "Eve Kaikai Kitan Jujutsu Kaisen" },
+
+
+
+      // Cyberpunk Drift Phonk
+
       { id: "6", title: "Drift Phonk Horizon", artist: "KSLV Noh & DVRST", duration: 178, durText: "02:58", vibe: "phonk", image: "/public/musicmaid_banner.jpg", query: "Drift Phonk High Bass Cyberpunk" },
-      { id: "7", title: "Sparkle (Your Name OST)", artist: "RADWIMPS", duration: 417, durText: "06:57", vibe: "jrock", image: "/public/musicmaid_headphone_hero.jpg", query: "RADWIMPS Sparkle Your Name" },
+
+      { id: "14", title: "Metamorphosis", artist: "INTERWORLD", duration: 142, durText: "02:22", vibe: "phonk", image: "/public/musicmaid_banner.jpg", query: "INTERWORLD Metamorphosis Phonk" },
+
+      { id: "15", title: "Murder In My Mind", artist: "KORDHELL", duration: 145, durText: "02:25", vibe: "phonk", image: "/public/musicmaid_banner.jpg", query: "KORDHELL Murder In My Mind" },
+
+      { id: "16", title: "Override", artist: "KSLV Noh", duration: 114, durText: "01:54", vibe: "phonk", image: "/public/musicmaid_banner.jpg", query: "KSLV Noh Override Drift Phonk" },
+
+
+
+      // Tamil & Indian Hype (Anirudh)
+
       { id: "8", title: "Hukum (Thalaivar Alappara)", artist: "Anirudh Ravichander", duration: 206, durText: "03:26", vibe: "desi", image: "/public/musicmaid_banner.jpg", query: "Anirudh Ravichander Hukum Jailer" },
+
+      { id: "17", title: "Kalyana Samayal Saadham (Kalyani)", artist: "Maya Bazaar / Classic Tamil Fusion", duration: 200, durText: "03:20", vibe: "desi", image: "/public/musicmaid_banner.jpg", query: "Kalyana Samayal Saadham Kalyani Tamil" },
+
+      { id: "18", title: "Kalyani Ragam (Lossless Symphony)", artist: "Carnatic & Cinematic Fusion", duration: 245, durText: "04:05", vibe: "desi", image: "/public/musicmaid_headphone_hero.jpg", query: "Kalyani classical fusion instrumental" },
+
+      { id: "19", title: "Naa Ready (Leo)", artist: "Anirudh Ravichander & Thalapathy Vijay", duration: 188, durText: "03:08", vibe: "desi", image: "/public/login_hero.jpg", query: "Naa Ready Leo Anirudh" },
+
+      { id: "20", title: "Badass (Leo)", artist: "Anirudh Ravichander", duration: 229, durText: "03:49", vibe: "desi", image: "/public/musicmaid_banner.jpg", query: "Badass Leo Anirudh" },
+
+      { id: "21", title: "Vaathi Coming", artist: "Anirudh Ravichander", duration: 230, durText: "03:50", vibe: "desi", image: "/public/rem_avatar_static.png", query: "Vaathi Coming Master Anirudh" },
+
+      { id: "22", title: "Arabic Kuthu (Halamithi Habibo)", artist: "Anirudh & Jonita Gandhi", duration: 278, durText: "04:38", vibe: "desi", image: "/public/musicmaid_headphone_hero.jpg", query: "Arabic Kuthu Beast Anirudh" },
+
+
+
+      // Midnight Lo-Fi Beats
+
+      { id: "5", title: "Midnight Lo-Fi Coffee", artist: "Rem Beats & ChilledCow", duration: 165, durText: "02:45", vibe: "lofi", image: "/public/musicmaid_headphone_hero.jpg", query: "Lofi study beats relaxing" },
+
+      { id: "23", title: "Rainy Night in Shibuya", artist: "Tokyo Lofi Station", duration: 195, durText: "03:15", vibe: "lofi", image: "/public/musicmaid_headphone_hero.jpg", query: "Rainy Night Shibuya Lofi Chill" },
+
+      { id: "24", title: "Sleepy Sakura Petals", artist: "Rem Sleep Lab", duration: 210, durText: "03:30", vibe: "lofi", image: "/public/rem_avatar_static.png", query: "Sleepy Sakura Petals Chill Study" },
+
+
+
+      // J-Rock & Shonen
+
+      { id: "4", title: "KICK BACK", artist: "Kenshi Yonezu", duration: 193, durText: "03:13", vibe: "jrock", image: "/public/rem_avatar_static.png", query: "Kenshi Yonezu KICK BACK Chainsaw Man" },
+
+      { id: "7", title: "Sparkle (Your Name OST)", artist: "RADWIMPS", duration: 417, durText: "06:57", vibe: "jrock", image: "/public/musicmaid_headphone_hero.jpg", query: "RADWIMPS Sparkle Your Name" },
+
+      { id: "25", title: "Bling-Bang-Bang-Born", artist: "Creepy Nuts", duration: 171, durText: "02:51", vibe: "jrock", image: "/public/login_hero.jpg", query: "Creepy Nuts Bling Bang Bang Born Mashle" },
+
+      { id: "26", title: "The Rumbling", artist: "SiM", duration: 220, durText: "03:40", vibe: "jrock", image: "/public/musicmaid_banner.jpg", query: "SiM The Rumbling Attack on Titan" },
+
+
+
+      // Retro 80s Synthwave
+
+      { id: "2", title: "Faded (Live Vocal Edition)", artist: "Alan Walker", duration: 212, durText: "03:32", vibe: "synthwave", image: "/public/musicmaid_banner.jpg", query: "Alan Walker Faded" },
+
       { id: "9", title: "Renegades of Synth", artist: "Kavinsky & The Midnight", duration: 230, durText: "03:50", vibe: "synthwave", image: "/public/login_hero.jpg", query: "Synthwave 80s Cyberpunk Night Drive" },
-      { id: "10", title: "Kawaii Strawberry Jam", artist: "Snail's House", duration: 154, durText: "02:34", vibe: "kawaii", image: "/public/rem_avatar_static.png", query: "Snails House Kawaii Future Bass" }
+
+      { id: "27", title: "Resonance", artist: "HOME", duration: 212, durText: "03:32", vibe: "synthwave", image: "/public/musicmaid_banner.jpg", query: "HOME Resonance Synthwave Nostalgia" },
+
+
+
+      // Kawaii J-Pop Chill
+
+      { id: "10", title: "Kawaii Strawberry Jam", artist: "Snail's House", duration: 154, durText: "02:34", vibe: "kawaii", image: "/public/rem_avatar_static.png", query: "Snails House Kawaii Future Bass" },
+
+      { id: "28", title: "Renai Circulation", artist: "Kana Hanazawa", duration: 254, durText: "04:14", vibe: "kawaii", image: "/public/login_hero.jpg", query: "Renai Circulation Bakemonogatari" }
+
     ];
 
     // All 41 Integrated Bot Commands Directory
@@ -2023,12 +2107,62 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       }, 3000);
     }
 
-    // 4. RENDER SUGGESTIONS GRID
+    // Helper: Match track against search query
+    function trackMatchesQuery(t, val) {
+      if (!val) return true;
+      const v = val.toLowerCase();
+      return (t.title && t.title.toLowerCase().includes(v)) ||
+             (t.artist && t.artist.toLowerCase().includes(v)) ||
+             (t.query && t.query.toLowerCase().includes(v)) ||
+             (t.vibe && t.vibe.toLowerCase().includes(v));
+    }
+
+    // 4. RENDER SUGGESTIONS GRID (REACTIVE LIVE SEARCH)
     function renderSuggestions() {
       const container = document.getElementById('suggestions-grid');
+      if (!container) return;
+      const searchVal = (document.getElementById('search-input')?.value || '').trim();
+
       let filtered = trackDatabase;
-      if (activeVibe !== 'all') {
-        filtered = trackDatabase.filter(t => t.vibe === activeVibe);
+
+      if (searchVal) {
+        // Check in currently selected vibe
+        let matching = (activeVibe === 'all')
+          ? trackDatabase.filter(t => trackMatchesQuery(t, searchVal))
+          : trackDatabase.filter(t => t.vibe === activeVibe && trackMatchesQuery(t, searchVal));
+
+        // If no matches in selected chip, auto-expand search to all vibes!
+        if (matching.length === 0) {
+          const allMatches = trackDatabase.filter(t => trackMatchesQuery(t, searchVal));
+          if (allMatches.length > 0) {
+            matching = allMatches;
+            activeVibe = 'all';
+            document.querySelectorAll('.vibe-chip').forEach(c => {
+              c.classList.toggle('active', c.textContent.includes('All'));
+            });
+          }
+        }
+
+        if (matching.length > 0) {
+          filtered = matching;
+        } else {
+          // Dynamic YouTube/Spotify Result Card for user-entered query (e.g. 'kalyani')
+          const displayTitle = searchVal.charAt(0).toUpperCase() + searchVal.slice(1);
+          filtered = [{
+            id: 'dyn-query',
+            title: displayTitle,
+            artist: 'Lossless Discord Audio Stream',
+            duration: 210,
+            durText: '03:30',
+            vibe: 'search',
+            image: '/public/rem_avatar_static.png',
+            query: searchVal
+          }];
+        }
+      } else {
+        if (activeVibe !== 'all') {
+          filtered = trackDatabase.filter(t => t.vibe === activeVibe);
+        }
       }
 
       container.innerHTML = filtered.map(t => `
@@ -2040,8 +2174,8 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
           <h4 class="sug-title" title="${t.title}">${t.title}</h4>
           <p class="sug-artist">${t.artist}</p>
           <div class="sug-actions">
-            <button class="btn btn-primary" onclick="playSelectedTrack('${t.title.replace(/'/g, "\\'")}', '${t.artist.replace(/'/g, "\\'")}', '${t.image}')">▶ Play</button>
-            <button class="btn btn-secondary" onclick="queueSelectedTrack('${t.title.replace(/'/g, "\\'")}', '${t.artist.replace(/'/g, "\\'")}', '${t.durText}', '${t.image}')">+ Queue</button>
+            <button class="btn btn-primary" onclick="playSelectedTrack('${t.title.replace(/'/g, "\'")}', '${t.artist.replace(/'/g, "\'")}', '${t.image}')">▶ Play</button>
+            <button class="btn btn-secondary" onclick="queueSelectedTrack('${t.title.replace(/'/g, "\'")}', '${t.artist.replace(/'/g, "\'")}', '${t.durText}', '${t.image}')">+ Queue</button>
           </div>
         </div>
       `).join('');
@@ -2050,7 +2184,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     function filterVibe(vibe) {
       activeVibe = vibe;
       document.querySelectorAll('.vibe-chip').forEach(c => {
-        c.classList.toggle('active', c.textContent.toLowerCase().includes(vibe) || (vibe === 'all' && c.textContent.includes('All')));
+        c.classList.toggle('active', c.getAttribute('onclick')?.includes(`'${vibe}'`) || (vibe === 'all' && c.getAttribute('onclick')?.includes("'all'")));
       });
       renderSuggestions();
     }
@@ -2058,15 +2192,18 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     // 5. SEARCH & AUTOCOMPLETE
     function handleSearchInput(e) {
       const val = e.target.value.trim().toLowerCase();
+      // Render cards live as user types!
+      renderSuggestions();
+
       const box = document.getElementById('autocomplete-box');
       if (!val) {
-        box.classList.remove('show');
+        box?.classList.remove('show');
         return;
       }
-      const matches = trackDatabase.filter(t => t.title.toLowerCase().includes(val) || t.artist.toLowerCase().includes(val) || t.query.toLowerCase().includes(val)).slice(0, 4);
-      if (matches.length > 0) {
+      const matches = trackDatabase.filter(t => trackMatchesQuery(t, val)).slice(0, 5);
+      if (matches.length > 0 && box) {
         box.innerHTML = matches.map(m => `
-          <div class="ac-item" onclick="selectAutocomplete('${m.title.replace(/'/g, "\\'")}', '${m.artist.replace(/'/g, "\\'")}', '${m.image}', '${m.durText}')">
+          <div class="ac-item" onclick="selectAutocomplete('${m.title.replace(/'/g, "\'")}', '${m.artist.replace(/'/g, "\'")}', '${m.image}', '${m.durText}')">
             <img src="${m.image}" alt="Thumb" onerror="this.src='/public/rem_avatar_static.png'">
             <div>
               <div class="ac-item-title">${m.title}</div>
@@ -2075,27 +2212,32 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
           </div>
         `).join('');
         box.classList.add('show');
-      } else {
+      } else if (box) {
         box.classList.remove('show');
       }
     }
 
     function selectAutocomplete(title, artist, img, dur) {
-      document.getElementById('search-input').value = title;
-      document.getElementById('autocomplete-box').classList.remove('show');
+      const input = document.getElementById('search-input');
+      if (input) input.value = title;
+      document.getElementById('autocomplete-box')?.classList.remove('show');
+      renderSuggestions();
       playSelectedTrack(title, artist, img);
     }
 
     function executeSearch() {
       const input = document.getElementById('search-input');
-      const val = input.value.trim();
+      const val = (input ? input.value : '').trim();
       if (!val) {
-        showToast('Please type a song or artist name to search', '🔍');
+        showToast('Please type a song or artist name to queue', '🔍');
         return;
       }
-      document.getElementById('autocomplete-box').classList.remove('show');
-      playSelectedTrack(val, 'Searched Track', '/public/rem_avatar_static.png');
-      showToast(`Searching & playing "${val}" via Rem Audio Engine ⚡`, '🎵');
+      document.getElementById('autocomplete-box')?.classList.remove('show');
+      renderSuggestions();
+
+      // Dispatch to Discord bot queue directly
+      queueSelectedTrack(val, 'Searched Track', '03:30', '/public/rem_avatar_static.png');
+      showToast(`Queueing "${val}" to Discord Bot Voice Channel ⚡`, '🎵');
     }
 
     function triggerSurpriseAutoDJ() {
@@ -2332,24 +2474,47 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     }
 
     function playSelectedTrack(title, artist, img) {
+
       document.getElementById('hero-title').textContent = title;
+
       document.getElementById('hero-artist').textContent = artist;
+
       document.getElementById('sp-title').textContent = title;
+
       document.getElementById('sp-artist').textContent = artist;
+
       if (img) {
+
         document.getElementById('hero-thumb').src = img;
+
         document.getElementById('sp-thumb').src = img;
+
       }
+
       isPlaying = true;
+
       currentSeconds = 0;
+
       updatePlaybackUI();
+
       showToast(`Now Playing: "${title}" by ${artist} 🎵`, '🎶');
+
+      dispatchBackendControl('PLAY_NOW', { query: title + ' ' + (artist !== 'Searched Track' ? artist : ''), title: title, artist: artist, thumbnail: img });
+
     }
 
+
+
     function queueSelectedTrack(title, artist, dur, img) {
+
       activeQueue.push({ title, artist, dur, thumb: img || '/public/rem_avatar_static.png', user: '@WebUser' });
+
       renderQueue();
+
       showToast(`Added "${title}" to collaborative queue! 📑`, '➕');
+
+      dispatchBackendControl('ENQUEUE', { query: title + ' ' + (artist !== 'Searched Track' ? artist : ''), title: title, artist: artist, thumbnail: img });
+
     }
 
     function updatePlaybackUI() {

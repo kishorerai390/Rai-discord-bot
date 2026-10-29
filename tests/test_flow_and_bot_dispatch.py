@@ -99,3 +99,16 @@ class TestFlowAndBotDispatch(AioHTTPTestCase):
         self.assertIn('Faded (Live Vocal Edition)', DASHBOARD_HTML)
         self.assertIn('KICK BACK', DASHBOARD_HTML)
         self.assertIn('dispatchCmd(\'PLAY_NOW\'', DASHBOARD_HTML)
+
+    def test_kalyani_and_vibe_categories_in_landing(self):
+        from web_landing import LANDING_PAGE_HTML
+        # Kalyani should be present in the catalog
+        self.assertIn('Kalyani', LANDING_PAGE_HTML)
+        self.assertIn('Kalyana Samayal Saadham', LANDING_PAGE_HTML)
+        # Multiple tracks in phonk & desi
+        self.assertIn('Metamorphosis', LANDING_PAGE_HTML)
+        self.assertIn('Murder In My Mind', LANDING_PAGE_HTML)
+        self.assertIn('Naa Ready', LANDING_PAGE_HTML)
+        # Reactive search functions
+        self.assertIn('trackMatchesQuery', LANDING_PAGE_HTML)
+        self.assertIn('renderSuggestions', LANDING_PAGE_HTML)
