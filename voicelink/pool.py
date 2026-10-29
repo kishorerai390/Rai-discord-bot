@@ -390,7 +390,30 @@ class Node:
             return None
 
         elif load_type == "error":
-            raise TrackLoadError(f"{data['message']} [{data['severity']}]")
+            # Multi-provider fallback: If YouTube/primary provider encounters a fault or rate-limit,
+            # try alternative providers (SoundCloud scsearch, YouTube Music ytmsearch, Spotify spsearch)
+            if not URL_REGEX.match(query):
+                raw_query = query.split(":", 1)[1] if ":" in query else query
+                current_prefix = query.split(":", 1)[0] if ":" in query else ""
+                fallback_providers = ["scsearch", "ytmsearch", "spsearch"]
+                for alt_provider in fallback_providers:
+                    if alt_provider == current_prefix:
+                        continue
+                    try:
+                        alt_query = f"{alt_provider}:{raw_query}"
+                        alt_resp = await self.send(RequestMethod.GET, f"loadtracks?identifier={quote(alt_query)}")
+                        alt_type = alt_resp.get("loadType")
+                        alt_data = alt_resp.get("data")
+                        if alt_type == "search" and alt_data:
+                            return [Track(track_id=track["encoded"], info=track["info"], requester=requester) for track in alt_data]
+                        elif alt_type == "track" and alt_data:
+                            return [Track(track_id=alt_data["encoded"], info=alt_data["info"], requester=requester)]
+                    except Exception:
+                        continue
+
+            err_msg = data.get('message', 'Failed to load track') if isinstance(data, dict) else 'Failed to load track'
+            err_sev = data.get('severity', 'fault') if isinstance(data, dict) else 'fault'
+            raise TrackLoadError(f"{err_msg} [{err_sev}]")
 
         elif load_type in ("playlist", "recommendations"):
             return Playlist(playlist_info=data["info"], tracks=data["tracks"], requester=requester)

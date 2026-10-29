@@ -600,9 +600,20 @@ class Playlists(commands.Cog, name="playlist"):
         if len(result['playlist']['tracks']) >= max_t:
             return await send_localized_message(ctx, 'playlist.errors.trackLimitReached', max_t, ephemeral=True)
 
-        results = await voicelink.NodePool.get_node().get_tracks(query, requester=ctx.author)
+        try:
+            node = voicelink.NodePool.get_node()
+            results = await node.get_tracks(query, requester=ctx.author)
+        except voicelink.NoNodesAvailable:
+            return await send_localized_message(ctx, 'player.errors.nodeReconnect', ephemeral=True)
+        except voicelink.TrackLoadError as tle:
+            logger.warning(f"Track lookup error for playlist add '{query}': {tle}")
+            results = None
+        except Exception as e:
+            logger.error(f"Unexpected error in playlist add for '{query}': {e}")
+            results = None
+
         if not results:
-            return await send_localized_message(ctx, 'player.errors.noTrackFound')
+            return await send_localized_message(ctx, 'player.errors.noTrackFound', ephemeral=True)
         
         if isinstance(results, voicelink.Playlist):
             return await send_localized_message(ctx, 'playlist.errors.playlistLinkNotAllowed', ephemeral=True)
