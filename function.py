@@ -95,13 +95,9 @@ def ensure_settings() -> dict:
             "secure": True,
             "identifier": "SERENETIA_V4"
         },
-        "MILLOHOST_V4": {
-            "host": "lava-v4.millohost.my.id",
-            "port": 443,
-            "password": "https://discord.gg/mjS5J2K3ep",
-            "secure": True,
-            "identifier": "MILLOHOST_V4"
-        },
+        # MILLOHOST_V4 was removed: Render logs show its password is rejected,
+        # and retrying this node repeatedly adds startup noise and delays.
+        # Re-add only with a verified, current Lavalink endpoint/password.
         "LOCAL_LAVALINK": {
             "host": "127.0.0.1",
             "port": 2333,
