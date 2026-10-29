@@ -38,7 +38,14 @@ class SongSearchModal(discord.ui.Modal, title="Search for a song"):
             if player is None:
                 player = await voicelink.connect_channel(interaction, channel)
             elif getattr(player, "channel", None) and player.channel.id != channel.id:
-                await player.move_to(channel)
+                move_to = getattr(player, "move_to", None)
+                if not callable(move_to):
+                    await interaction.followup.send(
+                        f"I'm already connected to {player.channel.mention}; I left current playback untouched.",
+                        ephemeral=True,
+                    )
+                    return
+                await move_to(channel)
 
             tracks = await player.get_tracks(str(self.query.value).strip(), requester=member)
             if not tracks:
@@ -190,7 +197,7 @@ class MusicHome(commands.Cog):
                 "Your music, right where you left off. 💜\n\n"
                 "▶️ **Continue where I left off** — resume a current track or restore your latest listen.\n"
                 "🔎 **Search for song** — find a track and add it to the queue.\n"
-                "🔕 **Notifications off** — mute or unmute this panel's notifications."
+                "🔕 **Notifications off** — toggle this panel's session-only notification preference."
             ),
             colour=discord.Colour.from_rgb(105, 82, 230),
         )
