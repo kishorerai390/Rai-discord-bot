@@ -291,8 +291,11 @@ class VolumeUp(ControlButton):
 
         value = value if (value := self.player.volume + 20) <= 150 else 150
         await self.player.set_volume(value, interaction.user)
-
-        await self.send(interaction, 'settings.actions.volumeSet', value, ephemeral=True)
+        # Update the existing controller instead of posting a new confirmation per click.
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
+        elif interaction.message:
+            await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
 
 class VolumeDown(ControlButton):
     def __init__(self, **kwargs):
@@ -304,8 +307,11 @@ class VolumeDown(ControlButton):
 
         value = value if (value := self.player.volume - 20) >= 0 else 0
         await self.player.set_volume(value, interaction.user)
-
-        await self.send(interaction, 'settings.actions.volumeSet', value, ephemeral=True)
+        # Update the existing controller instead of posting a new confirmation per click.
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
+        elif interaction.message:
+            await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
 
 class VolumeMute(ControlButton):
     def __init__(self, **kwargs):
@@ -338,8 +344,11 @@ class AutoPlay(ControlButton):
         check = not self.player.settings.get("autoplay", False)
         self.player.settings['autoplay'] = check
         self.change_states("on" if check else "off")
-        await self.send(interaction, 'player.controls.autoplay', await LangHandler.get_lang(interaction.guild_id, 'common.status.enabled' if check else "common.status.disabled"))
-        await interaction.response.edit_message(view=self.view)
+        # Acknowledge the button once and update the existing controller in place.
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
+        elif interaction.message:
+            await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
 
         if not self.player.is_playing:
             await self.player.do_next()

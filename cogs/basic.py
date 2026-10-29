@@ -73,6 +73,16 @@ async def nowplay(ctx: commands.Context, player: voicelink.Player):
 
     return await dispatch_message(ctx, embed, view=LinkView(texts[2].format(track.source.title()), track.emoji, track.uri))
 
+async def announce_track(ctx, track: voicelink.Track, *, queued: bool = False):
+    """Announce the resolved track once, before playback starts or while it waits."""
+    label = "🎵 **Up Next:**" if queued else "🎶 **Now Playing:**"
+    return await dispatch_message(
+        ctx,
+        f"{label} [{track.title}]({track.uri}) — **{track.author}** "
+        f"(`{track.formatted_length}`)"
+    )
+
+
 class Basic(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -241,16 +251,7 @@ class Basic(commands.Cog):
                 await send_localized_message(ctx, "player.playback.playlistLoad", tracks.name, index)
             else:
                 position = await player.add_track(tracks[0], start_time=format_to_ms(start), end_time=format_to_ms(end))
-                texts = await LangHandler.get_lang(ctx.guild.id, "common.status.live", "player.playback.trackLoadPos", "player.playback.trackLoad")
-                stream_content = f"`{texts[0]}`" if tracks[0].is_stream else ""
-                additional_content = texts[1] if position >= 1 and player.is_playing else texts[2]
-
-                await dispatch_message(
-                    ctx,
-                    stream_content + additional_content,
-                    tracks[0].title, tracks[0].uri, tracks[0].author, tracks[0].formatted_length,
-                    position if position >= 1 and player.is_playing else None
-                )
+                await announce_track(ctx, tracks[0], queued=position >= 1 and player.is_playing)
         finally:
             if not player.is_playing:
                 await player.do_next()
@@ -317,17 +318,7 @@ class Basic(commands.Cog):
                 await send_localized_message(interaction, "player.playback.playlistLoad", tracks.name, index)
             else:
                 position = await player.add_track(tracks[0])
-                texts = await LangHandler.get_lang(interaction.guild.id, "common.status.live", "player.playback.trackLoadPos", "player.playback.trackLoad")
-
-                stream_content = f"`{texts[0]}`" if tracks[0].is_stream else ""
-                additional_content = texts[1] if position >= 1 and player.is_playing else texts[2]
-
-                await dispatch_message(
-                    interaction,
-                    stream_content + additional_content,
-                    tracks[0].title, tracks[0].uri, tracks[0].author, tracks[0].formatted_length,
-                    position if position >= 1 and player.is_playing else None
-                )
+                await announce_track(interaction, tracks[0], queued=position >= 1 and player.is_playing)
         finally:
             if not player.is_playing:
                 await player.do_next()
@@ -370,12 +361,11 @@ class Basic(commands.Cog):
 
         await view.wait()
         if view.values is not None:
-            msg = ""
-            for value in view.values:
+            already_playing = player.is_playing
+            for index, value in enumerate(view.values):
                 track = tracks[int(value.split(". ")[0]) - 1]
                 position = await player.add_track(track)
-                msg += (f"`{texts[2]}`" if track.is_stream else "") + (texts[3].format(track.title, track.uri, track.author, track.formatted_length, position) if position >= 1 else texts[4].format(track.title, track.uri, track.author, track.formatted_length))
-            await dispatch_message(ctx, msg)
+                await announce_track(ctx, track, queued=already_playing or index > 0 or (position >= 1 and player.is_playing))
 
             if not player.is_playing:
                 await player.do_next()
@@ -409,17 +399,7 @@ class Basic(commands.Cog):
                 await send_localized_message(ctx, "player.playback.playlistLoad", tracks.name, index)
             else:
                 position = await player.add_track(tracks[0], start_time=format_to_ms(start), end_time=format_to_ms(end), at_front=True)
-                texts = await LangHandler.get_lang(ctx.guild.id, "common.status.live", "player.playback.trackLoadPos", "player.playback.trackLoad")
-
-                stream_content = f"`{texts[0]}`" if tracks[0].is_stream else ""
-                additional_content = texts[1] if position >= 1 and player.is_playing else texts[2]
-
-                await dispatch_message(
-                    ctx,
-                    stream_content + additional_content,
-                    tracks[0].title, tracks[0].uri, tracks[0].author, tracks[0].formatted_length,
-                    position if position >= 1 and player.is_playing else None
-                )
+                await announce_track(ctx, tracks[0], queued=position >= 1 and player.is_playing)
         finally:
             if not player.is_playing:
                 await player.do_next()
