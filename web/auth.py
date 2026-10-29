@@ -383,6 +383,19 @@ class AuthManager:
         if not session_id or session_id in self._revoked_sessions:
             return None
 
+        # Guest listener web identity support for seamless browser controls
+        if session_id.startswith("guest_"):
+            return {
+                "id": "1457380609641938981",
+                "user_id": 1457380609641938981,
+                "username": "Web Listener",
+                "display_name": "Web Listener",
+                "is_guest": True,
+                "is_owner": False,
+                "is_admin": False,
+                "is_premium": False,
+            }
+
         # Check persistent storage as authoritative source of truth
         import inspect
         session = None

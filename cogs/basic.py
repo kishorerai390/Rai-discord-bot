@@ -943,10 +943,14 @@ class Basic(commands.Cog):
         player.dj = member
         await send_localized_message(ctx, "permissions.djSwapped", member)
 
-    @commands.hybrid_command(name="autoplay", aliases=get_aliases("autoplay"))
+    @commands.hybrid_command(name="autoplay", aliases=["auto", "autodj", *get_aliases("autoplay")])
+    @app_commands.describe(mode="Optional: 'on' or 'off' to enable or disable autoplay.")
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
-    async def autoplay(self, ctx: commands.Context):
-        "Toggles autoplay mode, it will automatically queue the best songs to play."
+    async def autoplay(self, ctx: commands.Context, mode: str = None):
+        "Toggles or sets autoplay mode, it will automatically queue the best songs to play."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
         player: voicelink.Player = ctx.guild.voice_client
         if not player:
             return await send_localized_message(ctx, "player.errors.noPlayer", ephemeral=True)
@@ -954,15 +958,85 @@ class Basic(commands.Cog):
         if not player.is_privileged(ctx.author):
             return await send_localized_message(ctx, "permissions.missingAutoPlay", ephemeral=True)
 
-        check = not player.settings.get("autoplay", False)
-        player.settings['autoplay'] = check
-        await send_localized_message(ctx, "player.controls.autoplay", await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if check else "common.status.disabled"))
+        curr = bool(player.settings.get("autoplay", False))
+        if mode:
+            mode_clean = mode.strip().lower()
+            if mode_clean in ("on", "enable", "enabled", "true", "yes", "1"):
+                check = True
+            elif mode_clean in ("off", "disable", "disabled", "false", "no", "0"):
+                check = False
+            else:
+                check = not curr
+        else:
+            check = not curr
 
-        if not player.is_playing:
+        player.settings['autoplay'] = check
+        try:
+            await MongoDBHandler.update_settings(ctx.guild.id, {"$set": {"autoplay": check}})
+        except Exception:
+            pass
+
+        # Real-time WebSocket broadcast to website
+        try:
+            from web.realtime import RealtimeGateway
+            rt = RealtimeGateway.get_instance()
+            if rt:
+                self.bot.loop.create_task(rt.broadcast("MUSIC_UPDATED", {
+                    "guild_id": str(ctx.guild.id),
+                    "action": "AUTODJ_TOGGLED",
+                    "autoplay": check,
+                }))
+        except Exception:
+            pass
+
+        status_text = await LangHandler.get_lang(ctx.guild.id, "common.status.enabled" if check else "common.status.disabled")
+        await send_localized_message(ctx, "player.controls.autoplay", status_text)
+
+        if check and not player.is_playing:
             await player.do_next()
         
         if player.is_ipc_connected:
             await player.send_ws({"op": "toggleAutoplay", "status": check})
+
+    @commands.hybrid_command(name="volume", aliases=["vol", "v", *get_aliases("volume")])
+    @app_commands.describe(value="Input a volume percentage between 1 and 150 (leave empty to view current volume).")
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def volume(self, ctx: commands.Context, value: commands.Range[int, 1, 150] = None) -> None:
+        "View or set the player volume (1-150%)."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            await ctx.defer()
+
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            return await send_localized_message(ctx, "player.errors.noPlayer", ephemeral=True)
+
+        if value is None:
+            curr_vol = getattr(player, "volume", 100)
+            return await dispatch_message(ctx, f"🔊 **Current Volume:** `{curr_vol}%`")
+
+        if not player.is_privileged(ctx.author):
+            return await send_localized_message(ctx, "permissions.notDj", ephemeral=True)
+
+        await player.set_volume(value, ctx.author)
+        try:
+            await MongoDBHandler.update_settings(ctx.guild.id, {"$set": {"volume": value}})
+        except Exception:
+            pass
+
+        # Real-time WebSocket broadcast to website
+        try:
+            from web.realtime import RealtimeGateway
+            rt = RealtimeGateway.get_instance()
+            if rt:
+                self.bot.loop.create_task(rt.broadcast("MUSIC_UPDATED", {
+                    "guild_id": str(ctx.guild.id),
+                    "action": "VOLUME",
+                    "volume": value,
+                }))
+        except Exception:
+            pass
+
+        await send_localized_message(ctx, 'settings.actions.volumeSet', value)
 
     @commands.hybrid_command(name="help", aliases=get_aliases("help"))
     @app_commands.autocomplete(category=help_autocomplete)
