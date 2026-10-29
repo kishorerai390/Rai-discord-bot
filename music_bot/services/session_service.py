@@ -120,11 +120,19 @@ class GuildMusicSession:
 
     @property
     def is_paused(self) -> bool:
-        return self.state == PlaybackState.PAUSED or (self.voice_client is not None and self.voice_client.is_paused())
+        if self.state == PlaybackState.PAUSED:
+            return True
+        if self.voice_client is not None:
+            p = getattr(self.voice_client, "is_paused", False)
+            return p() if callable(p) else bool(p)
+        return False
 
     @property
     def is_active(self) -> bool:
-        return self.voice_client is not None and self.voice_client.is_connected()
+        if self.voice_client is not None:
+            c = getattr(self.voice_client, "is_connected", False)
+            return c() if callable(c) else bool(c)
+        return False
 
     @property
     def elapsed_seconds(self) -> int:

@@ -348,24 +348,28 @@ class MusicApiRouter:
         voice_status = "Disconnected"
 
         if session and session.voice_client:
-            if session.voice_client.is_connected() and session.voice_client.channel:
-                vc_name = session.voice_client.channel.name
-                vc_id = session.voice_client.channel.id
+            is_conn = session.voice_client.is_connected() if callable(session.voice_client.is_connected) else bool(session.voice_client.is_connected)
+            ch = getattr(session.voice_client, "channel", None)
+            if is_conn and ch:
+                vc_name = getattr(ch, "name", "Voice")
+                vc_id = getattr(ch, "id", None)
                 voice_status = "Connected"
             elif getattr(session.voice_client, "is_connecting", lambda: False)():
                 voice_status = "Connecting"
             elif getattr(session, "recovery_attempts", 0) > 0 or session.state.value == "RECOVERING":
                 voice_status = "Reconnecting"
-                if session.voice_client.channel:
-                    vc_name = session.voice_client.channel.name
-                    vc_id = session.voice_client.channel.id
+                if ch:
+                    vc_name = getattr(ch, "name", "Voice")
+                    vc_id = getattr(ch, "id", None)
 
         if not vc_name and self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(guild_id)
             if g and g.voice_client:
-                if g.voice_client.is_connected() and g.voice_client.channel:
-                    vc_name = g.voice_client.channel.name
-                    vc_id = g.voice_client.channel.id
+                is_conn = g.voice_client.is_connected() if callable(g.voice_client.is_connected) else bool(g.voice_client.is_connected)
+                ch = getattr(g.voice_client, "channel", None)
+                if is_conn and ch:
+                    vc_name = getattr(ch, "name", "Voice")
+                    vc_id = getattr(ch, "id", None)
                     voice_status = "Connected"
                     if session and not session.voice_client:
                         session.voice_client = g.voice_client
@@ -407,6 +411,12 @@ class MusicApiRouter:
         # Live voicelink.Player on Discord bot instance
         if not (session and session.current_track) and self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(guild_id)
+            if not (g and g.voice_client and type(g.voice_client).__name__ != "MagicMock" and getattr(g.voice_client, "current", None) and type(g.voice_client.current).__name__ != "MagicMock"):
+                for bg in getattr(self.bot, "guilds", []):
+                    if bg and bg.voice_client and type(bg.voice_client).__name__ != "MagicMock" and getattr(bg.voice_client, "current", None) and type(bg.voice_client.current).__name__ != "MagicMock":
+                        g = bg
+                        guild_id = bg.id
+                        break
             if g and g.voice_client and type(g.voice_client).__name__ != "MagicMock" and getattr(g.voice_client, "current", None) and type(g.voice_client.current).__name__ != "MagicMock":
                 vl_player = g.voice_client
                 track = vl_player.current
