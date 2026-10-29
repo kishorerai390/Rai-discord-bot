@@ -284,6 +284,145 @@ def _start_immediate_health_server():
                 elif act == "CLEAR_QUEUE":
                     _ACTIVE_QUEUE.clear()
 
+                # DISPATCH REAL COMMAND TO DISCORD VOICE CLIENT
+                try:
+                    import sys, asyncio
+                    main_mod = sys.modules.get("__main__")
+                    live_bot = getattr(main_mod, "bot", None)
+                    t_gid = p.get("guild_id") or qs.get("guild_id", [None])[0]
+
+                    vl_player = None
+                    if live_bot and hasattr(live_bot, "guilds"):
+                        if t_gid:
+                            try:
+                                g_t = live_bot.get_guild(int(t_gid))
+                                if g_t and getattr(g_t, "voice_client", None):
+                                    vl_player = g_t.voice_client
+                            except Exception:
+                                pass
+                        if not vl_player:
+                            for g in live_bot.guilds:
+                                vc = getattr(g, "voice_client", None)
+                                if vc and (getattr(vc, "is_connected", False) or getattr(vc, "current", None)):
+                                    vl_player = vc
+                                    break
+
+                    if vl_player and live_bot and hasattr(live_bot, "loop") and live_bot.loop.is_running():
+                        async def _run_bot_action(player, action_name, action_payload):
+                            try:
+                                if action_name in ("PLAY", "RESUME"):
+                                    if hasattr(player, "set_pause"):
+                                        await player.set_pause(False)
+                                elif action_name == "PAUSE":
+                                    if hasattr(player, "set_pause"):
+                                        await player.set_pause(True)
+                                elif action_name in ("SKIP", "NEXT"):
+                                    if hasattr(player, "stop"):
+                                        await player.stop()
+                                elif action_name == "STOP":
+                                    if hasattr(player, "teardown"):
+                                        await player.teardown()
+                                    elif hasattr(player, "stop"):
+                                        await player.stop()
+                                elif action_name == "VOLUME":
+                                    vol = int(action_payload.get("volume", 100))
+                                    if hasattr(player, "set_volume"):
+                                        await player.set_volume(vol)
+                                elif action_name == "SEEK":
+                                    pos = int(action_payload.get("position", 0))
+                                    if hasattr(player, "seek"):
+                                        await player.seek(pos * 1000)
+                                elif action_name in ("REPEAT", "LOOP"):
+                                    if hasattr(player, "queue") and hasattr(player.queue, "_repeat"):
+                                        from voicelink import LoopType
+                                        curr = getattr(player.queue._repeat, "mode", LoopType.OFF)
+                                        nxt = LoopType.TRACK if curr == LoopType.OFF else (LoopType.QUEUE if curr == LoopType.TRACK else LoopType.OFF)
+                                        await player.set_repeat(nxt)
+                                elif action_name == "SHUFFLE":
+                                    if hasattr(player, "shuffle"):
+                                        await player.shuffle("queue")
+                                elif action_name == "CLEAR_QUEUE":
+                                    if hasattr(player, "clear_queue"):
+                                        await player.clear_queue("queue")
+                                elif action_name in ("ENQUEUE", "PLAY_NOW"):
+                                    q_text = action_payload.get("query") or action_payload.get("title")
+                                    if q_text and hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(q_text)
+                                        if tracks:
+                                            t_item = tracks[0] if isinstance(tracks, list) else tracks
+                                            if hasattr(player, "add_track"):
+                                                await player.add_track(t_item, at_front=(action_name == "PLAY_NOW"))
+                                            if action_name == "PLAY_NOW" and getattr(player, "is_playing", False):
+                                                await player.stop()
+                                            elif not getattr(player, "is_playing", False) and hasattr(player, "do_next"):
+                                                await player.do_next()
+                                elif action_name == "RADIO":
+                                    st = (action_payload.get("station") or action_payload.get("args") or "lofi").lower()
+                                    stations = {
+                                        "lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+                                        "citypop": "japanese city pop 80s radio stream",
+                                        "jrock": "Top Anime Openings J-Rock Hits playlist",
+                                        "synthwave": "Synthwave 80s Cyberpunk Night Drive",
+                                        "ghibli": "Studio Ghibli Relaxing Piano Peace"
+                                    }
+                                    url = stations.get(st, stations["lofi"])
+                                    if hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(url)
+                                        if tracks:
+                                            t_item = tracks[0] if isinstance(tracks, list) else tracks
+                                            await player.add_track(t_item, at_front=True)
+                                            if getattr(player, "is_playing", False):
+                                                await player.stop()
+                                            else:
+                                                await player.do_next()
+                                elif action_name == "SOUNDBOARD":
+                                    s = (action_payload.get("sound") or action_payload.get("args") or "airhorn").lower()
+                                    sfx_tracks = {
+                                        "airhorn": "https://www.myinstants.com/media/sounds/air-horn-club-sample_1.mp3",
+                                        "bruh": "https://www.myinstants.com/media/sounds/movie_1.mp3",
+                                        "anime_wow": "https://www.myinstants.com/media/sounds/anime-wow-sound-effect.mp3",
+                                        "tuturu": "https://www.myinstants.com/media/sounds/tuturu_1.mp3",
+                                        "nani": "https://www.myinstants.com/media/sounds/omae-wa-mou-shindeiru.mp3",
+                                        "vineboom": "https://www.myinstants.com/media/sounds/vine-boom.mp3",
+                                        "sheesh": "https://www.myinstants.com/media/sounds/sheesh_6.mp3",
+                                        "fbi": "https://www.myinstants.com/media/sounds/fbi-open-up-sfx.mp3"
+                                    }
+                                    url = sfx_tracks.get(s, sfx_tracks["airhorn"])
+                                    if hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(url)
+                                        if tracks:
+                                            t_item = tracks[0] if isinstance(tracks, list) else tracks
+                                            await player.add_track(t_item, at_front=True)
+                                            if getattr(player, "is_playing", False):
+                                                await player.stop()
+                                            else:
+                                                await player.do_next()
+                                elif action_name == "VIBE":
+                                    mood = (action_payload.get("mood") or action_payload.get("args") or "anime").lower()
+                                    mood_queries = {
+                                        "anime": "Top Anime Openings J-Rock Hits playlist",
+                                        "chill": "Lofi Chill Hip Hop Study Beats mix",
+                                        "phonk": "Cyberpunk Drift Phonk Aggressive workout gym",
+                                        "gym": "Workout Beast Mode Motivation Electronic",
+                                        "night": "Midnight Lo-Fi Tokyo City Lights",
+                                        "study": "Smooth Piano study focus instrumental"
+                                    }
+                                    q_vibe = mood_queries.get(mood, mood_queries["anime"])
+                                    if hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(q_vibe)
+                                        if tracks:
+                                            items = tracks if isinstance(tracks, list) else [tracks]
+                                            for itm in items[:10]:
+                                                await player.add_track(itm)
+                                            if not getattr(player, "is_playing", False):
+                                                await player.do_next()
+                            except Exception as e:
+                                print(f"[BOT_DISPATCH_ERROR] {action_name}: {e}")
+
+                        asyncio.run_coroutine_threadsafe(_run_bot_action(vl_player, act, p), live_bot.loop)
+                except Exception as dispatch_err:
+                    print(f"[BOT_DISPATCH_EXCEPTION] {dispatch_err}")
+
                 return self._send_json({"success": True, "data": _ACTIVE_SESSION})
 
             if path in ["/api/music/queue/reorder", "/api/music/reorder"]:
@@ -389,7 +528,8 @@ def _start_immediate_health_server():
                 _WEB_SESSIONS[tok] = user_data
                 self.send_response(302)
                 self.send_header("Set-Cookie", f"rai_session_token={tok}; Path=/; HttpOnly; SameSite=Lax")
-                self.send_header("Location", f"/dashboard?token={tok}&auth=success")
+                target = "/owner" if user_data.get("is_owner") else "/dashboard"
+                self.send_header("Location", f"{target}?token={tok}&auth=success")
                 self.end_headers()
                 return
 
@@ -601,7 +741,9 @@ def _start_immediate_health_server():
                         "is_playing": bool(getattr(vl_player, "is_playing", False)),
                         "is_paused": bool(getattr(vl_player, "is_paused", False)),
                         "position": pos,
+                        "position_seconds": pos,
                         "duration": dur,
+                        "duration_seconds": dur,
                         "volume": int(getattr(vl_player, "volume", 100)),
                         "repeat_mode": str(getattr(getattr(vl_player, "queue", None), "repeat", "off")).lower(),
                         "is_shuffled": False,
@@ -612,6 +754,145 @@ def _start_immediate_health_server():
                         "state": "PAUSED" if getattr(vl_player, "is_paused", False) else ("PLAYING" if getattr(vl_player, "is_playing", False) else "IDLE")
                     }
                     return self._send_json({"success": True, "data": real_session})
+
+                # DISPATCH REAL COMMAND TO DISCORD VOICE CLIENT
+                try:
+                    import sys, asyncio
+                    main_mod = sys.modules.get("__main__")
+                    live_bot = getattr(main_mod, "bot", None)
+                    t_gid = p.get("guild_id") or qs.get("guild_id", [None])[0]
+
+                    vl_player = None
+                    if live_bot and hasattr(live_bot, "guilds"):
+                        if t_gid:
+                            try:
+                                g_t = live_bot.get_guild(int(t_gid))
+                                if g_t and getattr(g_t, "voice_client", None):
+                                    vl_player = g_t.voice_client
+                            except Exception:
+                                pass
+                        if not vl_player:
+                            for g in live_bot.guilds:
+                                vc = getattr(g, "voice_client", None)
+                                if vc and (getattr(vc, "is_connected", False) or getattr(vc, "current", None)):
+                                    vl_player = vc
+                                    break
+
+                    if vl_player and live_bot and hasattr(live_bot, "loop") and live_bot.loop.is_running():
+                        async def _run_bot_action(player, action_name, action_payload):
+                            try:
+                                if action_name in ("PLAY", "RESUME"):
+                                    if hasattr(player, "set_pause"):
+                                        await player.set_pause(False)
+                                elif action_name == "PAUSE":
+                                    if hasattr(player, "set_pause"):
+                                        await player.set_pause(True)
+                                elif action_name in ("SKIP", "NEXT"):
+                                    if hasattr(player, "stop"):
+                                        await player.stop()
+                                elif action_name == "STOP":
+                                    if hasattr(player, "teardown"):
+                                        await player.teardown()
+                                    elif hasattr(player, "stop"):
+                                        await player.stop()
+                                elif action_name == "VOLUME":
+                                    vol = int(action_payload.get("volume", 100))
+                                    if hasattr(player, "set_volume"):
+                                        await player.set_volume(vol)
+                                elif action_name == "SEEK":
+                                    pos = int(action_payload.get("position", 0))
+                                    if hasattr(player, "seek"):
+                                        await player.seek(pos * 1000)
+                                elif action_name in ("REPEAT", "LOOP"):
+                                    if hasattr(player, "queue") and hasattr(player.queue, "_repeat"):
+                                        from voicelink import LoopType
+                                        curr = getattr(player.queue._repeat, "mode", LoopType.OFF)
+                                        nxt = LoopType.TRACK if curr == LoopType.OFF else (LoopType.QUEUE if curr == LoopType.TRACK else LoopType.OFF)
+                                        await player.set_repeat(nxt)
+                                elif action_name == "SHUFFLE":
+                                    if hasattr(player, "shuffle"):
+                                        await player.shuffle("queue")
+                                elif action_name == "CLEAR_QUEUE":
+                                    if hasattr(player, "clear_queue"):
+                                        await player.clear_queue("queue")
+                                elif action_name in ("ENQUEUE", "PLAY_NOW"):
+                                    q_text = action_payload.get("query") or action_payload.get("title")
+                                    if q_text and hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(q_text)
+                                        if tracks:
+                                            t_item = tracks[0] if isinstance(tracks, list) else tracks
+                                            if hasattr(player, "add_track"):
+                                                await player.add_track(t_item, at_front=(action_name == "PLAY_NOW"))
+                                            if action_name == "PLAY_NOW" and getattr(player, "is_playing", False):
+                                                await player.stop()
+                                            elif not getattr(player, "is_playing", False) and hasattr(player, "do_next"):
+                                                await player.do_next()
+                                elif action_name == "RADIO":
+                                    st = (action_payload.get("station") or action_payload.get("args") or "lofi").lower()
+                                    stations = {
+                                        "lofi": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+                                        "citypop": "japanese city pop 80s radio stream",
+                                        "jrock": "Top Anime Openings J-Rock Hits playlist",
+                                        "synthwave": "Synthwave 80s Cyberpunk Night Drive",
+                                        "ghibli": "Studio Ghibli Relaxing Piano Peace"
+                                    }
+                                    url = stations.get(st, stations["lofi"])
+                                    if hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(url)
+                                        if tracks:
+                                            t_item = tracks[0] if isinstance(tracks, list) else tracks
+                                            await player.add_track(t_item, at_front=True)
+                                            if getattr(player, "is_playing", False):
+                                                await player.stop()
+                                            else:
+                                                await player.do_next()
+                                elif action_name == "SOUNDBOARD":
+                                    s = (action_payload.get("sound") or action_payload.get("args") or "airhorn").lower()
+                                    sfx_tracks = {
+                                        "airhorn": "https://www.myinstants.com/media/sounds/air-horn-club-sample_1.mp3",
+                                        "bruh": "https://www.myinstants.com/media/sounds/movie_1.mp3",
+                                        "anime_wow": "https://www.myinstants.com/media/sounds/anime-wow-sound-effect.mp3",
+                                        "tuturu": "https://www.myinstants.com/media/sounds/tuturu_1.mp3",
+                                        "nani": "https://www.myinstants.com/media/sounds/omae-wa-mou-shindeiru.mp3",
+                                        "vineboom": "https://www.myinstants.com/media/sounds/vine-boom.mp3",
+                                        "sheesh": "https://www.myinstants.com/media/sounds/sheesh_6.mp3",
+                                        "fbi": "https://www.myinstants.com/media/sounds/fbi-open-up-sfx.mp3"
+                                    }
+                                    url = sfx_tracks.get(s, sfx_tracks["airhorn"])
+                                    if hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(url)
+                                        if tracks:
+                                            t_item = tracks[0] if isinstance(tracks, list) else tracks
+                                            await player.add_track(t_item, at_front=True)
+                                            if getattr(player, "is_playing", False):
+                                                await player.stop()
+                                            else:
+                                                await player.do_next()
+                                elif action_name == "VIBE":
+                                    mood = (action_payload.get("mood") or action_payload.get("args") or "anime").lower()
+                                    mood_queries = {
+                                        "anime": "Top Anime Openings J-Rock Hits playlist",
+                                        "chill": "Lofi Chill Hip Hop Study Beats mix",
+                                        "phonk": "Cyberpunk Drift Phonk Aggressive workout gym",
+                                        "gym": "Workout Beast Mode Motivation Electronic",
+                                        "night": "Midnight Lo-Fi Tokyo City Lights",
+                                        "study": "Smooth Piano study focus instrumental"
+                                    }
+                                    q_vibe = mood_queries.get(mood, mood_queries["anime"])
+                                    if hasattr(player, "get_tracks"):
+                                        tracks = await player.get_tracks(q_vibe)
+                                        if tracks:
+                                            items = tracks if isinstance(tracks, list) else [tracks]
+                                            for itm in items[:10]:
+                                                await player.add_track(itm)
+                                            if not getattr(player, "is_playing", False):
+                                                await player.do_next()
+                            except Exception as e:
+                                print(f"[BOT_DISPATCH_ERROR] {action_name}: {e}")
+
+                        asyncio.run_coroutine_threadsafe(_run_bot_action(vl_player, act, p), live_bot.loop)
+                except Exception as dispatch_err:
+                    print(f"[BOT_DISPATCH_EXCEPTION] {dispatch_err}")
 
                 return self._send_json({"success": True, "data": _ACTIVE_SESSION})
 
@@ -653,7 +934,7 @@ def _start_immediate_health_server():
                             "uri": getattr(t, "uri", "")
                         })
                     if real_queue:
-                        return self._send_json({"success": True, "data": {"queue": real_queue, "total": len(real_queue)}})
+                        return self._send_json({"success": True, "data": {"queue": real_queue, "tracks": real_queue, "total": len(real_queue)}})
 
                 return self._send_json({"success": True, "data": {"queue": _ACTIVE_QUEUE, "total": len(_ACTIVE_QUEUE)}})
 

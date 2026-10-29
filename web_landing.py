@@ -1511,7 +1511,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
         <a href="#queue">📑 Queue</a>
         <a href="#health">🩺 Health</a>
         <a href="/login" style="color: #c084fc; font-weight: 700;">🔑 Login</a>
-        <a href="/dashboard">Dashboard ↗</a>
+        <a href="/login" title="Open Web Dashboard">Dashboard ↗</a>
       </div>
 
       <div class="nav-actions">
@@ -1551,8 +1551,8 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
             <span>Add Rem to Discord</span>
             <span>⚡</span>
           </a>
-          <a href="/login" class="btn btn-secondary" style="border: 1px solid rgba(192, 132, 252, 0.45); font-weight: 700;">
-            <span>🔑 Sign In / Portal</span>
+          <a href="/login" class="btn btn-secondary" style="border: 1px solid rgba(192, 132, 252, 0.45); font-weight: 700;">
+            <span>Open Web Dashboard 🎛️</span>
           </a>
           <a href="#commands" class="btn btn-secondary">
             <span>Explore 43 Commands</span>
@@ -1827,7 +1827,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
         <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=8&integration_type=0&scope=bot+applications.commands" target="_blank">Invite Rem</a>
         <a href="https://discord.gg/wRCgB7vBQv" target="_blank">Support Discord</a>
         <a href="https://github.com/kishorerai390/Rai-discord-bot" target="_blank">GitHub Repository</a>
-        <a href="/dashboard">Full Web Dashboard</a>
+        <a href="/login">Full Web Dashboard</a>
         <a href="/api/health" target="_blank">Health API</a>
       </div>
       <p style="color:var(--text-dim); font-size:0.85rem;">© 2026 Rem • Rai Discord Bot Ecosystem. Built with 💜 by Kishore. Powered by 320kbps Opus, Lavalink v4, and Discord.py.</p>
@@ -1862,13 +1862,14 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <div class="sp-right">
-      <button class="sp-btn" onclick="scrollToId('lyrics')" title="Lyrics">🎤</button>
-      <button class="sp-btn" onclick="scrollToId('equalizer')" title="Equalizer">🎛️</button>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="cursor:pointer;" onclick="toggleMute()" id="sp-vol-icon">🔊</span>
-        <input type="range" min="0" max="100" value="85" class="vol-slider" id="sp-vol-slider" oninput="handleVolume(this.value)">
-      </div>
+    <div class="sp-right">
+      <button class="sp-btn" onclick="scrollToId('lyrics')" title="Lyrics">🎤</button>
+      <button class="sp-btn" onclick="scrollToId('equalizer')" title="Equalizer">🎛️</button>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="cursor:pointer;" onclick="toggleMute()" id="sp-vol-icon">🔊</span>
+        <input type="range" min="0" max="100" value="85" class="vol-slider" id="sp-vol-slider" oninput="handleVolume(this.value)">
+      </div>
+      <a href="/login" class="btn btn-primary btn-sm" style="border-radius:12px; font-weight:700; text-decoration:none; padding:0.4rem 0.85rem; font-size:0.8rem; margin-left:6px;" title="Open Web Dashboard">Dashboard ↗</a>
     </div>
   </div>
 
@@ -2151,47 +2152,117 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       showToast(`Copied "${cmd}" to clipboard! Paste into Discord.`, '📋');
     }
 
+    async function dispatchBackendControl(action, payload = {}) {
+      try {
+        const res = await fetch('/api/music/control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action, payload: payload })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setTimeout(syncLiveBotTrack, 800);
+        }
+      } catch (e) {
+        console.warn("Backend control dispatch note:", e);
+      }
+    }
+
     function runWebCommand(cmd) {
-      switch (cmd) {
+      const parts = cmd.trim().split(/\s+/);
+      const name = parts[0].toLowerCase();
+      const args = parts.slice(1).join(' ');
+
+      showToast(`Running ${cmd} on Rem Discord Bot... ⚡`, '⚡');
+
+      // Dispatch directly to Discord Bot
+      switch (name) {
         case '/pause':
-        case '/resume':
-          togglePlayPause();
-          break;
-        case '/skip':
-          triggerNext();
-          break;
-        case '/stop':
+          dispatchBackendControl('PAUSE');
           isPlaying = false;
           updatePlaybackUI();
-          showToast('Stopped playback and cleared active voice stream. ⏹️', '⏹️');
+          showToast('Paused playback on Discord ⏸️', '⏸');
+          break;
+        case '/resume':
+          dispatchBackendControl('RESUME');
+          isPlaying = true;
+          updatePlaybackUI();
+          showToast('Resumed playback on Discord 🎧', '▶');
+          break;
+        case '/skip':
+        case '/next':
+          dispatchBackendControl('SKIP');
+          triggerNext();
+          showToast('Skipped current track on Discord ⏭️', '⏭️');
+          break;
+        case '/stop':
+          dispatchBackendControl('STOP');
+          isPlaying = false;
+          updatePlaybackUI();
+          showToast('Stopped playback and cleared active voice stream on Discord ⏹️', '⏹️');
           break;
         case '/shuffle':
+          dispatchBackendControl('SHUFFLE');
           shuffleQueueList();
+          showToast('Queue shuffled on Discord! 🔀', '🔀');
           break;
         case '/repeat':
+        case '/loop':
+          dispatchBackendControl('LOOP');
           triggerRepeat();
+          showToast('Toggled repeat loop mode on Discord 🔁', '🔁');
           break;
         case '/volume':
-          handleVolume(100);
-          showToast('Volume set to 100% with soft-limiter protection! 🔊', '🔊');
+          const vVal = parseInt(args) || 100;
+          dispatchBackendControl('VOLUME', { volume: vVal });
+          handleVolume(vVal);
+          showToast(`Volume set to ${vVal}% on Discord 🔊`, '🔊');
           break;
-        case '/speed':
-          showToast('Applied 1.25x tempo playback speed! ⏩', '⏩');
+        case '/radio':
+          const st = args || 'lofi';
+          dispatchBackendControl('RADIO', { station: st });
+          showToast(`Streaming 24/7 Radio Station "${st}" on Discord! 📻`, '📻');
+          break;
+        case '/soundboard':
+        case '/sfx':
+          const snd = args || 'airhorn';
+          dispatchBackendControl('SOUNDBOARD', { sound: snd });
+          showToast(`Played sound effect "${snd}" into voice channel! 📢`, '📢');
+          break;
+        case '/vibe':
+          const vb = args || 'anime';
+          dispatchBackendControl('VIBE', { mood: vb });
+          showToast(`Auto-generating queue for vibe "${vb}" on Discord! 🌸`, '🌸');
+          break;
+        case '/sleep':
+          const mins = parseInt(args) || 30;
+          dispatchBackendControl('SLEEP', { minutes: mins });
+          showToast(`Sleep timer set for ${mins} minutes on Discord! 💤`, '💤');
           break;
         case '/nightcore':
           applyEqPreset('nightcore');
+          dispatchBackendControl('FILTER', { preset: 'nightcore' });
+          showToast('Applied Nightcore audio filter on Discord! ⚡', '⚡');
           break;
         case '/8d':
           applyEqPreset('8d');
+          dispatchBackendControl('FILTER', { preset: '8d' });
+          showToast('Applied 8D Surround audio filter on Discord! 🎧', '🎧');
           break;
         case '/vaporwave':
           applyEqPreset('vaporwave');
+          dispatchBackendControl('FILTER', { preset: 'vaporwave' });
+          showToast('Applied Vaporwave slow-down filter on Discord! 🌊', '🌊');
           break;
         case '/karaoke':
           applyEqPreset('karaoke');
+          dispatchBackendControl('FILTER', { preset: 'karaoke' });
+          showToast('Applied Vocal Isolation Karaoke filter on Discord! 🎤', '🎤');
           break;
         case '/cleareffect':
           applyEqPreset('flat');
+          dispatchBackendControl('FILTER', { preset: 'flat' });
+          showToast('Reset audio DSP equalizer on Discord! 🎚️', '🎚️');
           break;
         case '/queue':
           scrollToId('queue');
@@ -2201,14 +2272,9 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
           scrollToId('lyrics');
           showToast('Showing synchronized karaoke lyrics! 🎤', '🎤');
           break;
-        case '/autodj':
-          showToast('Auto-DJ mode enabled! Endless music stream is active. 🤖', '🤖');
-          break;
-        case '/247':
-          showToast('24/7 Voice Channel Mode active: Rem will never leave! 🛡️', '🛡️');
-          break;
         default:
-          showToast(`Executed ${cmd} in Rem Web Controller! ⚡`, '⚡');
+          dispatchBackendControl('EXECUTE', { command: cmd, args: args });
+          showToast(`Executed ${cmd} in Rem Discord Engine! ⚡`, '⚡');
       }
     }
 
@@ -2216,45 +2282,53 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
     function togglePlayPause() {
       isPlaying = !isPlaying;
       updatePlaybackUI();
-      showToast(isPlaying ? 'Resumed playback 🎧' : 'Paused playback ⏸️', isPlaying ? '▶' : '⏸');
-      // Post to live backend if available
-      fetch('/api/music/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: isPlaying ? 'RESUME' : 'PAUSE' })
-      }).catch(() => {});
+      showToast(isPlaying ? 'Resumed playback on Discord 🎧' : 'Paused playback on Discord ⏸️', isPlaying ? '▶' : '⏸');
+      dispatchBackendControl(isPlaying ? 'RESUME' : 'PAUSE');
     }
 
     function triggerNext() {
+      dispatchBackendControl('SKIP');
       if (activeQueue.length > 0) {
         const next = activeQueue.shift();
         playSelectedTrack(next.title, next.artist, next.thumb);
         renderQueue();
-        showToast(`Skipped to "${next.title}" ⏭️`, '⏭️');
+        showToast(`Skipped to "${next.title}" on Discord ⏭️`, '⏭️');
       } else {
         triggerSurpriseAutoDJ();
       }
-      fetch('/api/music/control', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'SKIP' })
-      }).catch(() => {});
     }
 
     function triggerPrev() {
-      currentSeconds = 0;
-      updatePlaybackUI();
-      showToast('Restarted current track from 00:00 ⏮️', '⏮️');
+      dispatchBackendControl('PREVIOUS');
+      currentSec = 0;
+      updateDeckTime();
+      showToast('Restarted playback from beginning! ⏮️', '⏮️');
+    }
+
+    function triggerRepeat() {
+      const modes = ['off', 'track', 'queue'];
+      repeatMode = modes[(modes.indexOf(repeatMode) + 1) % modes.length];
+      const icons = { off: '🔁', track: '🔂', queue: '🔁' };
+      const btn = document.getElementById('sp-repeat-btn');
+      if (btn) {
+        btn.textContent = icons[repeatMode];
+        btn.classList.toggle('active', repeatMode !== 'off');
+      }
+      dispatchBackendControl('LOOP');
+      showToast(`Loop Mode: ${repeatMode.toUpperCase()} 🔁`, '🔁');
     }
 
     function triggerShuffle() {
       shuffleQueueList();
+      dispatchBackendControl('SHUFFLE');
     }
 
-    let repeatMode = 'off';
-    function triggerRepeat() {
-      repeatMode = repeatMode === 'off' ? 'queue' : repeatMode === 'queue' ? 'track' : 'off';
-      showToast(`Repeat mode set to: ${repeatMode.toUpperCase()} 🔁`, '🔁');
+    function handleVolume(val) {
+      activeVolume = parseInt(val);
+      document.getElementById('sp-vol-slider').value = activeVolume;
+      document.getElementById('hero-vol-slider').value = activeVolume;
+      document.getElementById('sp-vol-icon').textContent = activeVolume === 0 ? '🔇' : (activeVolume < 50 ? '🔉' : '🔊');
+      dispatchBackendControl('VOLUME', { volume: activeVolume });
     }
 
     function playSelectedTrack(title, artist, img) {

@@ -552,6 +552,27 @@ LOGIN_PAGE_HTML = """<!DOCTYPE html>
   </div>
 
   <script>
+    window.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get('token');
+      if (urlToken) {
+        localStorage.setItem('rai_session_token', urlToken);
+      }
+      const token = localStorage.getItem('rai_session_token');
+      if (token) {
+        try {
+          const res = await fetch('/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + token },
+            credentials: 'include'
+          });
+          const json = await res.json();
+          if (json.success && json.data && json.data.authenticated && json.data.user) {
+            const target = json.data.user.is_owner ? '/owner' : '/dashboard';
+            window.location.href = target;
+          }
+        } catch(e) {}
+      }
+    });
     async function handlePasskeySubmit(e) {
       e.preventDefault();
       const btn = document.getElementById('submit-btn');
