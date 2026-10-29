@@ -126,7 +126,7 @@ DEFAULT_CONTROLLER = {
             "thumbnail": "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png",
             "footer": {
                 "text": "Rem 🎧💜 • Your Anime Music Companion",
-                "icon_url": "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png"
+                "icon_url": "@@bot_icon@@"
             }
         }
     }
@@ -377,6 +377,17 @@ class Player(VoiceProtocol):
                 embed.description = "Ready to play! (•ᴗ•) Connect to a voice channel and use `/play`."
         if not embed.color:
             embed.color = Config().embed_color
+
+        # Authoritatively enforce the live Rem bot avatar for controller branding
+        bot_avatar = self.bot.user.display_avatar.url if self.bot and self.bot.user else "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png"
+        if not current_track:
+            embed.set_thumbnail(url=bot_avatar)
+            if embed.footer:
+                embed.set_footer(text=embed.footer.text, icon_url=bot_avatar)
+        else:
+            if embed.footer and not embed.footer.icon_url:
+                embed.set_footer(text=embed.footer.text, icon_url=bot_avatar)
+
         return embed
 
     async def send(self, method: RequestMethod, query: str = None, data: Union[Dict, str] = {}) -> Dict:

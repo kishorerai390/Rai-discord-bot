@@ -136,7 +136,7 @@ class PlayerPlaceholder:
     
     def track_thumbnail(self) -> str:
         if not self.player or not self.player.current:
-            return "https://i.imgur.com/dIFBwU7.png"
+            return (self.bot.user.display_avatar.url if self.bot and self.bot.user else "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png")
         
         return self.player.current.thumbnail or "https://cdn.discordapp.com/attachments/674788144931012638/823086668445384704/eq-dribbble.gif"
 
@@ -164,7 +164,7 @@ class PlayerPlaceholder:
         return Config().embed_color
 
     def bot_icon(self) -> str:
-        return self.bot.user.display_avatar.url if self.player else "https://i.imgur.com/dIFBwU7.png"
+        return (self.bot.user.display_avatar.url if self.bot and self.bot.user else "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png")
     
     def translation(self, text: str) -> str:
         return self.player.get_msg(text)

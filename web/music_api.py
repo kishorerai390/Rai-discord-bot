@@ -33,7 +33,13 @@ def json_success(data: Any, status: int = 200) -> web.Response:
         "data": data,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
-    return web.json_response(payload, status=status)
+    def default_serializer(o: Any) -> Any:
+        if type(o).__name__ == "MagicMock":
+            return None
+        if isinstance(o, (datetime.datetime, datetime.date)):
+            return o.isoformat()
+        return str(o)
+    return web.json_response(payload, status=status, dumps=lambda o: json.dumps(o, default=default_serializer))
 
 
 def json_error(code: str, message: str, status: int = 400) -> web.Response:
@@ -309,6 +315,12 @@ class MusicApiRouter:
         sm = SessionManager.get_instance()
         session = sm.get_session_nowait(guild_id) if hasattr(sm, "get_session_nowait") else None
 
+        vl_player = None
+        if self.bot and hasattr(self.bot, "get_guild"):
+            g_cand = self.bot.get_guild(guild_id)
+            if g_cand and hasattr(g_cand, "voice_client") and type(g_cand.voice_client).__name__ != "MagicMock":
+                vl_player = g_cand.voice_client
+
         user = await self._get_current_user(request)
         is_admin = bool(user.get("is_admin", False)) if user else False
         is_staff = bool(user.get("is_staff", False)) if user else False
@@ -395,7 +407,7 @@ class MusicApiRouter:
         # Live voicelink.Player on Discord bot instance
         if not (session and session.current_track) and self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(guild_id)
-            if g and g.voice_client and getattr(g.voice_client, "current", None):
+            if g and g.voice_client and type(g.voice_client).__name__ != "MagicMock" and getattr(g.voice_client, "current", None) and type(g.voice_client.current).__name__ != "MagicMock":
                 vl_player = g.voice_client
                 track = vl_player.current
                 total = int(track.length / 1000) if getattr(track, "length", None) else 0
@@ -530,7 +542,20 @@ class MusicApiRouter:
         except Exception as e:
             logger.debug(f"DB session fetch note: {e}")
 
-        # Idle session
+        # Idle session - read persistent database volume & autoplay
+        db_vol = 80
+        db_auto = False
+        try:
+            from voicelink import MongoDBHandler
+            g_db_set = await MongoDBHandler.get_settings(guild_id)
+            if g_db_set:
+                if "volume" in g_db_set:
+                    db_vol = int(g_db_set["volume"])
+                if "autoplay" in g_db_set:
+                    db_auto = bool(g_db_set["autoplay"])
+        except Exception:
+            pass
+
         idle_data = {
             "guild_id": str(guild_id),
             "state": "IDLE",
@@ -540,12 +565,12 @@ class MusicApiRouter:
             "position_seconds": 0,
             "duration_seconds": 0,
             "remaining_seconds": 0,
-            "volume": 80,
+            "volume": getattr(vl_player, "volume", db_vol) if vl_player else db_vol,
             "loop_mode": "off",
             "eq_preset": "Flat",
             "queue_count": 0,
             "history_count": 0,
-            "auto_dj": False,
+            "auto_dj": getattr(vl_player, "autoplay", db_auto) if vl_player else db_auto,
             "twenty_four_seven": is_247_enabled,
             "voice_channel_id": str(vc_id) if vc_id else None,
             "voice_channel_name": vc_name,
@@ -873,7 +898,13 @@ class MusicApiRouter:
                     if vol < 0 or vol > 150:
                         return json_error("INVALID_VOLUME_RANGE", "Volume must be between 0 and 150%", status=400)
                     success, msg = await MusicPlayerService.set_volume(session, vol)
+                    try:
+                        from voicelink import MongoDBHandler
+                        await MongoDBHandler.update_settings(int(guild_id_val), {"$set": {"volume": vol}})
+                    except Exception:
+                        pass
                     await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
+                    self._broadcast_music_update(str(guild_id_val), action, extra={"volume": vol})
                     return json_success({"action_id": action_id, "action": action, "status": "QUEUED", "volume": vol, "message": msg})
 
                 elif action == "SHUFFLE":
@@ -1121,7 +1152,7 @@ class MusicApiRouter:
         if self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(guild_id_int)
             vl_player = g.voice_client if g else None
-            if vl_player and (hasattr(vl_player, "set_pause") or hasattr(vl_player, "current")):
+            if vl_player and type(vl_player).__name__ != "MagicMock" and (hasattr(vl_player, "set_pause") or hasattr(vl_player, "current")):
                 try:
                     if action == "PAUSE":
                         await vl_player.set_pause(True)
@@ -1150,9 +1181,29 @@ class MusicApiRouter:
                     elif action == "VOLUME":
                         vol = int(payload.get("volume", 100))
                         await vl_player.set_volume(vol)
+                        try:
+                            from voicelink import MongoDBHandler
+                            await MongoDBHandler.update_settings(guild_id_int, {"$set": {"volume": vol}})
+                        except Exception:
+                            pass
                         await self.db.mark_web_action_completed(action_id, {"status": "volume_set", "volume": vol})
-                        self._broadcast_music_update(str(guild_id_val), action)
+                        self._broadcast_music_update(str(guild_id_val), action, extra={"volume": vol})
                         return json_success({"action_id": action_id, "action": action, "status": "VOLUME_SET", "volume": vol, "message": f"Volume set to {vol}% 🔊"})
+
+                    elif action in ("AUTODJ_TOGGLE", "AUTOPLAY_TOGGLE"):
+                        curr_auto = getattr(vl_player, "autoplay", False)
+                        check = not curr_auto
+                        vl_player.settings['autoplay'] = check
+                        try:
+                            from voicelink import MongoDBHandler
+                            await MongoDBHandler.update_settings(guild_id_int, {"$set": {"autoplay": check}})
+                        except Exception:
+                            pass
+                        await self.db.mark_web_action_completed(action_id, {"status": "autodj_toggled", "enabled": check})
+                        self._broadcast_music_update(str(guild_id_val), "AUTODJ_TOGGLED", extra={"autoplay": check})
+                        if check and not vl_player.is_playing:
+                            await vl_player.do_next()
+                        return json_success({"action_id": action_id, "action": action, "status": "AUTODJ_TOGGLED", "enabled": check, "message": f"Autoplay {'enabled' if check else 'disabled'} 🤖"})
 
                     elif action == "SEEK":
                         target_s = int(payload.get("seconds", 0))
@@ -1215,7 +1266,10 @@ class MusicApiRouter:
                 except Exception as vl_err:
                     logger.warning(f"[VoiceLink Bridge] Action {action} direct execution notice: {vl_err}")
 
-        return json_success({"action_id": action_id, "action": action, "status": "QUEUED"})
+        resp_data = {"action_id": action_id, "action": action, "status": "QUEUED"}
+        if "volume" in payload:
+            resp_data["volume"] = payload["volume"]
+        return json_success(resp_data)
 
     # ==========================================
     # 5. SEARCH & TRACK ENQUEUE

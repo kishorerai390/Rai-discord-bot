@@ -3641,9 +3641,10 @@ UI_HTML = r"""<!DOCTYPE html>
         </div>
         <div class="player-bar-right">
           <button class="p-btn" onclick="navigate('/queue')" title="Open Queue Drawer" aria-label="Open Queue Drawer">≡♪</button>
-          <div class="vol-wrapper">
-            <span id="vol-icon" onclick="quickMute()" style="cursor:pointer;" title="Mute / Unmute" aria-label="Toggle Audio Mute" role="button" tabindex="0">🔊</span>
-            <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" role="slider" aria-label="Audio playback volume" aria-valuemin="0" aria-valuemax="150" aria-valuenow="80" onchange="onVolumeChange(this.value)" title="Volume Slider">
+          <div class="vol-wrapper" style="display:flex; align-items:center; gap:0.45rem;">
+            <span id="vol-icon" onclick="quickMute()" style="cursor:pointer; font-size:1.05rem;" title="Mute / Unmute" aria-label="Toggle Audio Mute" role="button" tabindex="0">🔊</span>
+            <input type="range" class="slider-track" id="vol-slider" min="0" max="150" value="80" role="slider" aria-label="Audio playback volume" aria-valuemin="0" aria-valuemax="150" aria-valuenow="80" oninput="onVolumeInput(this.value)" onchange="onVolumeChange(this.value)" title="Volume Slider">
+            <span id="vol-percent" style="font-size:0.75rem; color:var(--text-muted); min-width:32px; font-variant-numeric:tabular-nums;">80%</span>
           </div>
           <button class="p-btn" id="btn-mini-mode" onclick="toggleMiniPlayerMode()" title="Toggle Compact Deck" aria-label="Toggle Mini Player Mode">🗗</button>
           <button class="p-btn" id="btn-fullscreen-player" onclick="toggleFullscreenPlayer()" title="Toggle Fullscreen" aria-label="Toggle Fullscreen Mode">⤢</button>
@@ -4919,7 +4920,23 @@ const _UNUSED_DEF = {
           try {
             const data = JSON.parse(event.data);
             if (data.event === "MUSIC_UPDATED" || data.event === "PULSE_UPDATED") {
-              if (!data.guild_id || data.guild_id === currentGuildId) {
+              const payload = data.data || data;
+              if (payload.volume !== undefined) {
+                const v = parseInt(payload.volume);
+                const s = document.getElementById('vol-slider');
+                if (s) { s.value = v; s.setAttribute('aria-valuenow', v); }
+                const ic = document.getElementById('vol-icon');
+                if (ic) ic.innerText = v === 0 ? '🔇' : (v < 50 ? '🔉' : '🔊');
+                const pt = document.getElementById('vol-percent');
+                if (pt) pt.innerText = `${v}%`;
+                if (currentSession) currentSession.volume = v;
+              }
+              if (payload.autoplay !== undefined) {
+                if (currentSession) currentSession.auto_dj = !!payload.autoplay;
+                updatePlaybackBarUI();
+              }
+              const gId = payload.guild_id || data.guild_id;
+              if (!gId || gId === currentGuildId) {
                 syncAll();
               }
             }
@@ -5720,8 +5737,17 @@ const _UNUSED_DEF = {
         }
       }
 
-      // Volume
-      document.getElementById('vol-slider').value = currentSession.volume || 80;
+      // Volume synchronization with live indicator
+      const volSlider = document.getElementById('vol-slider');
+      if (volSlider && currentSession && currentSession.volume !== undefined && currentSession.volume !== null) {
+        const vVal = parseInt(currentSession.volume);
+        volSlider.value = vVal;
+        volSlider.setAttribute('aria-valuenow', vVal);
+        const icon = document.getElementById('vol-icon');
+        if (icon) icon.innerText = vVal === 0 ? '🔇' : (vVal < 50 ? '🔉' : '🔊');
+        const pText = document.getElementById('vol-percent');
+        if (pText) pText.innerText = `${vVal}%`;
+      }
 
       updateScrubberTimes();
       updateDynamicTurntableAndVU();
@@ -5922,12 +5948,33 @@ const _UNUSED_DEF = {
       }
     }
 
-    async function onVolumeChange(val) {
+    let volumeDebounceTimer = null;
+    function onVolumeInput(val) {
+      const v = parseInt(val) || 0;
       const el = document.getElementById('vol-slider');
-      if (el) el.setAttribute('aria-valuenow', val);
+      if (el) el.setAttribute('aria-valuenow', v);
       const icon = document.getElementById('vol-icon');
-      if (icon) icon.innerText = parseInt(val) === 0 ? '🔇' : (parseInt(val) < 50 ? '🔉' : '🔊');
-      await dispatchCmd('VOLUME', { volume: parseInt(val) });
+      if (icon) icon.innerText = v === 0 ? '🔇' : (v < 50 ? '🔉' : '🔊');
+      const pText = document.getElementById('vol-percent');
+      if (pText) pText.innerText = `${v}%`;
+      if (currentSession) currentSession.volume = v;
+      clearTimeout(volumeDebounceTimer);
+      volumeDebounceTimer = setTimeout(() => {
+        dispatchCmd('VOLUME', { volume: v });
+      }, 200);
+    }
+
+    async function onVolumeChange(val) {
+      clearTimeout(volumeDebounceTimer);
+      const v = parseInt(val) || 0;
+      const el = document.getElementById('vol-slider');
+      if (el) el.setAttribute('aria-valuenow', v);
+      const icon = document.getElementById('vol-icon');
+      if (icon) icon.innerText = v === 0 ? '🔇' : (v < 50 ? '🔉' : '🔊');
+      const pText = document.getElementById('vol-percent');
+      if (pText) pText.innerText = `${v}%`;
+      if (currentSession) currentSession.volume = v;
+      await dispatchCmd('VOLUME', { volume: v });
     }
 
     let previousVolumeBeforeMute = 80;
