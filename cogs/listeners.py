@@ -148,6 +148,17 @@ class Listeners(commands.Cog):
             func.logger.error("Failed to remove session file: %s", Config.LAST_SESSION_FILE_DIR, exc_info=del_error)
 
     @commands.Cog.listener()
+    async def on_voicelink_track_start(self, player: voicelink.Player, track, _):
+        """Announce only after Lavalink confirms the track has actually started."""
+        try:
+            await player.context.send(
+                f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
+                f"(`{track.formatted_length}`)"
+            )
+        except Exception as e:
+            func.logger.warning(f"Could not announce started track in guild {player.guild.id}: {e}")
+
+    @commands.Cog.listener()
     async def on_voicelink_track_end(self, player: voicelink.Player, track, _):
         await player.do_next()
 
