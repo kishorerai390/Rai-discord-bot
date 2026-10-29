@@ -96,3 +96,4 @@ def test_branding_replaces_legacy_mm_logo():
     cleaned = ph.replace("https://i.imgur.com/dIFBwU7.png", {})
     assert "dIFBwU7" not in cleaned
     assert cleaned == bot.user.display_avatar.url
+

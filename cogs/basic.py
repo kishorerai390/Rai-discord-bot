@@ -1085,5 +1085,106 @@ class Basic(commands.Cog):
 
         await dispatch_message(ctx, embed)
 
+    @commands.hybrid_command(name="soundboard", aliases=["sfx", "sb"])
+    @app_commands.describe(sound="Select an anime or meme sound effect to play.")
+    @app_commands.choices(sound=[
+        app_commands.Choice(name="Airhorn 📯", value="airhorn"),
+        app_commands.Choice(name="Bruh 🗿", value="bruh"),
+        app_commands.Choice(name="Anime Wow ✨", value="anime_wow"),
+        app_commands.Choice(name="Tuturu~ 🌸", value="tuturu"),
+        app_commands.Choice(name="Nani?! ⚡", value="nani"),
+        app_commands.Choice(name="Vine Boom 💥", value="vineboom"),
+        app_commands.Choice(name="FBI Open Up 🚨", value="fbi"),
+        app_commands.Choice(name="Sheesh 🥶", value="sheesh"),
+        app_commands.Choice(name="Roblox OOF 💀", value="oof"),
+        app_commands.Choice(name="Victory Fanfare 🏆", value="victory"),
+        app_commands.Choice(name="Sad Trombone 🎺", value="sadtrombone"),
+        app_commands.Choice(name="Ba-Dum Tss 🥁", value="badumtss"),
+    ])
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def soundboard(self, ctx: commands.Context, sound: str = "airhorn") -> None:
+        "Plays an instant sound effect into the voice channel."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            try:
+                player = await voicelink.connect_channel(ctx)
+            except Exception:
+                return await dispatch_message(ctx, "⚠️ Please join a voice channel first!")
+
+        sfx_queries = {
+            "airhorn": ("Airhorn 📯", "airhorn sound effect"),
+            "bruh": ("Bruh 🗿", "bruh sound effect"),
+            "anime_wow": ("Anime Wow ✨", "anime wow sound"),
+            "tuturu": ("Tuturu~ 🌸", "steins gate tuturu sound"),
+            "nani": ("Nani?! ⚡", "anime nani sound effect"),
+            "vineboom": ("Vine Boom 💥", "vine boom sound effect"),
+            "fbi": ("FBI Open Up 🚨", "fbi open up sound effect"),
+            "sheesh": ("Sheesh 🥶", "sheesh sound effect"),
+            "oof": ("Roblox OOF 💀", "roblox oof death sound"),
+            "victory": ("Victory 🏆", "final fantasy victory fanfare"),
+            "sadtrombone": ("Sad Trombone 🎺", "sad trombone wah wah sound"),
+            "badumtss": ("Ba-Dum Tss 🥁", "badum tss joke drum")
+        }
+
+        info = sfx_queries.get(sound.lower(), ("Sound Effect 🔊", f"{sound} sound effect"))
+        tracks = await player.get_tracks(info[1], requester=ctx.author)
+        if not tracks:
+            return await dispatch_message(ctx, f"⚠️ Could not load sound effect `{info[0]}`.")
+
+        track = tracks[0] if isinstance(tracks, list) else tracks
+        await player.add_track(track, at_font=True)
+        if not player.is_playing:
+            await player.do_next()
+
+        await dispatch_message(ctx, f"🔊 **Rem** triggered **{info[0]}** in {player.channel.mention}! ✨")
+
+    @commands.hybrid_command(name="aidj", aliases=["remdj", "animedj"])
+    @app_commands.describe(mode="Enable or disable Rem's AI Anime DJ commentary announcements ('on' or 'off')")
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def aidj(self, ctx: commands.Context, mode: str = None) -> None:
+        "Toggles Rem's AI Anime DJ companion mode with voice line announcements."
+        if ctx.interaction and not ctx.interaction.response.is_done():
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
+        player: voicelink.Player = ctx.guild.voice_client
+        current_val = False
+        if player:
+            current_val = getattr(player, "ai_dj", False)
+
+        if mode is None:
+            new_val = not current_val
+        elif mode.lower() in ["on", "enable", "true", "yes"]:
+            new_val = True
+        else:
+            new_val = False
+
+        if player:
+            player.ai_dj = new_val
+
+        status_str = "ENABLED 🌸" if new_val else "DISABLED 💤"
+        bot_avatar = self.bot.user.display_avatar.url if self.bot and self.bot.user else "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png"
+        embed = discord.Embed(
+            title=f"🎧 Rem AI Anime DJ — {status_str}",
+            description=(
+                "🌸 **Rem is now your live AI Anime DJ Companion!**\n"
+                "I will introduce songs, share track moods, and announce party updates in chat!"
+                if new_val else
+                "💤 **AI Anime DJ mode is now paused.** Music will stream quietly without DJ speech bubbles."
+            ),
+            color=Config().embed_color
+        )
+        embed.set_thumbnail(url=bot_avatar)
+        embed.set_footer(text="Rem 🎧💜 • Your Anime Music Companion", icon_url=bot_avatar)
+        await dispatch_message(ctx, embed)
+
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Basic(bot))

@@ -2095,7 +2095,20 @@ class MusicApiRouter:
             except Exception:
                 session = None
 
-        if session and self.bot:
+        # Check voicelink.Player on guild first (active Lavalink architecture)
+        guild = self.bot.get_guild(guild_id) if self.bot else None
+        vl_player = getattr(guild, "voice_client", None) if guild else None
+        if vl_player and hasattr(vl_player, "get_tracks"):
+            try:
+                tracks = await vl_player.get_tracks(query, requester=getattr(guild, "me", None))
+                if tracks:
+                    track = tracks[0] if isinstance(tracks, list) else tracks
+                    await vl_player.add_track(track, at_font=True)
+                    if not vl_player.is_playing:
+                        await vl_player.do_next()
+            except Exception as e:
+                logger.warning(f"[Soundboard] Lavalink voicelink playback failed: {e}")
+        elif session and self.bot:
             from music_bot.services.resolver_service import AudioResolver
             from music_bot.services.player_service import MusicPlayerService
             try:
