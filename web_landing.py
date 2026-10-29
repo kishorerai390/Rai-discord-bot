@@ -1510,6 +1510,7 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
         <a href="#lyrics">🎤 Synced Lyrics</a>
         <a href="#queue">📑 Queue</a>
         <a href="#health">🩺 Health</a>
+        <a href="/login" style="color: #c084fc; font-weight: 700;">🔑 Login</a>
         <a href="/dashboard">Dashboard ↗</a>
       </div>
 
@@ -1521,6 +1522,11 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
           <div class="theme-dot cyberpunk" onclick="switchTheme('cyberpunk')" title="Neo-Tokyo Cyberpunk"></div>
           <div class="theme-dot lofi" onclick="switchTheme('lofi')" title="Midnight Lofi"></div>
         </div>
+
+        <a href="/login" class="btn btn-secondary btn-sm" style="font-weight: 700; gap: 0.4rem; border: 1px solid rgba(192, 132, 252, 0.45); color: #fff;">
+          <span>🔑</span>
+          <span>Sign In</span>
+        </a>
 
         <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=8&integration_type=0&scope=bot+applications.commands" target="_blank" class="btn btn-primary btn-sm">
           <span>Invite Rem</span>
@@ -1544,6 +1550,9 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
           <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=8&integration_type=0&scope=bot+applications.commands" target="_blank" class="btn btn-primary">
             <span>Add Rem to Discord</span>
             <span>⚡</span>
+          </a>
+          <a href="/login" class="btn btn-secondary" style="border: 1px solid rgba(192, 132, 252, 0.45); font-weight: 700;">
+            <span>🔑 Sign In / Portal</span>
           </a>
           <a href="#commands" class="btn btn-secondary">
             <span>Explore 43 Commands</span>
@@ -2539,6 +2548,74 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
     }
 
+    // 13. LIVE BOT SESSION SYNC (Polls Discord Voice Player in Real-Time)
+    function syncLiveBotTrack() {
+      fetch('/api/music/session')
+        .then(r => r.json())
+        .then(res => {
+          const sess = res?.data || res;
+          const trk = sess?.current_track;
+          if (trk && trk.title) {
+            const hTitle = document.getElementById('hero-title');
+            const hArtist = document.getElementById('hero-artist');
+            const hThumb = document.getElementById('hero-thumb');
+            const hVc = document.getElementById('hero-vc-name');
+            const spTitle = document.getElementById('sp-title');
+            const spArtist = document.getElementById('sp-artist');
+            const spThumb = document.getElementById('sp-thumb');
+            const badgeChannel = document.querySelector('.hero-badge span:last-child');
+
+            if (hTitle && hTitle.textContent !== trk.title) {
+              hTitle.textContent = trk.title;
+            }
+            const artistDisplay = trk.artist + (trk.channel_name ? ' • In ' + trk.channel_name : (trk.requester_name ? ' • Req: ' + trk.requester_name : ' • 320kbps'));
+            if (hArtist && hArtist.textContent !== artistDisplay) {
+              hArtist.textContent = artistDisplay;
+            }
+            if (hVc && trk.channel_name) {
+              hVc.textContent = '🔊 ' + trk.channel_name + (trk.guild_name ? ' (' + trk.guild_name + ')' : '');
+            }
+            if (spTitle && spTitle.textContent !== trk.title) {
+              spTitle.textContent = trk.title;
+            }
+            if (spArtist) {
+              spArtist.textContent = trk.artist + ' • 320kbps';
+            }
+            if (trk.thumbnail) {
+              if (hThumb && hThumb.src !== trk.thumbnail) hThumb.src = trk.thumbnail;
+              if (spThumb && spThumb.src !== trk.thumbnail) spThumb.src = trk.thumbnail;
+            }
+            if (badgeChannel && trk.channel_name) {
+              badgeChannel.textContent = '🎵 Live in ' + trk.channel_name + (trk.guild_name ? ' • ' + trk.guild_name : '');
+            }
+
+            if (sess.duration > 0) {
+              totalSec = sess.duration;
+            }
+            if (typeof sess.position === 'number' && sess.position >= 0) {
+              currentSec = sess.position;
+              updateDeckTime();
+            }
+
+            // Sync play state
+            if (sess.is_playing && !sess.is_paused) {
+              playActive = true;
+              const spIcon = document.getElementById('sp-play-icon');
+              const heroIcon = document.getElementById('hero-play-icon');
+              if (spIcon) spIcon.textContent = '⏸';
+              if (heroIcon) heroIcon.textContent = '⏸';
+            } else if (sess.is_paused) {
+              playActive = false;
+              const spIcon = document.getElementById('sp-play-icon');
+              const heroIcon = document.getElementById('hero-play-icon');
+              if (spIcon) spIcon.textContent = '▶';
+              if (heroIcon) heroIcon.textContent = '▶';
+            }
+          }
+        })
+        .catch(() => {});
+    }
+
     // Initialize all components on DOM ready
     window.addEventListener('DOMContentLoaded', () => {
       const savedTheme = localStorage.getItem('rem_landing_theme') || 'obsidian';
@@ -2550,15 +2627,11 @@ LANDING_PAGE_HTML = r"""<!DOCTYPE html>
       renderLyrics();
       renderQueue();
 
-      // Poll real live backend session
-      fetch('/api/music/session')
-        .then(r => r.json())
-        .then(data => {
-          if (data && data.current_track) {
-            playSelectedTrack(data.current_track.title, data.current_track.artist, data.current_track.thumbnail);
-          }
-        })
-        .catch(() => {});
+      // 13. LIVE BOT REAL-TIME SYNC
+      syncLiveBotTrack();
+      if (!window.__remSyncTimer) {
+        window.__remSyncTimer = setInterval(syncLiveBotTrack, 3000);
+      }
     });
   </script>
 </body>

@@ -73,7 +73,7 @@ if not s.get('default_controller'):
                 'thumbnail': '@@track_thumbnail@@',
                 'footer': {
                     'text': 'Queue: @@queue_length@@ tracks • Rem 🎧💜',
-                    'icon_url': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg'
+                    'icon_url': 'https://rai-discord-bot.onrender.com/public/rem_avatar_static.png'
                 }
             },
             'inactive': {
@@ -82,11 +82,11 @@ if not s.get('default_controller'):
                     'url': 'https://rai-discord-bot.onrender.com'
                 },
                 'description': '### Ready for music! (•ᴗ•) 🌸\nJoin a voice channel and type `/play <song name or link>` to stream with Rem!',
-                'thumbnail': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg',
-                'image': 'https://rai-discord-bot.onrender.com/public/musicmaid_banner.jpg',
+                'thumbnail': 'https://rai-discord-bot.onrender.com/public/rem_avatar_static.png',
+                'image': 'https://rai-discord-bot.onrender.com/public/rem_avatar_static.png',
                 'footer': {
                     'text': 'Rem 🎧💜 • Your Anime Music Companion',
-                    'icon_url': 'https://rai-discord-bot.onrender.com/public/musicmaid_avatar.jpg'
+                    'icon_url': 'https://rai-discord-bot.onrender.com/public/rem_avatar_static.png'
                 }
             }
         }

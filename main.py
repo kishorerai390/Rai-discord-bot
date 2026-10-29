@@ -53,7 +53,7 @@ def _start_immediate_health_server():
             "artist": "YOASOBI",
             "duration": 206,
             "position": 85,
-            "thumbnail": "/public/musicmaid_avatar.jpg",
+            "thumbnail": "/public/rem_avatar_static.png",
             "uri": "https://www.youtube.com/watch?v=dy90tA3TT1c",
             "requester_name": "Kishore (VIP)"
         },
@@ -89,7 +89,7 @@ def _start_immediate_health_server():
             "title": "KICK BACK (Chainsaw Man OP)",
             "artist": "Kenshi Yonezu",
             "duration": 193,
-            "thumbnail": "/public/musicmaid_avatar.jpg",
+            "thumbnail": "/public/rem_avatar_static.png",
             "requester_name": "Community VIP",
             "uri": "https://www.youtube.com/watch?v=M2cckDmNLMI"
         },
@@ -545,9 +545,115 @@ def _start_immediate_health_server():
                 return self._send_json({"success": True, "data": {"guilds": guilds}})
 
             if path in ["/api/music/session", "/api/music/now-playing"]:
+                import sys
+                main_mod = sys.modules.get("__main__")
+                live_bot = getattr(main_mod, "bot", None)
+                target_gid = qs.get("guild_id", [None])[0]
+
+                vl_player = None
+                guild = None
+                if live_bot and hasattr(live_bot, "guilds"):
+                    if target_gid:
+                        try:
+                            g_target = live_bot.get_guild(int(target_gid))
+                            if g_target and getattr(g_target, "voice_client", None) and getattr(g_target.voice_client, "current", None):
+                                vl_player = g_target.voice_client
+                                guild = g_target
+                        except Exception:
+                            pass
+                    if not vl_player:
+                        for g in live_bot.guilds:
+                            vc = getattr(g, "voice_client", None)
+                            if vc and getattr(vc, "current", None):
+                                vl_player = vc
+                                guild = g
+                                break
+                    if not vl_player:
+                        for g in live_bot.guilds:
+                            vc = getattr(g, "voice_client", None)
+                            if vc and getattr(vc, "is_connected", False):
+                                vl_player = vc
+                                guild = g
+                                break
+
+                if vl_player and getattr(vl_player, "current", None):
+                    curr = vl_player.current
+                    dur = int(getattr(curr, "length", 0) // 1000) if getattr(curr, "length", 0) > 0 else 0
+                    pos = int(getattr(vl_player, "position", 0) // 1000) if getattr(vl_player, "position", 0) > 0 else 0
+                    req = getattr(curr, "requester", None)
+                    req_name = getattr(req, "display_name", None) or getattr(req, "name", None) or str(req or "Discord User")
+                    ch_name = getattr(getattr(vl_player, "channel", None), "name", "Voice")
+                    g_name = getattr(guild, "name", "")
+
+                    real_session = {
+                        "current_track": {
+                            "title": getattr(curr, "title", "Live Discord Stream"),
+                            "artist": getattr(curr, "author", "Rem Anime Companion"),
+                            "duration": dur,
+                            "position": pos,
+                            "thumbnail": getattr(curr, "thumbnail", "") or "/public/rem_avatar_static.png",
+                            "uri": getattr(curr, "uri", ""),
+                            "requester_name": req_name,
+                            "channel_name": f"#{ch_name}",
+                            "guild_name": g_name
+                        },
+                        "is_playing": bool(getattr(vl_player, "is_playing", False)),
+                        "is_paused": bool(getattr(vl_player, "is_paused", False)),
+                        "position": pos,
+                        "duration": dur,
+                        "volume": int(getattr(vl_player, "volume", 100)),
+                        "repeat_mode": str(getattr(getattr(vl_player, "queue", None), "repeat", "off")).lower(),
+                        "is_shuffled": False,
+                        "filter_preset": "normal",
+                        "channel_name": f"#{ch_name}",
+                        "guild_name": g_name,
+                        "guild_id": str(getattr(guild, "id", "")),
+                        "state": "PAUSED" if getattr(vl_player, "is_paused", False) else ("PLAYING" if getattr(vl_player, "is_playing", False) else "IDLE")
+                    }
+                    return self._send_json({"success": True, "data": real_session})
+
                 return self._send_json({"success": True, "data": _ACTIVE_SESSION})
 
             if path == "/api/music/queue":
+                import sys
+                main_mod = sys.modules.get("__main__")
+                live_bot = getattr(main_mod, "bot", None)
+                target_gid = qs.get("guild_id", [None])[0]
+
+                vl_player = None
+                if live_bot and hasattr(live_bot, "guilds"):
+                    if target_gid:
+                        try:
+                            g_target = live_bot.get_guild(int(target_gid))
+                            if g_target and getattr(g_target, "voice_client", None):
+                                vl_player = g_target.voice_client
+                        except Exception:
+                            pass
+                    if not vl_player:
+                        for g in live_bot.guilds:
+                            vc = getattr(g, "voice_client", None)
+                            if vc and (getattr(vc, "current", None) or getattr(getattr(vc, "queue", None), "count", 0) > 0):
+                                vl_player = vc
+                                break
+
+                if vl_player and getattr(vl_player, "queue", None):
+                    real_queue = []
+                    q_obj = vl_player.queue
+                    raw_tracks = getattr(q_obj, "tracks", []) or list(getattr(q_obj, "_queue", []))
+                    for t in raw_tracks:
+                        req = getattr(t, "requester", None)
+                        dur = int(getattr(t, "length", 0) // 1000) if getattr(t, "length", 0) > 0 else 0
+                        real_queue.append({
+                            "title": getattr(t, "title", "Unknown Track"),
+                            "artist": getattr(t, "author", "Rem Audio"),
+                            "duration": dur,
+                            "thumbnail": getattr(t, "thumbnail", "") or "/public/rem_avatar_static.png",
+                            "requester_name": getattr(req, "display_name", None) or getattr(req, "name", None) or "Discord User",
+                            "uri": getattr(t, "uri", "")
+                        })
+                    if real_queue:
+                        return self._send_json({"success": True, "data": {"queue": real_queue, "total": len(real_queue)}})
+
                 return self._send_json({"success": True, "data": {"queue": _ACTIVE_QUEUE, "total": len(_ACTIVE_QUEUE)}})
 
             if path == "/api/music/search":
