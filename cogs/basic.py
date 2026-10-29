@@ -113,50 +113,76 @@ class Basic(commands.Cog):
     @app_commands.describe(channel="Provide a channel to connect.")
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def connect(self, ctx: commands.Context, channel: discord.VoiceChannel = None) -> None:
-        "Connect to a voice channel."
-        try:
-            # Acknowledge slash-command interactions before voice connection work,
-            # which may take longer than Discord's initial response deadline.
-            if ctx.interaction and not ctx.interaction.response.is_done():
-                await ctx.defer()
+        """Connect to the invoking member's voice channel without timing out the interaction."""
+        interaction = getattr(ctx, "interaction", None)
 
-            # Default to the voice channel of the person who invoked /connect.
-            # An explicitly supplied channel remains an intentional override.
+        # Acknowledge as the first operation in the callback. Voice and database
+        # operations can exceed Discord's 3-second initial response deadline.
+        if interaction is not None and not interaction.response.is_done():
+            try:
+                await interaction.response.defer(thinking=True)
+            except (discord.errors.NotFound, discord.errors.InteractionResponded):
+                pass
+
+        async def report_error(message: str) -> None:
+            try:
+                if interaction is not None and interaction.response.is_done():
+                    await interaction.followup.send(message, ephemeral=True)
+                else:
+                    await ctx.send(message)
+            except discord.HTTPException:
+                logger.exception("Could not report /connect result")
+
+        try:
+            if ctx.guild is None:
+                await report_error("❌ Use /connect inside a server.")
+                return
+
             member = getattr(ctx, "author", None) or getattr(ctx, "user", None)
             target_channel = channel or getattr(getattr(member, "voice", None), "channel", None)
             if target_channel is None:
-                # Keep the existing localized no-channel/usage behavior.
-                player = await voicelink.connect_channel(ctx, channel)
-            else:
-                current_player = getattr(ctx.guild, "voice_client", None)
-                current_channel = getattr(current_player, "channel", None) if current_player else None
+                await send_localized_message(ctx, "voice.connection.noChannel", ephemeral=True)
+                return
 
-                if current_player and current_channel and current_channel.id == target_channel.id:
-                    player = current_player
-                elif current_player and current_channel:
-                    # Prefer a native move when supported by the active voice client.
-                    move_to = getattr(current_player, "move_to", None)
-                    if callable(move_to):
-                        await move_to(target_channel)
-                        player = current_player
-                    else:
-                        # This is an explicit /connect request to a different VC.
-                        # Reconnect only for that requested channel change.
-                        await current_player.disconnect(force=True)
-                        player = await voicelink.connect_channel(ctx, target_channel)
-                else:
-                    player = await voicelink.connect_channel(ctx, target_channel)
+            permissions = target_channel.permissions_for(ctx.guild.me)
+            if not permissions.connect or not permissions.speak:
+                await report_error(
+                    f"❌ I need **Connect** and **Speak** permissions in {target_channel.mention}."
+                )
+                return
+
+            current_player = getattr(ctx.guild, "voice_client", None)
+            current_channel = getattr(current_player, "channel", None) if current_player else None
+
+            if current_player and current_channel and current_channel.id == target_channel.id:
+                player = current_player
+            elif current_player and current_channel:
+                # Never disconnect an active player just to paper over a stale state.
+                move_to = getattr(current_player, "move_to", None)
+                if not callable(move_to):
+                    await report_error(
+                        f"⚠️ I'm already connected to {current_channel.mention}. "
+                        "I couldn't safely move the active player; playback was left untouched."
+                    )
+                    return
+                await move_to(target_channel)
+                player = current_player
+            else:
+                player = await voicelink.connect_channel(ctx, target_channel)
+
+            await send_localized_message(ctx, "voice.connection.connect", player.channel)
         except discord.errors.ClientException:
-            return await send_localized_message(ctx, "voice.connection.alreadyConnected")
+            await report_error(
+                "⚠️ Discord reports that I'm already connected. Please wait a moment and try again; "
+                "I haven't force-disconnected the current player."
+            )
         except Exception:
             logger.exception("Rem /connect failed")
-            return await ctx.send(
-                "❌ I couldn't connect to your voice channel. "
-                "Join a voice channel first and check my voice permissions."
+            await report_error(
+                "❌ I couldn't connect to your voice channel. Join a voice channel first, "
+                "and check that I have Connect and Speak permissions."
             )
 
-        await send_localized_message(ctx, "voice.connection.connect", player.channel)
-                
     @commands.hybrid_command(name="play", aliases=get_aliases("play"))
     @app_commands.describe(
         query="Input a query or a searchable link.",
