@@ -115,13 +115,21 @@ class Basic(commands.Cog):
     async def connect(self, ctx: commands.Context, channel: discord.VoiceChannel = None) -> None:
         "Connect to a voice channel."
         if ctx.interaction and not ctx.interaction.response.is_done():
-            await ctx.defer()
+            try:
+                await ctx.defer()
+            except Exception:
+                pass
+
+        # Identify requested or member voice channel
+        member = ctx.author
+        target_channel = channel or getattr(getattr(member, "voice", None), "channel", None)
+        if not target_channel:
+            return await send_localized_message(ctx, "voice.connection.noChannel")
+
         try:
-            player = await voicelink.connect_channel(ctx, channel)
+            player = await voicelink.connect_channel(ctx, target_channel)
+            await send_localized_message(ctx, "voice.connection.connect", player.channel)
         except discord.errors.ClientException as exc:
-            # discord.py can retain a stale VoiceProtocol in guild.voice_client after
-            # a disconnect/reconnect race. Only repair it when Discord's own member
-            # voice state confirms the bot is not actually in a voice channel.
             guild = ctx.guild
             bot_member = guild.me
             actual_voice_channel = getattr(getattr(bot_member, "voice", None), "channel", None)
@@ -147,7 +155,8 @@ class Basic(commands.Cog):
 
                 # Retry exactly once; never loop or destroy a confirmed live connection.
                 try:
-                    player = await voicelink.connect_channel(ctx, channel)
+                    player = await voicelink.connect_channel(ctx, target_channel)
+                    await send_localized_message(ctx, "voice.connection.connect", player.channel)
                 except Exception:
                     logger.exception(
                         "[Voice] Reconnect after stale-client cleanup failed in guild %s.",
@@ -157,7 +166,6 @@ class Basic(commands.Cog):
                         ctx, "voice.connection.alreadyConnected"
                     )
             else:
-                # The bot is genuinely connected, so preserve the live player.
                 logger.info(
                     "[Voice] Connect requested while bot is already in channel %s (guild %s).",
                     getattr(actual_voice_channel, "id", None),
@@ -166,8 +174,11 @@ class Basic(commands.Cog):
                 return await send_localized_message(
                     ctx, "voice.connection.alreadyConnected"
                 )
-
-        await send_localized_message(ctx, "voice.connection.connect", player.channel)
+        except voicelink.VoicelinkException as vle:
+            return await dispatch_message(ctx, str(vle))
+        except Exception as e:
+            logger.exception("[Voice] Unexpected error connecting in guild %s: %s", ctx.guild.id, e)
+            return await dispatch_message(ctx, f"⚠️ Unable to connect to voice channel: {e}")
                 
     @commands.hybrid_command(name="play", aliases=get_aliases("play"))
     @app_commands.describe(

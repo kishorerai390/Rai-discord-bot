@@ -204,6 +204,9 @@ class PlayerPlaceholder:
         for regex_pattern, func in self.regexes.items():
             text = re.sub(regex_pattern, lambda m: func(m.group(1)), text)
         text = re.sub(r'@@(.*?)@@', lambda x: str(variables.get(x.group(1), '')), text)
+        if "dIFBwU7" in text:
+            bot_avatar = self.bot.user.display_avatar.url if self.bot and self.bot.user else "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png"
+            text = text.replace("https://i.imgur.com/dIFBwU7.png", bot_avatar).replace("http://i.imgur.com/dIFBwU7.png", bot_avatar)
         return text
     
     @classmethod

@@ -6303,10 +6303,10 @@ const _UNUSED_DEF = {
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
-      // Server management section routes are restricted exclusively to the bot owner
-      const isServerSectionRoute = ['/analytics', '/stats', '/settings', '/system', '/health-ui', '/guilds', '/dashboard/guilds', '/owner', '/creator'].includes(path);
-      if (isServerSectionRoute && (!currentUser || !currentUser.is_owner)) {
-        showToast("🔒 The SERVER management section is restricted to the bot owner.", "warning");
+      // Creator Control Room is restricted exclusively to the verified bot owner
+      const isOwnerOnlyRoute = ['/owner', '/creator'].includes(path);
+      if (isOwnerOnlyRoute && (!currentUser || !currentUser.is_owner)) {
+        showToast("🔒 The Creator Control Room is restricted to the verified bot owner.", "warning");
         window.history.replaceState({}, '', '/dashboard');
         document.getElementById('nav-dashboard')?.classList.add('active');
         renderDashboard();
@@ -6589,7 +6589,7 @@ const _UNUSED_DEF = {
 
                 <!-- Quick Action Pills -->
                 <div class="login-quick-links">
-                  <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:#fff; background:rgba(88,101,242,0.2); border:1px solid rgba(88,101,242,0.4); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
+                  <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:#fff; background:rgba(88,101,242,0.2); border:1px solid rgba(88,101,242,0.4); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
                     <span>➕ Add to Discord</span>
                   </a>
                   <a href="https://discord.gg/d7T8cJK3XF" target="_blank" rel="noopener" style="font-size:0.75rem; font-weight:700; color:var(--text-muted); background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); padding:0.4rem 0.8rem; border-radius:12px; text-decoration:none; display:inline-flex; align-items:center; gap:0.35rem; transition:all 0.15s ease;">
@@ -6900,7 +6900,7 @@ const _UNUSED_DEF = {
                   <div class="rec-card" onclick="quickEnqueueMood('Lofi Chill Hip Hop Study Beats')">
                     <div class="rec-art-wrap">
                       <img class="rec-art" src="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400" alt="Lofi Beats">
-                      <button class="rec-play-btn" title="Play Now">▶</button>
+                      <button class="rec-play-btn" title="Play Now" onclick="event.stopPropagation(); quickEnqueueMood('Lofi Chill Hip Hop Study Beats')">▶</button>
                     </div>
                     <div class="rec-title">Lofi Chill Beats</div>
                     <div class="rec-artist">Chilled Cow • Study Session</div>
@@ -6909,7 +6909,7 @@ const _UNUSED_DEF = {
                   <div class="rec-card" onclick="quickEnqueueMood('Synthwave Retro 80s Cyberpunk Night Drive')">
                     <div class="rec-art-wrap">
                       <img class="rec-art" src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400" alt="Synthwave Night">
-                      <button class="rec-play-btn" title="Play Now">▶</button>
+                      <button class="rec-play-btn" title="Play Now" onclick="event.stopPropagation(); quickEnqueueMood('Synthwave Retro 80s Cyberpunk Night Drive')">▶</button>
                     </div>
                     <div class="rec-title">Synthwave Night</div>
                     <div class="rec-artist">Neon Horizon • Retro 80s</div>
@@ -6918,7 +6918,7 @@ const _UNUSED_DEF = {
                   <div class="rec-card" onclick="quickEnqueueMood('Top Anime Openings J-Rock Hits')">
                     <div class="rec-art-wrap">
                       <img class="rec-art" src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400" alt="Anime Hits">
-                      <button class="rec-play-btn" title="Play Now">▶</button>
+                      <button class="rec-play-btn" title="Play Now" onclick="event.stopPropagation(); quickEnqueueMood('Top Anime Openings J-Rock Hits')">▶</button>
                     </div>
                     <div class="rec-title">Anime J-Rock Hits</div>
                     <div class="rec-artist">Tokyo Sound • Shonen Anthem</div>
@@ -6927,7 +6927,7 @@ const _UNUSED_DEF = {
                   <div class="rec-card" onclick="quickEnqueueMood('Electronic High Energy Gaming Bass Boost')">
                     <div class="rec-art-wrap">
                       <img class="rec-art" src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400" alt="Gaming Mix">
-                      <button class="rec-play-btn" title="Play Now">▶</button>
+                      <button class="rec-play-btn" title="Play Now" onclick="event.stopPropagation(); quickEnqueueMood('Electronic High Energy Gaming Bass Boost')">▶</button>
                     </div>
                     <div class="rec-title">Electronic Bass</div>
                     <div class="rec-artist">Noctyra Studio • High Voltage</div>
@@ -6994,7 +6994,7 @@ const _UNUSED_DEF = {
                       <div class="tonearm-bar"></div>
                       <div class="tonearm-head"></div>
                     </div>
-                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn">
+                    <button class="btn btn-primary" style="position:absolute; bottom:8px; right:8px; width:34px; height:34px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(147,51,234,0.6); z-index:6;" id="hero-play-btn" onclick="togglePlayPause()" title="Play / Pause">
                       ${isPlaying && !isPaused ? '⏸' : '▶'}
                     </button>
                   </div>
@@ -10036,7 +10036,7 @@ const _UNUSED_DEF = {
                 </div>
                 <h3 style="font-size:1.05rem; font-weight:700; color:#fff;">Anime Chill Lofi</h3>
                 <p style="font-size:0.78rem; color:var(--text-muted); margin:0.3rem 0 0.8rem 0;">Handcrafted mood mix • 24 tracks</p>
-                <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center;">▶ Stream Playlist</button>
+                <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center;" onclick="event.stopPropagation(); quickEnqueueMood('Anime Chill Beats Lofi')">▶ Stream Playlist</button>
               </div>
 
               <div class="glass-card" style="padding:1.4rem; cursor:pointer;" onclick="quickEnqueueMood('Tamil Night Hits Anirudh AR Rahman')">
@@ -10045,7 +10045,7 @@ const _UNUSED_DEF = {
                 </div>
                 <h3 style="font-size:1.05rem; font-weight:700; color:#fff;">Tamil Midnight Hits</h3>
                 <p style="font-size:0.78rem; color:var(--text-muted); margin:0.3rem 0 0.8rem 0;">Anirudh, AR Rahman, Yuvan • 38 tracks</p>
-                <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center;">▶ Stream Playlist</button>
+                <button class="btn btn-primary btn-sm" style="width:100%; justify-content:center;" onclick="event.stopPropagation(); quickEnqueueMood('Tamil Night Hits Anirudh AR Rahman')">▶ Stream Playlist</button>
               </div>
 
               <div class="glass-card" style="padding:1.4rem; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; min-height:220px; border:2px dashed rgba(168,85,247,0.3); cursor:pointer;" onclick="openPlaylistModal()">
@@ -10085,7 +10085,7 @@ const _UNUSED_DEF = {
                   <div style="font-weight:700; color:#fff; font-size:0.92rem;">Illuminati</div>
                   <div style="font-size:0.75rem; color:var(--text-muted);">Sushin Shyam • Played 12 mins ago</div>
                 </div>
-                <button class="btn btn-secondary btn-sm">▶ Play Again</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); quickEnqueueMood('Illuminati Sushin Shyam')">▶ Play Again</button>
               </div>
 
               <div class="queue-row" style="cursor:pointer;" onclick="quickEnqueueMood('Hukum Jailer Anirudh')">
@@ -10094,7 +10094,7 @@ const _UNUSED_DEF = {
                   <div style="font-weight:700; color:#fff; font-size:0.92rem;">Hukum (Alappara)</div>
                   <div style="font-size:0.75rem; color:var(--text-muted);">Anirudh Ravichander • Played 45 mins ago</div>
                 </div>
-                <button class="btn btn-secondary btn-sm">▶ Play Again</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); quickEnqueueMood('Hukum Jailer Anirudh')">▶ Play Again</button>
               </div>
 
               <div class="queue-row" style="cursor:pointer;" onclick="quickEnqueueMood('Tauba Tauba Karan Aujla')">
@@ -10103,7 +10103,7 @@ const _UNUSED_DEF = {
                   <div style="font-weight:700; color:#fff; font-size:0.92rem;">Tauba Tauba</div>
                   <div style="font-size:0.75rem; color:var(--text-muted);">Karan Aujla • Played 2 hours ago</div>
                 </div>
-                <button class="btn btn-secondary btn-sm">▶ Play Again</button>
+                <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); quickEnqueueMood('Tauba Tauba Karan Aujla')">▶ Play Again</button>
               </div>
             </div>
           </div>
@@ -10799,7 +10799,7 @@ const _UNUSED_DEF = {
               <div style="font-size:1.1rem; font-weight:800; color:#fff;">Missing a Server?</div>
               <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">You must have 'Manage Server' or Administrator permissions in Discord to add the bot.</div>
             </div>
-            <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
+            <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=3165184&scope=bot%20applications.commands" target="_blank" rel="noopener" class="btn btn-primary btn-sm" style="text-decoration:none; font-weight:700;">
               ➕ Add Rem to New Server
             </a>
           </div>
@@ -10864,7 +10864,7 @@ const _UNUSED_DEF = {
             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; padding-top:0.6rem; border-top:1px solid rgba(255,255,255,0.06);">
               <span style="font-size:0.72rem; color:var(--text-dim); font-family:'JetBrains Mono',monospace;">ID: ${g.id}</span>
               ${!hasBot ? `
-                <a href="https://discord.com/oauth2/authorize?client_id=1418299882950623253&permissions=3165184&scope=bot%20applications.commands&guild_id=${g.id}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:0.75rem; text-decoration:none;">➕ Invite Bot</a>
+                <a href="https://discord.com/oauth2/authorize?client_id=1556676516274905218&permissions=3165184&scope=bot%20applications.commands&guild_id=${g.id}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size:0.75rem; text-decoration:none;">➕ Invite Bot</a>
               ` : (isCurrent ? `
                 <span class="chip-pill" style="color:var(--emerald); background:rgba(16,185,129,0.15); font-weight:700;">✓ Active Server</span>
               ` : `

@@ -385,7 +385,9 @@ class Player(VoiceProtocol):
             if embed.footer:
                 embed.set_footer(text=embed.footer.text, icon_url=bot_avatar)
         else:
-            if embed.footer and not embed.footer.icon_url:
+            if not embed.thumbnail or not embed.thumbnail.url or 'dIFBwU7' in str(embed.thumbnail.url):
+                embed.set_thumbnail(url=bot_avatar)
+            if embed.footer and (not embed.footer.icon_url or 'dIFBwU7' in str(embed.footer.icon_url)):
                 embed.set_footer(text=embed.footer.text, icon_url=bot_avatar)
 
         return embed
