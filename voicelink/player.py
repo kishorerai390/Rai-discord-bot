@@ -188,6 +188,8 @@ class Player(VoiceProtocol):
 
         self.controller: Union[Message, PartialMessage] = None
         self._updating: bool = False
+        self._pending_controller_track = None
+        self._pending_controller_repost: bool = False
 
         self.pause_votes = set()
         self.resume_votes = set()
@@ -544,9 +546,17 @@ class Player(VoiceProtocol):
     async def invoke_controller(self, current_track=None, *, repost: bool = False):
         """Sends or updates the music controller message in the designated channel."""
         voice_ch = self.channel or (self.guild.me.voice.channel if self.guild and self.guild.me and self.guild.me.voice else None)
-        if not self.settings.get('controller', True) or self._updating or not voice_ch:
+        if not self.settings.get('controller', True) or not voice_ch:
             return
-        
+
+        # Do not drop a track-start refresh when another controller edit is in flight.
+        # Keep only the newest requested track state; it will be applied immediately
+        # after the current Discord message operation completes.
+        if self._updating:
+            self._pending_controller_track = current_track if current_track is not None else self.current
+            self._pending_controller_repost = self._pending_controller_repost or repost
+            return
+
         self._updating = True
 
         try:
@@ -617,6 +627,12 @@ class Player(VoiceProtocol):
         
         finally:
             self._updating = False
+            pending_track = self._pending_controller_track
+            pending_repost = self._pending_controller_repost
+            self._pending_controller_track = None
+            self._pending_controller_repost = False
+            if pending_track is not None:
+                await self.invoke_controller(current_track=pending_track, repost=pending_repost)
 
     async def is_position_fresh(self):
         """Checks if the current controller message is among the most recent messages."""
