@@ -43,11 +43,17 @@ plugins:
     allowSearch: true
     allowDirectVideoIds: true
     allowDirectPlaylistIds: true
+    # Valid client identifiers supported by youtube-plugin 1.18.2.
+    # Clients are attempted in order; failures fall through to the next client.
     clients:
-      - "TVHTML5EMBEDDED"
-      - "ANDROID_TESTSUITE"
-      - "MUSIC"
-      - "WEB"
+      - ANDROID_VR
+      - ANDROID_MUSIC
+      - IOS
+      - MWEB
+      - WEB
+      - WEBEMBEDDED
+      - TVHTML5_SIMPLY
+      - MUSIC
     oauth:
       enabled: false
 
