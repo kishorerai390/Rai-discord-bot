@@ -95,7 +95,7 @@ class DJAccessService:
                 from music_bot.services.player_service import MusicPlayerService
                 success, message, next_track = await MusicPlayerService.skip(bot, session)
                 if success:
-                    return True, f"⏭️ **Vote passed!** ({current_votes}/{required})\\n{message}", next_track
+                    return True, f"⏭️ **Vote passed!** ({current_votes}/{required})\n{message}", next_track
                 return success, message, next_track
             finally:
                 session._dj_vote_skip_in_progress = False
