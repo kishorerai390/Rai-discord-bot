@@ -151,7 +151,14 @@ class Listeners(commands.Cog):
     async def on_voicelink_track_start(self, player: voicelink.Player, track, _=None):
         """Announce the active track, then post a fresh controller with live controls."""
         try:
-            if track and player.context and not getattr(track, "_now_playing_announced", False):
+            preannounced = bool(getattr(track, "_now_playing_announced", False)) if track else False
+            if preannounced:
+                # Consume the marker so repeat/replay events can announce normally.
+                try:
+                    delattr(track, "_now_playing_announced")
+                except AttributeError:
+                    pass
+            elif track and player.context:
                 await player.context.send(
                     f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
                     f"(`{track.formatted_length}`)"
