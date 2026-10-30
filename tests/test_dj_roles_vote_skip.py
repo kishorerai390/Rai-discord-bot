@@ -94,7 +94,7 @@ async def test_non_dj_requires_fifty_percent_of_voice_members():
 @pytest.mark.asyncio
 async def test_listener_outside_bot_voice_channel_cannot_vote():
     channel = FakeChannel([])
-    member = FakeMember(10, channel=FakeChannel([]))
+    member = FakeMember(10, channel=SimpleNamespace(id=78, members=[]))
     session = SimpleNamespace(guild_id=123, voice_client=SimpleNamespace(channel=channel), skip_votes=set())
     bot = FakeBot(SimpleNamespace(dj_role_id=555))
 
