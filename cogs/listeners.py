@@ -154,7 +154,7 @@ class Listeners(commands.Cog):
             if track and player.context:
                 await player.context.send(
                     f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
-                    f"(`{track.formatted_length}`)
+                    f"(`{track.formatted_length}`)"
                 )
             await player.invoke_controller(current_track=track, repost=True)
         except Exception as e:
