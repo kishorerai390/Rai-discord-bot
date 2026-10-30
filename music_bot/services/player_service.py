@@ -16,6 +16,7 @@ import discord
 
 from music_bot.database.models import QueuedTrack
 from music_bot.emojis import EmojiManager
+from music_bot.services.dj_access_service import DJAccessService
 from music_bot.services.resolver_service import (
     FFMPEG_OPTIONS,
     AudioResolver,
@@ -2886,7 +2887,10 @@ class NowPlayingControlView(discord.ui.View):
             return
 
         bot: RaiMusicBot = interaction.client  # type: ignore
-        success, msg, next_track = await MusicPlayerService.skip(bot, session)
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("❌ Could not verify your server membership.", ephemeral=True)
+            return
+        success, msg, next_track = await DJAccessService.request_skip(bot, session, interaction.user)
         self._update_button_states(session)
         try:
             await interaction.followup.send(msg, ephemeral=True)
@@ -3041,6 +3045,12 @@ class NowPlayingControlView(discord.ui.View):
             return
 
         bot_client: RaiMusicBot = interaction.client  # type: ignore
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("❌ Could not verify your server membership.", ephemeral=True)
+            return
+        if not await DJAccessService.is_dj(bot_client, interaction.guild, interaction.user):
+            await interaction.followup.send("🔒 Only DJs and server moderators can stop playback.", ephemeral=True)
+            return
         success, msg = await MusicPlayerService.stop(bot_client, session)
         try:
             await interaction.followup.send(msg, ephemeral=True)
