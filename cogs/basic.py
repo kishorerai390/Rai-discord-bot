@@ -600,6 +600,62 @@ class Basic(commands.Cog):
         view = QueueView(player=player, author=ctx.author)
         view.response = await dispatch_message(ctx, await view.build_embed(), view=view)
 
+    @queue.command(name="remove", aliases=get_aliases("remove"))
+    @app_commands.describe(position="Position of the upcoming song to remove (starts at 1).")
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def remove(self, ctx: commands.Context, position: commands.Range[int, 1, 500]):
+        """Remove one upcoming song from the queue."""
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            return await send_localized_message(ctx, "player.errors.noPlayer", ephemeral=True)
+        if not player.is_user_join(ctx.author):
+            return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
+        if not player.is_privileged(ctx.author):
+            return await send_localized_message(ctx, "permissions.missingDJ", ephemeral=True)
+        upcoming = player.queue.tracks()
+        if position > len(upcoming):
+            return await ctx.reply(f"❌ Queue position must be between 1 and {len(upcoming)}.", ephemeral=True)
+        removed = await player.remove_track(position)
+        track = next(iter(removed.values()))
+        await ctx.reply(f"🗑️ Removed **{track.title}** from the queue.")
+
+    @queue.command(name="move", aliases=get_aliases("move"))
+    @app_commands.describe(position="Current upcoming position.", new_position="New upcoming position.")
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def move(self, ctx: commands.Context, position: commands.Range[int, 1, 500], new_position: commands.Range[int, 1, 500]):
+        """Move an upcoming song to another queue position."""
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            return await send_localized_message(ctx, "player.errors.noPlayer", ephemeral=True)
+        if not player.is_user_join(ctx.author):
+            return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
+        if not player.is_privileged(ctx.author):
+            return await send_localized_message(ctx, "permissions.missingDJ", ephemeral=True)
+        count = len(player.queue.tracks())
+        if position > count or new_position > count:
+            return await ctx.reply(f"❌ Both positions must be between 1 and {count}.", ephemeral=True)
+        if position == new_position:
+            return await ctx.reply("ℹ️ That song is already in that position.", ephemeral=True)
+        track = await player.move_track(position, new_position)
+        await ctx.reply(f"↕️ Moved **{track.title}** to queue position **{new_position}**.")
+
+    @queue.command(name="clear", aliases=get_aliases("clear"))
+    @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
+    async def clear(self, ctx: commands.Context):
+        """Clear upcoming songs without stopping the current track."""
+        player: voicelink.Player = ctx.guild.voice_client
+        if not player:
+            return await send_localized_message(ctx, "player.errors.noPlayer", ephemeral=True)
+        if not player.is_user_join(ctx.author):
+            return await send_localized_message(ctx, "voice.connection.notInChannel", ctx.author.mention, player.channel.mention, ephemeral=True)
+        if not player.is_privileged(ctx.author):
+            return await send_localized_message(ctx, "permissions.missingDJ", ephemeral=True)
+        count = len(player.queue.tracks())
+        if not count:
+            return await ctx.reply("ℹ️ There are no upcoming songs to clear.", ephemeral=True)
+        player.queue.clear()
+        await ctx.reply(f"🧹 Cleared **{count}** upcoming song(s). The current track keeps playing.")
+
     @queue.command(name="export", aliases=get_aliases("export"))
     @commands.dynamic_cooldown(cooldown_check, commands.BucketType.guild)
     async def export(self, ctx: commands.Context):
