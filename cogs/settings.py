@@ -258,10 +258,13 @@ class Settings(commands.Cog, name="settings"):
     async def customcontroller(self, ctx: commands.Context):
         "Customizes music controller embeds."
         settings = await MongoDBHandler.get_settings(ctx.guild.id)
-        controller_settings = settings.get("default_controller", voicelink.Config().controller)
+        controller_settings = settings.get("default_controller") or voicelink.Config().controller or {}
+        default_controller = voicelink.Config().controller or {}
+        controller_embeds = (controller_settings.get("embeds") if isinstance(controller_settings, dict) else None)
+        controller_embeds = controller_embeds or default_controller.get("embeds") or {}
 
         placeholder = PlayerPlaceholder(ctx.bot)
-        view = EmbedBuilderView(ctx, placeholder, controller_settings.get("embeds").copy())
+        view = EmbedBuilderView(ctx, placeholder, controller_embeds.copy())
         view.response = await dispatch_message(ctx, view.build_embed(), view=view)
 
     @settings.command(name="controllermsg", aliases=get_aliases("controllermsg"))
@@ -322,7 +325,11 @@ class Settings(commands.Cog, name="settings"):
             return await send_localized_message(ctx, "permissions.noCreatePermission")
         
         settings = await MongoDBHandler.get_settings(ctx.guild.id)
-        controller = settings.get("default_controller", voicelink.Config().controller).get("embeds", {}).get("inactive", {})        
+        controller_settings = settings.get("default_controller") or voicelink.Config().controller or {}
+        default_controller = voicelink.Config().controller or {}
+        controller_embeds = (controller_settings.get("embeds") if isinstance(controller_settings, dict) else None)
+        controller_embeds = controller_embeds or default_controller.get("embeds") or {}
+        controller = controller_embeds.get("inactive") or {}
         message = await channel.send(embed=PlayerPlaceholder.build_embed(controller, PlayerPlaceholder(self.bot)))
 
         await MongoDBHandler.update_settings(ctx.guild.id, {"$set": {'music_request_channel': {
