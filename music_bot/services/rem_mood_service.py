@@ -42,6 +42,9 @@ class RemMoodService:
     def on_track_started(cls, session: Any) -> Dict[str, Any]:
         """A real track start moves Rem out of idle/lonely mode."""
         cls._state(session)
+        current = session._rem_mood
+        if current in ("annoyed", "hyper"):
+            return cls._set(session, current, "track_started")
         return cls._set(session, "happy", "track_started")
 
     @classmethod
@@ -70,6 +73,8 @@ class RemMoodService:
     def on_queue_empty(cls, session: Any) -> Dict[str, Any]:
         """An empty manual queue is lonely only when no autoplay/radio will continue."""
         cls._state(session)
+        if session._rem_mood == "hyper":
+            return cls._set(session, "hyper", "queue_empty_after_milestone")
         return cls._set(session, "lonely", "queue_empty")
 
     @classmethod
