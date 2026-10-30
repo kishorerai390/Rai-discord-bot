@@ -541,7 +541,7 @@ class Player(VoiceProtocol):
                 "isPaused": self._paused
             })
 
-    async def invoke_controller(self):
+    async def invoke_controller(self, current_track=None, *, repost: bool = False):
         """Sends or updates the music controller message in the designated channel."""
         voice_ch = self.channel or (self.guild.me.voice.channel if self.guild and self.guild.me and self.guild.me.voice else None)
         if not self.settings.get('controller', True) or self._updating or not voice_ch:
@@ -549,8 +549,19 @@ class Player(VoiceProtocol):
         
         self._updating = True
 
-        try:            
-            embed, view = self.build_embed(self.current), InteractiveController(self)
+        try:
+            if current_track is None:
+                current_track = self.current
+            if repost and self.controller:
+                try:
+                    await self.controller.edit(view=None)
+                except errors.NotFound:
+                    pass
+                except Exception as e:
+                    self._logger.debug(f"Could not retire previous music controller: {e}")
+                self.controller = None
+
+            embed, view = self.build_embed(current_track), InteractiveController(self)
             if not embed.color:
                 embed.color = Config().embed_color
 
