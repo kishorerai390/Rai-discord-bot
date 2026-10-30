@@ -1072,9 +1072,30 @@ class Player(VoiceProtocol):
 
         tracks = await track.get_recommendations(self._node)
         if tracks:
-            await self.add_track(tracks, duplicate=False)
-            
-            self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) has been requested recommendations.")
+            # Autoplay is a one-song-at-a-time discovery feature. Keep manual
+            # queue priority intact and avoid dumping an entire recommendation
+            # result set into the queue.
+            candidate = next(
+                (item for item in tracks if item.uri != track.uri),
+                None,
+            )
+            if not candidate:
+                return False
+
+            try:
+                await self.add_track(candidate, duplicate=False)
+            except DuplicateTrack:
+                self._logger.debug(
+                    "Skipping duplicate autoplay recommendation in guild %s",
+                    self.guild.id,
+                )
+                return False
+
+            self._logger.info(
+                "Autoplay queued recommendation '%s' for guild %s",
+                candidate.title,
+                self.guild.id,
+            )
             return True
         return False
     
