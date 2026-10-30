@@ -79,13 +79,16 @@ async def announce_track(ctx, track: voicelink.Track, *, queued: bool = False):
         heading = "🎵 **Up Next:**"
     else:
         heading = "🎶 **Now Playing:**"
-        # The track-start listener checks this marker to avoid a duplicate message.
-        track._now_playing_announced = True
-    return await dispatch_message(
+    message = await dispatch_message(
         ctx,
         f"{heading} [{track.title}]({track.uri}) — **{track.author}** "
         f"(`{track.formatted_length}`)"
     )
+    if not queued:
+        # Set this only after the announcement succeeds, so the start listener
+        # can retry the message if Discord rejects this send.
+        track._now_playing_announced = True
+    return message
 
 
 class Basic(commands.Cog):
