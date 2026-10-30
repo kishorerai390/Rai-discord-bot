@@ -28,6 +28,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Rai.RealtimeGateway")
 
 
+def live_session_payload_changed(previous: List[Dict[str, Any]], current: List[Dict[str, Any]]) -> bool:
+    """Detect meaningful public session changes while ignoring volatile sample timestamps."""
+    def stable_payload(sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [
+            {key: value for key, value in session.items() if key != "started_at"}
+            for session in sessions
+        ]
+    return stable_payload(previous) != stable_payload(current)
+
+
 def safe_json(data: Any) -> str:
     def default_serializer(o: Any) -> Any:
         if type(o).__name__ == "MagicMock":
@@ -536,7 +546,7 @@ class RealtimeGateway:
 
                 # Track title, artist, channel and listener changes matter even when
                 # the session ID remains the same. Compare the full public snapshot.
-                if live_sessions != self.last_live_sessions:
+                if live_session_payload_changed(self.last_live_sessions, live_sessions):
                     # Sessions added
                     for s in live_sessions:
                         if s["id"] not in prev_ids:
