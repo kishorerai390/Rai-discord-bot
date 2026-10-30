@@ -95,6 +95,28 @@ class MusicApiRouter:
             self._db_connected = True
 
     async def _get_current_user(self, request: web.Request) -> Optional[Dict[str, Any]]:
+        # Server-to-server dashboard bridge. The shared token is stored only in
+        # Render/AppDeploy secrets; the caller must also identify as the bot owner.
+        bridge_token = os.getenv("RAI_DASHBOARD_BRIDGE_TOKEN", "")
+        supplied_token = request.headers.get("X-Rai-Dashboard-Bridge", "")
+        bridge_user_id = request.headers.get("X-Rai-Discord-User", "")
+        if bridge_token and supplied_token and bridge_user_id.isdigit():
+            import hmac
+            if hmac.compare_digest(supplied_token, bridge_token):
+                try:
+                    from music_bot.config import is_bot_owner
+                    if is_bot_owner(int(bridge_user_id)):
+                        return {
+                            "user_id": int(bridge_user_id),
+                            "id": int(bridge_user_id),
+                            "is_owner": True,
+                            "is_admin": True,
+                            "guilds": [],
+                            "source": "rai_dashboard_bridge",
+                        }
+                except Exception:
+                    logger.warning("Dashboard bridge owner verification failed.")
+
         if not self.auth_manager:
             return None
         try:
