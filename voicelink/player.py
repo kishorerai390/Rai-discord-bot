@@ -791,38 +791,50 @@ class Player(VoiceProtocol):
             self._inactive_cleanup_timer_worker(seconds)
         )
         
-    async def add_track(self, raw_tracks: Union[Track, List[Track]], *, start_time: int = 0, end_time: int = 0, at_front: bool = False, duplicate: bool = True) -> int:
-        """Adds one or more tracks to the queue."""
+    async def add_track(self, raw_tracks: Union[Track, List[Track]], *, start_time: int = 0, end_time: int = 0, at_front: bool = False, duplicate: bool = False) -> int:
+        """Adds tracks while preventing duplicates in the current track and pending queue."""
         tracks: List[Track] = []
-        _duplicate_tracks = [] if self.queue._allow_duplicate and duplicate else [track.uri for track in self.queue._queue]
         raw_tracks = raw_tracks[0] if isinstance(raw_tracks, List) and len(raw_tracks) == 1 else raw_tracks
+        is_list = isinstance(raw_tracks, List)
 
-        try:
-            if (is_list := isinstance(raw_tracks, List)):
-                for track in raw_tracks:
-                    if track.uri in _duplicate_tracks:
-                        continue
+        # Always include the currently playing track: it is not stored in Queue._queue's
+        # pending section, so checking only queued URIs allowed immediate re-requests.
+        duplicate_uris = {
+            track.uri
+            for track in ([self._current] if self._current else []) + list(self.queue._queue)
+            if track and getattr(track, "uri", None)
+        }
 
-                    self._validate_time(track, start_time, end_time)
-                    self.queue.put_at_front(track) if at_front else self.queue.put(track)  
-                    tracks.append(track)
-                    _duplicate_tracks.append(track.uri)
-            else:
-                if raw_tracks.uri in _duplicate_tracks:
-                    raise DuplicateTrack(self.get_msg("queue.errors.duplicateTrack"))
-                
-                self._validate_time(raw_tracks, start_time, end_time)
-                position = self.queue.put_at_front(raw_tracks) if at_front else self.queue.put(raw_tracks)
-                tracks.append(raw_tracks)
-                
-        finally:
-            if tracks:
-                if self.channel.members and len([m for m in self.channel.members if not m.bot]) > 0:
-                    self._cancel_inactive_cleanup_timer()
-                if self.is_ipc_connected:
-                    await self.send_ws({"op": "addTrack", "tracks": [track.track_id for track in tracks], "position": -1 if is_list else position}, tracks[0].requester)
+        position = 0
+        if is_list:
+            for track in raw_tracks:
+                uri = getattr(track, "uri", None)
+                if uri and uri in duplicate_uris:
+                    continue
+                self._validate_time(track, start_time, end_time)
+                self.queue.put_at_front(track) if at_front else self.queue.put(track)
+                tracks.append(track)
+                if uri:
+                    duplicate_uris.add(uri)
+        else:
+            uri = getattr(raw_tracks, "uri", None)
+            if uri and uri in duplicate_uris:
+                raise DuplicateTrack(self.get_msg("queue.errors.duplicateTrack"))
 
-                self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) has been added {len(tracks)} tracks into the queue.")
+            self._validate_time(raw_tracks, start_time, end_time)
+            position = self.queue.put_at_front(raw_tracks) if at_front else self.queue.put(raw_tracks)
+            tracks.append(raw_tracks)
+
+        if tracks:
+            if self.channel.members and any(not member.bot for member in self.channel.members):
+                self._cancel_inactive_cleanup_timer()
+            if self.is_ipc_connected:
+                await self.send_ws(
+                    {"op": "addTrack", "tracks": [track.track_id for track in tracks], "position": -1 if is_list else position},
+                    tracks[0].requester,
+                )
+            self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) added {len(tracks)} track(s) to the queue.")
+
         return len(tracks) if is_list else position
     
     async def remove_track(self, index: int, index2: int = None, remove_target: Member = None, requester: Member = None) -> Dict[int, Track]:
