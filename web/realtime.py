@@ -518,7 +518,8 @@ class RealtimeGateway:
                     if pulse.get("members_online") != self.last_pulse.get("members_online"):
                         await self.broadcast("MEMBER_COUNT_UPDATED", {"members_online": pulse.get("members_online")})
                     if pulse.get("is_music_playing") != self.last_pulse.get("is_music_playing") or \
-                       pulse.get("music_listeners") != self.last_pulse.get("music_listeners"):
+                       pulse.get("music_listeners") != self.last_pulse.get("music_listeners") or \
+                       pulse.get("track_name") != self.last_pulse.get("track_name"):
                         await self.broadcast("MUSIC_UPDATED", {
                             "is_music_playing": pulse.get("is_music_playing"),
                             "music_listeners": pulse.get("music_listeners"),
@@ -533,7 +534,9 @@ class RealtimeGateway:
                 curr_ids = {s["id"] for s in live_sessions}
                 prev_ids = {s["id"] for s in self.last_live_sessions}
 
-                if curr_ids != prev_ids:
+                # Track title, artist, channel and listener changes matter even when
+                # the session ID remains the same. Compare the full public snapshot.
+                if live_sessions != self.last_live_sessions:
                     # Sessions added
                     for s in live_sessions:
                         if s["id"] not in prev_ids:
