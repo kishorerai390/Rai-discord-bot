@@ -6111,7 +6111,7 @@ class MusicCog(commands.Cog, name="Music"):
     # REM UNIVERSE: 2AM RADIO, SONG MEMORY CARDS & GROWING BOND
     # =========================================================================
 
-    @app_commands.command(name="2amradio", description="Tune into Rem's late-night 2AM chill radio")
+    @app_commands.command(name="radio2am", description="Tune into Rem's late-night 2AM chill radio")
     async def cmd_2amradio(self, interaction: discord.Interaction) -> None:
         if not interaction.guild_id:
             await interaction.response.send_message("This radio is available inside a server.", ephemeral=True)
