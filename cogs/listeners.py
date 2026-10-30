@@ -149,16 +149,16 @@ class Listeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voicelink_track_start(self, player: voicelink.Player, track, _=None):
-        """Update the music controller to show the active Now Playing embed when a track starts."""
+        """Announce the active track, then post a fresh controller with live controls."""
         try:
-            await player.invoke_controller()
-            if track:
+            if track and player.context:
                 await player.context.send(
                     f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
-                    f"(`{track.formatted_length}`)"
+                    f"(`{track.formatted_length}`)
                 )
+            await player.invoke_controller(current_track=track, repost=True)
         except Exception as e:
-            func.logger.warning(f"Could not update controller on track start in guild {player.guild.id}: {e}")
+            func.logger.warning(f"Could not post active controller on track start in guild {player.guild.id}: {e}")
 
     @commands.Cog.listener()
     async def on_voicelink_track_end(self, player: voicelink.Player, track, _):
