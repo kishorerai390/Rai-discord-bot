@@ -295,9 +295,14 @@ class VolumeUp(ControlButton):
         try:
             await self.player.set_volume(value, interaction.user)
             self.player.settings["volume"] = value
-            await MongoDBHandler.update_settings(
-                self.player.guild.id, {"$set": {"volume": value}}
-            )
+            try:
+                await MongoDBHandler.update_settings(
+                    self.player.guild.id, {"$set": {"volume": value}}
+                )
+            except Exception:
+                self.player._logger.exception(
+                    "Could not persist volume setting for guild %s", self.player.guild.id
+                )
             if interaction.message:
                 await interaction.message.edit(
                     embed=self.player.build_embed(self.player.current), view=self.view
@@ -323,9 +328,14 @@ class VolumeDown(ControlButton):
         try:
             await self.player.set_volume(value, interaction.user)
             self.player.settings["volume"] = value
-            await MongoDBHandler.update_settings(
-                self.player.guild.id, {"$set": {"volume": value}}
-            )
+            try:
+                await MongoDBHandler.update_settings(
+                    self.player.guild.id, {"$set": {"volume": value}}
+                )
+            except Exception:
+                self.player._logger.exception(
+                    "Could not persist volume setting for guild %s", self.player.guild.id
+                )
             if interaction.message:
                 await interaction.message.edit(
                     embed=self.player.build_embed(self.player.current), view=self.view
@@ -354,9 +364,14 @@ class VolumeMute(ControlButton):
         try:
             await self.player.set_volume(value, interaction.user)
             self.player.settings["volume"] = value
-            await MongoDBHandler.update_settings(
-                self.player.guild.id, {"$set": {"volume": value}}
-            )
+            try:
+                await MongoDBHandler.update_settings(
+                    self.player.guild.id, {"$set": {"volume": value}}
+                )
+            except Exception:
+                self.player._logger.exception(
+                    "Could not persist volume setting for guild %s", self.player.guild.id
+                )
             self.change_states("muted" if value == 0 else "mute")
             if interaction.message:
                 await interaction.message.edit(
