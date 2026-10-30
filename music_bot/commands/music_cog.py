@@ -61,6 +61,7 @@ from music_bot.theme import (
 from music_bot.database.models import QueuedTrack
 from music_bot.services.diagnostics_service import MusicDiagnosticsService
 from music_bot.services.dj_service import NekoDJService
+from music_bot.services.dj_access_service import DJAccessService
 from music_bot.services.lyrics_service import LyricsService
 from music_bot.services.player_service import AudioEqualizerView, MusicPlayerService, format_duration
 from music_bot.services.recommendation_service import (
@@ -1645,42 +1646,12 @@ class MusicCog(commands.Cog, name="Music"):
             await interaction.followup.send("❌ Nothing is currently playing.", ephemeral=True)
             return
 
-        track_title = session.current_track.title if session.current_track else "Song"
-
-        # Determine if caller has DJ, admin, or requester bypass authority
-        is_dj = False
-        if interaction.guild:
-            dj_settings = await self.bot.db.get_dj_settings(interaction.guild.id)
-            if not dj_settings.enabled or (dj_settings.role_id and any(r.id == dj_settings.role_id for r in getattr(interaction.user, "roles", []))) or getattr(interaction.user.guild_permissions, "administrator", False):
-                is_dj = True
-            elif session.current_track and session.current_track.requester_id == interaction.user.id:
-                is_dj = True
-
-        vc_channel = session.voice_client.channel
-        # Feature 136: Dynamic active listener consensus (filter out bots and self-deafened members)
-        non_bot_listeners = [
-            m for m in getattr(vc_channel, "members", [])
-            if not m.bot and not getattr(getattr(m, "voice", None), "self_deaf", False)
-        ] if vc_channel else []
-
-        if is_dj or len(non_bot_listeners) <= 1:
-            session.skip_votes.clear()
-            success, msg, next_track = await MusicPlayerService.skip(self.bot, session)
-            await interaction.followup.send(msg)
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("❌ Could not verify your server membership.", ephemeral=True)
             return
 
-        # Scaled vote consensus: 40% for larger groups >= 5, 50% for smaller groups
-        threshold_ratio = 0.4 if len(non_bot_listeners) >= 5 else 0.5
-        required_votes = max(2, math.ceil(len(non_bot_listeners) * threshold_ratio))
-        session.skip_votes.add(interaction.user.id)
-        current_votes = len(session.skip_votes)
-
-        if current_votes >= required_votes:
-            session.skip_votes.clear()
-            success, msg, next_track = await MusicPlayerService.skip(self.bot, session)
-            await interaction.followup.send(f"⏭️ **Vote-to-Skip Passed!** ({current_votes}/{required_votes} votes)\n{msg}")
-        else:
-            await interaction.followup.send(f"🗳️ **Vote to Skip:** {current_votes}/{required_votes} listeners voted to skip **{track_title}**.")
+        success, msg, _ = await DJAccessService.request_skip(self.bot, session, interaction.user)
+        await interaction.followup.send(msg, ephemeral=not success)
 
     @music_group.command(name="previous", description="Return to the previous song in history")
     async def music_previous(self, interaction: discord.Interaction) -> None:
@@ -1692,9 +1663,15 @@ class MusicCog(commands.Cog, name="Music"):
     @music_group.command(name="stop", description="Stop playback, clear queue, and leave voice")
     async def music_stop(self, interaction: discord.Interaction) -> None:
         await self.ensure_deferred(interaction, ephemeral=False)
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("❌ This command must be used by a server member.", ephemeral=True)
+            return
+        if not await DJAccessService.is_dj(self.bot, interaction.guild, interaction.user):
+            await interaction.followup.send("🔒 Only members with the configured DJ role (or server moderators) can stop playback.", ephemeral=True)
+            return
         session = await self.session_manager.get_session(interaction.guild_id)  # type: ignore
         success, msg = await MusicPlayerService.stop(self.bot, session)
-        await interaction.followup.send(msg)
+        await interaction.followup.send(msg, ephemeral=not success)
 
     @music_group.command(name="nowplaying", description="View the official Neko Songs Now Playing dashboard")
     async def music_nowplaying(self, interaction: discord.Interaction) -> None:
@@ -2485,6 +2462,33 @@ class MusicCog(commands.Cog, name="Music"):
             color=COLOR_NEON_BLUE,
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @music_group.command(name="dj-role", description="Set or clear the server DJ role (Manage Server required)")
+    @app_commands.describe(role="Role allowed to skip immediately and stop playback; leave empty to clear")
+    async def music_dj_role(self, interaction: discord.Interaction, role: Optional[discord.Role] = None) -> None:
+        await self.ensure_deferred(interaction, ephemeral=True)
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("❌ This command must be used inside a server.", ephemeral=True)
+            return
+        if not (interaction.user.guild_permissions.administrator or interaction.user.guild_permissions.manage_guild):
+            await interaction.followup.send("🔒 You need **Manage Server** permission to configure the DJ role.", ephemeral=True)
+            return
+        settings = await self.bot.db.get_guild_settings(interaction.guild.id)
+        if role is not None and role.is_default():
+            await interaction.followup.send("❌ The @everyone role cannot be used as the DJ role.", ephemeral=True)
+            return
+        settings.dj_role_id = role.id if role else None
+        await self.bot.db.update_guild_settings(settings)
+        if role:
+            await interaction.followup.send(
+                f"✅ {role.mention} is now the DJ role. DJs can skip immediately and stop playback; everyone else can request a 50% voice vote to skip.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                "✅ DJ role cleared. Server administrators and moderators retain control; other listeners must pass a 50% vote to skip.",
+                ephemeral=True,
+            )
 
     @app_commands.command(name="permissions", description="View voice and command permissions")
     async def music_permissions(self, interaction: discord.Interaction) -> None:
