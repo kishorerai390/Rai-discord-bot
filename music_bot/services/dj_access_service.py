@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import math
 from typing import Any, Iterable, Optional
 
@@ -74,16 +75,30 @@ class DJAccessService:
             if not getattr(listener, "bot", False)
         ]
         listener_ids = {int(listener.id) for listener in listeners}
-        current_votes = cls.record_vote(session.skip_votes, int(member.id), listener_ids)
-        required = cls.required_votes(len(listener_ids))
+        vote_lock = getattr(session, "_dj_vote_lock", None)
+        if vote_lock is None:
+            vote_lock = asyncio.Lock()
+            session._dj_vote_lock = vote_lock
 
-        if current_votes >= required:
-            session.skip_votes.clear()
-            from music_bot.services.player_service import MusicPlayerService
-            success, message, next_track = await MusicPlayerService.skip(bot, session)
-            if success:
-                return True, f"⏭️ **Vote passed!** ({current_votes}/{required})\\n{message}", next_track
-            return success, message, next_track
+        async with vote_lock:
+            if getattr(session, "_dj_vote_skip_in_progress", False):
+                return False, "⏳ A vote-approved skip is already processing.", None
+            current_votes = cls.record_vote(session.skip_votes, int(member.id), listener_ids)
+            required = cls.required_votes(len(listener_ids))
+            passed = current_votes >= required
+            if passed:
+                session.skip_votes.clear()
+                session._dj_vote_skip_in_progress = True
+
+        if passed:
+            try:
+                from music_bot.services.player_service import MusicPlayerService
+                success, message, next_track = await MusicPlayerService.skip(bot, session)
+                if success:
+                    return True, f"⏭️ **Vote passed!** ({current_votes}/{required})\\n{message}", next_track
+                return success, message, next_track
+            finally:
+                session._dj_vote_skip_in_progress = False
 
         return False, (
             f"🗳️ **Vote to Skip:** {current_votes}/{required} listeners voted. "
