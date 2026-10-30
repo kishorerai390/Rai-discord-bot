@@ -3,7 +3,7 @@ server:
   address: 127.0.0.1
 lavalink:
   plugins:
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.11.4"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"
       snapshot: false
   server:
     password: "youshallnotpass"
