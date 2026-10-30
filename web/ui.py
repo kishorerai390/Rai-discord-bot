@@ -5009,31 +5009,31 @@ const _UNUSED_DEF = {
           credentials: 'include'
         });
         const json = await res.json();
-        if (json.success && json.data && json.data.authenticated && json.data.user) {
-          currentUser = json.data.user;
-          renderAuthBox(currentUser);
-          const currentPath = location.pathname;
-          if (currentPath === '/' || currentPath === '/login') {
-            if (currentUser.is_owner || currentUser.id === '1457380609641938981') {
-              navigate('/owner');
-            } else {
-              navigate('/dashboard');
-            }
-          } else if (currentPath === '/owner' || currentPath === '/creator') {
-            renderCreatorControlRoom();
-          }
-        } else {
-          const token = localStorage.getItem('rai_session_token');
-          if (token && json.success && (!json.data || !json.data.authenticated)) {
-            localStorage.removeItem('rai_session_token');
-          }
-          renderAuthBox(null);
-          const currentPath = location.pathname;
-          if (currentPath === '/dashboard' || currentPath === '/owner' || currentPath === '/creator') {
-            window.location.href = '/login';
-          } else if (currentPath === '/' || currentPath === '/login') {
-            renderLoginView();
-          }
+        if (json.success && json.data && json.data.authenticated && json.data.user) {
+          currentUser = json.data.user;
+          renderAuthBox(currentUser);
+          const currentPath = location.pathname;
+          if (currentPath === '/' || currentPath === '/login') {
+            if (currentUser.is_owner || currentUser.id === '1457380609641938981') {
+              navigate('/owner');
+            } else {
+              navigate('/dashboard');
+            }
+          } else if (currentPath === '/owner' || currentPath === '/creator') {
+            renderCreatorControlRoom();
+          }
+        } else {
+          const token = localStorage.getItem('rai_session_token');
+          if (token && json.success && (!json.data || !json.data.authenticated)) {
+            localStorage.removeItem('rai_session_token');
+          }
+          renderAuthBox(null);
+          const currentPath = location.pathname;
+          if (currentPath === '/dashboard' || currentPath === '/owner' || currentPath === '/creator') {
+            window.location.href = '/login';
+          } else if (currentPath === '/' || currentPath === '/login') {
+            renderLoginView();
+          }
         }
       } catch(e) {
         renderAuthBox(null);
@@ -6341,51 +6341,51 @@ const _UNUSED_DEF = {
       const path = location.pathname;
       document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
 
-      // Creator Control Room is restricted exclusively to the verified bot owner
-      const isOwnerOnlyRoute = ['/owner', '/creator'].includes(path);
-      if (isOwnerOnlyRoute) {
-        if (!currentUser) {
-          window.location.href = '/login';
-          return;
-        }
-        if (!currentUser.is_owner && currentUser.id !== '1457380609641938981') {
-          showToast("🔒 The Creator Control Room is restricted to the verified bot owner.", "warning");
-          window.history.replaceState({}, '', '/dashboard');
-          document.getElementById('nav-dashboard')?.classList.add('active');
-          renderDashboard();
-          return;
-        }
-        document.getElementById('nav-creator')?.classList.add('active');
-        renderCreatorControlRoom();
-        return;
-      }
-
-      // Protected routes redirect unauthenticated users to login
-      const isProtectedRoute = ['/dashboard', '/servers', '/settings', '/profile'].includes(path);
-      if (isProtectedRoute && !currentUser) {
-        window.location.href = '/login';
-        return;
-      }
-
-      const isLoginPage = (path === '/' || path === '/login');
-      document.body.classList.toggle('page-login-mode', isLoginPage);
-
-      if (path === '/' || path === '/login') {
-        if (currentUser) {
-          const target = (currentUser.is_owner || currentUser.id === '1457380609641938981') ? '/owner' : '/dashboard';
-          window.history.replaceState({}, '', target);
-          document.body.classList.remove('page-login-mode');
-          if (target === '/owner') {
-            document.getElementById('nav-creator')?.classList.add('active');
-            renderCreatorControlRoom();
-          } else {
-            document.getElementById('nav-dashboard')?.classList.add('active');
-            renderDashboard();
-          }
-          return;
-        }
-        document.getElementById('nav-login')?.classList.add('active');
-        renderLoginView();
+      // Creator Control Room is restricted exclusively to the verified bot owner
+      const isOwnerOnlyRoute = ['/owner', '/creator'].includes(path);
+      if (isOwnerOnlyRoute) {
+        if (!currentUser) {
+          window.location.href = '/login';
+          return;
+        }
+        if (!currentUser.is_owner && currentUser.id !== '1457380609641938981') {
+          showToast("🔒 The Creator Control Room is restricted to the verified bot owner.", "warning");
+          window.history.replaceState({}, '', '/dashboard');
+          document.getElementById('nav-dashboard')?.classList.add('active');
+          renderDashboard();
+          return;
+        }
+        document.getElementById('nav-creator')?.classList.add('active');
+        renderCreatorControlRoom();
+        return;
+      }
+
+      // Protected routes redirect unauthenticated users to login
+      const isProtectedRoute = ['/dashboard', '/servers', '/settings', '/profile'].includes(path);
+      if (isProtectedRoute && !currentUser) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const isLoginPage = (path === '/' || path === '/login');
+      document.body.classList.toggle('page-login-mode', isLoginPage);
+
+      if (path === '/' || path === '/login') {
+        if (currentUser) {
+          const target = (currentUser.is_owner || currentUser.id === '1457380609641938981') ? '/owner' : '/dashboard';
+          window.history.replaceState({}, '', target);
+          document.body.classList.remove('page-login-mode');
+          if (target === '/owner') {
+            document.getElementById('nav-creator')?.classList.add('active');
+            renderCreatorControlRoom();
+          } else {
+            document.getElementById('nav-dashboard')?.classList.add('active');
+            renderDashboard();
+          }
+          return;
+        }
+        document.getElementById('nav-login')?.classList.add('active');
+        renderLoginView();
       } else if (path === '/dashboard') {
         document.getElementById('nav-dashboard')?.classList.add('active');
         renderDashboard();
@@ -6821,70 +6821,70 @@ const _UNUSED_DEF = {
       const current = currentSession?.current_track;
       const queue = (currentQueue && Array.isArray(currentQueue)) ? currentQueue : [];
 
-      if (!current && queue.length === 0) {
-        const defaultTracks = [
-          { title: "怪物 (Monster)", artist: "YOASOBI", dur: 206, durText: "03:26", thumb: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400", tag: "BEASTARS S2 OP" },
-          { title: "Faded (Live Vocal Edition)", artist: "Alan Walker", dur: 212, durText: "03:32", thumb: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400", tag: "Lossless EDM" },
-          { title: "新時代 (New Genesis)", artist: "Ado", dur: 226, durText: "03:46", thumb: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400", tag: "One Piece Film: Red" },
-          { title: "KICK BACK", artist: "Kenshi Yonezu", dur: 193, durText: "03:13", thumb: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400", tag: "Chainsaw Man OP" },
-          { title: "紅蓮華 (Gurenge)", artist: "LiSA", dur: 237, durText: "03:57", thumb: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400", tag: "Demon Slayer OP" },
-          { title: "Sparkle (スパークル)", artist: "RADWIMPS", dur: 408, durText: "06:48", thumb: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400", tag: "Your Name OST" },
-          { title: "Bling-Bang-Bang-Born", artist: "Creepy Nuts", dur: 171, durText: "02:51", thumb: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400", tag: "Mashle S2 OP" },
-          { title: "Idol (アイドル)", artist: "YOASOBI", dur: 213, durText: "03:33", thumb: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400", tag: "Oshi no Ko OP" }
-        ];
-
-        let defaultRows = defaultTracks.map((t, idx) => {
-          const num = (idx + 1).toString().padStart(2, '0');
-          const safeTitle = escapeHtml(t.title);
-          const safeArtist = escapeHtml(t.artist);
-          return `
-            <tr class="track-row" style="transition:background 0.2s ease;">
-              <td style="width:40px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);">${num}</td>
-              <td>
-                <div class="track-meta-cell">
-                  <img class="track-thumb-img" src="${t.thumb}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
-                  <div style="min-width:0;">
-                    <div class="track-title-bold" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; color:#fff;">${safeTitle}</div>
-                    <div class="track-artist-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; color:var(--text-muted);">${safeArtist} • <span style="color:var(--cyan); font-weight:600;">${t.tag}</span></div>
-                  </div>
-                </div>
-              </td>
-              <td style="color:var(--text-muted); font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;">${safeArtist}</td>
-              <td style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);">${t.durText}</td>
-              <td style="text-align:center;">
-                <button class="btn-fav" onclick="event.stopPropagation(); showToast('Added ${safeTitle} to favorites! ♥', 'info')" title="Add Favorite" style="background:none; border:none; cursor:pointer; font-size:1.1rem; color:var(--text-muted);">♡</button>
-              </td>
-              <td style="text-align:right;">
-                <div style="display:inline-flex; gap:0.4rem;">
-                  <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'${safeTitle} ${safeArtist}', title:'${safeTitle}', artist:'${safeArtist}', duration:${t.dur}, thumbnail:'${t.thumb}'})" style="padding:0.25rem 0.65rem; font-size:0.75rem; border-radius:9999px; font-weight:700;" title="Play on Discord Bot">▶ Play</button>
-                  <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dispatchCmd('ENQUEUE', {query:'${safeTitle} ${safeArtist}', title:'${safeTitle}', artist:'${safeArtist}', duration:${t.dur}, thumbnail:'${t.thumb}'})" style="padding:0.25rem 0.6rem; font-size:0.75rem; border-radius:9999px;" title="Queue on Discord Bot">+ Queue</button>
-                </div>
-              </td>
-            </tr>
-          `;
-        }).join('');
-
-        return `
-          <div style="margin-bottom:0.75rem; display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:rgba(147,51,234,0.1); border-radius:8px; border:1px solid rgba(147,51,234,0.25);">
-            <span style="font-size:0.78rem; color:var(--cyan); font-weight:700;">✨ Ready to Stream: Click any track to broadcast live into Discord Voice Channel!</span>
-            <span style="font-size:0.72rem; color:var(--text-muted);">Lossless 320kbps</span>
-          </div>
-          <table class="tracks-table" style="width:100%; border-collapse:collapse;">
-            <thead>
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.08); font-size:0.72rem; text-transform:uppercase; color:var(--text-dim); text-align:left;">
-                <th style="padding:0.5rem; text-align:center;">#</th>
-                <th style="padding:0.5rem;">Title</th>
-                <th style="padding:0.5rem;">Artist</th>
-                <th style="padding:0.5rem;">Duration</th>
-                <th style="padding:0.5rem; text-align:center;">Fav</th>
-                <th style="padding:0.5rem; text-align:right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${defaultRows}
-            </tbody>
-          </table>
-        `;
+      if (!current && queue.length === 0) {
+        const defaultTracks = [
+          { title: "怪物 (Monster)", artist: "YOASOBI", dur: 206, durText: "03:26", thumb: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400", tag: "BEASTARS S2 OP" },
+          { title: "Faded (Live Vocal Edition)", artist: "Alan Walker", dur: 212, durText: "03:32", thumb: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=400", tag: "Lossless EDM" },
+          { title: "新時代 (New Genesis)", artist: "Ado", dur: 226, durText: "03:46", thumb: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400", tag: "One Piece Film: Red" },
+          { title: "KICK BACK", artist: "Kenshi Yonezu", dur: 193, durText: "03:13", thumb: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400", tag: "Chainsaw Man OP" },
+          { title: "紅蓮華 (Gurenge)", artist: "LiSA", dur: 237, durText: "03:57", thumb: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400", tag: "Demon Slayer OP" },
+          { title: "Sparkle (スパークル)", artist: "RADWIMPS", dur: 408, durText: "06:48", thumb: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400", tag: "Your Name OST" },
+          { title: "Bling-Bang-Bang-Born", artist: "Creepy Nuts", dur: 171, durText: "02:51", thumb: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400", tag: "Mashle S2 OP" },
+          { title: "Idol (アイドル)", artist: "YOASOBI", dur: 213, durText: "03:33", thumb: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400", tag: "Oshi no Ko OP" }
+        ];
+
+        let defaultRows = defaultTracks.map((t, idx) => {
+          const num = (idx + 1).toString().padStart(2, '0');
+          const safeTitle = escapeHtml(t.title);
+          const safeArtist = escapeHtml(t.artist);
+          return `
+            <tr class="track-row" style="transition:background 0.2s ease;">
+              <td style="width:40px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);">${num}</td>
+              <td>
+                <div class="track-meta-cell">
+                  <img class="track-thumb-img" src="${t.thumb}" onerror="this.onerror=null; this.src=DEFAULT_ARTWORK;" alt="Cover">
+                  <div style="min-width:0;">
+                    <div class="track-title-bold" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; color:#fff;">${safeTitle}</div>
+                    <div class="track-artist-sub" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px; color:var(--text-muted);">${safeArtist} • <span style="color:var(--cyan); font-weight:600;">${t.tag}</span></div>
+                  </div>
+                </div>
+              </td>
+              <td style="color:var(--text-muted); font-size:0.8rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:140px;">${safeArtist}</td>
+              <td style="font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--text-dim);">${t.durText}</td>
+              <td style="text-align:center;">
+                <button class="btn-fav" onclick="event.stopPropagation(); showToast('Added ${safeTitle} to favorites! ♥', 'info')" title="Add Favorite" style="background:none; border:none; cursor:pointer; font-size:1.1rem; color:var(--text-muted);">♡</button>
+              </td>
+              <td style="text-align:right;">
+                <div style="display:inline-flex; gap:0.4rem;">
+                  <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); dispatchCmd('PLAY_NOW', {query:'${safeTitle} ${safeArtist}', title:'${safeTitle}', artist:'${safeArtist}', duration:${t.dur}, thumbnail:'${t.thumb}'})" style="padding:0.25rem 0.65rem; font-size:0.75rem; border-radius:9999px; font-weight:700;" title="Play on Discord Bot">▶ Play</button>
+                  <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); dispatchCmd('ENQUEUE', {query:'${safeTitle} ${safeArtist}', title:'${safeTitle}', artist:'${safeArtist}', duration:${t.dur}, thumbnail:'${t.thumb}'})" style="padding:0.25rem 0.6rem; font-size:0.75rem; border-radius:9999px;" title="Queue on Discord Bot">+ Queue</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        return `
+          <div style="margin-bottom:0.75rem; display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:rgba(147,51,234,0.1); border-radius:8px; border:1px solid rgba(147,51,234,0.25);">
+            <span style="font-size:0.78rem; color:var(--cyan); font-weight:700;">✨ Ready to Stream: Click any track to broadcast live into Discord Voice Channel!</span>
+            <span style="font-size:0.72rem; color:var(--text-muted);">Lossless 320kbps</span>
+          </div>
+          <table class="tracks-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.08); font-size:0.72rem; text-transform:uppercase; color:var(--text-dim); text-align:left;">
+                <th style="padding:0.5rem; text-align:center;">#</th>
+                <th style="padding:0.5rem;">Title</th>
+                <th style="padding:0.5rem;">Artist</th>
+                <th style="padding:0.5rem;">Duration</th>
+                <th style="padding:0.5rem; text-align:center;">Fav</th>
+                <th style="padding:0.5rem; text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${defaultRows}
+            </tbody>
+          </table>
+        `;
       }
 
       let rows = '';
