@@ -152,8 +152,12 @@ class Listeners(commands.Cog):
         """Announce the active track, then post a fresh controller with live controls."""
         try:
             if track and player.context:
+                if getattr(track, "_is_autoplay_recommendation", False):
+                    heading = "🤖 **Autoplay picked this for you:**"
+                else:
+                    heading = "🎶 **Now Playing:**"
                 await player.context.send(
-                    f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
+                    f"{heading} [{track.title}]({track.uri}) — **{track.author}** "
                     f"(`{track.formatted_length}`)"
                 )
             await player.invoke_controller(current_track=track, repost=True)
@@ -162,6 +166,17 @@ class Listeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voicelink_track_end(self, player: voicelink.Player, track, _):
+        try:
+            # Announce only the next manually queued item here. Autoplay
+            # recommendations are announced by the track-start listener.
+            upcoming = player.queue.tracks()
+            if upcoming and player.context:
+                next_track = upcoming[0]
+                await player.context.send(
+                    f"🎵 **Up Next:** [{next_track.title}]({next_track.uri}) — **{next_track.author}**"
+                )
+        except Exception as e:
+            func.logger.warning(f"Could not announce upcoming track in guild {player.guild.id}: {e}")
         await player.do_next()
 
     @commands.Cog.listener()
