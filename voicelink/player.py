@@ -1065,10 +1065,12 @@ class Player(VoiceProtocol):
     async def get_recommendations(self, *, track: Optional[Track] = None) -> bool:
         """Fetches and adds recommended tracks based on the provided track or recent history."""
         if not track:
-            try:
-                track = choice(self.queue.history(incTrack=True)[-5:])
-            except IndexError:
+            # Base discovery on the most recently played track so autoplay
+            # stays musically related instead of jumping randomly across history.
+            history = self.queue.history(incTrack=True)
+            if not history:
                 return False
+            track = history[-1]
 
         tracks = await track.get_recommendations(self._node)
         if tracks:
@@ -1082,6 +1084,9 @@ class Player(VoiceProtocol):
             if not candidate:
                 return False
 
+            # Keep a marker on the Track object so the start listener can
+            # distinguish an autoplay pick from a manually requested song.
+            candidate._is_autoplay_recommendation = True
             try:
                 await self.add_track(candidate, duplicate=False)
             except DuplicateTrack:
