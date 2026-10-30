@@ -327,15 +327,17 @@ class VolumeDown(ControlButton):
         value = max(self.player.volume - 20, 0)
         try:
             await self.player.set_volume(value, interaction.user)
-            self.player.settings["volume"] = value
-            try:
-                await MongoDBHandler.update_settings(
-                    self.player.guild.id, {"$set": {"volume": value}}
-                )
-            except Exception:
-                self.player._logger.exception(
-                    "Could not persist volume setting for guild %s", self.player.guild.id
-                )
+            # Preserve the last non-zero volume for mute/restore.
+            if value:
+                self.player.settings["volume"] = value
+                try:
+                    await MongoDBHandler.update_settings(
+                        self.player.guild.id, {"$set": {"volume": value}}
+                    )
+                except Exception:
+                    self.player._logger.exception(
+                        "Could not persist volume setting for guild %s", self.player.guild.id
+                    )
             if interaction.message:
                 await interaction.message.edit(
                     embed=self.player.build_embed(self.player.current), view=self.view
