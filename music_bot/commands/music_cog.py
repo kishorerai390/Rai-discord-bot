@@ -1424,6 +1424,10 @@ class MusicCog(commands.Cog, name="Music"):
                         session.queue.insert(0, track)
                     else:
                         session.queue.append(track)
+                    try:
+                        await self.bot.db.add_rem_bond_xp(guild.id, member.id, 1)
+                    except Exception:
+                        logger.debug("Could not award Rem Bond XP for queued request.", exc_info=True)
                     queue_pos = 1 if top else len(session.queue)
                     logger.info(
                         "[Playback] operation=queued correlation_id=%s title=%r video_id=%s "
@@ -1496,6 +1500,10 @@ class MusicCog(commands.Cog, name="Music"):
                         "started" if success else "failed",
                     )
                     if success:
+                        try:
+                            await self.bot.db.add_rem_bond_xp(guild.id, member.id, 1)
+                        except Exception:
+                            logger.debug("Could not award Rem Bond XP for playback request.", exc_info=True)
                         try:
                             # If a player message was already created or deployed, update it; otherwise deploy once
                             if not session.now_playing_message:
