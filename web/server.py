@@ -18,6 +18,7 @@ from config import WEB_PORT, COMMUNITY_GUILD_ID
 from database.database import Database
 from web.api import ApiRouter
 from web.ui import UI_HTML
+from web.rai_music_ui import RAI_MUSIC_HTML
 from web.legal import (
     TERMS_OF_SERVICE_HTML,
     PRIVACY_POLICY_HTML,
@@ -70,15 +71,11 @@ class RaiCommunityOSServer:
         self._is_running = False
 
     async def handle_ui(self, request: web.Request) -> web.Response:
-        """Redirect all UI traffic to the official Rai Music main website (AppDeploy)."""
+        """Serve the official Rai Music platform directly from Render with zero credit limits."""
         import aiohttp.web
-        if request.query.get("no_redirect") == "1":
+        if request.query.get("legacy") == "1":
             return aiohttp.web.Response(text=UI_HTML, content_type="text/html")
-        main_url = os.getenv("MAIN_WEBSITE_URL") or "https://rai-music-rgpzau.v2.appdeploy.ai"
-        target = f"{main_url.rstrip('/')}/"
-        if request.query_string:
-            target += f"?{request.query_string}"
-        raise aiohttp.web.HTTPFound(location=target)
+        return aiohttp.web.Response(text=RAI_MUSIC_HTML, content_type="text/html")
 
     async def handle_legacy_leaderboard(self, request: web.Request) -> web.Response:
         """Backward-compatible economy leaderboard API."""

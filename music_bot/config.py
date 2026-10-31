@@ -162,7 +162,7 @@ MUSIC_RATE_LIMIT_COUNT: int = int(os.getenv("MUSIC_RATE_LIMIT_COUNT", "6"))
 MUSIC_RATE_LIMIT_WINDOW_SECONDS: float = float(os.getenv("MUSIC_RATE_LIMIT_WINDOW", "30.0"))
 
 # Public Website and Web Platform URLs
-REM_DEFAULT_URL: str = "https://rai-music-rgpzau.v2.appdeploy.ai"
+REM_DEFAULT_URL: str = "https://rai-discord-bot.onrender.com"
 MUSICMAID_DEFAULT_URL: str = REM_DEFAULT_URL
 
 

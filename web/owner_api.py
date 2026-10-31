@@ -438,7 +438,7 @@ class OwnerApiRouter:
                                 f"━━━━━━━━━━━━━━━━━━━━━━\n"
                                 f"💡 **Granted Reason:** `{reason}`\n"
                                 f"📅 **Active Until:** <t:{exp_unix}:F> (<t:{exp_unix}:R>)\n"
-                                f"🌐 **Web Player Dashboard:** [Open Web Player](https://rai-music-rgpzau.v2.appdeploy.ai)\n"
+                                f"🌐 **Web Player Dashboard:** [Open Web Player](https://rai-discord-bot.onrender.com)\n"
                                 f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
                                 f"Enjoy your premium music experience! 🐾"
                             ),
