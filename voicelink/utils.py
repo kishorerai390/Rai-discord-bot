@@ -329,6 +329,11 @@ async def dispatch_message(
     embed = content if isinstance(content, discord.Embed) else None
     text = None if embed else str(content).format(*params) if params else str(content)
         
+    # Acknowledge component interactions before any database/settings lookup.
+    # This prevents Discord's interaction deadline from expiring while settings load.
+    if isinstance(ctx, discord.Interaction) and not ctx.response.is_done():
+        await ctx.response.defer(ephemeral=ephemeral)
+
     # Determine the sending function
     send_func = (
         ctx.send if isinstance(ctx, commands.Context) else
