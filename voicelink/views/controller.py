@@ -284,34 +284,69 @@ class Loop(ControlButton):
 class VolumeUp(ControlButton):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-    
+
     async def callback(self, interaction: discord.Interaction):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, "permissions.missingFunction")
 
-        value = value if (value := self.player.volume + 20) <= 150 else 150
-        await self.player.set_volume(value, interaction.user)
-        # Update the existing controller instead of posting a new confirmation per click.
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(embed=self.player.build_embed(self.player.current), view=self.view)
-        elif interaction.message:
-            await interaction.message.edit(embed=self.player.build_embed(self.player.current), view=self.view)
+        # Acknowledge the component before waiting on Lavalink's REST request.
+        await interaction.response.defer()
+        value = min(self.player.volume + 20, 150)
+        try:
+            await self.player.set_volume(value, interaction.user)
+            self.player.settings["volume"] = value
+            try:
+                await MongoDBHandler.update_settings(
+                    self.player.guild.id, {"$set": {"volume": value}}
+                )
+            except Exception:
+                self.player._logger.exception(
+                    "Could not persist volume setting for guild %s", self.player.guild.id
+                )
+            if interaction.message:
+                await interaction.message.edit(
+                    embed=self.player.build_embed(self.player.current), view=self.view
+                )
+            await interaction.followup.send(f"🔊 Volume: **{value}%**", ephemeral=True)
+        except Exception:
+            await interaction.followup.send(
+                "⚠️ I couldn't update the volume. Please try again.", ephemeral=True
+            )
+            raise
+
 
 class VolumeDown(ControlButton):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-    
+
     async def callback(self, interaction: discord.Interaction):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, "permissions.missingFunction")
 
-        value = value if (value := self.player.volume - 20) >= 0 else 0
-        await self.player.set_volume(value, interaction.user)
-        # Update the existing controller instead of posting a new confirmation per click.
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
-        elif interaction.message:
-            await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
+        await interaction.response.defer()
+        value = max(self.player.volume - 20, 0)
+        try:
+            await self.player.set_volume(value, interaction.user)
+            self.player.settings["volume"] = value
+            try:
+                await MongoDBHandler.update_settings(
+                    self.player.guild.id, {"$set": {"volume": value}}
+                )
+            except Exception:
+                self.player._logger.exception(
+                    "Could not persist volume setting for guild %s", self.player.guild.id
+                )
+            if interaction.message:
+                await interaction.message.edit(
+                    embed=self.player.build_embed(self.player.current), view=self.view
+                )
+            await interaction.followup.send(f"🔉 Volume: **{value}%**", ephemeral=True)
+        except Exception:
+            await interaction.followup.send(
+                "⚠️ I couldn't update the volume. Please try again.", ephemeral=True
+            )
+            raise
+
 
 class VolumeMute(ControlButton):
     def __init__(self, **kwargs):
@@ -319,16 +354,39 @@ class VolumeMute(ControlButton):
             default_states="muted" if kwargs["player"].volume else "mute",
             **kwargs
         )
-    
+
     async def callback(self, interaction: discord.Interaction):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, "permissions.missingFunction")
 
-        is_muted = self.player.volume != 0
-        value = 0 if is_muted else self.player.settings.get("volume", 100)
-        self.change_states("muted" if value else "mute")
-        await self.player.set_volume(value, interaction.user)
-        await interaction.response.edit_message(view=self.view)
+        await interaction.response.defer()
+        value = 0 if self.player.volume else self.player.settings.get("volume", 100)
+        try:
+            await self.player.set_volume(value, interaction.user)
+            self.player.settings["volume"] = value
+            try:
+                await MongoDBHandler.update_settings(
+                    self.player.guild.id, {"$set": {"volume": value}}
+                )
+            except Exception:
+                self.player._logger.exception(
+                    "Could not persist volume setting for guild %s", self.player.guild.id
+                )
+            self.change_states("muted" if value == 0 else "mute")
+            if interaction.message:
+                await interaction.message.edit(
+                    embed=self.player.build_embed(self.player.current), view=self.view
+                )
+            await interaction.followup.send(
+                "🔇 Volume muted." if value == 0 else f"🔊 Volume restored: **{value}%**",
+                ephemeral=True,
+            )
+        except Exception:
+            await interaction.followup.send(
+                "⚠️ I couldn't update the volume. Please try again.", ephemeral=True
+            )
+            raise
+
 
 class AutoPlay(ControlButton):
     def __init__(self, **kwargs):
@@ -336,22 +394,51 @@ class AutoPlay(ControlButton):
             default_states="on" if kwargs["player"].autoplay else "off",
             **kwargs
         )
-    
+
     async def callback(self, interaction: discord.Interaction):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, "permissions.missingAutoPlay", ephemeral=True)
 
-        check = not self.player.settings.get("autoplay", False)
-        self.player.settings['autoplay'] = check
-        self.change_states("on" if check else "off")
-        # Acknowledge the button once and update the existing controller in place.
-        if not interaction.response.is_done():
-            await interaction.response.edit_message(embed=self.player.build_embed(self.player.current), view=self.view)
-        elif interaction.message:
-            await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
+        # Acknowledge immediately so the control never appears to time out.
+        await interaction.response.defer()
+        enabled = not self.player.autoplay
+        self.player.settings["autoplay"] = enabled
+        self.change_states("on" if enabled else "off")
 
-        if not self.player.is_playing:
-            await self.player.do_next()
+        try:
+            await MongoDBHandler.update_settings(
+                self.player.guild.id, {"$set": {"autoplay": enabled}}
+            )
+        except Exception:
+            self.player._logger.exception(
+                "Could not persist autoplay setting for guild %s", self.player.guild.id
+            )
+
+        if interaction.message:
+            await interaction.message.edit(
+                embed=self.player.build_embed(self.player.current), view=self.view
+            )
+
+        if enabled:
+            if not self.player.is_playing and self.player.queue.is_empty:
+                await self.player.do_next()
+                if self.player.is_playing:
+                    message = "♾️ Autoplay is **ON** — I found a recommendation and started it."
+                else:
+                    message = (
+                        "♾️ Autoplay is **ON**, but I couldn't find a recommendation yet. "
+                        "Play a song first so I have something to recommend from."
+                    )
+            else:
+                message = (
+                    "♾️ Autoplay is **ON** — I'll add one recommended song when the current "
+                    "track finishes. Songs already in your queue will play first."
+                )
+        else:
+            message = "⏹️ Autoplay is **OFF** — no automatic recommendations will be added."
+
+        await interaction.followup.send(message, ephemeral=True)
+
 
 class Shuffle(ControlButton):
     def __init__(self, **kwargs):
