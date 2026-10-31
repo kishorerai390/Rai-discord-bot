@@ -112,10 +112,15 @@ class EmojiManager:
 
     @classmethod
     def parse_emoji_id(cls, raw: str) -> Optional[int]:
-        """Extract numeric Snowflake ID from integer, numeric string, or <:name:id> format."""
+        """Extract a custom emoji ID from a numeric ID or Discord emoji tag.
+
+        ``app:<:name:id>`` marks an emoji uploaded to the Discord application itself.
+        """
         if not raw:
             return None
         raw = raw.strip()
+        if raw.lower().startswith("app:"):
+            raw = raw[4:].strip()
         if raw.isdigit():
             try:
                 return int(raw)
@@ -143,10 +148,19 @@ class EmojiManager:
         if not configured:
             return fallback
 
+        # Application-owned emojis are uploaded in the Discord Developer Portal.
+        # They are not returned by bot.get_emoji(), which only searches guild cache.
+        # Prefix configured values with ``app:`` to opt in explicitly, avoiding
+        # accidentally bypassing accessibility checks for ordinary guild emojis.
+        app_owned = configured.lower().startswith("app:")
+        emoji_value = configured[4:].strip() if app_owned else configured
+
         # If already formatted as <:name:id> or <a:name:id>
-        match = CUSTOM_EMOJI_REGEX.match(configured)
+        match = CUSTOM_EMOJI_REGEX.match(emoji_value)
         if match:
             emoji_id = int(match.group("id"))
+            if app_owned:
+                return emoji_value
             if bot is not None:
                 emoji_obj = bot.get_emoji(emoji_id)
                 if emoji_obj is not None:
@@ -156,8 +170,8 @@ class EmojiManager:
             return configured
 
         # If configured as raw snowflake ID
-        if configured.isdigit():
-            emoji_id = int(configured)
+        if emoji_value.isdigit():
+            emoji_id = int(emoji_value)
             if bot is not None:
                 emoji_obj = bot.get_emoji(emoji_id)
                 if emoji_obj is not None:
@@ -165,8 +179,14 @@ class EmojiManager:
                 return fallback
             return fallback
 
+        # Invalid app-owned tags should not leak the literal ``app:`` marker into
+        # Discord messages. Keep the existing Unicode fallback instead.
+        if app_owned:
+            logger.warning("Invalid application emoji configuration for key %s; using fallback.", key_upper)
+            return fallback
+
         # If configured as custom Unicode character or string
-        return configured
+        return emoji_value
 
     @classmethod
     def get_button_emoji(
@@ -183,6 +203,14 @@ class EmojiManager:
         if not configured:
             return fallback
 
+        app_owned = configured.lower().startswith("app:")
+        emoji_value = configured[4:].strip() if app_owned else configured
+        if app_owned and CUSTOM_EMOJI_REGEX.match(emoji_value):
+            try:
+                return discord.PartialEmoji.from_str(emoji_value)
+            except (TypeError, ValueError):
+                return fallback
+
         emoji_id = cls.parse_emoji_id(configured)
         if emoji_id is not None and bot is not None:
             emoji_obj = bot.get_emoji(emoji_id)
@@ -190,7 +218,7 @@ class EmojiManager:
                 return emoji_obj
 
         # If not accessible or not a snowflake, check if it's standard Unicode string
-        if not configured.isdigit() and not CUSTOM_EMOJI_REGEX.match(configured):
+        if not configured.isdigit() and not CUSTOM_EMOJI_REGEX.match(configured) and not configured.lower().startswith("app:"):
             return configured
 
         return fallback
