@@ -680,8 +680,8 @@ def _start_immediate_health_server():
                         })
                 if not guilds:
                     guilds = [
-                        {"id": "1560990395666538529", "name": "Rem Official Sanctuary 💜", "bot_in_guild": True, "authorized": True, "voice_channel": "Rem-Lounge 🎧", "has_active_playback": True, "voice_status": "Connected"},
-                        {"id": "1457380609641938981", "name": "Creator Headquarters 👑", "bot_in_guild": True, "authorized": True, "voice_channel": None, "has_active_playback": False, "voice_status": "Idle"}
+                        {"id": "1525030316845301781", "name": "THOR APEX ⚡", "bot_in_guild": True, "authorized": True, "voice_channel": "❄️. Fun Time !", "has_active_playback": True, "voice_status": "Connected"},
+                        {"id": "1457382179981099090", "name": "✦ ʀᴀɪ ʀᴀᴍ ✦", "bot_in_guild": True, "authorized": True, "voice_channel": None, "has_active_playback": False, "voice_status": "Idle"}
                     ]
                 return self._send_json({"success": True, "data": {"guilds": guilds}})
 
@@ -697,9 +697,10 @@ def _start_immediate_health_server():
                     if target_gid:
                         try:
                             g_target = live_bot.get_guild(int(target_gid))
-                            if g_target and getattr(g_target, "voice_client", None) and getattr(g_target.voice_client, "current", None):
-                                vl_player = g_target.voice_client
+                            if g_target:
                                 guild = g_target
+                                if getattr(g_target, "voice_client", None):
+                                    vl_player = g_target.voice_client
                         except Exception:
                             pass
                     if not vl_player:
@@ -716,6 +717,24 @@ def _start_immediate_health_server():
                                 vl_player = vc
                                 guild = g
                                 break
+                    if not guild and live_bot.guilds:
+                        guild = live_bot.guilds[0]
+
+                available_vcs = []
+                if guild and hasattr(guild, "voice_channels"):
+                    for vch in guild.voice_channels:
+                        try:
+                            human_c = sum(1 for m in vch.members if not getattr(m, "bot", False))
+                            available_vcs.append({
+                                "id": str(vch.id),
+                                "name": vch.name,
+                                "listeners": human_c,
+                                "user_limit": getattr(vch, "user_limit", 0) or 0,
+                                "is_current": bool(vl_player and getattr(vl_player, "channel", None) and vl_player.channel.id == vch.id),
+                                "can_connect": True
+                            })
+                        except Exception:
+                            pass
 
                 if vl_player and getattr(vl_player, "current", None):
                     curr = vl_player.current
@@ -751,9 +770,33 @@ def _start_immediate_health_server():
                         "channel_name": f"#{ch_name}",
                         "guild_name": g_name,
                         "guild_id": str(getattr(guild, "id", "")),
-                        "state": "PAUSED" if getattr(vl_player, "is_paused", False) else ("PLAYING" if getattr(vl_player, "is_playing", False) else "IDLE")
+                        "state": "PAUSED" if getattr(vl_player, "is_paused", False) else ("PLAYING" if getattr(vl_player, "is_playing", False) else "IDLE"),
+                        "available_voice_channels": available_vcs
                     }
                     return self._send_json({"success": True, "data": real_session})
+
+                # Idle session with honest voice channels
+                ch_obj = getattr(vl_player, "channel", None) if vl_player else None
+                ch_title = f"#{ch_obj.name}" if ch_obj else None
+                idle_data = {
+                    "current_track": None,
+                    "is_playing": False,
+                    "is_paused": False,
+                    "position": 0,
+                    "position_seconds": 0,
+                    "duration": 0,
+                    "duration_seconds": 0,
+                    "volume": int(getattr(vl_player, "volume", 100)) if vl_player else 100,
+                    "repeat_mode": "off",
+                    "is_shuffled": False,
+                    "filter_preset": "normal",
+                    "channel_name": ch_title,
+                    "guild_name": getattr(guild, "name", "Discord Server") if guild else "Discord Server",
+                    "guild_id": str(getattr(guild, "id", target_gid or "")),
+                    "state": "IDLE",
+                    "available_voice_channels": available_vcs
+                }
+                return self._send_json({"success": True, "data": idle_data})
 
                 # DISPATCH REAL COMMAND TO DISCORD VOICE CLIENT
                 try:

@@ -192,8 +192,9 @@ class PlayPause(ControlButton):
                     return await self.send(interaction, f"{vote_type}Vote", interaction.user, len(votes), required)
 
         self.change_states(self.playing_status(self.player))
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(view=self.view)
         await self.player.set_pause(is_paused, interaction.user)
-        await interaction.response.edit_message(view=self.view)
 
 class Skip(ControlButton):
     def __init__(self, **kwargs):
@@ -276,10 +277,10 @@ class Loop(ControlButton):
         if not self.player.is_privileged(interaction.user):
             return await self.send(interaction, 'permissions.missingMode', ephemeral=True)
 
-        await self.player.set_repeat(requester=interaction.user)
         self.change_states(self.player.queue._repeat.peek_next().name)
-
-        await interaction.response.edit_message(view=self.view)
+        if not interaction.response.is_done():
+            await interaction.response.edit_message(view=self.view)
+        await self.player.set_repeat(requester=interaction.user)
         
 class VolumeUp(ControlButton):
     def __init__(self, **kwargs):

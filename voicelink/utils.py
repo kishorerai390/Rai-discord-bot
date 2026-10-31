@@ -329,11 +329,19 @@ async def dispatch_message(
     embed = content if isinstance(content, discord.Embed) else None
     text = None if embed else str(content).format(*params) if params else str(content)
         
+    # Acknowledge component interactions before any database/settings lookup.
+    # This prevents Discord's interaction deadline from expiring while settings load.
+    if isinstance(ctx, discord.Interaction) and not ctx.response.is_done():
+        try:
+            await ctx.response.defer(ephemeral=ephemeral)
+        except Exception:
+            pass
+
     # Determine the sending function
     send_func = (
         ctx.send if isinstance(ctx, commands.Context) else
         ctx.channel.send if isinstance(ctx, TempCtx) else
-        ctx.followup.send if ctx.response.is_done() else
+        ctx.followup.send if (isinstance(ctx, discord.Interaction) and ctx.response.is_done()) else
         ctx.response.send_message
     )
 
@@ -391,6 +399,13 @@ async def send_localized_message(
     Returns:
         Optional[discord.Message]: The sent message object, or None if sending failed.
     """
+    # Acknowledge immediately before database language retrieval
+    if isinstance(ctx, discord.Interaction) and not ctx.response.is_done():
+        try:
+            await ctx.response.defer(ephemeral=kwargs.get('ephemeral', False))
+        except Exception:
+            pass
+
     if language and language in LangHandler.get_all_languages():
         localized_text = LangHandler._get_lang(language, content_key)
     else:

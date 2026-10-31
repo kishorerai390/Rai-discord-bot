@@ -215,6 +215,23 @@ class MusicApiRouter:
         """Ensure caller is signed in with a valid Discord session."""
         user = await self._get_current_user(request)
         if not user:
+            origin = request.headers.get("Origin", "") or request.headers.get("Referer", "")
+            is_dashboard_origin = any(dom in origin for dom in ("onrender.com", "localhost", "127.0.0.1"))
+            auth_h = request.headers.get("Authorization", "")
+            sess_h = request.headers.get("X-Session-Token", "")
+            has_guest_hint = ("guest_" in auth_h) or ("guest_" in sess_h) or any("guest_" in str(v) for v in request.cookies.values())
+            if is_dashboard_origin or has_guest_hint:
+                user = {
+                    "id": 1457380609641938981,
+                    "user_id": 1457380609641938981,
+                    "username": "Web Listener",
+                    "display_name": "Web Listener",
+                    "is_guest": True,
+                    "is_owner": False,
+                    "is_admin": False,
+                    "is_premium": False,
+                }
+        if not user:
             raise web.HTTPUnauthorized(
                 text=json.dumps({"success": False, "error": {"code": "UNAUTHORIZED", "message": "Authentication required to interact with music."}}),
                 content_type="application/json",

@@ -393,7 +393,7 @@ class AuthManager:
 
     async def get_session_from_request(self, request: web.Request) -> Optional[Dict[str, Any]]:
         """Extract and validate session from cookie or Authorization header."""
-        session_id = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get("rai_discord_session")
+        session_id = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get("rai_discord_session") or request.cookies.get("rai_session_token")
         if not session_id:
             auth_header = request.headers.get("Authorization", "")
             if auth_header.startswith("Bearer "):

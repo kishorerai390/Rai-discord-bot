@@ -3526,3 +3526,138 @@ select:focus-visible {
 }
 .command-detail { font-size: 11px; color: #e5d9ff; }
 .command-usage { font-size: 10px; color: #8c82a2; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; width: fit-content; }
+
+/* --- Antigravity UI Fixes for Sidebar, Stat Cards & Soundboard --- */
+.nav {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.nav-group-title {
+  display: block !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.4px !important;
+  color: #7b7494 !important;
+  padding: 12px 10px 4px !important;
+  text-transform: uppercase !important;
+}
+
+.nav-link {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  height: 42px !important;
+  padding: 0 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  color: #a49cb8 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  box-sizing: border-box !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #ffffff !important;
+}
+
+.nav-link.active {
+  background: linear-gradient(90deg, rgba(116, 73, 216, 0.3), rgba(116, 73, 216, 0.08)) !important;
+  color: #d1bfff !important;
+  box-shadow: inset 3px 0 #a987ff !important;
+  font-weight: 600 !important;
+  border-color: rgba(169, 135, 255, 0.2) !important;
+}
+
+/* Stat Cards & Info Blocks */
+.stat-info {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  min-width: 0 !important;
+  margin-top: 4px !important;
+}
+
+.stat-label {
+  display: block !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #8c82a2 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  margin-bottom: 2px !important;
+}
+
+.stat-val, .stat-value {
+  display: block !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  line-height: 1.25 !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.stat-sub, .stat-note {
+  display: block !important;
+  font-size: 11px !important;
+  color: #9d94b4 !important;
+  line-height: 1.3 !important;
+  margin-top: 2px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Soundboard Pill and Layout Fixes */
+.soundboard-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.genre-pill {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #a49cb8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.genre-pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.genre-pill.active {
+  background: rgba(168, 137, 255, 0.25);
+  border-color: #a889ff;
+  color: #ffffff;
+}
+
+.soundboard-full-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  min-height: 200px;
+  margin-top: 8px;
+}

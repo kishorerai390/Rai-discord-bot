@@ -78,7 +78,7 @@ export default function App() {
   const [liveSession, setLiveSession] = useState<any | null>(null);
   const [liveQueue, setLiveQueue] = useState<any[]>([]);
   const [liveStats, setLiveStats] = useState<any | null>(null);
-  const [liveSounds, setLiveSounds] = useState<any[]>([]);
+  const [liveSounds, setLiveSounds] = useState<any[]>(DEFAULT_SOUNDBOARD);
   const [liveHistory, setLiveHistory] = useState<any[]>([]);
   const [liveBridgeReady, setLiveBridgeReady] = useState(true);
   const [botReachable, setBotReachable] = useState(true);
@@ -96,10 +96,13 @@ export default function App() {
   // Toast notifier
   const notify = (message: string, type: 'info' | 'success' | 'warning' | 'music' | 'danger' = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts(prev => [...prev.slice(-3), { id, message, type }]);
+    setToasts(prev => {
+      const filtered = prev.filter(t => !t.message.includes('theme activated') || !message.includes('theme activated'));
+      return [...filtered.slice(-2), { id, message, type }];
+    });
     window.setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3600);
+    }, 3200);
   };
   const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
 
@@ -208,7 +211,10 @@ export default function App() {
         payload,
       });
       if (res.data?.success === false) {
-        notify(res.data?.error?.message || 'Action could not be completed.', 'warning');
+        const errMsg = res.data?.error?.message || 'Action could not be completed.';
+        if (!errMsg.toLowerCase().includes('authentication required')) {
+          notify(errMsg, 'warning');
+        }
       } else {
         const msg = res.data?.data?.message || res.data?.message || `${action} sent to Rem`;
         notify(msg, 'music');
@@ -269,9 +275,12 @@ export default function App() {
 
   // Filter soundboard items
   const filteredSounds = useMemo(() => {
-    return liveSounds.filter(s => {
-      const matchCat = soundCategory === 'All' || s.category.toLowerCase() === soundCategory.toLowerCase();
-      const matchQuery = soundSearch === '' || s.name.toLowerCase().includes(soundSearch.toLowerCase());
+    const list = liveSounds && liveSounds.length > 0 ? liveSounds : DEFAULT_SOUNDBOARD;
+    return list.filter(s => {
+      const itemCat = String(s.category || '').toLowerCase();
+      const targetCat = soundCategory.toLowerCase();
+      const matchCat = soundCategory === 'All' || itemCat === targetCat;
+      const matchQuery = !soundSearch || (s.name || '').toLowerCase().includes(soundSearch.toLowerCase());
       return matchCat && matchQuery;
     });
   }, [liveSounds, soundCategory, soundSearch]);
@@ -782,13 +791,19 @@ export default function App() {
               </div>
 
               <div className="soundboard-full-grid">
-                {filteredSounds.map(snd => (
-                  <button key={snd.id} className="sound-tile-card" onClick={() => triggerSound(snd.id, snd.name)}>
-                    <span className="sound-tile-emoji">{snd.emoji || '🔊'}</span>
-                    <strong className="sound-tile-name">{snd.name}</strong>
-                    <span className="sound-tile-desc">{snd.query}</span>
-                  </button>
-                ))}
+                {filteredSounds.length > 0 ? (
+                  filteredSounds.map(snd => (
+                    <button key={snd.id} className="sound-tile-card" onClick={() => triggerSound(snd.id, snd.name)}>
+                      <span className="sound-tile-emoji">{snd.emoji || '🔊'}</span>
+                      <strong className="sound-tile-name">{snd.name}</strong>
+                      <span className="sound-tile-desc">{snd.query}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ gridColumn: '1 / -1', padding: '40px 20px', textAlign: 'center', color: '#8c82a2' }}>
+                    No sound clips match "{soundCategory}". Select "All" to browse all 24 SFX clips!
+                  </div>
+                )}
               </div>
             </section>
           )}

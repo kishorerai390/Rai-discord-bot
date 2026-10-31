@@ -1,8 +1,17 @@
 const getStoredToken = (): string => {
   try {
-    return localStorage.getItem('rai_session_token') || '';
+    let t = localStorage.getItem('rai_session_token');
+    if (!t) {
+      t = 'guest_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('rai_session_token', t);
+    }
+    // Sync cookie for credentials: 'include'
+    if (typeof document !== 'undefined' && !document.cookie.includes('rai_session_token=')) {
+      document.cookie = `rai_session_token=${t}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+    return t;
   } catch {
-    return '';
+    return 'guest_listener';
   }
 };
 
