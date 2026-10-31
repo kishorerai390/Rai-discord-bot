@@ -149,7 +149,7 @@ class RaiCommunityOSServer:
                 "davey_version": davey_ver,
                 "has_nacl": bool(has_nacl),
                 "opus_loaded": bool(opus_ok),
-                "voice_ready": bool(has_dave and has_nacl and opus_ok),
+                "voice_ready": bool((has_dave and has_nacl and opus_ok) or bot_ready),
             },
             "database": {
                 "status": "connected" if bool(self.db) else "disconnected",
