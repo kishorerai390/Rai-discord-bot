@@ -10,10 +10,16 @@ from typing import Optional, Any
 import discord
 
 from config import Colors
+from music_bot.emojis import EmojiManager
 
 
 DEFAULT_BRAND = "『RΛI』"
 DEFAULT_FOOTER = "RΛI://CORE"
+
+
+def _emoji(key: str) -> str:
+    """Resolve a configured custom emoji or the safe Unicode fallback."""
+    return EmojiManager.get(key)
 
 
 def create_embed(
@@ -43,7 +49,7 @@ def create_embed(
 
 
 def success_embed(title: str = "Success", description: Optional[str] = None) -> discord.Embed:
-    desc = f"> ✅ {description}" if description else None
+    desc = f"> {_emoji('SUCCESS')} {description}" if description else None
     return create_embed(
         title=f"{DEFAULT_BRAND} • {title}",
         description=desc,
@@ -53,7 +59,7 @@ def success_embed(title: str = "Success", description: Optional[str] = None) -> 
 
 
 def error_embed(title: str = "Error", description: Optional[str] = None) -> discord.Embed:
-    desc = f"> ❌ {description}" if description else None
+    desc = f"> {_emoji('ERROR')} {description}" if description else None
     return create_embed(
         title=f"{DEFAULT_BRAND} • {title}",
         description=desc,
@@ -63,7 +69,7 @@ def error_embed(title: str = "Error", description: Optional[str] = None) -> disc
 
 
 def warning_embed(title: str = "Warning", description: Optional[str] = None) -> discord.Embed:
-    desc = f"> ⚠️ {description}" if description else None
+    desc = f"> {_emoji('WARNING')} {description}" if description else None
     return create_embed(
         title=f"{DEFAULT_BRAND} • {title}",
         description=desc,
@@ -74,7 +80,7 @@ def warning_embed(title: str = "Warning", description: Optional[str] = None) -> 
 
 def alert_embed(title: str = "Security Alert", description: Optional[str] = None) -> discord.Embed:
     return create_embed(
-        title=f"🚨 {title}",
+        title=f"{_emoji('ERROR')} {title}",
         description=description,
         color=Colors.ALERT,
         footer_text=DEFAULT_FOOTER,
@@ -82,7 +88,7 @@ def alert_embed(title: str = "Security Alert", description: Optional[str] = None
 
 
 def security_embed(title: str = "Security Alert", description: Optional[str] = None) -> discord.Embed:
-    desc = f"> 🛡️ {description}" if description else None
+    desc = f"> {_emoji('VIP')} {description}" if description else None
     return create_embed(
         title=f"{DEFAULT_BRAND} • {title}",
         description=desc,
@@ -118,7 +124,7 @@ def security_alert_embed(
 ) -> discord.Embed:
     embed = create_embed(
         title=title or f"{DEFAULT_BRAND} • SECURITY ALERT",
-        description=description or (f"> 🚨 Threat detected in **{guild_name}**" if guild_name else None),
+        description=description or (f"> {_emoji('ERROR')} Threat detected in **{guild_name}**" if guild_name else None),
         color=Colors.ALERT,
         footer_text=DEFAULT_FOOTER,
     )
@@ -139,13 +145,13 @@ def security_alert_embed(
 
 def security_dashboard_embed(guild_name: str, metrics: dict[str, Any]) -> discord.Embed:
     emoji_map = {
-        "Protection": "🛡️",
+        "Protection": EmojiManager.get("VIP"),
         "Anti-Raid": "⚔️",
         "Anti-Nuke": "☢️",
         "Anti-Spam": "🔐",
         "AutoMod": "🤖",
         "Monitoring": "📡",
-        "Health": "🩺",
+        "Health": EmojiManager.get("DOCTOR"),
     }
     lines = []
     for key, val in metrics.items():
@@ -162,7 +168,7 @@ def security_dashboard_embed(guild_name: str, metrics: dict[str, Any]) -> discor
 
 def info_embed(title: str = "Information", description: Optional[str] = None) -> discord.Embed:
     return create_embed(
-        title=f"ℹ️ {title}",
+        title=f"{_emoji('INFO')} {title}",
         description=description,
         color=Colors.INFO,
         footer_text=DEFAULT_FOOTER,
@@ -185,7 +191,7 @@ def music_now_playing_embed(
     else:
         desc = f"**{track_title}**\n`{artist}`\n"
     embed = create_embed(
-        title=f"{DEFAULT_BRAND} • NOW PLAYING",
+        title=f"{_emoji('NOTE')} {DEFAULT_BRAND} • NOW PLAYING",
         description=desc,
         color=Colors.PRIMARY,
         thumbnail_url=thumbnail_url,
@@ -193,6 +199,6 @@ def music_now_playing_embed(
     )
     embed.add_field(name="⏱️ Duration", value=f"`{duration_str}`", inline=True)
     embed.add_field(name="👤 Requested by", value=str(requested_by), inline=True)
-    embed.add_field(name="📜 Position", value=str(queue_position), inline=True)
+    embed.add_field(name=f"{_emoji('QUEUE')} Position", value=str(queue_position), inline=True)
     embed.add_field(name="🎚️ Player Status", value=str(player_status), inline=True)
     return embed
