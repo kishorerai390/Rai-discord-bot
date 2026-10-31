@@ -89,6 +89,22 @@ class MusicApiRouter:
         self._db_connected = False
         self._soundboard_cooldowns: Dict[str, float] = {}
 
+    def _broadcast_music_update(self, guild_id: str, action: str, extra: Optional[Dict[str, Any]] = None) -> None:
+        try:
+            from web.realtime import RealtimeGateway
+            rt = RealtimeGateway.get_instance()
+            if rt:
+                payload = {
+                    "guild_id": str(guild_id),
+                    "action": action,
+                    "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                }
+                if extra:
+                    payload.update(extra)
+                asyncio.create_task(rt.broadcast("MUSIC_UPDATED", payload))
+        except Exception:
+            pass
+
     async def _ensure_db(self) -> None:
         if not self._db_connected:
             await self.db.connect()
@@ -430,6 +446,34 @@ class MusicApiRouter:
             except Exception:
                 pass
 
+        # Collect available voice channels in guild for web VC selection & auto-joining
+        available_vcs = []
+        if self.bot and hasattr(self.bot, "get_guild"):
+            try:
+                g_ch_lookup = self.bot.get_guild(guild_id)
+                if g_ch_lookup and hasattr(g_ch_lookup, "voice_channels"):
+                    for vch in g_ch_lookup.voice_channels:
+                        try:
+                            human_c = sum(1 for m in vch.members if not getattr(m, "bot", False))
+                            can_conn = True
+                            if g_ch_lookup.me:
+                                p = vch.permissions_for(g_ch_lookup.me)
+                                can_conn = bool(p.connect and p.speak)
+                            is_curr = bool(vc_id and str(vch.id) == str(vc_id))
+                            available_vcs.append({
+                                "id": str(vch.id),
+                                "name": vch.name,
+                                "listeners": human_c,
+                                "user_limit": getattr(vch, "user_limit", 0) or 0,
+                                "is_current": is_curr,
+                                "can_connect": can_conn,
+                            })
+                        except Exception:
+                            pass
+                    available_vcs.sort(key=lambda c: (not c["is_current"], -c["listeners"], c["name"]))
+            except Exception:
+                pass
+
         # Live voicelink.Player on Discord bot instance
         if not (session and session.current_track) and self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(guild_id)
@@ -481,6 +525,7 @@ class MusicApiRouter:
                     "listener_count": len(voice_listeners),
                     "permissions": perms,
                     "signature_symbol": "vr_headset",
+                    "available_voice_channels": available_vcs,
                 }
                 data["session"] = {k: v for k, v in data.items() if k != "session"}
                 return json_success(data)
@@ -529,6 +574,7 @@ class MusicApiRouter:
                 "last_error": getattr(session, "last_error", None),
                 "permissions": perms,
                 "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
+                "available_voice_channels": available_vcs,
             }
             data["session"] = {k: v for k, v in data.items() if k != "session"}
             return json_success(data)
@@ -611,6 +657,7 @@ class MusicApiRouter:
             "last_error": None,
             "permissions": perms,
             "signature_symbol": getattr(__import__("music_bot.services.presence_service", fromlist=["DynamicPresenceService"]).DynamicPresenceService, "_signature_symbol", "vr_headset"),
+            "available_voice_channels": available_vcs,
         }
         idle_data["session"] = {k: v for k, v in idle_data.items() if k != "session"}
         return json_success(idle_data)
@@ -1183,8 +1230,82 @@ class MusicApiRouter:
         # If no dedicated SessionManager session, execute directly on bot's voicelink.Player
         if self.bot and hasattr(self.bot, "get_guild"):
             g = self.bot.get_guild(guild_id_int)
+            if g:
+                req_ch_id = payload.get("channel_id")
+                target_vc = None
+                if req_ch_id:
+                    try:
+                        target_vc = g.get_channel(int(req_ch_id))
+                    except Exception:
+                        target_vc = None
+                if not target_vc and user_id:
+                    try:
+                        m_cand = g.get_member(int(user_id))
+                        if m_cand and m_cand.voice and m_cand.voice.channel:
+                            target_vc = m_cand.voice.channel
+                    except Exception:
+                        pass
+                if not target_vc and hasattr(g, "voice_channels") and g.voice_channels:
+                    target_vc = next((c for c in g.voice_channels if any(not m.bot for m in c.members)), g.voice_channels[0])
+
+                vl_player = g.voice_client
+
+                # Auto-connect or relocate when voice connection or playback is requested
+                if target_vc and (action in ("CONNECT_VOICE", "JOIN_VOICE") or (action in ("ENQUEUE", "PLAY_NOW", "PLAY", "RESUME") and not vl_player)):
+                    if vl_player and hasattr(vl_player, "channel") and vl_player.channel and vl_player.channel.id != target_vc.id:
+                        try:
+                            res = vl_player.move_to(target_vc)
+                            if inspect.isawaitable(res):
+                                await res
+                            vl_player.channel = target_vc
+                        except Exception as m_err:
+                            logger.warning(f"[VoiceLink] Channel relocation failed: {m_err}")
+                    elif not vl_player:
+                        try:
+                            from voicelink import MongoDBHandler, Player
+                            settings = await MongoDBHandler.get_settings(guild_id_int)
+                            class WebVoiceContext:
+                                def __init__(self, b, guild_obj, ch_obj, user_obj):
+                                    self.bot = b
+                                    self.client = b
+                                    self.guild = guild_obj
+                                    self.channel = ch_obj
+                                    self.author = user_obj
+                                    self.user = user_obj
+                                    self.interaction = None
+                            txt_channel = (
+                                g.system_channel
+                                or next((c for c in g.text_channels if c.permissions_for(g.me).send_messages), None)
+                            )
+                            author_mem = g.get_member(int(user_id)) if user_id else g.me
+                            if not author_mem:
+                                author_mem = g.me
+                            ctx = WebVoiceContext(self.bot, g, txt_channel, author_mem)
+                            res = target_vc.connect(cls=Player(self.bot, target_vc, ctx, settings))
+                            if inspect.isawaitable(res):
+                                vl_player = await res
+                            else:
+                                vl_player = res
+                            if hasattr(vl_player, "volume") and hasattr(vl_player, "set_volume") and vl_player.volume != 100:
+                                res_v = vl_player.set_volume(vl_player.volume)
+                                if inspect.isawaitable(res_v):
+                                    await res_v
+                            g.voice_client = vl_player
+                        except Exception as conn_err:
+                            logger.warning(f"[VoiceLink] Direct connect to #{getattr(target_vc, 'name', 'Voice')} failed: {conn_err}")
+
+                    if action in ("CONNECT_VOICE", "JOIN_VOICE"):
+                        raw_name = getattr(target_vc, "name", "Voice")
+                        vc_name = str(raw_name) if isinstance(raw_name, str) else "Voice"
+                        raw_id = getattr(target_vc, "id", None)
+                        vc_id_str = str(raw_id) if (raw_id is not None and not hasattr(raw_id, "_mock_name")) else None
+                        msg = f"Rem joined #{vc_name} 🔊"
+                        await self.db.mark_web_action_completed(action_id, {"status": "connected", "channel": vc_name, "channel_id": vc_id_str})
+                        self._broadcast_music_update(str(guild_id_val), action, extra={"channel": vc_name, "channel_id": vc_id_str})
+                        return json_success({"action_id": action_id, "action": action, "status": "CONNECTED", "channel": vc_name, "channel_id": vc_id_str, "message": msg})
+
             vl_player = g.voice_client if g else None
-            if vl_player and type(vl_player).__name__ != "MagicMock" and (hasattr(vl_player, "set_pause") or hasattr(vl_player, "current")):
+            if vl_player and type(vl_player).__name__ != "MagicMock" and (hasattr(vl_player, "set_pause") or hasattr(vl_player, "current") or hasattr(vl_player, "add_track")):
                 try:
                     if action == "PAUSE":
                         await vl_player.set_pause(True)
@@ -1275,19 +1396,27 @@ class MusicApiRouter:
                                 self._broadcast_music_update(str(guild_id_val), action)
                                 return json_success({"action_id": action_id, "action": action, "status": "REMOVED", "title": getattr(removed, "title", "Track"), "message": f"Removed '{getattr(removed, 'title', 'Track')}'"})
 
-                    elif action in ("ENQUEUE", "PLAY_NOW"):
-                        q_str = payload.get("query", "").strip()
+                    elif action in ("ENQUEUE", "PLAY_NOW", "PLAY"):
+                        q_str = payload.get("query", "").strip() or payload.get("url", "").strip()
                         if q_str and hasattr(vl_player, "get_tracks"):
-                            tracks = await vl_player.get_tracks(q_str, requester=g.me)
+                            requester = g.get_member(int(user_id)) if user_id else g.me
+                            tracks = await vl_player.get_tracks(q_str, requester=requester or g.me)
                             if tracks:
-                                trk = tracks[0] if isinstance(tracks, list) else tracks
-                                await vl_player.add_track(trk, at_front=(action == "PLAY_NOW"), duplicate=True)
+                                if hasattr(tracks, "tracks"):
+                                    await vl_player.add_track(tracks.tracks, at_front=(action == "PLAY_NOW"), duplicate=True)
+                                    title = getattr(tracks, "name", q_str)
+                                else:
+                                    trk = tracks[0] if isinstance(tracks, list) else tracks
+                                    await vl_player.add_track(trk, at_front=(action == "PLAY_NOW"), duplicate=True)
+                                    title = getattr(trk, "title", q_str)
                                 if not vl_player.is_playing:
                                     await vl_player.do_next()
-                                title = getattr(trk, "title", q_str)
-                                await self.db.mark_web_action_completed(action_id, {"status": "enqueued", "title": title})
-                                self._broadcast_music_update(str(guild_id_val), action)
-                                return json_success({"action_id": action_id, "action": action, "status": "ENQUEUED", "title": title, "message": f"Added '{title}' to queue ➕"})
+                                raw_ch_name = getattr(getattr(vl_player, "channel", None), "name", None) or (getattr(target_vc, "name", None) if "target_vc" in locals() and target_vc else "Voice")
+                                vc_ch_name = str(raw_ch_name) if isinstance(raw_ch_name, str) else "Voice"
+                                msg = f"Rem joined #{vc_ch_name} and is playing '{title}' 🎶" if (action == "PLAY_NOW" or not vl_player.is_playing) else f"Added '{title}' to queue in #{vc_ch_name} ➕"
+                                await self.db.mark_web_action_completed(action_id, {"status": "playing" if (action == "PLAY_NOW" or not vl_player.is_playing) else "enqueued", "title": title, "channel": vc_ch_name})
+                                self._broadcast_music_update(str(guild_id_val), action, extra={"title": title, "channel": vc_ch_name})
+                                return json_success({"action_id": action_id, "action": action, "status": "PLAYING" if (action == "PLAY_NOW" or not vl_player.is_playing) else "ENQUEUED", "title": title, "channel": vc_ch_name, "message": msg})
 
                     elif action in ("LEAVE_VOICE", "DISCONNECT", "LEAVE"):
                         await vl_player.teardown()

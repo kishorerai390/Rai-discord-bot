@@ -249,6 +249,40 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
             assert resp.status == 200
             mock_resume.assert_called_once()
 
+    async def test_11_voice_channel_selection_and_auto_join(self):
+        """11. Selecting a server and voice channel connects bot to VC and starts playback."""
+        # 1. Verify get_session returns available_voice_channels
+        resp = await self.client.get("/api/music/session?guild_id=1525030316845301781", cookies=self.auth_cookies)
+        assert resp.status == 200
+        data = await resp.json()
+        assert "available_voice_channels" in data["data"]
+        assert isinstance(data["data"]["available_voice_channels"], list)
+
+        # 2. Verify POST /api/music/control with CONNECT_VOICE and channel_id
+        resp = await self.client.post("/api/music/control", json={
+            "guild_id": 1525030316845301781,
+            "action": "CONNECT_VOICE",
+            "payload": {
+                "channel_id": "999888777"
+            }
+        }, cookies=self.auth_cookies)
+        assert resp.status == 200
+        result = await resp.json()
+        assert result["success"] is True
+
+        # 3. Verify POST /api/music/control with PLAY_NOW and channel_id
+        resp = await self.client.post("/api/music/control", json={
+            "guild_id": 1525030316845301781,
+            "action": "PLAY_NOW",
+            "payload": {
+                "channel_id": "999888777",
+                "query": "After Dark"
+            }
+        }, cookies=self.auth_cookies)
+        assert resp.status == 200
+        play_result = await resp.json()
+        assert play_result["success"] is True
+
 
 
     async def test_09_dashboard_bridge_authentication(self):
