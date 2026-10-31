@@ -1,3 +1,4 @@
+import os
 """
 Integration and Unit Tests for Raivora Music Web Platform (Phase 2 & Phase 3).
 Validates music API routes, session polling, queue management, control dispatch, and action lifecycles.
@@ -248,3 +249,20 @@ class TestRaivoraMusicWebPlatform(AioHTTPTestCase):
             assert resp.status == 200
             mock_resume.assert_called_once()
 
+
+
+    async def test_09_dashboard_bridge_authentication(self):
+        """9. Verify X-Rai-Dashboard-Bridge header authenticates requests from AppDeploy dashboard."""
+        payload = {
+            "guild_id": 1525030316845301781,
+            "action": "VOLUME",
+            "payload": {"volume": 75},
+        }
+        headers = {
+            "X-Rai-Dashboard-Bridge": os.getenv("RAI_BOT_BRIDGE_TOKEN", "") or os.getenv("SESSION_SECRET", "rai_development_secret_key_local_only"),
+            "X-Rai-Discord-User": "1457380609641938981",
+        }
+        resp = await self.client.post("/api/music/control", json=payload, headers=headers)
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["success"] is True
