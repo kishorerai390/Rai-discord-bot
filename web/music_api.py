@@ -105,6 +105,69 @@ class MusicApiRouter:
         except Exception:
             pass
 
+    async def _send_web_discord_notice(
+        self,
+        guild: Any,
+        user_id: Optional[int],
+        action: str,
+        title: Optional[str] = None,
+        is_playlist: bool = False,
+        track_count: int = 1,
+        processed_count: Optional[int] = None,
+        channel_name: Optional[str] = None,
+        text_channel: Optional[Any] = None,
+    ) -> None:
+        """Send formatted Discord notification matching slash-command style when an action is executed from the web app."""
+        if not guild:
+            return
+        try:
+            target_text_ch = text_channel
+            if not target_text_ch and hasattr(guild, "system_channel") and guild.system_channel:
+                target_text_ch = guild.system_channel
+            if not target_text_ch and hasattr(guild, "text_channels"):
+                target_text_ch = next((c for c in guild.text_channels if hasattr(c, "permissions_for") and c.permissions_for(guild.me).send_messages), None)
+
+            if not target_text_ch or not hasattr(target_text_ch, "send"):
+                return
+
+            user_mention = f"<@{user_id}>" if user_id else "@User"
+            web_url = "https://rai-music-rgpzau.v2.appdeploy.ai"
+            act_upper = action.upper()
+
+            nl = chr(10)
+            if act_upper in ("ENQUEUE", "PLAY_NOW", "PLAY"):
+                cmd_name = "/play"
+                if is_playlist:
+                    tot = processed_count or track_count
+                    content = (
+                        f"{user_mention} used `{cmd_name}` on the [web app]({web_url}){nl}{nl}"
+                        f"🌊 **{user_mention}** Added **{track_count} track(s)** from **{title or 'Playlist'}** to the queue.{nl}"
+                        f"> Processed **{tot}** track(s)"
+                    )
+                else:
+                    content = (
+                        f"{user_mention} used `{cmd_name}` on the [web app]({web_url}){nl}{nl}"
+                        f"🌊 **{user_mention}** Added **{title or 'track'}** to the queue."
+                    )
+            elif act_upper in ("CONNECT_VOICE", "JOIN_VOICE"):
+                content = f"{user_mention} used `/connect` on the [web app]({web_url}){nl}🔊 Joined **#{channel_name or 'Voice'}**"
+            elif act_upper == "SKIP":
+                content = f"{user_mention} used `/skip` on the [web app]({web_url})"
+            elif act_upper == "PAUSE":
+                content = f"{user_mention} used `/pause` on the [web app]({web_url})"
+            elif act_upper == "RESUME":
+                content = f"{user_mention} used `/resume` on the [web app]({web_url})"
+            elif act_upper == "STOP":
+                content = f"{user_mention} used `/stop` on the [web app]({web_url})"
+            else:
+                content = f"{user_mention} used `/{action.lower()}` on the [web app]({web_url})"
+
+            res = target_text_ch.send(content)
+            if inspect.isawaitable(res):
+                await res
+        except Exception as e:
+            logger.debug(f"[Discord Web Notice] Skipped: {e}")
+
     async def _ensure_db(self) -> None:
         if not self._db_connected:
             await self.db.connect()
@@ -1302,6 +1365,7 @@ class MusicApiRouter:
                         msg = f"Rem joined #{vc_name} 🔊"
                         await self.db.mark_web_action_completed(action_id, {"status": "connected", "channel": vc_name, "channel_id": vc_id_str})
                         self._broadcast_music_update(str(guild_id_val), action, extra={"channel": vc_name, "channel_id": vc_id_str})
+                        asyncio.create_task(self._send_web_discord_notice(g, user_id, action, channel_name=vc_name, text_channel=txt_channel if "txt_channel" in locals() else None))
                         return json_success({"action_id": action_id, "action": action, "status": "CONNECTED", "channel": vc_name, "channel_id": vc_id_str, "message": msg})
 
             vl_player = g.voice_client if g else None
@@ -1416,6 +1480,9 @@ class MusicApiRouter:
                                 msg = f"Rem joined #{vc_ch_name} and is playing '{title}' 🎶" if (action == "PLAY_NOW" or not vl_player.is_playing) else f"Added '{title}' to queue in #{vc_ch_name} ➕"
                                 await self.db.mark_web_action_completed(action_id, {"status": "playing" if (action == "PLAY_NOW" or not vl_player.is_playing) else "enqueued", "title": title, "channel": vc_ch_name})
                                 self._broadcast_music_update(str(guild_id_val), action, extra={"title": title, "channel": vc_ch_name})
+                                is_pl = bool(hasattr(tracks, "tracks"))
+                                trk_cnt = len(tracks.tracks) if is_pl else 1
+                                asyncio.create_task(self._send_web_discord_notice(g, user_id, action, title=title, is_playlist=is_pl, track_count=trk_cnt, channel_name=vc_ch_name))
                                 return json_success({"action_id": action_id, "action": action, "status": "PLAYING" if (action == "PLAY_NOW" or not vl_player.is_playing) else "ENQUEUED", "title": title, "channel": vc_ch_name, "message": msg})
 
                     elif action in ("LEAVE_VOICE", "DISCONNECT", "LEAVE"):
