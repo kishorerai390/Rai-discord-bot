@@ -232,7 +232,7 @@ class ApiRouter:
             # Validate CSRF state parameter strictly against cookie
             state = body.get("state") if is_post else request.query.get("state")
             cookie_state = request.cookies.get("oauth_state")
-            if cookie_state and state and cookie_state != state:
+            if cookie_state and cookie_state != state:
                 logger.warning("OAuth2 state parameter mismatch (possible CSRF attack).")
                 if is_post:
                     return web.json_response({"connected": False, "error": "csrf_validation_failed"}, status=400)
@@ -278,7 +278,7 @@ class ApiRouter:
                     "user": user_info
                 })
             else:
-                target_path = self.validate_safe_redirect(request.cookies.get("oauth_next"), default="/")
+                target_path = self.validate_safe_redirect(request.cookies.get("oauth_next"), default="/dashboard")
                 delim = "&" if "?" in target_path else "?"
                 resp = web.HTTPFound(f"{target_path}{delim}auth=success")
 

@@ -30,6 +30,7 @@ import os
 
 SESSION_COOKIE_NAME = "rai_session"
 DISCORD_API_BASE = "https://discord.com/api/v10"
+DISCORD_USER_AGENT = "DiscordBot (https://rai-discord-bot.onrender.com, 2.0.0)"
 
 
 class AuthManager:
@@ -173,7 +174,7 @@ class AuthManager:
             "code": code,
             "redirect_uri": uri,
         }
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        headers = {"Content-Type": "application/x-www-form-urlencoded", "User-Agent": DISCORD_USER_AGENT}
 
         try:
             async with aiohttp.ClientSession() as session:
@@ -190,7 +191,7 @@ class AuthManager:
     async def fetch_discord_user(self, access_token: str) -> Optional[Dict[str, Any]]:
         """Fetch Discord user identity using bearer access token."""
         user_url = f"{DISCORD_API_BASE}/users/@me"
-        headers = {"Authorization": f"Bearer {access_token}"}
+        headers = {"Authorization": f"Bearer {access_token}", "User-Agent": DISCORD_USER_AGENT}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(user_url, headers=headers) as resp:
@@ -204,7 +205,7 @@ class AuthManager:
     async def fetch_discord_guilds(self, access_token: str) -> List[Dict[str, Any]]:
         """Fetch Discord user mutual/accessible guilds using bearer access token."""
         guilds_url = f"{DISCORD_API_BASE}/users/@me/guilds"
-        headers = {"Authorization": f"Bearer {access_token}"}
+        headers = {"Authorization": f"Bearer {access_token}", "User-Agent": DISCORD_USER_AGENT}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(guilds_url, headers=headers) as resp:
@@ -367,7 +368,7 @@ class AuthManager:
 
     async def get_session_from_request(self, request: web.Request) -> Optional[Dict[str, Any]]:
         """Extract and validate session from cookie or Authorization header."""
-        session_id = request.cookies.get(SESSION_COOKIE_NAME)
+        session_id = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get("rai_discord_session")
         if not session_id:
             auth_header = request.headers.get("Authorization", "")
             if auth_header.startswith("Bearer "):
