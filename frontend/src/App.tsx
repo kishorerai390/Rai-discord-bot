@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import {
   Activity,
+  AlertCircle,
   AudioLines,
   BarChart3,
   Bell,
@@ -127,7 +128,13 @@ function App() {
   const [commandCategory, setCommandCategory] = useState('All');
   const [globalSearch, setGlobalSearch] = useState('');
   const [server, setServer] = useState('rai fam');
-  const [toast, setToast] = useState('');
+  interface ToastItem {
+    id: string;
+    message: string;
+    type?: 'info' | 'success' | 'warning' | 'music' | 'danger';
+  }
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showAllQueue, setShowAllQueue] = useState(false);
   const [settings, setSettings] = useState({
     notifications: true,
@@ -151,9 +158,29 @@ function App() {
   const [liveBridgeReady, setLiveBridgeReady] = useState(false);
   const [liveBridgeError, setLiveBridgeError] = useState('');
 
-  const notify = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(''), 2600);
+  const notify = (message: string, type: 'info' | 'success' | 'warning' | 'music' | 'danger' = 'info') => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts(prev => [...prev.slice(-3), { id, message, type }]);
+    window.setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 3500);
+  };
+  const removeToast = (id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
+  const summonRem = async (preferredVcId?: string) => {
+    const channels = liveSession?.available_voice_channels || [];
+    const target = preferredVcId || (channels.length > 0 ? String(channels[0].id) : '');
+    if (!target) {
+      notify('No voice channels found in this server. Please create or join one first!', 'warning');
+      return;
+    }
+    const vcObj = channels.find((c: any) => String(c.id) === String(target));
+    const vcName = vcObj?.name || 'Voice Channel';
+    notify(`Summoning Rem to #${vcName}... 🔊`, 'music');
+    await runLiveControl('CONNECT_VOICE', { channel_id: target });
+    notify(`✨ Rem connected to #${vcName}! Ready to play.`, 'success');
   };
 
   useEffect(() => {
@@ -307,19 +334,9 @@ function App() {
     }
   };
 
-  const connectDiscord = async () => {
+  const connectDiscord = () => {
     setConnectionError('');
-    try {
-      const response = await api.get('/api/auth/start');
-      const authUrl = response.data?.authorizeUrl || response.data?.url;
-      if (authUrl && typeof authUrl === 'string' && authUrl.startsWith('https://discord.com/oauth2/authorize')) {
-        window.location.assign(authUrl);
-        return;
-      }
-      window.location.assign('/api/auth/login');
-    } catch {
-      window.location.assign('/api/auth/login');
-    }
+    window.location.assign('/api/auth/login');
   };
 
   const disconnectDiscord = async () => {
@@ -489,9 +506,28 @@ function App() {
               />
               <kbd>⌘ K</kbd>
             </label>
-            <div className="preview-pill">
-              <span /> {discordAccount ? 'DISCORD ACCOUNT LINKED' : 'DISCORD NOT LINKED'}
-            </div>
+
+            {/* Feature 2: Active Voice Channel Badge & Instant Summon Rem */}
+            {liveSession?.voice_channel_name ? (
+              <button
+                className="vc-header-badge connected"
+                onClick={() => go('live')}
+                title="Click to manage playback in this voice channel"
+              >
+                <Volume2 size={13} className="pulse-icon" />
+                <span>#{liveSession.voice_channel_name}</span>
+              </button>
+            ) : (
+              <button
+                className="vc-header-badge summon"
+                onClick={() => summonRem()}
+                title="Instantly summon Rem into your voice channel"
+              >
+                <Zap size={13} />
+                <span>Summon Rem</span>
+              </button>
+            )}
+
             <button
               className="icon-button notification"
               onClick={() => go('notifications')}
@@ -500,11 +536,99 @@ function App() {
               <Bell size={18} />
               <i />
             </button>
+
+            {/* Feature 1: Header Avatar & Active Server/VC Dropdown */}
             {discordAccount ? (
-              <div className="connected-user">
-                <img src={discordAccount.avatarUrl} alt="" />
-                <span>{discordAccount.globalName || discordAccount.username}</span>
-                <button onClick={disconnectDiscord}>Sign out</button>
+              <div className="user-menu-wrapper">
+                <button
+                  className="user-chip-btn"
+                  onClick={() => setUserMenuOpen(prev => !prev)}
+                  aria-label="User profile and server menu"
+                >
+                  <img
+                    src={discordAccount.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                    alt=""
+                    className="user-chip-avatar"
+                  />
+                  <span>{discordAccount.globalName || discordAccount.username}</span>
+                  <ChevronDown size={13} />
+                </button>
+                {userMenuOpen && (
+                  <div className="user-dropdown-card">
+                    <div className="user-dropdown-header">
+                      <img
+                        src={discordAccount.avatarUrl || 'https://cdn.discordapp.com/embed/avatars/0.png'}
+                        alt=""
+                        className="user-dropdown-avatar"
+                      />
+                      <div className="user-dropdown-info">
+                        <span className="user-dropdown-name">{discordAccount.globalName || discordAccount.username}</span>
+                        <span className="user-dropdown-tag">@{discordAccount.username}</span>
+                      </div>
+                    </div>
+                    <div className="user-dropdown-section">
+                      <span className="user-dropdown-label">Active Server</span>
+                      <select
+                        className="user-server-select"
+                        value={liveGuildId}
+                        onChange={e => {
+                          setLiveGuildId(e.target.value);
+                          notify('Switched active server!', 'info');
+                        }}
+                      >
+                        {liveGuilds.length === 0 && <option value="">No bot servers found</option>}
+                        {liveGuilds.map((g: any) => (
+                          <option key={g.id} value={String(g.id)}>{g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="user-dropdown-section">
+                      <span className="user-dropdown-label">Voice Channel</span>
+                      <div className="user-vc-card">
+                        <span className={`user-vc-status ${liveSession?.voice_channel_name ? '' : 'disconnected'}`}>
+                          {liveSession?.voice_channel_name ? (
+                            <>
+                              <Volume2 size={13} /> #{liveSession.voice_channel_name}
+                            </>
+                          ) : (
+                            '🔇 Not in VC'
+                          )}
+                        </span>
+                        <button
+                          className="primary-button"
+                          style={{ fontSize: 10, padding: '4px 8px', borderRadius: 6 }}
+                          onClick={() => {
+                            summonRem();
+                            setUserMenuOpen(false);
+                          }}
+                        >
+                          Summon
+                        </button>
+                      </div>
+                    </div>
+                    <div className="user-dropdown-footer">
+                      <button
+                        className="text-button"
+                        style={{ fontSize: 11 }}
+                        onClick={() => {
+                          go('settings');
+                          setUserMenuOpen(false);
+                        }}
+                      >
+                        Preferences
+                      </button>
+                      <button
+                        className="user-signout-btn"
+                        onClick={() => {
+                          disconnectDiscord();
+                          setUserMenuOpen(false);
+                        }}
+                      >
+                        Sign out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <button className="connect-button" onClick={connectDiscord}>
@@ -626,12 +750,25 @@ function App() {
           </div>
         </div>
       )
-      }{toast && (
-        <div className="toast">
-          <Check size={16} />
-          {toast}
-        </div>
-      )}
+      }
+      {/* Feature 3: Interactive Toast Notification System */}
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className="toast-item">
+            <div className={`toast-icon ${t.type || 'info'}`}>
+              {t.type === 'music' ? <Music2 size={15} /> :
+               t.type === 'success' ? <Check size={15} /> :
+               t.type === 'warning' ? <AlertCircle size={15} /> :
+               t.type === 'danger' ? <X size={15} /> :
+               <Sparkles size={15} />}
+            </div>
+            <div className="toast-body">{t.message}</div>
+            <button className="toast-close" onClick={() => removeToast(t.id)}>
+              <X size={13} />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1060,7 +1197,7 @@ function LiveMusic({
                 setSelectedVcId(vcId);
                 if (vcId) {
                   onControl('CONNECT_VOICE', { channel_id: vcId });
-                  notify('Connecting bot to voice channel...');
+                  notify('Connecting bot to voice channel...', 'music');
                 }
               }}
             >
@@ -1071,6 +1208,21 @@ function LiveMusic({
                 </option>
               ))}
             </select>
+            <button
+              className="primary-button"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 9, fontSize: 11 }}
+              onClick={() => {
+                const vcId = selectedVcId || (liveSession?.available_voice_channels?.[0]?.id ? String(liveSession.available_voice_channels[0].id) : '');
+                if (vcId) {
+                  onControl('CONNECT_VOICE', { channel_id: vcId });
+                  notify('🔊 Summoned Rem to voice channel!', 'music');
+                } else {
+                  notify('Please select a voice channel to summon Rem!', 'warning');
+                }
+              }}
+            >
+              <Zap size={14} /> Summon Rem
+            </button>
             <span className={'demo-tag ' + (liveBridgeReady ? 'bridge-online' : 'bridge-offline')}>
               <span className="pulse-dot" /> {liveBridgeReady ? 'LIVE BOT PLAYER' : 'BOT BRIDGE OFFLINE'}
             </span>

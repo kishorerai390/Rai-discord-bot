@@ -2331,7 +2331,7 @@ class MusicApiRouter:
                 tracks = await vl_player.get_tracks(query, requester=getattr(guild, "me", None))
                 if tracks:
                     track = tracks[0] if isinstance(tracks, list) else tracks
-                    await vl_player.add_track(track, at_font=True)
+                    await vl_player.add_track(track, at_front=True)
                     if not vl_player.is_playing:
                         await vl_player.do_next()
             except Exception as e:

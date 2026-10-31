@@ -74,9 +74,12 @@ async def nowplay(ctx: commands.Context, player: voicelink.Player):
     return await dispatch_message(ctx, embed, view=LinkView(texts[2].format(track.source.title()), track.emoji, track.uri))
 
 async def announce_track(ctx, track: voicelink.Track, *, queued: bool = False):
-    """Announce queued tracks now; the track-start event announces actual playback."""
+    """Announce queued tracks now; for immediate playback, confirm start so interaction acknowledges cleanly."""
     if not queued:
-        return None
+        return await dispatch_message(
+            ctx,
+            f"🎶 **Playing:** [{track.title}]({track.uri}) — **{track.author}** (`{track.formatted_length}`)"
+        )
     return await dispatch_message(
         ctx,
         f"🎵 **Up Next:** [{track.title}]({track.uri}) — **{track.author}** "

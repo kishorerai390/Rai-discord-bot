@@ -238,7 +238,8 @@ class ApiRouter:
                     return web.json_response({"connected": False, "error": "csrf_validation_failed"}, status=400)
                 raise web.HTTPFound("/login?error=csrf_validation_failed")
 
-            redirect_uri = self.auth.get_redirect_uri(request)
+            req_uri = (body.get("redirect_uri") if is_post else request.query.get("redirect_uri"))
+            redirect_uri = req_uri or self.auth.get_redirect_uri(request)
             token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
             if not token_data or "access_token" not in token_data:
                 err_detail = getattr(self.auth, "last_exchange_error", "unknown")

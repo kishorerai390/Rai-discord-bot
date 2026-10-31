@@ -2872,3 +2872,257 @@ select:focus-visible {
   background: #8b5cf6;
   color: #fff;
 }
+
+/* ============================================================
+   Feature 1: Header Avatar & Active Server/VC Dropdown
+   ============================================================ */
+.user-menu-wrapper {
+  position: relative;
+}
+.user-chip-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+  color: #e5d9ff;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.user-chip-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(168, 137, 255, 0.4);
+}
+.user-chip-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid #a889ff;
+}
+.user-dropdown-card {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 290px;
+  background: #171324;
+  border: 1px solid rgba(168, 137, 255, 0.25);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+  padding: 14px;
+  z-index: 100;
+  animation: dropdownSlide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@keyframes dropdownSlide {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.user-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.user-dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #a889ff;
+}
+.user-dropdown-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.user-dropdown-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-dropdown-tag {
+  font-size: 11px;
+  color: #a49bb8;
+}
+.user-dropdown-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.user-dropdown-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8c82a2;
+  font-weight: 700;
+}
+.user-server-select {
+  width: 100%;
+  background: #0f0c18;
+  border: 1px solid var(--line);
+  color: #e5d9ff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 11px;
+  outline: none;
+}
+.user-vc-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: rgba(168, 137, 255, 0.08);
+  border: 1px solid rgba(168, 137, 255, 0.2);
+  border-radius: 8px;
+  font-size: 11px;
+}
+.user-vc-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #7de0b0;
+  font-weight: 500;
+}
+.user-vc-status.disconnected {
+  color: #a49bb8;
+}
+.user-dropdown-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.user-signout-btn {
+  background: rgba(255, 75, 75, 0.12);
+  border: 1px solid rgba(255, 75, 75, 0.25);
+  color: #ff8585;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.user-signout-btn:hover {
+  background: rgba(255, 75, 75, 0.22);
+}
+
+/* ============================================================
+   Feature 2: "Summon Rem to my VC" / Live Voice Pill
+   ============================================================ */
+.vc-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.vc-header-badge.connected {
+  background: rgba(46, 213, 115, 0.12);
+  border: 1px solid rgba(46, 213, 115, 0.3);
+  color: #55efa6;
+}
+.vc-header-badge.summon {
+  background: linear-gradient(135deg, rgba(168, 137, 255, 0.2), rgba(139, 92, 246, 0.28));
+  border: 1px solid rgba(168, 137, 255, 0.45);
+  color: #e5d9ff;
+  box-shadow: 0 0 12px rgba(168, 137, 255, 0.2);
+}
+.vc-header-badge.summon:hover {
+  background: linear-gradient(135deg, rgba(168, 137, 255, 0.35), rgba(139, 92, 246, 0.45));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(168, 137, 255, 0.3);
+}
+.pulse-icon {
+  animation: vcPulse 1.8s infinite ease-in-out;
+}
+@keyframes vcPulse {
+  0%, 100% { opacity: 0.7; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+/* ============================================================
+   Feature 3: Interactive Toast Notifications Stack
+   ============================================================ */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 9999;
+  pointer-events: none;
+}
+.toast-item {
+  pointer-events: auto;
+  min-width: 280px;
+  max-width: 420px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(23, 19, 36, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(168, 137, 255, 0.25);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.55), 0 0 15px rgba(168, 137, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #f1edfa;
+  font-size: 12px;
+  font-weight: 500;
+  animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: all 0.2s ease;
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.toast-icon.music { background: rgba(168, 137, 255, 0.18); color: #c4b5fd; }
+.toast-icon.success { background: rgba(74, 222, 128, 0.18); color: #86efac; }
+.toast-icon.warning { background: rgba(251, 191, 36, 0.18); color: #fde047; }
+.toast-icon.danger { background: rgba(248, 113, 113, 0.18); color: #fca5a5; }
+.toast-icon.info { background: rgba(56, 189, 248, 0.18); color: #7dd3fc; }
+.toast-body {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+.toast-close {
+  background: transparent;
+  border: none;
+  color: #8c82a2;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: 0.15s;
+}
+.toast-close:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
