@@ -1,7 +1,21 @@
+const getStoredToken = (): string => {
+  try {
+    return localStorage.getItem('rai_session_token') || '';
+  } catch {
+    return '';
+  }
+};
+
 export const api = {
   get: async (url: string) => {
     try {
-      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      const token = getStoredToken();
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) {
+        headers['X-Session-Token'] = token;
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      const res = await fetch(url, { headers, credentials: 'include' });
       const raw = await res.json().catch(() => ({}));
       const data =
         raw && typeof raw === 'object' && raw.data && typeof raw.data === 'object' && !Array.isArray(raw.data)
@@ -14,9 +28,19 @@ export const api = {
   },
   post: async (url: string, body?: any) => {
     try {
+      const token = getStoredToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      };
+      if (token) {
+        headers['X-Session-Token'] = token;
+        headers['Authorization'] = `Bearer ${token}`;
+      }
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        headers,
+        credentials: 'include',
         body: JSON.stringify(body || {}),
       });
       const raw = await res.json().catch(() => ({}));

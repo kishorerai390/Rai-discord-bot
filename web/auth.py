@@ -378,6 +378,7 @@ class AuthManager:
             session_id = (
                 request.headers.get("X-Session-Token", "").strip()
                 or request.query.get("token", "").strip()
+                or request.query.get("session_token", "").strip()
                 or None
             )
 
@@ -442,20 +443,14 @@ class AuthManager:
             except Exception:
                 session = None
 
-        if has_real_db:
-            # Persistent database is authoritative:
-            # If the database returns None, the session was revoked or deleted.
-            # Stale memory cache entries must be evicted immediately.
-            if not session:
-                self._memory_sessions.pop(session_id, None)
-                return None
-            self._memory_sessions[session_id] = session
-        else:
-            # Fallback for environments with mock DB or in-memory testing
-            if session_id in self._memory_sessions:
-                session = self._memory_sessions[session_id]
-            elif not session:
-                return None
+        # If DB returned None or is not yet flushed, fall back to in-memory session cache
+        if not session and session_id in self._memory_sessions:
+            session = self._memory_sessions[session_id]
+
+        if not session:
+            return None
+
+        self._memory_sessions[session_id] = session
 
         # Check expiration
         expires_at_str = session.get("expires_at", "")

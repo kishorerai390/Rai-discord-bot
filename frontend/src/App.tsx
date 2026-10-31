@@ -160,6 +160,10 @@ function App() {
     let active = true;
     const loadConnections = async () => {
       const query = new URLSearchParams(window.location.search);
+      const incomingToken = query.get('token') || query.get('session_token');
+      if (incomingToken) {
+        try { localStorage.setItem('rai_session_token', incomingToken); } catch {}
+      }
       const code = query.get('code');
       const state = query.get('state');
 
@@ -172,6 +176,9 @@ function App() {
         try {
           if (!code || !state) throw new Error('Discord callback is missing code or state.');
           const callback = await api.post('/api/auth/callback', { code, state });
+          if (callback.data?.sessionId) {
+            try { localStorage.setItem('rai_session_token', callback.data.sessionId); } catch {}
+          }
           if (!callback.data?.connected) {
             throw new Error(callback.data?.error || 'Discord sign-in was not completed.');
           }
@@ -192,6 +199,9 @@ function App() {
       if (discordResult.status === 'fulfilled') {
         const data = discordResult.value.data;
         if (data?.signedIn && data.user) {
+          if (data.sessionId) {
+            try { localStorage.setItem('rai_session_token', data.sessionId); } catch {}
+          }
           setDiscordAccount(data.user);
           setDiscordGuilds(Array.isArray(data.guilds) ? data.guilds : []);
         } else {
@@ -308,6 +318,7 @@ function App() {
 
   const disconnectDiscord = async () => {
     try {
+      try { localStorage.removeItem('rai_session_token'); } catch {}
       await api.post('/api/auth/logout');
       setDiscordAccount(null);
       setDiscordGuilds([]);
