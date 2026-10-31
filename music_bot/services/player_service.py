@@ -1594,33 +1594,45 @@ class MusicPlayerService:
 
     @classmethod
     async def pause(cls, *args, **kwargs) -> Tuple[bool, str]:
-        """Authoritatively pause current playback and update Now Playing panel. Supports pause(session) or pause(bot, session)."""
+        """Pause active voice playback and update the Now Playing panel."""
+        bot = None
         session: Optional[GuildMusicSession] = None
-        for a in args:
-            if isinstance(a, GuildMusicSession):
-                session = a
-                break
-        if session is None and "session" in kwargs:
-            session = kwargs["session"]
+        for arg in args:
+            if isinstance(arg, GuildMusicSession):
+                session = arg
+            elif hasattr(arg, "db") or hasattr(arg, "loop"):
+                bot = arg
+        if session is None:
+            session = kwargs.get("session")
+        if bot is None:
+            bot = kwargs.get("bot")
         if session is None and args:
             session = args[-1]
         if not session:
             return False, "❌ No active session."
 
-        if not session.voice_client or not (session.has_active_track or session.voice_client.is_playing() or session.voice_client.is_paused()):
+        voice_client = session.voice_client
+        if not voice_client:
             return False, "❌ Nothing is currently playing."
-        if session.is_paused or (session.voice_client and session.voice_client.is_paused()):
+        if voice_client.is_paused():
             return False, "⏸️ Playback is already paused."
-        if session.voice_client and session.voice_client.is_playing():
-            session.voice_client.pause()
+        if not voice_client.is_playing():
+            return False, "❌ Nothing is currently playing."
+
+        try:
+            voice_client.pause()
+        except Exception:
+            return False, "❌ Could not pause playback. Please try again."
+        if not voice_client.is_paused():
+            return False, "❌ Pause was not applied by the voice client."
+
         session.pause_time = time.time()
         session.state = PlaybackState.PAUSED
         await cls.send_now_playing_panel(session)
 
-        # Dynamic Presence Sync (Phase 3)
         try:
             from music_bot.services.presence_service import DynamicPresenceService
-            b_inst = bot if "bot" in locals() and bot else getattr(session, "bot", None)
+            b_inst = bot or getattr(session, "bot", None)
             if b_inst:
                 asyncio.create_task(DynamicPresenceService.sync_presence(b_inst))
         except Exception:
@@ -1628,7 +1640,6 @@ class MusicPlayerService:
 
         return True, "⏸️ Playback paused."
 
-    @classmethod
     async def resume(cls, *args, **kwargs) -> Tuple[bool, str]:
         """Authoritatively resume paused playback and update Now Playing panel. Supports resume(bot, session) or resume(session)."""
         bot = None
