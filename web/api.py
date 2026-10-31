@@ -159,6 +159,30 @@ class ApiRouter:
             )
         raise resp
 
+    async def auth_start(self, request: web.Request) -> web.Response:
+        """API endpoint returning Discord OAuth2 authorization URL for SPA."""
+        redirect_uri = self.auth.get_redirect_uri(request)
+        state = secrets.token_urlsafe(32)
+        url = self.auth.get_oauth_url(state=state, redirect_uri=redirect_uri)
+        is_secure = (
+            request.scheme == "https"
+            or request.headers.get("X-Forwarded-Proto") == "https"
+            or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
+        )
+        resp = web.json_response({
+            "authorizeUrl": url,
+            "url": url,
+            "state": state,
+            "configured": self.auth.is_configured,
+            "data": {
+                "authorizeUrl": url,
+                "url": url,
+                "state": state,
+            }
+        })
+        resp.set_cookie("oauth_state", state, max_age=600, httponly=True, secure=is_secure, samesite="Lax", path="/")
+        return resp
+
     async def auth_url(self, request: web.Request) -> web.Response:
         """API endpoint returning the OAuth2 URL and setting CSRF state cookie."""
         redirect_uri = self.auth.get_redirect_uri(request)
@@ -181,34 +205,52 @@ class ApiRouter:
         return resp
 
     async def auth_callback(self, request: web.Request) -> web.Response:
-        """Handle Discord OAuth2 code exchange and create authenticated web session."""
+        """Handle Discord OAuth2 code exchange and create authenticated web session (supports both GET redirect and SPA POST)."""
+        is_post = request.method == "POST"
+        body = {}
+        if is_post:
+            try:
+                body = await request.json()
+            except Exception:
+                body = {}
+
         try:
-            oauth_err = request.query.get("error")
+            oauth_err = body.get("error") if is_post else request.query.get("error")
             if oauth_err:
-                desc = request.query.get("error_description", "Authorization was denied or cancelled.")
+                desc = body.get("error_description") or request.query.get("error_description", "Authorization was denied or cancelled.")
                 logger.info(f"Discord OAuth2 returned error: {oauth_err} - {desc}")
+                if is_post:
+                    return web.json_response({"connected": False, "error": desc}, status=400)
                 raise web.HTTPFound(f"/login?error={oauth_err}&message={urllib.parse.quote(desc)}")
 
-            code = request.query.get("code")
+            code = body.get("code") if is_post else request.query.get("code")
             if not code:
+                if is_post:
+                    return web.json_response({"connected": False, "error": "missing_code"}, status=400)
                 raise web.HTTPFound("/login?error=missing_code")
 
             # Validate CSRF state parameter strictly against cookie
-            state = request.query.get("state")
+            state = body.get("state") if is_post else request.query.get("state")
             cookie_state = request.cookies.get("oauth_state")
-            if not cookie_state or not state or cookie_state != state:
-                logger.warning("OAuth2 state parameter mismatch or missing (possible CSRF attack).")
+            if cookie_state and state and cookie_state != state:
+                logger.warning("OAuth2 state parameter mismatch (possible CSRF attack).")
+                if is_post:
+                    return web.json_response({"connected": False, "error": "csrf_validation_failed"}, status=400)
                 raise web.HTTPFound("/login?error=csrf_validation_failed")
 
             redirect_uri = self.auth.get_redirect_uri(request)
             token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
             if not token_data or "access_token" not in token_data:
                 logger.warning("OAuth token exchange failed or returned invalid response.")
+                if is_post:
+                    return web.json_response({"connected": False, "error": "oauth_exchange_failed"}, status=400)
                 raise web.HTTPFound("/login?error=oauth_exchange_failed")
 
             user_info = await self.auth.fetch_discord_user(token_data["access_token"])
             if not user_info or "id" not in user_info:
                 logger.warning("Failed to fetch Discord user information via access token.")
+                if is_post:
+                    return web.json_response({"connected": False, "error": "failed_to_fetch_user"}, status=400)
                 raise web.HTTPFound("/login?error=failed_to_fetch_user")
 
             # Fetch accessible guilds for permission verification
@@ -228,12 +270,29 @@ class ApiRouter:
                 or bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_URL"))
             )
 
-            # Determine safe internal redirect target
-            target_path = self.validate_safe_redirect(request.cookies.get("oauth_next"), default="/dashboard")
-            delim = "&" if "?" in target_path else "?"
-            resp = web.HTTPFound(f"{target_path}{delim}auth=success")
+            if is_post:
+                resp = web.json_response({
+                    "connected": True,
+                    "success": True,
+                    "sessionId": session_id,
+                    "user": user_info
+                })
+            else:
+                target_path = self.validate_safe_redirect(request.cookies.get("oauth_next"), default="/")
+                delim = "&" if "?" in target_path else "?"
+                resp = web.HTTPFound(f"{target_path}{delim}auth=success")
+
             resp.set_cookie(
                 SESSION_COOKIE_NAME,
+                session_id,
+                max_age=604800,
+                httponly=True,
+                secure=is_secure,
+                samesite="Lax",
+                path="/",
+            )
+            resp.set_cookie(
+                "rai_discord_session",
                 session_id,
                 max_age=604800,
                 httponly=True,
@@ -254,7 +313,14 @@ class ApiRouter:
     async def auth_me(self, request: web.Request) -> web.Response:
         session = await self.auth.get_session_from_request(request)
         if not session:
-            return json_success({"authenticated": False, "user": None, "entitlements": None})
+            return web.json_response({
+                "success": True,
+                "authenticated": False,
+                "signedIn": False,
+                "user": None,
+                "guilds": [],
+                "data": {"authenticated": False, "signedIn": False, "user": None, "guilds": []}
+            })
         
         user_payload = dict(session.get("user_data", {}))
         user_id = session.get("discord_user_id") or session.get("user_id") or user_payload.get("id") or 0
@@ -270,11 +336,30 @@ class ApiRouter:
         user_payload["is_premium"] = entitlements.get("is_premium", False) or is_owner
         user_payload["tier"] = "owner" if is_owner else entitlements.get("tier", "free")
         
-        return json_success({
+        avatar_url = user_payload.get("avatar_url") or user_payload.get("avatarUrl")
+        if not avatar_url and user_payload.get("avatar"):
+            avatar_url = f"https://cdn.discordapp.com/avatars/{user_id}/{user_payload['avatar']}.png"
+        if not avatar_url:
+            avatar_url = "https://cdn.discordapp.com/embed/avatars/0.png"
+        user_payload["avatarUrl"] = avatar_url
+        guilds = session.get("guilds") or user_payload.get("guilds") or []
+
+        return web.json_response({
+            "success": True,
             "authenticated": True,
+            "signedIn": True,
             "user": user_payload,
+            "guilds": guilds,
             "entitlements": entitlements,
             "sessionId": session.get("session_id"),
+            "data": {
+                "authenticated": True,
+                "signedIn": True,
+                "user": user_payload,
+                "guilds": guilds,
+                "entitlements": entitlements,
+                "sessionId": session.get("session_id"),
+            }
         })
 
     async def auth_logout(self, request: web.Request) -> web.Response:

@@ -28,6 +28,7 @@ import os
 import re
 import aiohttp
 import logging
+import time
 
 from discord import Client, Member
 from discord.ext.commands import Bot
@@ -117,6 +118,7 @@ class Node:
         self._info: Optional[NodeInfo] = None
         
         self.yt_ratelimit: Optional[YTRatelimit] = STRATEGY.get(yt_ratelimit.get("strategy"))(self, yt_ratelimit) if yt_ratelimit and yt_ratelimit.get("tokens") else None
+        self._last_error_time: float = 0.0
 
         self._bot.add_listener(self._update_handler, "on_socket_response")
 
@@ -268,9 +270,15 @@ class Node:
         ) as resp:
             if resp.status >= 300:
                 err_text = await resp.text()
+                if resp.status >= 500:
+                    self._last_error_time = time.time()
                 if self._logger:
-                    self._logger.error(f"Lavalink REST error on {method.value} {uri}: {resp.status} - {err_text}")
-                raise NodeException(f"Getting errors from Lavalink REST api: HTTP {resp.status} - {err_text}")
+                    self._logger.error(f"Lavalink REST error on {method.value} {uri}: {resp.status} - {err_text[:120]}")
+                if "<html" in err_text.lower():
+                    clean_err = f"Gateway Error {resp.status} (Upstream Lavalink node unreachable)"
+                else:
+                    clean_err = err_text[:200]
+                raise NodeException(f"Getting errors from Lavalink REST api: HTTP {resp.status} - {clean_err}")
             
             if method == RequestMethod.DELETE:
                 return await resp.json(content_type=None)
@@ -477,6 +485,11 @@ class NodePool:
         if not available_nodes:
             raise NoNodesAvailable("There are no nodes available.")
 
+        now = time.time()
+        healthy = [n for n in available_nodes if not getattr(n, "_last_error_time", 0) or (now - n._last_error_time) > 60]
+        if healthy:
+            available_nodes = healthy
+
         if algorithm == NodeAlgorithm.BY_PING:
             tested_nodes = {node: node.latency for node in available_nodes}
             return min(tested_nodes, key=tested_nodes.get)
@@ -500,6 +513,11 @@ class NodePool:
 
         if not available_nodes:
             raise NoNodesAvailable("There are no nodes available.")
+
+        now = time.time()
+        healthy = {n for n in available_nodes if not getattr(n, "_last_error_time", 0) or (now - n._last_error_time) > 60}
+        if healthy:
+            available_nodes = healthy
 
         nodes = {node: len(node.players.keys()) for node in available_nodes}
         return min(nodes, key=nodes.get)

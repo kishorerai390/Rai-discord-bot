@@ -1286,6 +1286,10 @@ class Rem(commands.Bot):
             func.logger.error(f"An unexpected error occurred in the {ctx.command.name} command on the {ctx.guild.name}({ctx.guild.id}).", exc_info=exception)
             error = f"⚠️ {error}"
 
+        err_str = str(error)
+        if "502" in err_str or "openresty" in err_str or "<html" in err_str.lower():
+            error = "⚠️ The audio server is temporarily reconnecting. Please run `/play` again in a few moments."
+
         try:
             return await ctx.reply(error, ephemeral=True)
         except:

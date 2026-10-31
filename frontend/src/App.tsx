@@ -295,15 +295,14 @@ function App() {
     setConnectionError('');
     try {
       const response = await api.get('/api/auth/start');
-      const authorizeUrl = response.data?.authorizeUrl;
-      if (!authorizeUrl || typeof authorizeUrl !== 'string' ||
-          !authorizeUrl.startsWith('https://discord.com/oauth2/authorize?')) {
-        throw new Error(response.data?.error || 'Discord authorization URL was not returned.');
+      const authUrl = response.data?.authorizeUrl || response.data?.url;
+      if (authUrl && typeof authUrl === 'string' && authUrl.startsWith('https://discord.com/oauth2/authorize')) {
+        window.location.assign(authUrl);
+        return;
       }
-      window.location.assign(authorizeUrl);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown API error';
-      setConnectionError('Could not start Discord sign-in: ' + message);
+      window.location.assign('/api/auth/login');
+    } catch {
+      window.location.assign('/api/auth/login');
     }
   };
 

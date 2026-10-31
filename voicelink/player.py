@@ -684,15 +684,50 @@ class Player(VoiceProtocol):
         requester: Member,
         search_type: SearchType = None
     ) -> Union[List[Track], Playlist]:
-        """Fetches tracks from the node's REST api to parse into Lavalink.
-
-        You can also pass in a discord.py Context object to get a
-        Context object on any track you search.
-        """
+        """Fetches tracks from Lavalink with automatic multi-node failover."""
         if not search_type:
             search_type = Config().search_platform
-            
-        return await self._node.get_tracks(query, requester=requester, search_type=search_type)
+
+        from .pool import NodePool
+        from .exceptions import NodeException, NodeNotAvailable, TrackLoadError, NoNodesAvailable
+
+        candidates = []
+        if getattr(self, "_node", None) and getattr(self._node, "is_connected", False):
+            candidates.append(self._node)
+
+        for n in NodePool._nodes.values():
+            if getattr(n, "is_connected", False) and n not in candidates:
+                candidates.append(n)
+
+        if not candidates:
+            for n in NodePool._nodes.values():
+                if getattr(n, "_available", False) and n not in candidates:
+                    candidates.append(n)
+
+        if not candidates:
+            raise NoNodesAvailable("No audio streaming nodes are currently connected.")
+
+        last_err = None
+        for node in candidates:
+            try:
+                tracks = await node.get_tracks(query, requester=requester, search_type=search_type)
+                if tracks:
+                    if node != self._node:
+                        self._logger.info(f"Lavalink node failover: switched player to [{node._identifier}]")
+                        self._node = node
+                    return tracks
+            except (NodeException, NodeNotAvailable, TrackLoadError) as e:
+                last_err = e
+                self._logger.warning(f"Node [{node._identifier}] failed get_tracks: {e}. Trying fallback node...")
+                continue
+            except Exception as e:
+                last_err = e
+                self._logger.warning(f"Node [{node._identifier}] unexpected error: {e}. Trying fallback node...")
+                continue
+
+        if last_err:
+            raise last_err
+        return None
 
     async def connect(self, *, timeout: float, reconnect: bool, self_deaf: bool = False, self_mute: bool = False):
         """Connects the player to a voice channel."""
