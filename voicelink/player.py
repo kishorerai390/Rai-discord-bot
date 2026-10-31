@@ -842,7 +842,8 @@ class Player(VoiceProtocol):
             self._inactive_cleanup_timer_worker(seconds)
         )
         
-    async def add_track(self, raw_tracks: Union[Track, List[Track]], *, start_time: int = 0, end_time: int = 0, at_front: bool = False, duplicate: bool = False) -> int:
+    async def add_track(self, raw_tracks: Union[Track, List[Track]], *, start_time: int = 0, end_time: int = 0, at_front: bool = False, duplicate: bool = False, **kwargs) -> int:
+        at_front = at_front or kwargs.get('at_font', False)
         """Adds tracks while preventing duplicates in the current track and pending queue."""
         tracks: List[Track] = []
         raw_tracks = raw_tracks[0] if isinstance(raw_tracks, List) and len(raw_tracks) == 1 else raw_tracks

@@ -1120,7 +1120,7 @@ class Basic(commands.Cog):
             return await dispatch_message(ctx, f"⚠️ Could not load sound effect `{info[0]}`.")
 
         track = tracks[0] if isinstance(tracks, list) else tracks
-        await player.add_track(track, at_font=True)
+        await player.add_track(track, at_front=True)
         if not player.is_playing:
             await player.do_next()
 
@@ -1210,7 +1210,7 @@ class Basic(commands.Cog):
             return await dispatch_message(ctx, f"⚠️ Unable to connect to radio station `{info[0]}`.")
 
         track = tracks[0] if isinstance(tracks, list) else tracks
-        await player.add_track(track, at_font=True)
+        await player.add_track(track, at_front=True)
         if not player.is_playing:
             await player.do_next()
 
