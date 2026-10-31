@@ -938,29 +938,52 @@ def _start_immediate_health_server():
 
                 return self._send_json({"success": True, "data": {"queue": _ACTIVE_QUEUE, "total": len(_ACTIVE_QUEUE)}})
 
-            if path == "/api/music/search":
-                raw_q = qs.get("q", [""])[0].strip()
-                q = raw_q.lower()
-                catalog = [
-                    {"id": "trk-1", "title": "怪物 (Monster)", "artist": "YOASOBI", "duration": 206, "thumbnail": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80", "uri": "https://www.youtube.com/watch?v=dy90tA3TT1c"},
-                    {"id": "trk-2", "title": "Faded (Live Anime Symphony)", "artist": "Alan Walker", "duration": 212, "thumbnail": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80", "uri": "https://www.youtube.com/watch?v=60ItHLz5WEA"},
-                    {"id": "trk-3", "title": "新時代 (New Genesis)", "artist": "Ado", "duration": 226, "thumbnail": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80", "uri": "https://www.youtube.com/watch?v=1FlicTWXfWw"},
-                    {"id": "trk-4", "title": "KICK BACK (Chainsaw Man OP)", "artist": "Kenshi Yonezu", "duration": 193, "thumbnail": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80", "uri": "https://www.youtube.com/watch?v=M2cckDmNLMI"},
-                    {"id": "trk-5", "title": "紅蓮華 - Gurenge", "artist": "LiSA", "duration": 238, "thumbnail": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80", "uri": "https://www.youtube.com/watch?v=CwkzK-F0Y00"},
-                    {"id": "trk-6", "title": "Sparkle (Your Name OST)", "artist": "RADWIMPS", "duration": 417, "thumbnail": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80", "uri": "https://www.youtube.com/watch?v=a2GujJZfXpg"},
-                    {"id": "trk-7", "title": "Kalyana Samayal Saadham (Kalyani)", "artist": "Classic Tamil / Anirudh", "duration": 200, "thumbnail": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80", "uri": "https://www.youtube.com/results?search_query=kalyani+tamil"},
-                    {"id": "trk-8", "title": "Drift Phonk Horizon", "artist": "KSLV Noh & DVRST", "duration": 178, "thumbnail": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80", "uri": "https://www.youtube.com/results?search_query=drift+phonk"}
-                ]
-                results = [t for t in catalog if q in t["title"].lower() or q in t["artist"].lower()] if q else catalog
-                if raw_q and not results:
-                    results = [{
-                        "id": f"dyn-{abs(hash(raw_q)) % 10000}",
-                        "title": raw_q.title(),
-                        "artist": "YouTube / Spotify Lossless Stream",
-                        "duration": 210,
-                        "thumbnail": "/public/rem_avatar_static.png",
-                        "uri": f"https://www.youtube.com/results?search_query={urllib.parse.quote(raw_q)}"
-                    }]
+            if path == "/api/music/search":
+
+                raw_q = qs.get("q", [""])[0].strip()
+
+                q = raw_q.lower()
+
+                catalog = [
+
+                    {"id": "trk-1", "title": "怪物 (Monster)", "artist": "YOASOBI", "duration": 206, "thumbnail": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=300&q=80", "uri": "https://www.youtube.com/watch?v=dy90tA3TT1c"},
+
+                    {"id": "trk-2", "title": "Faded (Live Anime Symphony)", "artist": "Alan Walker", "duration": 212, "thumbnail": "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=300&q=80", "uri": "https://www.youtube.com/watch?v=60ItHLz5WEA"},
+
+                    {"id": "trk-3", "title": "新時代 (New Genesis)", "artist": "Ado", "duration": 226, "thumbnail": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80", "uri": "https://www.youtube.com/watch?v=1FlicTWXfWw"},
+
+                    {"id": "trk-4", "title": "KICK BACK (Chainsaw Man OP)", "artist": "Kenshi Yonezu", "duration": 193, "thumbnail": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80", "uri": "https://www.youtube.com/watch?v=M2cckDmNLMI"},
+
+                    {"id": "trk-5", "title": "紅蓮華 - Gurenge", "artist": "LiSA", "duration": 238, "thumbnail": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=300&q=80", "uri": "https://www.youtube.com/watch?v=CwkzK-F0Y00"},
+
+                    {"id": "trk-6", "title": "Sparkle (Your Name OST)", "artist": "RADWIMPS", "duration": 417, "thumbnail": "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80", "uri": "https://www.youtube.com/watch?v=a2GujJZfXpg"},
+
+                    {"id": "trk-7", "title": "Kalyana Samayal Saadham (Kalyani)", "artist": "Classic Tamil / Anirudh", "duration": 200, "thumbnail": "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&q=80", "uri": "https://www.youtube.com/results?search_query=kalyani+tamil"},
+
+                    {"id": "trk-8", "title": "Drift Phonk Horizon", "artist": "KSLV Noh & DVRST", "duration": 178, "thumbnail": "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=300&q=80", "uri": "https://www.youtube.com/results?search_query=drift+phonk"}
+
+                ]
+
+                results = [t for t in catalog if q in t["title"].lower() or q in t["artist"].lower()] if q else catalog
+
+                if raw_q and not results:
+
+                    results = [{
+
+                        "id": f"dyn-{abs(hash(raw_q)) % 10000}",
+
+                        "title": raw_q.title(),
+
+                        "artist": "YouTube / Spotify Lossless Stream",
+
+                        "duration": 210,
+
+                        "thumbnail": "/public/rem_avatar_static.png",
+
+                        "uri": f"https://www.youtube.com/results?search_query={urllib.parse.quote(raw_q)}"
+
+                    }]
+
                 return self._send_json({"success": True, "data": results})
 
             if path == "/api/music/lyrics":
@@ -1023,12 +1046,12 @@ def _start_immediate_health_server():
                 "/system", "/health-ui", "/guilds", "/dashboard/guilds"
             ]:
                 try:
-                    from web_dashboard import DASHBOARD_HTML
+                    from web.rai_music_ui import RAI_MUSIC_HTML
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                     self.end_headers()
-                    self.wfile.write(DASHBOARD_HTML.encode("utf-8"))
+                    self.wfile.write(RAI_MUSIC_HTML.encode("utf-8"))
                     return
                 except Exception as err:
                     self.send_response(500)
@@ -1037,14 +1060,14 @@ def _start_immediate_health_server():
                     self.wfile.write(f"Dashboard Error: {err}".encode("utf-8"))
                     return
 
-            # Fallback: Landing Page
+            # Main Entry: Rai Music Official Platform
             try:
-                from web_landing import LANDING_PAGE_HTML
+                from web.rai_music_ui import RAI_MUSIC_HTML
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
                 self.end_headers()
-                self.wfile.write(LANDING_PAGE_HTML.encode("utf-8"))
+                self.wfile.write(RAI_MUSIC_HTML.encode("utf-8"))
             except Exception as e:
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain")

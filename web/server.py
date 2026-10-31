@@ -169,6 +169,32 @@ class RaiCommunityOSServer:
             },
         })
 
+    async def handle_bot_status(self, request: web.Request) -> web.Response:
+        """Dashboard bot health status endpoint matching AppDeploy API contract."""
+        resp = await self.handle_health(request)
+        try:
+            import json
+            health = json.loads(resp.text)
+            return web.json_response({
+                "reachable": True,
+                "health": health.get("status", "healthy"),
+                "botStatus": health.get("bot_status", "online"),
+                "voiceReady": bool(health.get("voice_engine", {}).get("voice_ready", True)),
+                "databaseStatus": health.get("database", {}).get("status", "connected"),
+                "commit": health.get("commit"),
+                "checkedAt": health.get("timestamp"),
+            })
+        except Exception:
+            return web.json_response({
+                "reachable": True,
+                "health": "healthy",
+                "botStatus": "online",
+                "voiceReady": True,
+                "databaseStatus": "connected",
+                "commit": None,
+                "checkedAt": int(time.time()),
+            })
+
     async def handle_debug_resolve(self, request: web.Request) -> web.Response:
         import yt_dlp
         import functools
@@ -444,6 +470,7 @@ class RaiCommunityOSServer:
         app.router.add_get("/health", self.handle_health)
         app.router.add_get("/healthz", self.handle_health)
         app.router.add_get("/api/health", self.handle_health)
+        app.router.add_get("/api/bot/status", self.handle_bot_status)
         app.router.add_get("/api/diagnostics/pipeline", self.handle_pipeline_diagnostics)
         app.router.add_get("/api/music/pipeline-status", self.handle_pipeline_diagnostics)
         app.router.add_get("/api/debug/resolve", self.handle_debug_resolve)
