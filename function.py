@@ -102,19 +102,19 @@ def ensure_settings() -> dict:
             "secure": True,
             "identifier": "MILLOHOST_V4"
         },
-        "DARREN_V4": {
-            "host": "lavalink.darrennathanael.com",
-            "port": 443,
-            "password": "https://discord.gg/xQF9f9W7",
-            "secure": True,
-            "identifier": "DARREN_V4"
-        },
         "LOCAL_LAVALINK": {
             "host": "127.0.0.1",
             "port": 2333,
             "password": "youshallnotpass",
             "secure": False,
             "identifier": "LOCAL_LAVALINK"
+        },
+        "DARREN_V4": {
+            "host": "lavalink.darrennathanael.com",
+            "port": 443,
+            "password": "https://discord.gg/xQF9f9W7",
+            "secure": True,
+            "identifier": "DARREN_V4"
         }
     }
     if s.get("nodes") != desired_nodes:

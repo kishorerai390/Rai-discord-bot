@@ -1291,9 +1291,14 @@ class Rem(commands.Bot):
             error = "⚠️ The audio server is temporarily reconnecting. Please run `/play` again in a few moments."
 
         try:
+            if ctx.interaction:
+                if ctx.interaction.response.is_done():
+                    return await ctx.interaction.followup.send(error, ephemeral=True)
+                else:
+                    return await ctx.interaction.response.send_message(error, ephemeral=True)
             return await ctx.reply(error, ephemeral=True)
-        except:
-            pass
+        except Exception as dispatch_err:
+            func.logger.debug(f"Error dispatching command error response: {dispatch_err}")
 
 # Backward compatibility alias
 MusicMaid = Rem

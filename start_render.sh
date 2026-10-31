@@ -20,6 +20,13 @@ s['mongodb_url'] = os.getenv('MONGODB_URL') or s.get('mongodb_url', 'mongodb+srv
 s['mongodb_name'] = os.getenv('MONGODB_NAME') or s.get('mongodb_name', 'MusicMaid')
 
 s['nodes'] = {
+    'LOCAL_LAVALINK': {
+        'host': '127.0.0.1',
+        'port': 2333,
+        'password': 'youshallnotpass',
+        'secure': False,
+        'identifier': 'LOCAL_LAVALINK'
+    },
     'SERENETIA_V4': {
         'host': 'lavalinkv4.serenetia.com',
         'port': 443,
@@ -33,13 +40,6 @@ s['nodes'] = {
         'password': 'https://discord.gg/mjS5J2K3ep',
         'secure': True,
         'identifier': 'MILLOHOST_V4'
-    },
-    'LOCAL_LAVALINK': {
-        'host': '127.0.0.1',
-        'port': 2333,
-        'password': 'youshallnotpass',
-        'secure': False,
-        'identifier': 'LOCAL_LAVALINK'
     }
 }
 s['embed_color'] = '0xa855f7'
