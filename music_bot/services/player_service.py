@@ -495,6 +495,8 @@ class MusicPlayerService:
             await playable_source.wait_until_buffered(target_frames=50, timeout=2.0)
 
             session.current_track = track
+            from music_bot.services.rem_mood_service import RemMoodService
+            RemMoodService.on_track_started(session)
             session.track_start_time = time.time()
             session.pause_time = 0.0
             session.paused_duration = 0.0
@@ -908,6 +910,8 @@ class MusicPlayerService:
                 return
 
             if session.current_track:
+                from music_bot.services.rem_mood_service import RemMoodService
+                RemMoodService.on_track_completed(session)
                 session.history.append(session.current_track)
                 if len(session.history) > 50:
                     session.history.pop(0)
@@ -1024,6 +1028,8 @@ class MusicPlayerService:
                     logger.warning(f"Autoplay candidate fetch failed: {e}")
 
             # Queue empty and no autoplay -> transition to IDLE cleanly
+            from music_bot.services.rem_mood_service import RemMoodService
+            RemMoodService.on_queue_empty(session)
             session.reset()
             try:
                 from music_bot.services.presence_service import DynamicPresenceService
@@ -1493,6 +1499,8 @@ class MusicPlayerService:
 
         try:
             skipped_track = session.current_track
+            from music_bot.services.rem_mood_service import RemMoodService
+            RemMoodService.on_track_skipped(session, skipped_track)
             track_title = skipped_track.title if skipped_track else "Track"
 
             # Anti-repeat record: record url in recent_skipped_urls and history
