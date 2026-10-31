@@ -148,12 +148,17 @@ class Listeners(commands.Cog):
             func.logger.error("Failed to remove session file: %s", Config.LAST_SESSION_FILE_DIR, exc_info=del_error)
 
     @commands.Cog.listener()
-    async def on_voicelink_track_start(self, player: voicelink.Player, track, _):
-        """Update the music controller to show the active Now Playing embed when a track starts."""
+    async def on_voicelink_track_start(self, player: voicelink.Player, track, _=None):
+        """Announce the active track, then post a fresh controller with live controls."""
         try:
-            await player.invoke_controller()
+            if track and player.context:
+                await player.context.send(
+                    f"🎶 **Now Playing:** [{track.title}]({track.uri}) — **{track.author}** "
+                    f"(`{track.formatted_length}`)"
+                )
+            await player.invoke_controller(current_track=track, repost=True)
         except Exception as e:
-            func.logger.warning(f"Could not update controller on track start in guild {player.guild.id}: {e}")
+            func.logger.warning(f"Could not post active controller on track start in guild {player.guild.id}: {e}")
 
         # Song Memory Cards: show or capture a memory for this track
         try:

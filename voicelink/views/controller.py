@@ -293,9 +293,9 @@ class VolumeUp(ControlButton):
         await self.player.set_volume(value, interaction.user)
         # Update the existing controller instead of posting a new confirmation per click.
         if not interaction.response.is_done():
-            await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
+            await interaction.response.edit_message(embed=self.player.build_embed(self.player.current), view=self.view)
         elif interaction.message:
-            await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
+            await interaction.message.edit(embed=self.player.build_embed(self.player.current), view=self.view)
 
 class VolumeDown(ControlButton):
     def __init__(self, **kwargs):
@@ -346,7 +346,7 @@ class AutoPlay(ControlButton):
         self.change_states("on" if check else "off")
         # Acknowledge the button once and update the existing controller in place.
         if not interaction.response.is_done():
-            await interaction.response.edit_message(embed=self.player.build_embed(), view=self.view)
+            await interaction.response.edit_message(embed=self.player.build_embed(self.player.current), view=self.view)
         elif interaction.message:
             await interaction.message.edit(embed=self.player.build_embed(), view=self.view)
 

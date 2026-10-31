@@ -188,6 +188,8 @@ class Player(VoiceProtocol):
 
         self.controller: Union[Message, PartialMessage] = None
         self._updating: bool = False
+        self._pending_controller_track = None
+        self._pending_controller_repost: bool = False
 
         self.pause_votes = set()
         self.resume_votes = set()
@@ -541,16 +543,35 @@ class Player(VoiceProtocol):
                 "isPaused": self._paused
             })
 
-    async def invoke_controller(self):
+    async def invoke_controller(self, current_track=None, *, repost: bool = False):
         """Sends or updates the music controller message in the designated channel."""
         voice_ch = self.channel or (self.guild.me.voice.channel if self.guild and self.guild.me and self.guild.me.voice else None)
-        if not self.settings.get('controller', True) or self._updating or not voice_ch:
+        if not self.settings.get('controller', True) or not voice_ch:
             return
-        
+
+        # Do not drop a track-start refresh when another controller edit is in flight.
+        # Keep only the newest requested track state; it will be applied immediately
+        # after the current Discord message operation completes.
+        if self._updating:
+            self._pending_controller_track = current_track if current_track is not None else self.current
+            self._pending_controller_repost = self._pending_controller_repost or repost
+            return
+
         self._updating = True
 
-        try:            
-            embed, view = self.build_embed(self.current), InteractiveController(self)
+        try:
+            if current_track is None:
+                current_track = self.current
+            if repost and self.controller:
+                try:
+                    await self.controller.edit(view=None)
+                except errors.NotFound:
+                    pass
+                except Exception as e:
+                    self._logger.debug(f"Could not retire previous music controller: {e}")
+                self.controller = None
+
+            embed, view = self.build_embed(current_track), InteractiveController(self)
             if not embed.color:
                 embed.color = Config().embed_color
 
@@ -606,6 +627,12 @@ class Player(VoiceProtocol):
         
         finally:
             self._updating = False
+            pending_track = self._pending_controller_track
+            pending_repost = self._pending_controller_repost
+            self._pending_controller_track = None
+            self._pending_controller_repost = False
+            if pending_track is not None:
+                await self.invoke_controller(current_track=pending_track, repost=pending_repost)
 
     async def is_position_fresh(self):
         """Checks if the current controller message is among the most recent messages."""
@@ -780,38 +807,50 @@ class Player(VoiceProtocol):
             self._inactive_cleanup_timer_worker(seconds)
         )
         
-    async def add_track(self, raw_tracks: Union[Track, List[Track]], *, start_time: int = 0, end_time: int = 0, at_front: bool = False, duplicate: bool = True) -> int:
-        """Adds one or more tracks to the queue."""
+    async def add_track(self, raw_tracks: Union[Track, List[Track]], *, start_time: int = 0, end_time: int = 0, at_front: bool = False, duplicate: bool = False) -> int:
+        """Adds tracks while preventing duplicates in the current track and pending queue."""
         tracks: List[Track] = []
-        _duplicate_tracks = [] if self.queue._allow_duplicate and duplicate else [track.uri for track in self.queue._queue]
         raw_tracks = raw_tracks[0] if isinstance(raw_tracks, List) and len(raw_tracks) == 1 else raw_tracks
+        is_list = isinstance(raw_tracks, List)
 
-        try:
-            if (is_list := isinstance(raw_tracks, List)):
-                for track in raw_tracks:
-                    if track.uri in _duplicate_tracks:
-                        continue
+        # Always include the currently playing track: it is not stored in Queue._queue's
+        # pending section, so checking only queued URIs allowed immediate re-requests.
+        duplicate_uris = {
+            track.uri
+            for track in ([self._current] if self._current else []) + list(self.queue._queue)
+            if track and getattr(track, "uri", None)
+        }
 
-                    self._validate_time(track, start_time, end_time)
-                    self.queue.put_at_front(track) if at_front else self.queue.put(track)  
-                    tracks.append(track)
-                    _duplicate_tracks.append(track.uri)
-            else:
-                if raw_tracks.uri in _duplicate_tracks:
-                    raise DuplicateTrack(self.get_msg("queue.errors.duplicateTrack"))
-                
-                self._validate_time(raw_tracks, start_time, end_time)
-                position = self.queue.put_at_front(raw_tracks) if at_front else self.queue.put(raw_tracks)
-                tracks.append(raw_tracks)
-                
-        finally:
-            if tracks:
-                if self.channel.members and len([m for m in self.channel.members if not m.bot]) > 0:
-                    self._cancel_inactive_cleanup_timer()
-                if self.is_ipc_connected:
-                    await self.send_ws({"op": "addTrack", "tracks": [track.track_id for track in tracks], "position": -1 if is_list else position}, tracks[0].requester)
+        position = 0
+        if is_list:
+            for track in raw_tracks:
+                uri = getattr(track, "uri", None)
+                if uri and uri in duplicate_uris:
+                    continue
+                self._validate_time(track, start_time, end_time)
+                self.queue.put_at_front(track) if at_front else self.queue.put(track)
+                tracks.append(track)
+                if uri:
+                    duplicate_uris.add(uri)
+        else:
+            uri = getattr(raw_tracks, "uri", None)
+            if uri and uri in duplicate_uris:
+                raise DuplicateTrack(self.get_msg("queue.errors.duplicateTrack"))
 
-                self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) has been added {len(tracks)} tracks into the queue.")
+            self._validate_time(raw_tracks, start_time, end_time)
+            position = self.queue.put_at_front(raw_tracks) if at_front else self.queue.put(raw_tracks)
+            tracks.append(raw_tracks)
+
+        if tracks:
+            if self.channel.members and any(not member.bot for member in self.channel.members):
+                self._cancel_inactive_cleanup_timer()
+            if self.is_ipc_connected:
+                await self.send_ws(
+                    {"op": "addTrack", "tracks": [track.track_id for track in tracks], "position": -1 if is_list else position},
+                    tracks[0].requester,
+                )
+            self._logger.debug(f"Player in {self.guild.name}({self.guild.id}) added {len(tracks)} track(s) to the queue.")
+
         return len(tracks) if is_list else position
     
     async def remove_track(self, index: int, index2: int = None, remove_target: Member = None, requester: Member = None) -> Dict[int, Track]:
