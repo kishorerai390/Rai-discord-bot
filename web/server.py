@@ -70,20 +70,15 @@ class RaiCommunityOSServer:
         self._is_running = False
 
     async def handle_ui(self, request: web.Request) -> web.Response:
-        """Render the Rai Community OS luxury single-page application with hot reload support."""
+        """Redirect all UI traffic to the official Rai Music main website (AppDeploy)."""
         import aiohttp.web
-        try:
-            import importlib
-            import sys
-            ui_mod = sys.modules.get("web.ui")
-            if ui_mod:
-                importlib.reload(ui_mod)
-                html = getattr(ui_mod, "UI_HTML", UI_HTML)
-            else:
-                html = UI_HTML
-            return aiohttp.web.Response(text=html, content_type="text/html")
-        except Exception:
+        if request.query.get("no_redirect") == "1":
             return aiohttp.web.Response(text=UI_HTML, content_type="text/html")
+        main_url = os.getenv("MAIN_WEBSITE_URL") or "https://rai-music-rgpzau.v2.appdeploy.ai"
+        target = f"{main_url.rstrip('/')}/"
+        if request.query_string:
+            target += f"?{request.query_string}"
+        raise aiohttp.web.HTTPFound(location=target)
 
     async def handle_legacy_leaderboard(self, request: web.Request) -> web.Response:
         """Backward-compatible economy leaderboard API."""
@@ -386,11 +381,13 @@ class RaiCommunityOSServer:
         allowed_origin = None
         if origin:
             clean_orig = origin.strip().lower()
-            pub_base = (os.getenv("PUBLIC_BASE_URL", "").strip().lower() or "https://rai-discord-bot.onrender.com")
+            pub_base = (os.getenv("PUBLIC_BASE_URL", "").strip().lower() or "https://rai-music-rgpzau.v2.appdeploy.ai")
             if (
                 clean_orig.startswith("http://localhost:")
                 or clean_orig.startswith("http://127.0.0.1:")
                 or clean_orig == pub_base.rstrip("/")
+                or clean_orig == "https://rai-music-rgpzau.v2.appdeploy.ai"
+                or clean_orig.endswith(".appdeploy.ai")
                 or clean_orig == "https://rai-discord-bot.onrender.com"
             ):
                 allowed_origin = origin

@@ -380,6 +380,27 @@ class AuthManager:
                 or None
             )
 
+        # Check Dashboard Bridge token from Rai Music web dashboard
+        bridge_token = request.headers.get("X-Rai-Dashboard-Bridge", "").strip()
+        expected_token = os.getenv("RAI_BOT_BRIDGE_TOKEN", "").strip() or os.getenv("SESSION_SECRET", "").strip()
+        if bridge_token and expected_token and bridge_token == expected_token:
+            discord_user_id_str = request.headers.get("X-Rai-Discord-User", "").strip()
+            if discord_user_id_str and discord_user_id_str.isdigit():
+                uid = int(discord_user_id_str)
+                is_owner = is_bot_owner(uid)
+                return {
+                    "id": uid,
+                    "user_id": uid,
+                    "discord_user_id": uid,
+                    "username": f"User {uid}",
+                    "display_name": f"User {uid}",
+                    "is_guest": False,
+                    "is_owner": is_owner,
+                    "is_admin": is_owner,
+                    "is_staff": is_owner,
+                    "is_premium": True,
+                }
+
         if not session_id or session_id in self._revoked_sessions:
             return None
 

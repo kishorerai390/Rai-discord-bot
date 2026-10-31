@@ -155,6 +155,36 @@ class Listeners(commands.Cog):
         except Exception as e:
             func.logger.warning(f"Could not update controller on track start in guild {player.guild.id}: {e}")
 
+        # Song Memory Cards: show or capture a memory for this track
+        try:
+            from features.song_memory import get_memory, ask_for_memory, load_memories
+            track_id = getattr(track, 'track_id', None) or getattr(track, 'identifier', None)
+            if track_id and player.context:
+                ch = getattr(player.context, 'channel', None)
+                guild_id = player.guild.id
+                memory = get_memory(guild_id, track_id)
+                if memory:
+                    mem_embed = discord.Embed(
+                        description=f"💭 *\"{memory['memory']}\"*\n— {memory['user']} first heard this on {memory['date'][:10]}",
+                        color=0x2b2d31,
+                    )
+                    mem_embed.set_footer(text=f"Song Memory • {track.title}")
+                    await ch.send(embed=mem_embed, delete_after=20)
+                else:
+                    # First time this song played — ask for a memory (non-blocking)
+                    try:
+                        count = sum(
+                            1 for _ in load_memories().get(str(guild_id), {}).values()
+                        )
+                        if count < 500:  # cap memories per server
+                            player._bot.loop.create_task(
+                                ask_for_memory(ch, guild_id, track_id, track.title, player._bot)
+                            )
+                    except Exception as me:
+                        func.logger.debug(f"Song memory task error: {me}")
+        except Exception:
+            pass
+
     @commands.Cog.listener()
     async def on_voicelink_track_end(self, player: voicelink.Player, track, _):
         await player.do_next()

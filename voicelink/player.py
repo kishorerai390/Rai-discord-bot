@@ -120,7 +120,7 @@ DEFAULT_CONTROLLER = {
         "inactive": {
             "title": {
                 "name": "💜 Rem — Your Anime Music Companion",
-                "url": "https://rai-discord-bot.onrender.com"
+                "url": "https://rai-music-rgpzau.v2.appdeploy.ai/"
             },
             "description": "### Ready for music! (•ᴗ•) 🌸\nJoin a voice channel and type `/play <song name or link>` to stream with Rem!",
             "thumbnail": "https://rai-discord-bot.onrender.com/public/rem_avatar_static.png",

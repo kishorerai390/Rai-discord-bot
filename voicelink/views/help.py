@@ -56,7 +56,7 @@ class HelpView(discord.ui.View):
         self.response: discord.Message = None
         self.categories: list[str] = [ name.capitalize() for name, cog in bot.cogs.items() if len([c for c in cog.walk_commands()]) ]
 
-        self.add_item(discord.ui.Button(label='Website', emoji='🌎', url='https://rai-discord-bot.onrender.com'))
+        self.add_item(discord.ui.Button(label='Website', emoji='🌎', url='https://rai-music-rgpzau.v2.appdeploy.ai/'))
         self.add_item(discord.ui.Button(label='Github', emoji=':github:1098265017268322406', url='https://github.com/kishorerai390/Rai-discord-bot'))
         self.add_item(discord.ui.Button(label='Support Server', emoji='💬', url='https://discord.gg/wRCgB7vBQv'))
         self.add_item(HelpDropdown(self.categories))
