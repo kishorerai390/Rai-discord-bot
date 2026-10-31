@@ -218,7 +218,13 @@ function App() {
         setBotStatus({ reachable: false, botStatus: 'unavailable' });
       }
 
-      if (query.get('discord') === 'error') {
+      const errorParam = query.get('error');
+      const detailsParam = query.get('details');
+      if (errorParam === 'oauth_exchange_failed') {
+        setConnectionError(`Discord sign-in failed: ${detailsParam || 'Discord rejected authorization code'}`);
+      } else if (errorParam) {
+        setConnectionError(`Sign-in notice: ${errorParam} ${detailsParam || ''}`.trim());
+      } else if (query.get('discord') === 'error') {
         setConnectionError('Discord sign-in failed. Please reconnect and check the OAuth redirect URL.');
       } else if (query.get('discord') === 'connected') {
         setConnectionError('');

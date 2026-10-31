@@ -158,9 +158,12 @@ class RaiCommunityOSServer:
             },
             "oauth": {
                 "configured": bool(self.api_router.auth.is_configured),
+                "client_id": self.api_router.auth.client_id,
                 "client_id_present": bool(self.api_router.auth.client_id),
                 "client_secret_present": bool(self.api_router.auth.client_secret),
+                "client_secret_len": len(self.api_router.auth.client_secret) if self.api_router.auth.client_secret else 0,
                 "redirect_uri": self.api_router.auth.get_redirect_uri(),
+                "last_error": getattr(self.api_router.auth, "last_exchange_error", None),
             },
             "payments": {
                 "enabled": bool(os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"),

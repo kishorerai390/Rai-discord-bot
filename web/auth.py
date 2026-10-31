@@ -43,6 +43,7 @@ class AuthManager:
         self._client_secret: Optional[str] = None
         self._memory_sessions: Dict[str, Dict[str, Any]] = {}
         self._revoked_sessions: set[str] = set()
+        self.last_exchange_error: Optional[str] = None
 
     @property
     def client_id(self) -> str:
@@ -56,6 +57,7 @@ class AuthManager:
             or os.getenv("DISCORD_APPLICATION_ID", "").strip()
             or str(DISCORD_CLIENT_ID or "").strip()
         )
+        cid = cid.strip('"').strip("'")
         if not cid and self.bot:
             bot_user = getattr(self.bot, "user", None)
             if bot_user and getattr(bot_user, "id", None):
@@ -73,13 +75,14 @@ class AuthManager:
         """Resolve Discord client secret from env vars."""
         if self._client_secret is not None:
             return self._client_secret
-        return (
+        secret = (
             os.getenv("DISCORD_CLIENT_SECRET", "").strip()
             or os.getenv("CLIENT_SECRET", "").strip()
             or os.getenv("DISCORD_SECRET", "").strip()
             or os.getenv("BOT_CLIENT_SECRET", "").strip()
             or str(DISCORD_CLIENT_SECRET or "").strip()
         )
+        return secret.strip('"').strip("'")
 
     @client_secret.setter
     def client_secret(self, value: Optional[str]) -> None:
@@ -163,30 +166,52 @@ class AuthManager:
         """Exchange authorization code for Discord access and refresh tokens."""
         if not self.client_id or not self.client_secret:
             logger.warning("Discord OAuth2 credentials are not configured.")
+            self.last_exchange_error = "OAuth credentials missing (client_id or client_secret)"
             return None
 
-        uri = redirect_uri or self.get_redirect_uri()
+        primary_uri = redirect_uri or self.get_redirect_uri()
+        uris_to_try = [primary_uri]
+        if "/api/auth/callback" in primary_uri:
+            alt = primary_uri.replace("/api/auth/callback", "").rstrip("/") + "/"
+            if alt not in uris_to_try:
+                uris_to_try.append(alt)
+            alt_no_slash = primary_uri.replace("/api/auth/callback", "").rstrip("/")
+            if alt_no_slash not in uris_to_try:
+                uris_to_try.append(alt_no_slash)
+        elif primary_uri.endswith("/"):
+            alt = primary_uri.rstrip("/") + "/api/auth/callback"
+            if alt not in uris_to_try:
+                uris_to_try.append(alt)
+
         token_url = f"{DISCORD_API_BASE}/oauth2/token"
-        data = {
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": uri,
-        }
         headers = {"Content-Type": "application/x-www-form-urlencoded", "User-Agent": DISCORD_USER_AGENT}
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(token_url, data=data, headers=headers) as resp:
-                    if resp.status == 200:
-                        return await resp.json()
-                    err_text = await resp.text()
-                    logger.error(f"Failed to exchange OAuth code: HTTP {resp.status} - {err_text}")
-                    return None
-        except Exception as e:
-            logger.error(f"Exception during OAuth code exchange: {e}", exc_info=True)
-            return None
+        last_err = None
+        for try_uri in uris_to_try:
+            data = {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": try_uri,
+            }
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(token_url, data=data, headers=headers) as resp:
+                        if resp.status == 200:
+                            self.last_exchange_error = None
+                            return await resp.json()
+                        err_text = await resp.text()
+                        last_err = f"HTTP {resp.status} (uri: {try_uri}): {err_text}"
+                        if "redirect_uri" not in err_text:
+                            break
+            except Exception as e:
+                last_err = f"Exception (uri: {try_uri}): {e}"
+                break
+
+        self.last_exchange_error = last_err
+        logger.error(f"Failed to exchange OAuth code: {last_err}")
+        return None
 
     async def fetch_discord_user(self, access_token: str) -> Optional[Dict[str, Any]]:
         """Fetch Discord user identity using bearer access token."""

@@ -241,10 +241,12 @@ class ApiRouter:
             redirect_uri = self.auth.get_redirect_uri(request)
             token_data = await self.auth.exchange_code(code, redirect_uri=redirect_uri)
             if not token_data or "access_token" not in token_data:
-                logger.warning("OAuth token exchange failed or returned invalid response.")
+                err_detail = getattr(self.auth, "last_exchange_error", "unknown")
+                logger.warning(f"OAuth token exchange failed: {err_detail}")
                 if is_post:
-                    return web.json_response({"connected": False, "error": "oauth_exchange_failed"}, status=400)
-                raise web.HTTPFound("/login?error=oauth_exchange_failed")
+                    return web.json_response({"connected": False, "error": "oauth_exchange_failed", "details": err_detail}, status=400)
+                enc_err = urllib.parse.quote(str(err_detail)[:150])
+                raise web.HTTPFound(f"/login?error=oauth_exchange_failed&details={enc_err}")
 
             user_info = await self.auth.fetch_discord_user(token_data["access_token"])
             if not user_info or "id" not in user_info:
