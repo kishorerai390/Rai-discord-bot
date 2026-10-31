@@ -223,6 +223,28 @@ class MusicDatabase:
                 );
                 CREATE INDEX IF NOT EXISTS idx_music_favorites_user ON music_favorites(user_id);
 
+                CREATE TABLE IF NOT EXISTS rem_song_memories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    guild_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    track_url TEXT NOT NULL,
+                    track_title TEXT NOT NULL,
+                    memory TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(guild_id, user_id, track_url)
+                );
+                CREATE INDEX IF NOT EXISTS idx_rem_memories_owner
+                    ON rem_song_memories(guild_id, user_id);
+
+                CREATE TABLE IF NOT EXISTS rem_bond_profiles (
+                    guild_id INTEGER NOT NULL,
+                    user_id INTEGER NOT NULL,
+                    xp INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY(guild_id, user_id)
+                );
+
                 CREATE TABLE IF NOT EXISTS music_dj_settings (
                     guild_id INTEGER PRIMARY KEY,
                     enabled INTEGER DEFAULT 0,
@@ -809,6 +831,96 @@ class MusicDatabase:
                 )
             await self._db.commit()
             return cursor.rowcount > 0
+
+
+    # =========================================================================
+    # REM SONG MEMORY CARDS & GROWING BOND
+    # =========================================================================
+
+    async def save_song_memory(self, guild_id: int, user_id: int, track: Any, memory: str) -> bool:
+        """Save or update a user's private memory for a track in one guild."""
+        if not self._db or not track or not getattr(track, "url", None):
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        async with self._lock:
+            await self._db.execute(
+                """INSERT INTO rem_song_memories
+                   (guild_id, user_id, track_url, track_title, memory, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(guild_id, user_id, track_url)
+                   DO UPDATE SET track_title=excluded.track_title, memory=excluded.memory,
+                                 updated_at=excluded.updated_at""",
+                (guild_id, user_id, track.url, track.title, memory.strip(), now, now),
+            )
+            await self._db.commit()
+        return True
+
+    async def get_song_memory(self, guild_id: int, user_id: int, track_url: str) -> Optional[Dict[str, Any]]:
+        if not self._db:
+            return None
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT * FROM rem_song_memories WHERE guild_id=? AND user_id=? AND track_url=?",
+                (guild_id, user_id, track_url),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def list_song_memories(self, guild_id: int, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        if not self._db:
+            return []
+        async with self._lock:
+            async with self._db.execute(
+                """SELECT * FROM rem_song_memories WHERE guild_id=? AND user_id=?
+                   ORDER BY updated_at DESC LIMIT ?""",
+                (guild_id, user_id, max(1, min(int(limit), 25))),
+            ) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def delete_song_memory(self, guild_id: int, user_id: int, track_url: str) -> bool:
+        if not self._db:
+            return False
+        async with self._lock:
+            cursor = await self._db.execute(
+                "DELETE FROM rem_song_memories WHERE guild_id=? AND user_id=? AND track_url=?",
+                (guild_id, user_id, track_url),
+            )
+            await self._db.commit()
+            return cursor.rowcount > 0
+
+    async def add_rem_bond_xp(self, guild_id: int, user_id: int, amount: int = 1) -> int:
+        """Award bounded bond XP and return the new total."""
+        if not self._db:
+            return 0
+        now = datetime.now(timezone.utc).isoformat()
+        amount = max(0, min(int(amount), 10))
+        async with self._lock:
+            await self._db.execute(
+                """INSERT INTO rem_bond_profiles (guild_id, user_id, xp, updated_at)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(guild_id, user_id)
+                   DO UPDATE SET xp=rem_bond_profiles.xp + excluded.xp,
+                                 updated_at=excluded.updated_at""",
+                (guild_id, user_id, amount, now),
+            )
+            await self._db.commit()
+            async with self._db.execute(
+                "SELECT xp FROM rem_bond_profiles WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return int(row["xp"]) if row else 0
+
+    async def get_rem_bond_xp(self, guild_id: int, user_id: int) -> int:
+        if not self._db:
+            return 0
+        async with self._lock:
+            async with self._db.execute(
+                "SELECT xp FROM rem_bond_profiles WHERE guild_id=? AND user_id=?",
+                (guild_id, user_id),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return int(row["xp"]) if row else 0
 
     # =========================================================================
     # PLAYLIST CRUD

@@ -1424,6 +1424,10 @@ class MusicCog(commands.Cog, name="Music"):
                         session.queue.insert(0, track)
                     else:
                         session.queue.append(track)
+                    try:
+                        await self.bot.db.add_rem_bond_xp(guild.id, member.id, 1)
+                    except Exception:
+                        logger.debug("Could not award Rem Bond XP for queued request.", exc_info=True)
                     queue_pos = 1 if top else len(session.queue)
                     logger.info(
                         "[Playback] operation=queued correlation_id=%s title=%r video_id=%s "
@@ -1496,6 +1500,10 @@ class MusicCog(commands.Cog, name="Music"):
                         "started" if success else "failed",
                     )
                     if success:
+                        try:
+                            await self.bot.db.add_rem_bond_xp(guild.id, member.id, 1)
+                        except Exception:
+                            logger.debug("Could not award Rem Bond XP for playback request.", exc_info=True)
                         try:
                             # If a player message was already created or deployed, update it; otherwise deploy once
                             if not session.now_playing_message:
@@ -6097,6 +6105,97 @@ class MusicCog(commands.Cog, name="Music"):
         )
         embed.set_footer(text="Rem Database Integrity • SQLite WAL Mode")
         return embed
+
+
+    # =========================================================================
+    # REM UNIVERSE: 2AM RADIO, SONG MEMORY CARDS & GROWING BOND
+    # =========================================================================
+
+    @app_commands.command(name="radio2am", description="Tune into Rem's late-night 2AM chill radio")
+    async def cmd_2amradio(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild_id:
+            await interaction.response.send_message("This radio is available inside a server.", ephemeral=True)
+            return
+        await self.ensure_deferred(interaction, ephemeral=False)
+        await self._play_query(interaction, "late night 2AM chill lofi ambient mellow radio mix", display_name="🌙 Rem's 2AM Radio")
+
+    @app_commands.command(name="songmemory", description="Save, reveal, list, or delete your private memory for a song")
+    @app_commands.describe(action="Choose what to do", memory="A short note for the currently playing song")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="💜 Save memory for current song", value="save"),
+        app_commands.Choice(name="📖 Reveal memory for current song", value="show"),
+        app_commands.Choice(name="📚 List my song memories", value="list"),
+        app_commands.Choice(name="🗑️ Delete memory for current song", value="delete"),
+    ])
+    async def cmd_songmemory(self, interaction: discord.Interaction, action: app_commands.Choice[str], memory: Optional[str] = None) -> None:
+        if not interaction.guild_id:
+            await interaction.response.send_message("Song memories are available inside a server.", ephemeral=True)
+            return
+        await self.ensure_deferred(interaction, ephemeral=True)
+        db = getattr(self.bot, "db", None)
+        if not db:
+            await interaction.edit_original_response(content="The memory database is currently unavailable.")
+            return
+        session = await self.session_manager.get_session(interaction.guild_id)
+        current = session.current_track
+        if action.value == "save":
+            if not current:
+                await interaction.edit_original_response(content="Play a song first, then save a memory for it.")
+                return
+            if not memory or not memory.strip():
+                await interaction.edit_original_response(content="Please provide a short memory to save.")
+                return
+            if len(memory.strip()) > 500:
+                await interaction.edit_original_response(content="Keep your memory under 500 characters.")
+                return
+            saved = await db.save_song_memory(interaction.guild_id, interaction.user.id, current, memory)
+            if saved:
+                xp = await db.add_rem_bond_xp(interaction.guild_id, interaction.user.id, 5)
+                await interaction.edit_original_response(content=f"💜 Saved your private memory for **{current.title}**. Rem's bond with you is now **{xp} XP**.")
+            else:
+                await interaction.edit_original_response(content="Couldn't save that memory right now.")
+        elif action.value == "show":
+            if not current:
+                await interaction.edit_original_response(content="No song is playing right now. Play the song whose memory you want to reveal.")
+                return
+            card = await db.get_song_memory(interaction.guild_id, interaction.user.id, current.url)
+            if not card:
+                await interaction.edit_original_response(content=f"You haven't saved a memory for **{current.title}** yet.")
+                return
+            embed = discord.Embed(title=f"💌 A Song Memory • {card['track_title']}", description=card["memory"], color=0xB58BFF)
+            embed.set_footer(text="Only you can see this memory")
+            await interaction.edit_original_response(embed=embed)
+        elif action.value == "list":
+            cards = await db.list_song_memories(interaction.guild_id, interaction.user.id, limit=10)
+            if not cards:
+                await interaction.edit_original_response(content="No song memories yet. Use /songmemory save while a song is playing.")
+                return
+            embed = discord.Embed(title="💜 Your Song Memory Cards", color=0xB58BFF)
+            for card in cards:
+                embed.add_field(name=card["track_title"][:256], value=f"{card['memory'][:700]}\n{card['track_url'][:180]}", inline=False)
+            embed.set_footer(text="Private to you • Showing up to 10 recent memories")
+            await interaction.edit_original_response(embed=embed)
+        elif action.value == "delete":
+            if not current:
+                await interaction.edit_original_response(content="Play the song whose memory you want to delete.")
+                return
+            deleted = await db.delete_song_memory(interaction.guild_id, interaction.user.id, current.url)
+            await interaction.edit_original_response(content="🗑️ Your memory for this song was deleted." if deleted else "You don't have a saved memory for this song.")
+
+    @app_commands.command(name="rembond", description="Check your growing bond with Rem")
+    async def cmd_rembond(self, interaction: discord.Interaction) -> None:
+        if not interaction.guild_id:
+            await interaction.response.send_message("Rem Bond is available inside a server.", ephemeral=True)
+            return
+        await self.ensure_deferred(interaction, ephemeral=True)
+        xp = await self.bot.db.get_rem_bond_xp(interaction.guild_id, interaction.user.id)
+        level = (xp // 50) + 1
+        next_level = (level * 50) - xp
+        titles = ["New Friend", "Familiar Face", "Trusted Listener", "Close Companion", "Rem's Favorite"]
+        title = titles[min(level - 1, len(titles) - 1)]
+        embed = discord.Embed(title="💜 Rem & You • Growing Bond", description=f"**{title}**\nLevel **{level}** • **{xp} XP**\n{next_level} XP until the next level\n\nSave song memories with /songmemory save to grow your bond.", color=0xB58BFF)
+        embed.set_footer(text="Your bond is personal to you in this server")
+        await interaction.edit_original_response(embed=embed)
 
 
 async def setup(bot: RaiMusicBot) -> None:
