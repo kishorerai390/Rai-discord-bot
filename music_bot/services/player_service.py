@@ -1640,6 +1640,7 @@ class MusicPlayerService:
 
         return True, "⏸️ Playback paused."
 
+    @classmethod
     async def resume(cls, *args, **kwargs) -> Tuple[bool, str]:
         """Authoritatively resume paused playback and update Now Playing panel. Supports resume(bot, session) or resume(session)."""
         bot = None
