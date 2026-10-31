@@ -4938,7 +4938,20 @@ const _UNUSED_DEF = {
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data.event === "MUSIC_UPDATED" || data.event === "PULSE_UPDATED") {
+            if (data.event === "INIT" && data.data) {
+              window.remLiveSessions = Array.isArray(data.data.live_sessions) ? data.data.live_sessions : [];
+            }
+            if (data.event === "LIVE_SESSIONS_SYNC" && Array.isArray(data.data)) {
+              window.remLiveSessions = data.data;
+            } else if (data.event === "LIVE_SESSION_ADDED" && data.data) {
+              const sessions = Array.isArray(window.remLiveSessions) ? window.remLiveSessions : [];
+              window.remLiveSessions = [...sessions.filter(s => s.id !== data.data.id), data.data];
+            } else if (data.event === "LIVE_SESSION_REMOVED" && data.data?.id) {
+              window.remLiveSessions = (window.remLiveSessions || []).filter(s => s.id !== data.data.id);
+            }
+            if (data.event === "MUSIC_UPDATED" || data.event === "PULSE_UPDATED" ||
+                data.event === "LIVE_SESSIONS_SYNC" || data.event === "LIVE_SESSION_ADDED" ||
+                data.event === "LIVE_SESSION_REMOVED") {
               const payload = data.data || data;
               if (payload.volume !== undefined) {
                 const v = parseInt(payload.volume);
@@ -4955,7 +4968,7 @@ const _UNUSED_DEF = {
                 updatePlaybackBarUI();
               }
               const gId = payload.guild_id || data.guild_id;
-              if (!gId || gId === currentGuildId) {
+              if (!gId || gId === currentGuildId || data.event.startsWith('LIVE_SESSION')) {
                 syncAll();
               }
             }
@@ -6450,6 +6463,7 @@ const _UNUSED_DEF = {
 
     function updateDashboardDynamicElements() {
       const t = currentSession?.current_track;
+      updateDashboardLiveNowPlaying();
       const titleEl = document.getElementById('hero-track-title');
       const artistEl = document.getElementById('hero-track-artist');
       const artEl = document.getElementById('hero-vinyl-art');
@@ -6486,6 +6500,52 @@ const _UNUSED_DEF = {
       if (favEl) favEl.innerText = userFavorites?.length || 0;
       const gEl = document.getElementById('stat-active-guilds');
       if (gEl) gEl.innerText = activeGuilds?.length || 1;
+    }
+
+    function updateDashboardLiveNowPlaying() {
+      const panel = document.getElementById('dashboard-live-now-playing');
+      if (!panel) return;
+      const track = currentSession?.current_track;
+      const playing = Boolean(currentSession?.is_playing && !currentSession?.is_paused && track);
+      const paused = Boolean(currentSession?.is_paused && track);
+      const queue = Array.isArray(currentQueue) ? currentQueue : [];
+      const channel = currentSession?.voice_channel_name || 'Not connected';
+      const guild = activeGuilds.find(g => String(g.id) === String(currentGuildId));
+      const server = guild?.name || 'Selected Discord server';
+      if (!track) {
+        panel.innerHTML = `
+          <div style="display:flex;align-items:center;gap:1rem;min-width:0;">
+            <div style="width:64px;height:64px;border-radius:14px;flex-shrink:0;display:grid;place-items:center;background:linear-gradient(135deg,rgba(168,85,247,.24),rgba(56,189,248,.12));border:1px solid rgba(168,85,247,.28);font-size:1.6rem;">🎧</div>
+            <div style="min-width:0;flex:1;"><div style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);font-weight:800;">Rem Live Music Hub</div><div style="font-size:1.05rem;font-weight:800;color:#fff;margin-top:.25rem;">Nothing playing right now</div><div style="font-size:.8rem;color:var(--text-muted);margin-top:.2rem;">Choose a song to start a live Discord session.</div></div>
+            <button class="btn btn-primary btn-sm" onclick="navigate('/search')">Find music ↗</button>
+          </div>`;
+        return;
+      }
+      const title = escapeHtml(track.title || 'Unknown track');
+      const artist = escapeHtml(track.artist || 'Unknown artist');
+      const art = escapeHtml(track.thumbnail || DEFAULT_ARTWORK);
+      const status = playing ? 'LIVE' : (paused ? 'PAUSED' : 'READY');
+      const progress = trackDurationSeconds > 0 ? Math.max(0, Math.min(100, (playbackSeconds / trackDurationSeconds) * 100)) : 0;
+      const upcoming = queue.slice(0, 3).map((item, index) => `
+        <div style="display:flex;align-items:center;gap:.55rem;min-width:0;padding:.35rem 0;">
+          <span style="font:600 .68rem 'JetBrains Mono',monospace;color:var(--text-dim);width:18px;">${String(index + 1).padStart(2,'0')}</span>
+          <span style="font-size:.78rem;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${escapeHtml(item.title || 'Unknown track')}</span>
+          <span style="font-size:.68rem;color:var(--text-dim);">${escapeHtml(item.artist || '')}</span>
+        </div>`).join('');
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap;">
+          <div><div style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);font-weight:800;">✦ Rem Live Music Hub</div><div style="font-size:.78rem;color:var(--text-muted);margin-top:.2rem;">${escapeHtml(server)} · ${escapeHtml(channel)}</div></div>
+          <span style="font-size:.68rem;font-weight:900;letter-spacing:.08em;color:${playing?'var(--emerald)':'var(--amber)'};border:1px solid ${playing?'rgba(16,185,129,.35)':'rgba(245,158,11,.35)'};background:${playing?'rgba(16,185,129,.1)':'rgba(245,158,11,.1)'};padding:.35rem .65rem;border-radius:999px;">● ${status}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:72px minmax(0,1fr);gap:1rem;align-items:center;">
+          <img src="${art}" onerror="this.onerror=null;this.src=DEFAULT_ARTWORK;" alt="Album artwork" style="width:72px;height:72px;object-fit:cover;border-radius:14px;border:1px solid rgba(168,85,247,.35);">
+          <div style="min-width:0;"><div style="font-size:1.05rem;font-weight:850;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${title}</div><div style="font-size:.82rem;color:var(--cyan);margin-top:.2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${artist}</div>
+            <div style="height:5px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;margin-top:.75rem;"><div style="height:100%;width:${progress}%;background:linear-gradient(90deg,var(--primary),var(--cyan));border-radius:99px;transition:width .4s ease;"></div></div>
+            <div style="display:flex;justify-content:space-between;font:.68rem 'JetBrains Mono',monospace;color:var(--text-dim);margin-top:.3rem;"><span>${formatTime(playbackSeconds)}</span><span>${formatTime(trackDurationSeconds)}</span></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-top:1rem;padding-top:.8rem;border-top:1px solid rgba(255,255,255,.07);"><div style="font-size:.75rem;color:var(--text-muted);">♫ ${queue.length} track${queue.length===1?'':'s'} queued</div><div style="display:flex;gap:.45rem;"><button class="btn btn-secondary btn-sm" onclick="togglePlayPause()">${playing?'Ⅱ Pause':'▶ Play'}</button><button class="btn btn-primary btn-sm" onclick="dispatchCmd('SKIP')">Skip ↗</button><button class="btn btn-secondary btn-sm" onclick="navigate('/player')">Open Player</button></div></div>
+        ${upcoming?`<div style="margin-top:.75rem;padding-top:.6rem;border-top:1px solid rgba(255,255,255,.06);"><div style="font-size:.65rem;color:var(--text-dim);font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.25rem;">Up next</div>${upcoming}</div>`:''}`;
     }
 
     async function updateControlRoomMetrics() {
@@ -6977,6 +7037,11 @@ const _UNUSED_DEF = {
               <button class="btn btn-secondary btn-sm" onclick="navigate('/queue')" style="width:36px; height:36px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center;" title="Live Queue">🔔</button>
             </div>
           </div>
+
+          <!-- REAL-TIME NOW PLAYING / LIVE MUSIC HUB -->
+          <section id="dashboard-live-now-playing" class="glass-card" aria-live="polite" style="padding:1.2rem 1.35rem;border:1px solid rgba(168,85,247,.34);background:linear-gradient(125deg,rgba(27,16,48,.94),rgba(10,18,34,.92));box-shadow:0 12px 35px rgba(0,0,0,.24),0 0 28px rgba(124,58,237,.08);">
+            <div style="display:flex;align-items:center;gap:1rem;"><div style="width:64px;height:64px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,rgba(168,85,247,.24),rgba(56,189,248,.12));border:1px solid rgba(168,85,247,.28);font-size:1.6rem;">🎧</div><div style="min-width:0;flex:1;"><div style="font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);font-weight:800;">Rem Live Music Hub</div><div style="font-size:1.05rem;font-weight:800;color:#fff;margin-top:.25rem;">Syncing real playback state…</div><div style="font-size:.8rem;color:var(--text-muted);margin-top:.2rem;">Connecting to your Discord music session.</div></div></div>
+          </section>
 
           <!-- 2-COLUMN MAIN DASHBOARD (LEFT 2.2fr, RIGHT 1fr) -->
           <div class="muify-dashboard-grid">

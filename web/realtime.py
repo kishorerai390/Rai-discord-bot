@@ -28,6 +28,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Rai.RealtimeGateway")
 
 
+def live_session_payload_changed(previous: List[Dict[str, Any]], current: List[Dict[str, Any]]) -> bool:
+    """Detect meaningful public session changes while ignoring volatile sample timestamps."""
+    def stable_payload(sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        return [
+            {key: value for key, value in session.items() if key != "started_at"}
+            for session in sessions
+        ]
+    return stable_payload(previous) != stable_payload(current)
+
+
 def safe_json(data: Any) -> str:
     def default_serializer(o: Any) -> Any:
         if type(o).__name__ == "MagicMock":
@@ -518,7 +528,8 @@ class RealtimeGateway:
                     if pulse.get("members_online") != self.last_pulse.get("members_online"):
                         await self.broadcast("MEMBER_COUNT_UPDATED", {"members_online": pulse.get("members_online")})
                     if pulse.get("is_music_playing") != self.last_pulse.get("is_music_playing") or \
-                       pulse.get("music_listeners") != self.last_pulse.get("music_listeners"):
+                       pulse.get("music_listeners") != self.last_pulse.get("music_listeners") or \
+                       pulse.get("track_name") != self.last_pulse.get("track_name"):
                         await self.broadcast("MUSIC_UPDATED", {
                             "is_music_playing": pulse.get("is_music_playing"),
                             "music_listeners": pulse.get("music_listeners"),
@@ -533,7 +544,9 @@ class RealtimeGateway:
                 curr_ids = {s["id"] for s in live_sessions}
                 prev_ids = {s["id"] for s in self.last_live_sessions}
 
-                if curr_ids != prev_ids:
+                # Track title, artist, channel and listener changes matter even when
+                # the session ID remains the same. Compare the full public snapshot.
+                if live_session_payload_changed(self.last_live_sessions, live_sessions):
                     # Sessions added
                     for s in live_sessions:
                         if s["id"] not in prev_ids:
