@@ -16,6 +16,8 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
   const [initialSettings, setInitialSettings] = useState<GuildSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [liveMasterVolume, setLiveMasterVolume] = useState(80);
+  const [volumeUpdating, setVolumeUpdating] = useState(false);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -38,6 +40,60 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
   useEffect(() => {
     fetchSettings();
   }, [guildId]);
+
+  // Read the active player volume separately from the saved default volume.
+  // Polling keeps this slider in sync with Discord commands and other dashboard controls.
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchLiveMasterVolume = async () => {
+      try {
+        const res = await fetch(`/api/music/session?guild_id=${encodeURIComponent(guildId)}`, {
+          cache: "no-store",
+        });
+        const json = await res.json();
+        const session = json.data?.session ?? json.data ?? json.session ?? null;
+        const volume = Number(session?.volume);
+        if (!cancelled && json.success && Number.isFinite(volume)) {
+          setLiveMasterVolume(Math.max(0, Math.min(150, volume)));
+        }
+      } catch {
+        // Keep the last known volume visible during temporary network interruptions.
+      }
+    };
+
+    fetchLiveMasterVolume();
+    const interval = setInterval(fetchLiveMasterVolume, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [guildId]);
+
+  const handleLiveVolumeChange = async (volume: number) => {
+    setLiveMasterVolume(volume);
+    setVolumeUpdating(true);
+    try {
+      const res = await fetch("/api/music/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          guild_id: guildId,
+          action: "VOLUME",
+          payload: { volume },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || json.error || "Volume update failed");
+      }
+      onShowToast(`Master volume set to ${volume}%`, "success");
+    } catch (e: any) {
+      onShowToast(`Volume update failed: ${e.message}`, "danger");
+    } finally {
+      setVolumeUpdating(false);
+    }
+  };
 
   const isDirty =
     Boolean(settings && initialSettings) &&
@@ -189,23 +245,34 @@ export function SettingsView({ guildId, user, onShowToast }: SettingsViewProps) 
             <span>Audio & Output Volume</span>
           </h3>
 
-          {/* Default Volume */}
+          {/* Master Volume — reflects the active player, not a stale saved default */}
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between text-xs">
-              <span className="font-semibold text-white">Default Server Volume</span>
-              <span className="font-mono text-emerald-400">{settings.default_volume}%</span>
+              <span className="font-semibold text-white">Master Volume</span>
+              <span className="font-mono text-emerald-400">{liveMasterVolume}%</span>
             </div>
             <input
               type="range"
-              min="10"
+              min="0"
               max="150"
-              value={settings.default_volume}
-              onChange={(e) =>
-                setSettings({ ...settings, default_volume: Number(e.target.value) })
-              }
-              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400"
+              step="1"
+              value={liveMasterVolume}
+              disabled={volumeUpdating}
+              onChange={(e) => setLiveMasterVolume(Number(e.target.value))}
+              onPointerUp={(e) => {
+                void handleLiveVolumeChange(Number((e.currentTarget as HTMLInputElement).value));
+              }}
+              onKeyUp={(e) => {
+                if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key)) {
+                  void handleLiveVolumeChange(Number((e.currentTarget as HTMLInputElement).value));
+                }
+              }}
+              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-emerald-400 disabled:opacity-60"
+              aria-label="Master volume"
             />
-            <span className="text-[10px] text-(--text-dim)">Standard: 1-100% • VIP Boost: Up to 150%</span>
+            <span className="text-[10px] text-(--text-dim)">
+              {volumeUpdating ? "Applying volume…" : "Shows the current master volume and syncs every 3 seconds with the active player."}
+            </span>
           </div>
 
           {/* Autoplay toggle */}
